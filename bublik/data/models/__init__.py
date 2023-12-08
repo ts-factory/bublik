@@ -49,7 +49,7 @@ from .result import (
     TestIterationRelation,
     TestIterationResult,
 )
-from .user import User
+from .user import User, UserManager, UserRoles
 
 
 __all__ = [
@@ -77,4 +77,6 @@ __all__ = [
     'TestIterationResult',
     'MetaResult',
     'User',
+    'UserManager',
+    'UserRoles',
 ]
