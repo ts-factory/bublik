@@ -7,6 +7,8 @@ from django.utils.http import urlsafe_base64_decode
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.backends import TokenBackend
+from rest_framework_simplejwt.exceptions import TokenBackendError
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
@@ -16,12 +18,22 @@ from bublik.data.serializers import (
     TokenPairSerializer,
     UserSerializer,
 )
+from bublik.settings import SIMPLE_JWT
 
 
 __all__ = [
     'RegisterView',
     'LogInView',
+    'ProfileView',
 ]
+
+
+def get_user_info_from_access_token(access_token):
+    token_backend = TokenBackend(
+        algorithm=SIMPLE_JWT['ALGORITHM'],
+        signing_key=SIMPLE_JWT['SIGNING_KEY'],
+    )
+    return token_backend.decode(access_token, verify=True)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -109,3 +121,22 @@ class LogInView(TokenObtainPairView):
         }
         response.status_code = status.HTTP_200_OK
         return response
+
+
+class ProfileView(APIView):
+    serializer_class = UserSerializer
+
+    def get(self, request):
+        # get access token from cookies
+        access_token = request.COOKIES.get('access_token')
+        try:
+            # get user info using access token
+            user_info = get_user_info_from_access_token(access_token)
+            # get user object
+            user = User.objects.get(pk=user_info['user_id'])
+            return Response(self.serializer_class(user).data, status=status.HTTP_200_OK)
+        except TokenBackendError:
+            return Response(
+                {'message': 'Not Authenticated'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from .auth import ActivateView, LogInView, RegisterView
+from .auth import ActivateView, LogInView, ProfileView, RegisterView
 from .dashboard import (
     DashboardFormatting,
     DashboardPayload,
@@ -40,4 +40,5 @@ __all__ = [
     'RegisterView',
     'ActivateView',
     'LogInView',
+    'ProfileView',
 ]
