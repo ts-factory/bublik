@@ -8,8 +8,10 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.backends import TokenBackend
-from rest_framework_simplejwt.exceptions import TokenBackendError
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.exceptions import TokenBackendError, TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.data.models import User
@@ -25,6 +27,7 @@ __all__ = [
     'RegisterView',
     'LogInView',
     'ProfileView',
+    'RefreshTokenView',
 ]
 
 
@@ -138,5 +141,61 @@ class ProfileView(APIView):
         except TokenBackendError:
             return Response(
                 {'message': 'Not Authenticated'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+
+class RefreshTokenView(TokenRefreshView):
+    serializer_class = TokenRefreshSerializer
+
+    def post(self, request):
+        try:
+            # get refresh token from request cookies
+            refresh_token = request.COOKIES.get('refresh_token')
+            refresh_token = RefreshToken(refresh_token)
+
+            # verify refresh token
+            try:
+                refresh_token.verify()
+            except TokenError:
+                return Response(
+                    {'message': 'Not a valid refresh token'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            access_token = refresh_token.access_token
+
+            # get user info and User object
+            user_info = get_user_info_from_access_token(str(access_token))
+            user = User.objects.get(pk=user_info['user_id'])
+
+            # blacklist refresh token
+            refresh_token.blacklist()
+
+            # create new refresh and access tokens for user
+            refresh_token = RefreshToken.for_user(user)
+            access_token = refresh_token.access_token
+            response = Response()
+
+            # invalidate old cookies and set new ones
+            response.set_cookie(
+                key='access_token',
+                value=str(access_token),
+                httponly=True,
+                samesite='Strict',
+            )
+            response.set_cookie(
+                key='refresh_token',
+                value=str(refresh_token),
+                httponly=True,
+                samesite='Strict',
+            )
+            response.data = {
+                'message': 'Successfully refreshed token',
+            }
+            response.status_code = status.HTTP_200_OK
+            return response
+        except Exception as e:
+            return Response(
+                {'message': 'Refresh process failed', 'error': str(e)},
                 status=status.HTTP_401_UNAUTHORIZED,
             )

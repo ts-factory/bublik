@@ -61,6 +61,7 @@ urlpatterns = [
     ),
     path('auth/login/', api_v2.LogInView.as_view(), name='auth_login'),
     path('auth/profile/', api_v2.ProfileView.as_view(), name='auth_profile'),
+    path('auth/refresh/', api_v2.RefreshTokenView.as_view(), name='auth_refresh'),
 ]
 
 if settings.URL_PREFIX:
