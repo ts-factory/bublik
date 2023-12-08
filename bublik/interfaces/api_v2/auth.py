@@ -28,6 +28,7 @@ __all__ = [
     'LogInView',
     'ProfileView',
     'RefreshTokenView',
+    'LogOutView',
 ]
 
 
@@ -197,5 +198,38 @@ class RefreshTokenView(TokenRefreshView):
         except Exception as e:
             return Response(
                 {'message': 'Refresh process failed', 'error': str(e)},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+
+class LogOutView(APIView):
+    def post(self, request):
+        try:
+            refresh_token = request.COOKIES.get('refresh_token')
+            refresh_token = RefreshToken(refresh_token)
+            try:
+                refresh_token.verify()
+            except TokenError:
+                return Response(
+                    {'message': 'Not a valid refresh token'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            refresh_token.blacklist()
+
+            # invalidate old cookies
+            response = Response()
+            response.delete_cookie('refresh_token')
+            response.delete_cookie('access_token')
+
+            response.data = {
+                'message': 'Successfully logged out',
+            }
+            response.status_code = status.HTTP_200_OK
+
+            return response
+        except Exception as e:
+            return Response(
+                {'message': 'Logout process failed', 'error': str(e)},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
