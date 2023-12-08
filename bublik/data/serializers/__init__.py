@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from .auth import RegisterSerializer
 from .eventlog import EventLogSerializer
 from .expectation import (
     ExpectationSerializer,
@@ -40,4 +41,5 @@ __all__ = [
     'TestIterationRelationSerializer',
     'TestIterationResultSerializer',
     'MetaResultSerializer',
+    'RegisterSerializer',
 ]

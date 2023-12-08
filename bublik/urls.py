@@ -53,6 +53,12 @@ urlpatterns = [
     re_path(r'v1/tests_run/(?P<run_id>[0-9]+)$', main_api.redirect_tests_run),
     re_path(r'v1/result_log/(?:(?P<result_id>[0-9]+)?)$', main_api.redirect_result_log),
     re_path(r'next/(?:.*)/?$', main_api.redirect_next),
+    path('auth/register/', api_v2.RegisterView.as_view(), name='auth_register'),
+    path(
+        'auth/register/activate/<str:user_id_b64>/<str:token>/',
+        api_v2.ActivateView.as_view(),
+        name='auth_register_activate',
+    ),
 ]
 
 if settings.URL_PREFIX:

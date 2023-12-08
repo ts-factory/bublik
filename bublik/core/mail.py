@@ -4,8 +4,13 @@
 from urllib.parse import urljoin
 
 from django.conf import settings
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 import per_conf
+
+from bublik.settings import BUBLIK_HOST, EMAIL_FROM, URL_PREFIX
 
 
 def send_importruns_failed_mail(
@@ -53,3 +58,30 @@ def send_importruns_failed_mail(
     message = '\n'.join(message_lines)
 
     return send_mail(subject, message, email_from, recipients, fail_silently=False)
+
+
+class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
+    def _make_hash_value(self, user, timestamp):
+        return str(user.is_active) + str(user.pk) + str(timestamp)
+
+
+def send_verification_link_mail(user):
+    '''
+    Sends an email to the user with a link that activates his account when clicked.
+    '''
+    email_verification_token = EmailVerificationTokenGenerator()
+    user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
+    token = email_verification_token.make_token(user)
+
+    # construct the verification link URL
+    verify_email_link = f'{BUBLIK_HOST}'
+    if URL_PREFIX:
+        verify_email_link += f'/{URL_PREFIX}'
+    verify_email_link += f'/v2/auth/register/activate/{user_id_b64}/{token}/'
+
+    send_mail(
+        subject='Verify email',
+        message=f'Click the following link to verify your email: {verify_email_link}',
+        from_email=EMAIL_FROM,
+        recipient_list=[user.email],
+    )

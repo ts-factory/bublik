@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from .auth import ActivateView, RegisterView
 from .dashboard import (
     DashboardFormatting,
     DashboardPayload,
@@ -36,4 +37,6 @@ __all__ = [
     'EventLogViewSet',
     'meta_categorization',
     'local_logs',
+    'RegisterView',
+    'ActivateView',
 ]
