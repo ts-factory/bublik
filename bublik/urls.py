@@ -59,6 +59,7 @@ urlpatterns = [
         api_v2.ActivateView.as_view(),
         name='auth_register_activate',
     ),
+    path('auth/login/', api_v2.LogInView.as_view(), name='auth_login'),
 ]
 
 if settings.URL_PREFIX:

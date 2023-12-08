@@ -32,6 +32,7 @@ django-redis-cache==2.1.0
 django-six==1.0.4
 django-static-jquery==2.1.4
 djangorestframework==3.13.1
+djangorestframework-simplejwt
 flake8==3.9.2
 flower==0.9.2
 flynt==0.64

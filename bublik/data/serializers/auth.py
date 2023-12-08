@@ -6,12 +6,15 @@ import typing
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from bublik.data.models import User
 
 
 __all__ = [
     'RegisterSerializer',
+    'TokenPairSerializer',
+    'UserSerializer',
 ]
 
 
@@ -54,3 +57,26 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+
+class TokenPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['email'] = user.email
+        return token
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model: typing.ClassVar = User
+        fields: typing.ClassVar['str'] = [
+            'pk',
+            'email',
+            'password',
+            'first_name',
+            'last_name',
+            'roles',
+            'is_active',
+        ]
+        extra_kwargs: typing.ClassVar['dict'] = {'password': {'write_only': True}}
