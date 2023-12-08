@@ -3,7 +3,9 @@
 
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils.http import urlsafe_base64_decode
+from django.core.mail import send_mail
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,11 +18,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.data.models import User
 from bublik.data.serializers import (
+    ForgotPasswordSerializer,
+    PasswordResetSerializer,
     RegisterSerializer,
     TokenPairSerializer,
     UserSerializer,
 )
-from bublik.settings import SIMPLE_JWT
+from bublik.settings import BUBLIK_HOST, EMAIL_FROM, SIMPLE_JWT, URL_PREFIX
 
 
 __all__ = [
@@ -29,6 +33,8 @@ __all__ = [
     'ProfileView',
     'RefreshTokenView',
     'LogOutView',
+    'ForgotPasswordView',
+    'ForgotPasswordResetView',
 ]
 
 
@@ -233,3 +239,69 @@ class LogOutView(APIView):
                 {'message': 'Logout process failed', 'error': str(e)},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+
+class ForgotPasswordView(generics.CreateAPIView):
+    serializer_class = ForgotPasswordSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+
+        try:
+            user = User.objects.get(email=email)
+        except ObjectDoesNotExist:
+            return Response(
+                'No user found with this email',
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # generate a password reset token
+        user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
+        token_serializer = TokenPairSerializer()
+        access_token = token_serializer.get_token(user).access_token
+
+        # construct the reset link URL
+        reset_link = f'{BUBLIK_HOST}'
+        if URL_PREFIX:
+            reset_link += f'/{URL_PREFIX}'
+        reset_link += f'/v2/auth/forgot_password/password_reset/{user_id_b64}/{access_token}/'
+
+        # send the reset link to the user
+        send_mail(
+            subject='Password Reset',
+            message=f'Click the following link to reset your password: {reset_link}',
+            from_email=EMAIL_FROM,
+            recipient_list=[user.email],
+        )
+
+        return Response('Password reset link sent successfully', status=status.HTTP_200_OK)
+
+
+class ForgotPasswordResetView(generics.UpdateAPIView):
+    serializer_class = PasswordResetSerializer
+
+    def update(self, request, *args, **kwargs):
+        user_id_b64 = kwargs['user_id_b64']
+        access_token = kwargs['token']
+        try:
+            uid = urlsafe_base64_decode(user_id_b64).decode()
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, ObjectDoesNotExist):
+            user = None
+
+        if user and get_user_info_from_access_token(access_token):
+            # validate new password
+            new_passwords = request.data
+            serializer = self.serializer_class(data=new_passwords)
+            serializer.validate_passwords(new_passwords)
+            # password reset
+            user.set_password(new_passwords['new_password'])
+            user.save()
+
+            # blacklist old refresh tokens
+            RefreshToken.for_user(user).blacklist()
+
+            return Response('Password reset successfully', status=status.HTTP_200_OK)
+        return Response('Invalid reset link', status=status.HTTP_401_UNAUTHORIZED)

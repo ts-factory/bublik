@@ -63,6 +63,16 @@ urlpatterns = [
     path('auth/profile/', api_v2.ProfileView.as_view(), name='auth_profile'),
     path('auth/refresh/', api_v2.RefreshTokenView.as_view(), name='auth_refresh'),
     path('auth/logout/', api_v2.LogOutView.as_view(), name='auth_logout'),
+    path(
+        'auth/forgot_password/',
+        api_v2.ForgotPasswordView.as_view(),
+        name='auth_forgot_password',
+    ),
+    path(
+        'auth/forgot_password/password_reset/<str:user_id_b64>/<str:token>/',
+        api_v2.ForgotPasswordResetView.as_view(),
+        name='auth_forgot_password_password_reset',
+    ),
 ]
 
 if settings.URL_PREFIX:

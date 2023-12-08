@@ -3,6 +3,8 @@
 
 from .auth import (
     ActivateView,
+    ForgotPasswordResetView,
+    ForgotPasswordView,
     LogInView,
     LogOutView,
     ProfileView,
@@ -50,4 +52,6 @@ __all__ = [
     'ProfileView',
     'RefreshTokenView',
     'LogOutView',
+    'ForgotPasswordView',
+    'ForgotPasswordResetView',
 ]
