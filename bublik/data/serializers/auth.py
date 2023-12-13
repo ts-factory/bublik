@@ -6,6 +6,7 @@ import typing
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -100,6 +101,10 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 
 class PasswordResetSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+        required=False,
+    )
     new_password = serializers.CharField(
         write_only=True,
         required=True,
@@ -114,3 +119,10 @@ class PasswordResetSerializer(serializers.Serializer):
         # Check if the new password fields match
         if passwords['new_password'] != passwords['new_password_confirm']:
             raise serializers.ValidationError({'new_password': "Password fields don't match"})
+
+    def current_password_check(self, user, current_password):
+        # Check if the passed current password is valid for the passed user
+        if not user.check_password(current_password):
+            raise AuthenticationFailed(
+                {'current_password': 'Invalid password'},
+            )

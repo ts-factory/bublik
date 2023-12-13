@@ -29,6 +29,7 @@ api_v2_router.register(r'outside_domains', api_v2.OutsideDomainsViewSet, 'outsid
 api_v2_router.register(r'measurements', api_v2.MeasurementViewSet, 'measurements')
 api_v2_router.register(r'session_import', api_v2.EventLogViewSet, 'session_import')
 api_v2_router.register(r'importruns', api_v2.ImportrunsViewSet, 'importruns')
+api_v2_router.register(r'auth/profile', api_v2.ProfileViewSet, 'profile')
 
 ### URL patterns mounting ###
 urlpatterns = [
@@ -60,7 +61,6 @@ urlpatterns = [
         name='auth_register_activate',
     ),
     path('auth/login/', api_v2.LogInView.as_view(), name='auth_login'),
-    path('auth/profile/', api_v2.ProfileView.as_view(), name='auth_profile'),
     path('auth/refresh/', api_v2.RefreshTokenView.as_view(), name='auth_refresh'),
     path('auth/logout/', api_v2.LogOutView.as_view(), name='auth_logout'),
     path(

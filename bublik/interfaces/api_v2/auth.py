@@ -7,8 +7,10 @@ from django.core.mail import send_mail
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError, TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
@@ -30,7 +32,7 @@ from bublik.settings import BUBLIK_HOST, EMAIL_FROM, SIMPLE_JWT, URL_PREFIX
 __all__ = [
     'RegisterView',
     'LogInView',
-    'ProfileView',
+    'ProfileViewSet',
     'RefreshTokenView',
     'LogOutView',
     'ForgotPasswordView',
@@ -133,10 +135,14 @@ class LogInView(TokenObtainPairView):
         return response
 
 
-class ProfileView(APIView):
-    serializer_class = UserSerializer
+class ProfileViewSet(GenericViewSet):
+    def get_serializer_class(self):
+        if self.action == 'password_reset':
+            return PasswordResetSerializer
+        return UserSerializer
 
-    def get(self, request):
+    @action(detail=False, methods=['get'])
+    def info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
         try:
@@ -144,7 +150,39 @@ class ProfileView(APIView):
             user_info = get_user_info_from_access_token(access_token)
             # get user object
             user = User.objects.get(pk=user_info['user_id'])
-            return Response(self.serializer_class(user).data, status=status.HTTP_200_OK)
+            serializer_class = self.get_serializer_class()
+            return Response(serializer_class(user).data, status=status.HTTP_200_OK)
+        except TokenBackendError:
+            return Response(
+                {'message': 'Not Authenticated'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+    @action(detail=False, methods=['post'])
+    def password_reset(self, request):
+        # get access token from cookies
+        access_token = request.COOKIES.get('access_token')
+        try:
+            # get user info using access token
+            user_info = get_user_info_from_access_token(access_token)
+            # get user object
+            user = User.objects.get(pk=user_info['user_id'])
+
+            # check current password and validate new password
+            passwords = request.data
+            serializer_class = self.get_serializer_class()
+            serializer = serializer_class(data=passwords)
+            serializer.current_password_check(user, passwords['current_password'])
+            serializer.validate_passwords(passwords)
+
+            # password reset
+            user.set_password(passwords['new_password'])
+            user.save()
+
+            # blacklist old refresh tokens
+            RefreshToken.for_user(user).blacklist()
+
+            return Response('Password reset successfully', status=status.HTTP_200_OK)
         except TokenBackendError:
             return Response(
                 {'message': 'Not Authenticated'},
