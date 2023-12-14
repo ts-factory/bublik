@@ -1,13 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from functools import wraps
+
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
+from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.views.decorators.cache import never_cache
 from rest_framework import generics, status
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
@@ -18,12 +23,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
-from bublik.data.models import User
+from bublik.data.models import User, UserRoles
 from bublik.data.serializers import (
-    ForgotPasswordSerializer,
     PasswordResetSerializer,
     RegisterSerializer,
     TokenPairSerializer,
+    UserEmailSerializer,
     UserSerializer,
 )
 from bublik.settings import BUBLIK_HOST, EMAIL_FROM, SIMPLE_JWT, URL_PREFIX
@@ -37,6 +42,7 @@ __all__ = [
     'LogOutView',
     'ForgotPasswordView',
     'ForgotPasswordResetView',
+    'AdminViewSet',
 ]
 
 
@@ -46,6 +52,52 @@ def get_user_info_from_access_token(access_token):
         signing_key=SIMPLE_JWT['SIGNING_KEY'],
     )
     return token_backend.decode(access_token, verify=True)
+
+
+def admin_required(function):
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        request = None
+
+        # Check if 'request' is present in the keyword arguments
+        if 'request' in kwargs and isinstance(kwargs['request'], Request):
+            request = kwargs['request']
+        # Check if the first argument is an instance of Request
+        elif args and isinstance(args[0], Request):
+            request = args[0]
+        # Check if the first argument has a 'request' attribute (ViewSet case)
+        elif hasattr(args[0], 'request') and isinstance(args[0].request, Request):
+            request = args[0].request
+
+        if request:
+            access_token = request.COOKIES.get('access_token')
+            try:
+                # get user
+                user_info = get_user_info_from_access_token(access_token=access_token)
+                user = User.objects.get(pk=user_info['user_id'])
+            except TokenBackendError:
+                return Response(
+                    {'message': 'Not Authenticated'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            # check if user is admin
+            if UserRoles.ADMIN in user.roles:
+                # call the original function
+                return function(*args, **kwargs)
+
+            return Response(
+                {'message': 'You are not authorized to perform this action'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # Handle regular function call without a request object
+        return Response(
+            {'message': 'Wrong request'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    return wrapper
 
 
 class RegisterView(generics.CreateAPIView):
@@ -280,7 +332,7 @@ class LogOutView(APIView):
 
 
 class ForgotPasswordView(generics.CreateAPIView):
-    serializer_class = ForgotPasswordSerializer
+    serializer_class = UserEmailSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -343,3 +395,66 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
 
             return Response('Password reset successfully', status=status.HTTP_200_OK)
         return Response('Invalid reset link', status=status.HTTP_401_UNAUTHORIZED)
+
+
+class AdminViewSet(GenericViewSet):
+    queryset = User.objects.all()
+
+    def get_serializer_class(self):
+        if self.action == 'create_user':
+            return RegisterSerializer
+        if self.action == 'deactivate_user':
+            return UserEmailSerializer
+        return UserSerializer
+
+    @admin_required
+    @action(detail=False, methods=['post'])
+    def create_user(self, request):
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.validate(request.data)
+        user = serializer.create(request.data)
+        send_verification_link_mail(user)
+        return Response(
+            'A verification link has been sent to the user\'s email address',
+            status=status.HTTP_200_OK,
+        )
+
+    @admin_required
+    @action(detail=False, methods=['post'])
+    def update_user(self, request):
+        edit_user_email = request.data.get('email')
+        # get user to edit
+        edit_user = User.objects.get(email=edit_user_email)
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(edit_user)
+        # update user
+        serializer.update(
+            user=edit_user,
+            data=request.data,
+        )
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @admin_required
+    @action(detail=False, methods=['post'])
+    def deactivate_user(self, request):
+        # get user to delete
+        deactivate_user = User.objects.get(email=request.data.get('email'))
+        # deactivate user
+        deactivate_user.is_active = False
+        deactivate_user.save()
+        return Response('The user was deactivated', status=status.HTTP_200_OK)
+
+    @method_decorator(never_cache)
+    @admin_required
+    def list(self, request):
+        serializer_class = self.get_serializer_class()
+        # return all Users info
+        return Response(
+            serializer_class(self.queryset, many=True).data,
+            status=status.HTTP_200_OK,
+        )

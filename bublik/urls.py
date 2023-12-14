@@ -30,6 +30,7 @@ api_v2_router.register(r'measurements', api_v2.MeasurementViewSet, 'measurements
 api_v2_router.register(r'session_import', api_v2.EventLogViewSet, 'session_import')
 api_v2_router.register(r'importruns', api_v2.ImportrunsViewSet, 'importruns')
 api_v2_router.register(r'auth/profile', api_v2.ProfileViewSet, 'profile')
+api_v2_router.register(r'auth/admin', api_v2.AdminViewSet, 'admin')
 
 ### URL patterns mounting ###
 urlpatterns = [

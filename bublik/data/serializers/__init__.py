@@ -2,10 +2,10 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from .auth import (
-    ForgotPasswordSerializer,
     PasswordResetSerializer,
     RegisterSerializer,
     TokenPairSerializer,
+    UserEmailSerializer,
     UserSerializer,
 )
 from .eventlog import EventLogSerializer
@@ -50,6 +50,6 @@ __all__ = [
     'RegisterSerializer',
     'TokenPairSerializer',
     'UserSerializer',
-    'ForgotPasswordSerializer',
+    'UserEmailSerializer',
     'PasswordResetSerializer',
 ]

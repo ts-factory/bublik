@@ -17,7 +17,7 @@ __all__ = [
     'RegisterSerializer',
     'TokenPairSerializer',
     'UserSerializer',
-    'ForgotPasswordSerializer',
+    'UserEmailSerializer',
     'PasswordResetSerializer',
 ]
 
@@ -85,8 +85,26 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs: typing.ClassVar['dict'] = {'password': {'write_only': True}}
 
+    def update(self, user, data):
+        first_name = data.get('first_name', None)
+        last_name = data.get('last_name', None)
 
-class ForgotPasswordSerializer(serializers.Serializer):
+        # Update the fields according to the passed data
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+
+        # Update the password if provided
+        password = data.get('password', None)
+        if password:
+            validate_password(password)
+            user.set_password(password)
+
+        user.save()
+
+
+class UserEmailSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
