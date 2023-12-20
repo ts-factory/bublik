@@ -1,0 +1,12 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (C) 2016-2022 OKTET Labs Ltd. All rights reserved. -->
+
+{% extends "bublik/base.html" %}
+
+{% block title %}{{ alert_type|upper }}: {{ view }}{% endblock %}
+
+{% block content %}
+  <div class="alert alert-{{ alert_type }} m-10">
+    <strong>{{ alert_type|upper }}: </strong> {{ detail }}
+  </div>
+{% endblock %}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Celery Service
+Before=bublik-flower.service
+
+[Service]
+Type=forking
+WorkingDirectory=${BUBLIK_SRC}
+ExecStart=${SCRIPTS_DIR}/runcelery
+ExecStop=/bin/bash -c 'pkill -9 -f "celery worker"'
+ExecRestart=/bin/bash -c 'pkill -9 -f "celery worker"' && ${SCRIPTS_DIR}/runcelery
+StartLimitIntervalSec=11
+StartLimitBurst=5
+RestartSec=2
+
+
+[Install]
+WantedBy=default.target

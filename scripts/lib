@@ -1,0 +1,72 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+set -e
+
+trap 'fail Unexpected error' ERR
+
+fail () {
+  echo "" >&2
+  echo "========================================================="
+  echo "$@" >&2
+  echo ""
+  echo "Stack:"
+  for i in ${FUNCNAME[@]} ; do
+    echo "    $i"
+  done
+
+  exit 1
+}
+
+# Read file $1, expand env variables inside it and save result to $2.
+# setting BUBLIK_USER group owner and given 644 access rights to it.
+expand_env_mv() {
+  local src=$1
+  local dst=$2
+  local tmp=$(mktemp -t bublik.XXXXXXX.tmp)
+
+  cat $src | envsubst > $tmp || fail "failed to prepare user config $src"
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$dst"
+}
+
+# Read file $1, expand env variables inside it and save result to $2
+# setting root owner and given 644 access rights to it.
+sudo_expand_env_mv() {
+  local src=$1
+  local dst=$2
+  local tmp=$(mktemp -t bublik.XXXXXXX.tmp)
+
+  cat $src | envsubst > $tmp || fail "failed to prepare root config $src"
+  sudo chown root:root "$tmp"
+  sudo chmod 644 "$tmp"
+  sudo mv -f "$tmp" "$dst"
+}
+
+function step() {
+  $QUIET && return 0
+  echo -n "STEP: $@"
+  result=0
+  $ASK && while true ; do read -p ' [Yn] ' yn
+    case $yn in
+      ""|[Yy]*)
+        CURRENT_STEP_SKIPPED=false
+        result=0
+        break
+        ;;
+      [Nn]*)
+        CURRENT_STEP_SKIPPED=true
+        result=1
+        break
+        ;;
+      *) echo "Please answer yes or no." ;;
+    esac
+  done
+  return $result
+}
+
+function message() {
+  local msg="$*"
+  test -z "$msg" || echo "  $msg" >&2
+}

@@ -1,0 +1,348 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+from datetime import datetime
+import logging
+import os
+import shutil
+import tempfile
+
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+from django.core.management.base import BaseCommand
+import pendulum
+import per_conf
+
+from references import References
+
+from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url
+from bublik.core.checks import check_per_conf, check_run_file
+from bublik.core.importruns import categorization, extract_logs_base
+from bublik.core.importruns.source import incremental_import
+from bublik.core.importruns.telog import JSONLog
+from bublik.core.run.actions import prepare_cache_for_completed_run
+from bublik.core.run.metadata import MetaData
+from bublik.core.run.objects import add_import_id, add_references, add_run_log
+from bublik.core.url import fetch_url, save_url_to_dir
+from bublik.core.utils import Counter, create_event
+from bublik.data.models import EventLog
+
+
+logger = logging.getLogger('bublik.server')
+
+
+def runtime(start_time):
+    return (datetime.now() - start_time).total_seconds()
+
+
+class HTTPDirectoryTraverser:
+    def __init__(self, url, task_msg, start_time=None):
+        super().__init__()
+
+        self.url = url
+        self.task_msg = task_msg
+        self.start_time = start_time
+
+    def __find_runs(
+        self,
+        url,
+    ):
+        html = fetch_url(url, quiet_404=True)
+        if not html:
+            logger.error(f'HTTP error occurred, ignoring: {url}')
+            if self.start_time:
+                msg = (
+                    f'failed import {url} '
+                    f'-- {self.task_msg} '
+                    f'-- Error: HTTP error occurred '
+                    f'-- runtime: {runtime(self.start_time)} sec'
+                )
+            else:
+                msg = f'failed import {url} -- {self.task_msg} -- Error: HTTP error occurred'
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.ERR,
+                msg=msg,
+            )
+            return
+
+        ast = BeautifulSoup(markup=html, features='html.parser')
+        if ast.find(
+            lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
+        ):
+            logger.info(f'run compromised, ignoring: {url}')
+            return
+
+        if check_run_file('meta_data.txt', url):
+            yield url
+            return
+
+        if check_run_file('meta_data.json', url):
+            yield url
+            return
+
+        # NOTE: the parser relies on links to directories ending with a slash "/"
+        for node in ast.find_all(
+            lambda t: t.name == 'a'
+            and hasattr(t, 'href')
+            and not t['href'].startswith('..')
+            and t['href'].endswith('/'),
+        ):
+            a_href = node['href'].strip()
+            url_next = urljoin(url + '/', a_href)
+
+            yield from self.__find_runs(url_next)
+
+    def find_runs(self):
+        if not check_per_conf('RUN_COMPLETE_FILE', logger, self.url):
+            return
+        yield from self.__find_runs(self.url)
+
+
+class Command(BaseCommand):
+    help = 'Import test runs stored on a remote server to the local database'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '-f',
+            '--from',
+            type=parser_type_date,
+            default=datetime.min,
+            help='Fetch logs created at the given date or later',
+        )
+        parser.add_argument(
+            '-t',
+            '--to',
+            type=parser_type_date,
+            default=datetime.max,
+            help='Fetch logs created at the given date or prior',
+        )
+        parser.add_argument(
+            '--id',
+            type=str,
+            help='Log id determing the server logfile',
+        )
+        parser.add_argument(
+            'url',
+            type=parser_type_url,
+            help='URL of the logs storage directory',
+        )
+        parser.add_argument(
+            '--force',
+            type=parser_type_force,
+            default=False,
+            help='Re-import the run over the existing one',
+        )
+
+    def import_run(self, run_url, force, run_id=None, date_from=None, date_to=None):
+        import_run_start_time = datetime.now()
+        task_msg = f'Celery task ID {run_id}' if run_id else 'No Celery task ID'
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'started import {run_url} -- {task_msg}',
+        )
+
+        logger.info('downloading run logs: %s', run_url)
+
+        suffix_url = extract_logs_base(run_url)
+        if not suffix_url:
+            logger.error(f"run url doesn't matched project references, ignoring: {run_url}")
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.ERR,
+                msg=f'failed import {run_url} '
+                f'-- {task_msg} '
+                f'-- Error: URL doesn\'t match project references '
+                f'-- runtime: {runtime(import_run_start_time)} sec',
+            )
+            return
+
+        process_dir = None
+        try:
+            # Create temp dir for logs processing
+            process_dir = tempfile.mkdtemp()
+
+            logger.info(f'downloading and parsing meta_data at {process_dir=}')
+
+            # Fetch meta_data.json if available
+            meta_data_saved = save_url_to_dir(run_url, process_dir, 'meta_data.json')
+
+            # Fetch available logs
+            if not save_url_to_dir(run_url, process_dir, 'bublik.xml'):
+                if not save_url_to_dir(run_url, process_dir, 'log.json.xz'):
+                    if not save_url_to_dir(run_url, process_dir, 'log.xml.xz'):
+                        save_url_to_dir(run_url, process_dir, 'raw_log_bundle.tpxz')
+
+            # Convert and load JSON log
+            json_data = JSONLog().convert_from_dir(process_dir)
+
+            if meta_data_saved:
+                # Load meta_data.json
+                meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'))
+            else:
+                # Save to process dir available files for generating metadata
+                files_to_try = getattr(
+                    per_conf,
+                    'FILES_TO_GENERATE_METADATA',
+                    ['meta_data.txt'],
+                )
+                for filename in files_to_try:
+                    filename_saved = save_url_to_dir(run_url, process_dir, filename)
+                    if filename_saved:
+                        logger.info(f'Save {filename} for generating metadata')
+
+                # Generate meta_data.json from available data
+                meta_data = MetaData.generate(process_dir)
+
+            # Filter out runs that don't fit the specified interval
+            if not meta_data.check_run_period(date_from, date_to):
+                logger.debug(
+                    'run isn\'t satisfy '
+                    f'the period {date_from.to_date_string()} - '
+                    f'{date_to.to_date_string()}, ignoring: {run_url}',
+                )
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=EventLog.SeverityChoices.WARNING,
+                    msg=f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: run doesn\'t satisfy time period '
+                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                )
+                return
+
+            if meta_data_saved:
+                run_completed = check_run_file(per_conf.RUN_COMPLETE_FILE, run_url, logger)
+            else:
+                # Always count Logs without meta_data.json as completed
+                run_completed = True
+
+            # Import run incrementally
+            logger.info('the process of incremental import of run logs is started')
+            start_time = datetime.now()
+            run = incremental_import(json_data, meta_data, run_completed, force)
+            logger.info(
+                f'the process of incremental import of run logs is completed in ['
+                f'{datetime.now() - start_time}]',
+            )
+
+            if run:
+                logger.info('the process of adding import id is started')
+                start_time = datetime.now()
+                add_import_id(run, run_id)
+                logger.info(
+                    f'the process of adding import id is completed in ['
+                    f'{datetime.now() - start_time}]',
+                )
+
+                logger.info('the process of adding references is started')
+                start_time = datetime.now()
+                log_references = add_references(References.logs)
+                logger.info(
+                    f'the process of adding references is completed in ['
+                    f'{datetime.now() - start_time}]',
+                )
+
+                logger.info('the process of adding run log is started')
+                start_time = datetime.now()
+                add_run_log(run, suffix_url, log_references['LOGS_BASE'])
+                logger.info(
+                    f'the process of adding run log is completed in ['
+                    f'{datetime.now() - start_time}]',
+                )
+
+                categorization.categorize_metas(meta_data=meta_data)
+
+                logger.info('the process of preparing cache for complited run is started')
+                start_time = datetime.now()
+                prepare_cache_for_completed_run(run)
+                logger.info(
+                    f'the process of preparing cache for complited run is completed in ['
+                    f'{datetime.now() - start_time}]',
+                )
+
+                logger.info(f'run id is {run.id}')
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=EventLog.SeverityChoices.INFO,
+                    msg=f'successful import {run_url} '
+                    f'-- run_id={run.id} '
+                    f'-- {task_msg} '
+                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                )
+            else:
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=EventLog.SeverityChoices.WARNING,
+                    msg=f'session logs weren\'t processed {run_url} '
+                    f'-- {task_msg} '
+                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                )
+                logger.info("run logs weren't processed")
+
+        except Exception as e:
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.ERR,
+                msg=f'failed import {run_url} '
+                f'-- {task_msg} '
+                f'-- Error: {e!s} '
+                f'-- runtime: {runtime(import_run_start_time)} sec',
+            )
+            logger.error(str(e))
+
+        finally:
+            # Cleanup temporary dir
+            if process_dir and os.path.isdir(process_dir):
+                try:
+                    shutil.rmtree(process_dir)
+                except OSError as e:
+                    logger.error(
+                        f'[Importruns] Failed to remove {process_dir=} ({e.strerror})',
+                    )
+
+    def handle(self, *args, **options):
+        start_time = datetime.now()
+        counter = Counter()
+
+        # Log URLs without a training slash are valid, but they don't pass
+        # Kerberos authorization check (bug 11109, bug 11168).
+        init_url = options['url']
+        if not init_url.endswith('/'):
+            init_url += '/'
+
+        force = options['force']
+        task_msg = f'Celery task ID {options["id"]}' if options['id'] else 'No Celery task ID'
+
+        spear = HTTPDirectoryTraverser(init_url, task_msg=task_msg, start_time=start_time)
+
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'started processing the path {init_url} -- {task_msg}',
+        )
+
+        # Max out the given dates to make them inclusive
+        date_from = pendulum.instance(datetime.combine(options['from'], datetime.min.time()))
+        date_to = pendulum.instance(datetime.combine(options['to'], datetime.max.time()))
+
+        for run_url in spear.find_runs():
+            self.import_run(
+                run_url,
+                force,
+                run_id=options['id'],
+                date_from=date_from,
+                date_to=date_to,
+            )
+            counter.increment()
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'finished processing the path {init_url} '
+            f'-- {task_msg} '
+            f'-- {counter.counter} sessions were processed '
+            f'-- runtime: {runtime(start_time)} sec',
+        )
+        logger.info(f'completed in [{datetime.now() - start_time}]')

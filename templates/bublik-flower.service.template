@@ -1,0 +1,16 @@
+[Unit]
+Description=Flower Celery Service
+Requires=bublik-celery.service
+After=bublik-celery.service
+
+[Service]
+Type=forking
+WorkingDirectory=${BUBLIK_SRC}
+ExecStart=${SCRIPTS_DIR}/runflower
+Restart=on-failure
+StartLimitIntervalSec=11
+RestartSec=2
+StartLimitBurst=5
+
+[Install]
+WantedBy=default.target

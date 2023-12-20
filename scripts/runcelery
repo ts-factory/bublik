@@ -1,0 +1,10 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+source "$(dirname $0)/manage"
+cd "${BUBLIK_SRC}"
+
+celery -A ${CELERY_APP} worker \
+  --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} \
+  -l ${CELERY_LOG_LEVEL} ${CELERY_OPTS}&

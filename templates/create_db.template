@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -ue
+
+# When trust authentication is specified, PostgreSQL assumes that
+# anyone who can connect to the server is authorized to access the database
+# (with any specified database user name).
+#
+sed -i '/^local \+all \+postgres/c\local    all    postgres    trust' ${PG_HBA_CONF}
+
+# Limit connections accepted by PostgreSQL (make it accept only bublik's connections).
+#
+sed -e 's/^host \+all/# \0/' ${PG_HBA_CONF}
+echo "host    ${BUBLIK_USER}    ${BUBLIK_USER}    ${IPv4}/32    md5" >> ${PG_HBA_CONF}
+
+# By default PostgreSQL listen to only localhost,
+# so to listen all (or some) interfaces, we need to edit postgresql.conf.
+#
+sed -i "/^#\?listen_addresses/c\listen_addresses = '*'" ${POSTGRES_CONF}
+
+systemctl restart postgresql
+
+psql -U postgres << EOF
+CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';
+CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};
+GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} to ${DB_USER};
+ALTER USER ${DB_USER} CREATEDB;
+EOF

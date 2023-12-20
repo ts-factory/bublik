@@ -1,0 +1,35 @@
+# Copy this file to /etc/nginx/sites-available/bublik
+# sudo ln -s /etc/nginx/sites-available/bublik /etc/nginx/sites-enabled
+
+server {
+    listen 80;
+    server_name 0.0.0.0;
+    large_client_header_buffers 16 5120k;
+    
+    location = $URL_PREFIX/favicon.ico { access_log off; log_not_found off; }
+    location $URL_PREFIX/static/ {
+        alias $BUBLIK_WEB_STATIC/static/;
+    }
+
+    location $URL_PREFIX/ {
+        include proxy_params;
+        proxy_pass http://$BUBLIK_BIND_GUNICORN;
+        proxy_read_timeout 300;
+    }
+
+    location $URL_PREFIX/v2/ {
+        alias $BUBLIK_UI_DIR/dist/apps/bublik/;
+        index index.html;
+        try_files ${DOLLAR}uri $URL_PREFIX/v2/index.html;
+    }
+
+    location $URL_PREFIX/flower/ {
+        rewrite ^$URL_PREFIX/flower/(.*)$ /$1 break;
+        proxy_pass http://$BUBLIK_BIND_FLOWER;
+        proxy_set_header Host ${DOLLAR}host;
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade ${DOLLAR}http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

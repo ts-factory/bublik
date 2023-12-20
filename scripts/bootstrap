@@ -1,0 +1,24 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+source "$(dirname $0)/exports"
+
+set -e
+
+pushd "${BUBLIK_SRC}"
+
+ls -1 bublik/data/migrations | grep -v __init__ | while read l; do
+    echo "Remove: ${l}"
+    rm -rf "${l}"
+done
+
+source "${ENV_DIR}/bin/activate"
+
+echo "Remove all data from DB and redis cache"
+./manage.py flush --no-input
+redis-cli flushall
+
+./manage.py makemigrations
+./manage.py migrate
+popd

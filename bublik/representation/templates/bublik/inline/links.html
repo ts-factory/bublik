@@ -1,0 +1,12 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (C) 2016-2022 OKTET Labs Ltd. All rights reserved. -->
+{% for link_data in links_context %}
+    {{ link_data.label }}
+    <a href={{ link_data.href }}>
+        {% if 'displayed_text' in link_data %}
+            {{ link_data.displayed_text }}
+        {% else %}
+            {{ link_data.href }}
+        {% endif %}
+    </a><br>
+{% endfor %}

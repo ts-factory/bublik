@@ -1,0 +1,11 @@
+[Unit]
+Description=Initialises, caches and renews Kerberos ticket to access logs
+Before=bublik-celery.service
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/k5start -L -b -K 60 -f ${KEYTAB} -k /tmp/krb5cc_${BUBLIK_USER_ID} -u ${BUBLIK_PRINCIPAL}
+ExecStop=/usr/bin/kdestroy -c /tmp/krb5cc_${BUBLIK_USER_ID}
+
+[Install]
+WantedBy=default.target

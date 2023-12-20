@@ -1,0 +1,37 @@
+### Python ###
+# Byte-compiled / optimized
+__pycache__/
+*.py[co]
+
+# Distribution / packaging
+.Python
+.env/
+
+# IDE
+.vscode/
+.idea/
+.reviewboardrc
+
+### Django ###
+*.log
+*.pid
+
+bublik/data/migrations/*
+!bublik/data/migrations
+!bublik/data/migrations/__init__.py
+
+logs/
+secret.txt
+flower.db
+
+# Came from templates
+bublik/settings.py
+bublik/general.conf
+scripts/create_db
+
+# Precalculated data
+cache/
+
+# Coverage results
+.coverage
+htmlcov/

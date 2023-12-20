@@ -1,0 +1,141 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+do_black=true
+do_flynt=true
+do_unify=true
+do_ruff=true
+ruff_fix="--fix"
+do_verbose=false
+
+# Files to be fixed
+FILES="bublik scripts"
+
+status=0
+
+help() {
+  cat <<EOF
+# fix all files
+$0 .
+
+# check all files
+$0 -c .
+
+# one file
+$0 <file>
+
+Options:
+
+ -n : switch to 'enable' mode - only enabled things will be done
+ -b : do only black
+ -f : do f-strings
+ -s : unify strings
+ -r : run ruff
+ -c : check-only!
+EOF
+}
+
+try() {
+  $do_verbose && echo $*
+  $*
+}
+
+while [ -n "$1" ] ; do
+  case "$1" in
+    -v)
+      do_verbose=true
+      ;;
+    -n)
+      do_black=false
+      do_flynt=false
+      do_unify=false
+      do_ruff=false
+      ;;
+    -c)
+      do_check=true
+      black_options="--check"
+      flynt_options="-f"
+      unify_options="-c"
+      ruff_fix=""
+      ;;
+    -b)
+      do_black=true
+      ;;
+    -f)
+      do_flynt=true
+      ;;
+    -s)
+      do_unify=true
+      ;;
+    -r)
+      do_ruff=true
+      ;;
+    -h|--help)
+      help
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: '$1'" >&2
+      echo "-------------------------"
+      help
+      exit 1
+      ;;
+    *)
+      FILES="$@"
+      break
+      ;;
+  esac
+  shift
+done
+
+if $do_unify; then
+  # Unifies strings
+  #
+  echo "Running unify"
+  which unify 2>&1 >/dev/null && try unify $unify_options -r --quote \' $FILES
+  unify_status=$?
+  [ $unify_status -eq 0 ] || echo "Unify failed"
+  status=$(( $status || $unify_status ))
+fi
+
+if $do_flynt; then
+  # Converts a code from old "%-formatted" and .format(...) strings into "f-strings".
+  # https://github.com/ikamensh/flynt.
+  #
+  which flynt 2>&1 >/dev/null && try flynt $flynt_options -q $FILES
+  flynt_status=$?
+  [ $flynt_status -eq 0 ] || echo "Flynt failed"
+  status=$(( $status || $flynt_status ))
+fi
+
+if $do_black; then
+  # Format Python code. Makes changes to files in place.
+  # https://github.com/psf/black.
+  #
+  echo "Running black"
+  which black 2>&1 >/dev/null && \
+    try black $black_options --skip-string-normalization $FILES
+  black_status=$?
+  [ $black_status -eq 0 ] || echo "Black failed"
+  status=$(( $status || $black_status ))
+fi
+
+if $do_ruff; then
+  # Run ruff - .
+  # https://github.com/charliermarsh/ruff
+  #
+  if python -c "import ruff"; then
+    echo "Running ruff"
+    which ruff 2>&1 >/dev/null && try ruff check $FILES $ruff_fix
+    ruff_status=$?
+    [ $ruff_status -eq 0 ] || echo "Ruff failed"
+    status=$(( $status || $ruff_status ))
+  else
+    echo "The ruff is not installed"
+  fi
+fi
+
+# Pyformat status.
+#
+exit $status

@@ -1,0 +1,23 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+status=0
+
+# Pytype checks and infers types for your Python code - without requiring type annotations.
+# Pytype is a static analyzer; it does not execute the code it runs on.
+# https://github.com/google/pytype.
+#
+pip show -q pytype && pytype $@
+status=$(( $status | $? ))
+
+# Flake8 checks Python code compliance to PEP8, McCabe complexity and english grammar.
+# Displays the warnings in a per-file, merged output.
+# https://flake8.pycqa.org/en/latest/index.html.
+#
+pip show -q flake8 && flake8 $@
+status=$(( $status | $? ))
+
+# Pyanalize status.
+#
+exit $status

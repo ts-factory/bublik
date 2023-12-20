@@ -1,0 +1,18 @@
+class References:
+    logs = {
+        "LOGS_BASE": {
+            "name": "Test Logs Base",
+            "uri": [
+                "https://ts-factory.io/logs/"
+            ],
+        },
+    }
+
+    revisions = {
+        "TE_REV": {
+            "name": "Test Environment",
+            "uri": [
+                "https://github.com/ts-factory/test-environment"
+            ],
+        },
+    }

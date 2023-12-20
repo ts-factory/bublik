@@ -1,0 +1,13 @@
+[Unit]
+Description=Bublik gunicorn daemon
+
+[Service]
+PIDFile=${BUBLIK_GUNICORN_PID_PATH}
+WorkingDirectory=${BUBLIK_SRC}
+ExecStart=${SCRIPTS_DIR}/rungunicorn
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,736 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+set -e
+
+source "$(dirname $0)/lib"
+
+### Server options available ###
+
+SERVER_OPTIONS=(
+  CONFIG_TO_USE
+  BUBLIK_UI_APP
+  KEYTAB
+  URL_PREFIX
+  BUBLIK_WEB_STATIC_ROOT
+  BUBLIK_USER
+  DB_HOST
+  DB_NAME
+  DB_PORT
+  DB_USER
+  DB_PASSWORD
+)
+
+### Bublik server environment (general.conf) ###
+
+export BUBLIK_USER="bublik"
+export BUBLIK_HOST="$(uname -n)"
+export URL_PREFIX=""
+export BUBLIK_HOME="$(readlink -f $(dirname "$0")/../../)"
+export BUBLIK_SRC="$(readlink -f $(dirname "$0")/../)"
+export BUBLIK_CONF="${BUBLIK_HOME}/bublik-conf"
+export BUBLIK_UI_DIR="${BUBLIK_HOME}/bublik-ui"
+
+export DOLLAR="\$"
+export TMPDIR="/tmp"
+export BUBLIK_WEB_STATIC_ROOT="${BUBLIK_HOME}/nginx"
+export BUBLIK_UI_APP="bublik"
+export TE_BASE="${BUBLIK_HOME}/te/build/inst/default/bin"
+export TEMPLATES_DIR="${BUBLIK_SRC}/templates"
+export ENV_DIR="${BUBLIK_SRC}/.env"
+export SCRIPTS_DIR="${BUBLIK_SRC}/scripts"
+
+# Database
+export DB_NAME="bublik"
+export DB_USER="bublik"
+export DB_PASSWORD="bublik"
+export DB_PORT="5432"
+export DB_HOST="localhost"
+
+# Server logs
+export BUBLIK_LOG_PREFIX="bublik-rest"
+export BUBLIK_LOGDIR="${BUBLIK_SRC}/logs"
+export BUBLIK_LOG="${BUBLIK_LOGDIR}/${BUBLIK_LOG_PREFIX}.log"
+export BUBLIK_ACCESS_LOG="${BUBLIK_LOGDIR}/${BUBLIK_LOG_PREFIX}.access.log"
+export MANAGEMENT_COMMANDS_LOG="${BUBLIK_LOGDIR}/bublik-management-commands"
+
+# Services
+export BIND_HOST="127.0.0.1"
+export BUBLIK_WEB_NAME="Bublik(REST)"
+
+export FLOWER_PORT="5555"
+export FLOWER_URL_PREFIX="flower"
+export FLOWER_PORT="${FLOWER_PORT}"
+export BUBLIK_BIND_FLOWER="${BIND_HOST}:${FLOWER_PORT}"
+
+export GUNICORN_PORT="8000"
+export BUBLIK_BIND_GUNICORN="${BIND_HOST}:${GUNICORN_PORT}"
+
+### Steps ###
+
+declare -a STEPS
+declare -a STEPS_NAMES
+declare -A STEPS_HELP
+declare -A STEPS_RC
+
+### Global variable to track if user has skipped the current step ###
+CURRENT_STEP_SKIPPED=false
+
+function define_step() {
+  local step="$1"
+  local descr="$2"
+  local handler=${3:-${step}_handler}
+  STEPS_NAMES+=("$step")
+  STEPS_HELP["$step"]="$descr"
+}
+
+define_step server_packages          "Install bublik packages (requires root)"
+define_step db_packages              "Install database packages (requires root)"
+define_step general_conf             "Release server options to general.conf"
+define_step create_db                "Create database"
+define_step pip_requirements         "Install requirements"
+define_step secret_key               "Generate django secret key"
+define_step per_project_conf         "Create per-project configs"
+define_step django_settings          "Create django settings"
+define_step enable_linger            "Enable user service management (requires root)"
+define_step kerberos_service         "Create kerberos service"
+define_step celery_service           "Create celery service"
+define_step flower_service           "Create flower service"
+define_step setup_gunicorn           "Setup gunicorn"
+define_step nginx_conf               "Create nginx configs (requires root)"
+define_step bootstrap_db             "Bootstrap bublik database"
+define_step migrate_db               "Migrate bublik database"
+define_step static_files             "Copy bublik static files"
+define_step create_log_dir           "Create bublik log directory"
+define_step run_side_servers         "Run redis, rabbitmq, nginx servers (requires root)"
+define_step run_services             "Run bublik services"
+define_step autostart_services       "Automatically start all services at boot (requires root)"
+define_step reformat_import_logs     "Reformat all import logs to a format close to JSON"
+
+function print_steps_help() {
+  printf "\n  Available steps:\n"
+  for istep in "${STEPS_NAMES[@]}" ; do
+    printf '\t%-22s %-22s\n' "$istep" "${STEPS_HELP[$istep]}"
+  done
+}
+
+function steps_usage() {
+  local msg="$*"
+  message "$msg"
+  print_steps_help
+  test -z "$msg" || exit 1
+}
+
+function add_step() {
+  local provided_step=$1
+  if [[ " ${STEPS[@]} " =~ " ${provided_step} " ]] ; then
+    steps_usage "Step ${provided_step} has been selected more than once."
+  fi
+  if [[ " ${STEPS_NAMES[@]} " =~ " ${provided_step} " ]] ; then
+    STEPS+=("${provided_step}")
+  else
+    steps_usage "Unknown step: ${provided_step}."
+  fi
+}
+
+### Main help ###
+
+function usage () {
+	local msg="$*"
+
+	message "$msg"
+	cat <<- END_OF_USAGE
+
+	  Usage:
+	    * $(basename $0) [-c project-config]
+	      [-h help] [-q quite] [-y no-ask]
+	      [-u user] [-p url-prefix] [-s static-dir] [-F flower-port]
+	      [-N db-name] [-H db-host] [-U db-user] [-W db-password] [-P db-port]
+
+	    * $(basename $0) --steps [steps]             |  if you know exactly what to do
+
+	  See help to read about all options and steps available.
+
+	END_OF_USAGE
+	test -z "$msg" || exit 1
+}
+
+function print_help () {
+	usage
+	cat <<- END_OF_HELP
+	  Available options:
+	    -h                     show this help
+	    -q                     be quiet and do all steps without asking
+	    -y                     do all steps without asking
+	    -c  config             configuration variant to use
+	    -a  react-app          react app in dist/apps/ defining UI-V2 static files
+	    -k  keytab             keytab file for Kerberos auth to get external data
+	    -p  prefix             URL prefix for django server
+	    -s  static-dir         where to put static files
+	    -u  user               system user to run bublik
+	    -F  flower-port        flower binding port (default is ${FLOWER_PORT})
+	    -N  db-name            bublik database name
+	    -U  db-user            bublik database user
+	    -W  db-password        password for bublik database
+	    -H  db-host            hostname of bublik database
+	    -P  db-port            bublik database port connection
+	    --steps  steps         select steps of bublik deploy
+	END_OF_HELP
+  print_steps_help
+}
+
+### Main functions ###
+
+function install_server_packages() {
+  local packages=(
+    g++
+    2to3
+    python3-dev
+    python3-setuptools
+    python3-pip
+    python3-celery
+    rabbitmq-server
+    kstart
+    krb5-user
+    libpq-dev
+    sqlite3
+    nginx
+    virtualenv
+    postgresql-13
+    python3-setuptools
+    libkrb5-dev
+    mercurial
+    gettext-base
+    libdate-manip-perl
+    libjson-perl
+    libxml-parser-perl
+    pixz
+    graphviz
+    redis-server
+)
+  sudo apt update
+  sudo apt -y install "${packages[@]}"
+}
+
+function install_db_packages() {
+# It isn't necessary to have `apt install` with sudo on DB where
+# we have a root access, but when we set up DB on localhost we need sudo.
+#
+  local packages=(
+    postgresql-13
+    systemd
+    net-tools
+    mlocate
+)
+  apt update
+  apt -y install "${packages[@]}"
+  updatedb
+}
+
+function handle_db_execution() {
+# Process situation when we set DB on the same with Bublik host
+#
+  if [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "${BUBLIK_HOST}" ] ; then
+    ssh "root@${DB_HOST}" bash -s
+  else
+    sudo bash -s
+  fi
+}
+
+function check_server_init() {
+  # If general.conf is present the server is considered initialized.
+  #
+  GENERAL_CONF="${BUBLIK_SRC}/bublik/general.conf"
+  test -f "${GENERAL_CONF}"
+}
+
+function handle_side_servers() {
+  local ACTION="$1"
+  local services=(
+    rabbitmq-server # message brokers server
+    redis-server # cache server
+    nginx # web server
+  )
+
+  for service in ${services[*]}; do
+    message "sudo ${ACTION}" $service
+    sudo systemctl "${ACTION}" $service
+  done
+
+  message "sudo reload nginx configs"
+  sudo nginx -s reload
+}
+
+function handle_user_services() {
+  local ACTION="$1"
+  local services=(
+    bublik-logs-ticket
+    bublik-celery
+    bublik-flower
+    bublik-gunicorn
+  )
+
+  for service in ${services[*]}; do
+    message "${ACTION}" $service
+    systemctl --user "${ACTION}" $service
+  done
+
+  if [ "${ACTION}" = "start" ] || [ "${ACTION}" = "restart" ]; then
+    check_repo_revisions
+  fi
+}
+
+function manage_per_project_configs() {
+  local PER_CONF_PATH="$1"
+  local expected_files=(
+    per_conf.py
+    references.py
+    tags.conf
+    meta.conf
+  )
+  local mandatory_files=(
+    per_conf.py
+    references.py
+  )
+  if [ ! -d "${PER_CONF_PATH}" ] ; then
+    message "per-project directory ${PER_CONF_PATH} wasn't found - created"
+    mkdir -p "${PER_CONF_PATH}"
+  fi
+  for file in ${expected_files[*]} ; do
+    if [ ! -e "${PER_CONF_PATH}/${file}" ] ; then
+      if [[ " ${mandatory_files[*]} " =~ " ${file} " ]] ; then
+        message "mandatory file ${file} wasn't found - default created"
+        expand_env_mv "${TEMPLATES_DIR}/${file}.template" \
+                      "${PER_CONF_PATH}/${file}"
+      else
+        message "expected file ${file} wasn't found - empty created"
+        touch "${PER_CONF_PATH}/${file}"
+      fi
+    fi
+  done
+}
+
+function create_bublik_dir() {
+  local PARENT_DIR_PATH="$1"
+  if [ -z "$2" ]; then
+    local GOAL_DIR_PATH="$1"
+  else
+    local GOAL_DIR_PATH="$2"
+  fi
+  test -d "${GOAL_DIR_PATH}" || mkdir -p "${GOAL_DIR_PATH}"
+}
+
+function set_up_service() {
+  local TEMPLATE="$1"
+  local SERVICE="$2"
+
+  mkdir -p "${USER_SERVICES_PATH}"
+  expand_env_mv "${TEMPLATE}" "${SERVICE}"
+  systemctl --user daemon-reload
+}
+
+function create_general_conf() {
+  if [ ! -e "${BUBLIK_SRC}/bublik/general.conf" ] ||
+  step "File general.conf exists. Rewrite?" ; then
+    expand_env_mv "${TEMPLATES_DIR}/general.conf.template" \
+    "${BUBLIK_SRC}/bublik/general.conf"
+  fi
+}
+
+function set_vars_dependent_on_options() {
+  # This variables cannot be set at the top of the file as they depend on
+  # the server options, which should be processed first.
+  export PER_CONF_DIR="${BUBLIK_CONF}/${CONFIG_TO_USE}"
+  export BUBLIK_WEB_STATIC="${BUBLIK_WEB_STATIC_ROOT}/bublik"
+
+  # XDG_RUNTIME_DIR is a path to a user private writable directory that is bound
+  # to the user login time on the machine.
+  export BUBLIK_USER_ID=$(id -u "${BUBLIK_USER}")
+  export XDG_RUNTIME_DIR="/run/user/${BUBLIK_USER_ID}"
+
+  # Depend on XDG_RUNTIME_DIR
+  export BUBLIK_GUNICORN_PID_PATH="${XDG_RUNTIME_DIR}/bublik-gunicorn.pid"
+  export BUBLIK_GUNICORN_SOCK_PATH="${XDG_RUNTIME_DIR}/bublik-gunicorn.socket"
+  export BUBLIK_GUNICORN_SOCK="unix:${BUBLIK_GUNICORN_SOCK_PATH}"
+
+  # Depend on BUBLIK_USER
+  export BUBLIK_USER_HOME="$(eval echo ~${BUBLIK_USER})"
+  export USER_SERVICES_PATH="${BUBLIK_USER_HOME}/.config/systemd/user"
+
+  export GUNICORN_DAEMON_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-gunicorn.service"
+  export CELERY_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-celery.service"
+  export FLOWER_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-flower.service"
+  export LOGS_TICKET_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-logs-ticket.service"
+}
+
+function check_repo_revisions() {
+  if git describe --abbrev=0 ; then
+    REPO_TAG=$(git describe --abbrev=0 --tags)
+    REPO_URL=$(git remote get-url origin)
+    REPO_BRANCH=$(git branch --show-current)
+    LATEST_COMMIT_REV=$(git show -s --format=%h)
+    LATEST_COMMIT_DATE=$(git show -s --format=%cd --date=format:'%Y-%m-%d')
+    LATEST_COMMIT_SUMMARY=$(printf %q "$(git show -s --format=%s)" | sed "s|'|\\\'|g")
+    sed -i "s|'repo_url': .*|'repo_url': '$REPO_URL',|g;
+    s|'repo_branch': .*|'repo_branch': '$REPO_BRANCH',|g;
+    s|'commit_date': .*|'commit_date': '$LATEST_COMMIT_DATE',|g;
+    s|'commit_rev': .*|'commit_rev': '$LATEST_COMMIT_REV',|g;
+    s|'commit_summary': .*|'commit_summary': '$LATEST_COMMIT_SUMMARY',|g;
+    s|'repo_tag': .*|'repo_tag': '$REPO_TAG',|g" \
+     "${BUBLIK_SRC}/bublik/settings.py"
+  fi
+}
+
+### Steps handlers ###
+
+function reformat_import_logs_handler() {
+  step "Reformat all import logs to a format close to JSON" &&
+  source "${ENV_DIR}/bin/activate" &&
+  python "${SCRIPTS_DIR}/import_logs_converter.py" "${MANAGEMENT_COMMANDS_LOG}"
+}
+
+function server_packages_handler() {
+  step "Install packages required for bublik server (requires root)" &&
+  install_server_packages
+}
+
+function db_packages_handler() {
+  step "Install packages required for DB server (requires root)" &&
+  echo "$(typeset -f install_db_packages); install_db_packages" |
+        handle_db_execution
+}
+
+function general_conf_handler() {
+  step "Release server options to the environment, produce general.conf" &&
+  create_general_conf
+}
+
+function secret_key_handler() {
+  step "Generate django secret key" &&
+  source "${ENV_DIR}/bin/activate" && python generate_secret_key.py
+}
+
+function create_db_handler() {
+  step "Create DB" && {
+    # Prepare variables for create_db.template
+    INTERFACES_LIST=($(ls /sys/class/net | grep -v "^lo$"))
+    if [ "${#INTERFACES_LIST[@]}" -gt 1 ]; then
+      read -p "[inet interface name]: " INTERFACE
+    else
+      INTERFACE="${INTERFACES_LIST[0]}"
+    fi
+
+    export POSTGRES_CONF="\
+        $(echo "locate postgresql.conf" | handle_db_execution | grep ^/etc)"
+    export PG_HBA_CONF="\
+        $(echo "locate pg_hba.conf" | handle_db_execution | grep ^/etc)"
+
+    if [ "$DB_HOST" != "localhost" ] &&
+       [ "$DB_HOST" != "${BUBLIK_HOST}" ] ; then
+      export IPv4="\
+        $(ip addr show ${INTERFACE} | grep "inet\b" |
+        awk '{print $2}' | cut -d/ -f1)"
+    else
+      export IPv4="127.0.0.1"
+    fi
+
+    # Generate create_db script saving it on FE server, execute it on DB server
+    expand_env_mv "${TEMPLATES_DIR}/create_db.template" \
+                  "${BUBLIK_SRC}/scripts/create_db"
+    chmod +x $(dirname $0)/create_db
+    cat $(dirname $0)/create_db | handle_db_execution
+  }
+}
+
+function pip_requirements_handler() {
+  step "Install requirements" &&
+  "${BUBLIK_SRC}/scripts/prepare_env"
+}
+
+function secret_key_handler() {
+  step "Generate django secret key" &&
+  source "${ENV_DIR}/bin/activate" && python "${SCRIPTS_DIR}/generate_secret_key.py"
+}
+
+function django_settings_handler() {
+  step "Create Django settings.py" &&
+  if [ ! -e "${BUBLIK_SRC}/bublik/settings.py" ] ||
+  step "File settings.py exists. Rewrite?" ; then
+    expand_env_mv "${TEMPLATES_DIR}/settings.py.template" \
+                  "${BUBLIK_SRC}/bublik/settings.py"
+  fi
+}
+
+function enable_linger_handler() {
+  step "Enable user service management (requires root)" && {
+    if [ -f /var/lib/systemd/linger/${BUBLIK_USER} ] ; then
+      message "User service management is already enabled for ${BUBLIK_USER}"
+    else
+      sudo loginctl enable-linger ${BUBLIK_USER}
+    fi
+  }
+}
+
+function kerberos_service_handler() {
+  test -n "${KEYTAB}" &&
+  step "Create Kerberos service" && {
+    export BUBLIK_PRINCIPAL="$(klist -k ${KEYTAB} | awk 'NR == 4 {print $2}')"
+    if [ ! -e "${LOGS_TICKET_SERVICE_PATH}" ] ||
+    step "Kerberos service exists. Rewrite?"  ; then
+      set_up_service "${TEMPLATES_DIR}/bublik-logs-ticket.service.template" \
+                     "${LOGS_TICKET_SERVICE_PATH}"
+    fi
+  }
+}
+
+function per_project_conf_handler() {
+  step "Create per-project configs" &&
+  manage_per_project_configs "${PER_CONF_DIR}"
+}
+
+function celery_service_handler() {
+  step "Create Celery service" &&
+  if [ ! -e "${CELERY_SERVICE_PATH}" ] ||
+  step "Celery service exists. Rewrite?" ; then
+    set_up_service "${TEMPLATES_DIR}/bublik-celery.service.template" \
+                   "${CELERY_SERVICE_PATH}"
+  fi
+}
+
+function flower_service_handler() {
+  step "Create Flower service" &&
+  if [ ! -e "${FLOWER_SERVICE_PATH}" ] ||
+  step "Flower service exist. Rewrite?" ; then
+    set_up_service "${TEMPLATES_DIR}/bublik-flower.service.template" \
+                   "${FLOWER_SERVICE_PATH}"
+  fi
+}
+
+function setup_gunicorn_handler() {
+  step "Setup Gunicorn" && {
+    if [ ! -e "${GUNICORN_DAEMON_SERVICE_PATH}" ] ||
+    step "Gunicorn daemon service exists. Rewrite?" ; then
+      set_up_service "${TEMPLATES_DIR}/bublik-gunicorn.service.template" \
+                     "${GUNICORN_DAEMON_SERVICE_PATH}"
+    fi
+  }
+}
+
+function nginx_conf_handler() {
+  step "Create Nginx configs (requires root)" &&
+  if [ -n "${BUBLIK_WEB_STATIC}" ] && [ -n "${BUBLIK_WEB_STATIC_ROOT}" ] ; then
+    create_bublik_dir "${BUBLIK_WEB_STATIC_ROOT}" "${BUBLIK_WEB_STATIC}"
+    sudo_expand_env_mv "${TEMPLATES_DIR}/nginx.bublik.template" \
+                       /etc/nginx/sites-available/bublik
+    sudo ln -sf /etc/nginx/sites-available/bublik /etc/nginx/sites-enabled
+    sudo rm -f /etc/nginx/sites-enabled/default
+  fi
+}
+
+function bootstrap_db_handler() {
+  step "Bootstrap Bublik database" && {
+    step "Are you sure? It will remove ALL DATA from the database" &&
+    "${BUBLIK_SRC}/scripts/bootstrap"
+  }
+}
+
+function migrate_db_handler() {
+  step "Migrate Bublik database" && {
+    source "${ENV_DIR}/bin/activate"
+    ${BUBLIK_SRC}/manage.py makemigrations
+    ${BUBLIK_SRC}/manage.py migrate
+  }
+}
+
+function static_files_handler() {
+  step "Copy Bublik static files" && {
+    source "${ENV_DIR}/bin/activate"
+    ${BUBLIK_SRC}/manage.py collectstatic --noinput
+  }
+}
+
+function create_log_dir_handler {
+  step "Create bublik log directory if it doesn't exist" && create_bublik_dir "${BUBLIK_LOGDIR}"
+}
+
+function run_side_servers_handler() {
+  step "Run redis, rabbitmq, nginx servers (requires root)" && {
+    source "${ENV_DIR}/bin/activate"
+    read -p "Choose an action {start|restart|status}: " ACTION
+    case "${ACTION}" in
+      start|restart|status)
+        handle_side_servers "${ACTION}"
+        ;;
+      *)
+        usage "Invalid input: ${ACTION}"
+        ;;
+    esac
+  }
+}
+
+function run_services_handler() {
+  step "Run services" && {
+    source "${ENV_DIR}/bin/activate"
+    read -p "Choose an action {start|restart|status}: " ACTION
+    case "${ACTION}" in
+      start|restart|status)
+        handle_user_services "${ACTION}"
+        ;;
+      *)
+        usage "Invalid input: ${ACTION}"
+        ;;
+    esac
+  }
+}
+
+function autostart_services_handler() {
+  step "Automatically start all services at boot (requires root)" && {
+    # Autostart bublik-* services
+    handle_user_services enable
+    # Autostart side servers
+    handle_side_servers enable
+    sudo rabbitmq-plugins enable rabbitmq_management
+  }
+}
+
+### Process deploy options ###
+
+ASK=true
+QUIET=false
+STEPS_PROVIDED=false
+SERVER_OPTIONS_PROVIDED=false
+
+while [[ $# -gt 0 ]] ; do
+  case "$1" in
+
+    # Basic options
+    -h | --help | help)
+      print_help
+      exit
+      ;;
+
+    -q)
+      QUIET=true
+      shift
+      ;;
+
+    -y)
+      ASK=false
+      shift
+      ;;
+
+    # Provide steps
+    --steps)
+      shift
+      STEPS_PROVIDED=true
+      while [[ ! $1 = --* ]] && [[ ! $1 = -* ]] && [[ $# -gt 0 ]] ; do
+        add_step $1
+        shift
+      done
+      ;;
+
+    # Apply server options. It is a separate block to check subcommand combinatons
+    -a | -c | -k | -p | -s | -u | -F | -H | -N | -P | -U | -W)
+      SERVER_OPTIONS_PROVIDED=true
+      case $1 in
+        -a) export BUBLIK_UI_APP="$2" ;;
+        -c) export CONFIG_TO_USE="$2" ;;
+        -k) export KEYTAB="$(realpath ${2})" ;;
+        -p) export URL_PREFIX="$(echo "/$2" | tr -s /)" ;;
+        -s) export BUBLIK_WEB_STATIC_ROOT="$(realpath $2)" ;;
+        -u) export BUBLIK_USER="$2" ;;
+        -F) export FLOWER_PORT="$2" ;;
+        -N) export DB_NAME="$2" ;;
+        -H) export DB_HOST="$2" ;;
+        -P) export DB_PORT="$2" ;;
+        -U) export DB_USER="$2" ;;
+        -W) export DB_PASSWORD="$2" ;;
+        *) usage "Unknown server option: $1." ;;
+      esac
+      shift 2
+      ;;
+
+      # Unknown option
+      *) usage "Unknown option: $1."
+      ;;
+  esac
+done
+
+# Uninitialized server
+if ! check_server_init && ! ${SERVER_OPTIONS_PROVIDED} ; then
+  usage "Server is uninitialized."
+fi
+
+if ! "${STEPS_PROVIDED}" ; then
+  # Usual deploy (do all steps)
+  STEPS=("${STEPS_NAMES[@]}")
+elif [ -z "${STEPS}" ] ; then
+  # No steps in --steps
+  usage "No steps provided."
+fi
+
+# Changing options with --steps is forbidden until requirements
+# for server options steps are resolved
+if "${STEPS_PROVIDED}" && "${SERVER_OPTIONS_PROVIDED}" ; then
+  usage "Changing options with --steps is forbidden for now."
+fi
+
+# Check options for server initializing
+if "${SERVER_OPTIONS_PROVIDED}" ; then
+  test -n "${BUBLIK_USER}" || usage "User is unspecified"
+  test -n "${BUBLIK_HOME}" || usage "Home is unspecified"
+  test -n "${DB_HOST}" || usage "Host of DB is unspecified"
+  test -n "${DB_NAME}" || usage "Name of DB is unspecified"
+  test -n "${CONFIG_TO_USE}" || usage "Config to use is unspecified"
+  test -n "${KEYTAB}" || message "NB! You forget to specify the keytab file"
+fi
+
+if "${SERVER_OPTIONS_PROVIDED}" ; then
+  # Show and confirm server options set by default
+  for option in "${SERVER_OPTIONS[@]}" ; do
+    message "${option} = ${!option}"
+  done
+  step "Confirm server options" || exit
+
+  # Set variables which are dependent on the server options
+  set_vars_dependent_on_options
+
+  # Save server options to general.conf
+  step "Release server options to the environment, produce general.conf" &&
+  create_general_conf || usage "Changed server options should be saved as a new server configuration."
+fi
+
+# Export server options
+source "$(dirname $0)/exports"
+
+# Execute steps preserving original order
+for step_name in "${STEPS_NAMES[@]}" ; do
+  if [[ " ${STEPS[@]} " =~ " ${step_name} " ]] ; then
+    step_handler="${step_name}_handler"
+    STEPS_RC["${step_name}"]=0
+    CURRENT_STEP_SKIPPED=false
+    "${step_handler}" || STEPS_RC["${step_name}"]=$?
+
+    # Reset RC code if step is skipped
+    ${CURRENT_STEP_SKIPPED} && STEPS_RC["${step_name}"]=
+  fi
+done
+
+# Show execute steps status preserving original order
+echo
+echo "========================================================="
+echo "Deploy summary status:"
+for step_name in "${STEPS_NAMES[@]}" ; do
+  if [[ " ${STEPS[@]} " =~ " ${step_name} " ]] ; then
+    if [ -z "${STEPS_RC[$step_name]}" ] ; then
+      message "STEP: ${step_name} - SKIPPED"
+    elif [ ${STEPS_RC[$step_name]} -eq 0 ] ; then
+      message "STEP: ${step_name} - OK"
+    else
+      message "STEP: ${step_name} - FAILED (${STEPS_RC[$step_name]})"
+    fi
+  fi
+done
+echo "========================================================="
+echo

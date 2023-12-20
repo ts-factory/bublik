@@ -1,0 +1,8 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+source "$(dirname $0)/manage"
+cd "${BUBLIK_SRC}"
+
+flower -A "${CELERY_APP}" --persistent=${FLOWER_PERSISTENT} --port="${FLOWER_PORT}" --broker="${CELERY_BROKER_URL}" --url_prefix="${URL_PREFIX:1}/${FLOWER_URL_PREFIX}" &

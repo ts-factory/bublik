@@ -1,0 +1,303 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
+
+from collections import Counter
+import logging
+
+import per_conf
+
+from bublik.core.meta.categorization import categorize_meta
+from bublik.core.run.keys import prepare_expected_key
+from bublik.core.run.utils import prepare_date
+from bublik.core.shortcuts import serialize
+from bublik.data.models import (
+    MetaResult,
+    Reference,
+    ResultType,
+    RunStatus,
+    Test,
+    TestIteration,
+    TestIterationRelation,
+    TestIterationResult,
+)
+from bublik.data.serializers import (
+    ExpectationSerializer,
+    MetaSerializer,
+    TestArgumentSerializer,
+)
+
+
+logger = logging.getLogger('bublik.server')
+
+
+def add_test(test_name, result_type, parent_test):
+    test, _ = Test.objects.get_or_create(
+        name=test_name,
+        parent=parent_test,
+        result_type=ResultType.conv(result_type),
+    )
+    return test
+
+
+def add_relation(iteration, parent_iteration, depth):
+    relation, _ = TestIterationRelation.objects.get_or_create(
+        test_iteration=iteration,
+        parent_iteration=parent_iteration,
+        depth=depth,
+    )
+    return relation
+
+
+def add_iteration(test, iteration_params, iteration_hash, parent_iteration, parent_depth):
+    add_iteration.counter = Counter(created=0)
+
+    def process_test():
+        iteration, created = TestIteration.objects.get_or_create(test=test, hash=iteration_hash)
+        if created:
+            add_iteration.counter['created'] += 1
+            if iteration_params:
+                for n, v in iteration_params.items():
+                    arg_serializer = serialize(
+                        TestArgumentSerializer,
+                        {'name': n, 'value': v},
+                        logger,
+                    )
+                    arg, _ = arg_serializer.get_or_create()
+                    iteration.test_arguments.add(arg)
+        return iteration
+
+    def process_session_pkg():
+        iteration, created = TestIteration.objects.get_or_create(test=test, hash=None)
+        if created:
+            add_iteration.counter['created'] += 1
+        return iteration
+
+    handlers = {
+        ResultType.TEST: process_test,
+        ResultType.SESSION: process_session_pkg,
+        ResultType.PACKAGE: process_session_pkg,
+    }
+
+    handler = handlers.get(ResultType.inv(test.result_type))
+    if not handler:
+        logger.error(f'unknown entity type: {test.result_type}, ignoring it')
+
+    iteration = handler()
+
+    if parent_depth == 0:
+        add_relation(iteration, parent_iteration, parent_depth)
+    else:
+        tmp_parent = parent_iteration
+        tmp_cur_depth = 1
+
+        while tmp_cur_depth <= parent_depth:
+            add_relation(iteration, tmp_parent, tmp_cur_depth)
+
+            if tmp_cur_depth == parent_depth:
+                break
+
+            tmp_relation = TestIterationRelation.objects.get(test_iteration=tmp_parent, depth=1)
+            tmp_parent = tmp_relation.parent_iteration
+            tmp_cur_depth += 1
+
+    return iteration
+
+
+def add_iteration_result(
+    start_time,
+    finish_time=None,
+    iteration=None,
+    run=None,
+    parent_package=None,
+    tin=None,
+    exec_seqno=None,
+):
+
+    iteration_result, _ = TestIterationResult.objects.update_or_create(
+        iteration=iteration,
+        test_run=run,
+        parent_package=parent_package,
+        tin=tin,
+        exec_seqno=exec_seqno,
+        defaults={
+            'start': prepare_date(start_time),
+            'finish': prepare_date(finish_time) if finish_time else None,
+        },
+    )
+
+    return iteration_result
+
+
+def add_meta_result(m_data, mr_data):
+    meta_serializer = serialize(MetaSerializer, m_data, logger)
+    meta, created = meta_serializer.get_or_create()
+    if created:
+        categorize_meta(meta)
+    MetaResult.objects.get_or_create(meta=meta, **mr_data)
+
+
+def update_or_create_meta_result(m_data, mr_data):
+    meta_head = {f'meta__{k}': m_data[k] for k in {'name', 'type'} & m_data.keys()}
+
+    meta_serializer = serialize(MetaSerializer, m_data, logger)
+    meta, created = meta_serializer.get_or_create()
+    if created:
+        categorize_meta(meta)
+    MetaResult.objects.update_or_create(**mr_data, **meta_head, defaults={'meta': meta})
+
+
+def clear_meta_result(m_data, mr_data):
+    meta_serializer = serialize(MetaSerializer, m_data, logger)
+    meta, _ = meta_serializer.get_or_create()
+    MetaResult.objects.filter(meta=meta, **mr_data).delete()
+
+
+def add_references(reference_map):
+    references = {}
+    for reference_key, reference_data in reference_map.items():
+        for uri in reference_data['uri']:
+            reference, _ = Reference.objects.get_or_create(uri=uri, name=reference_data['name'])
+            references[reference_key] = reference
+    return references
+
+
+def add_run_log(run, source_suffix, reference):
+    add_meta_result(
+        m_data={'type': 'log', 'value': source_suffix},
+        mr_data={'result': run, 'reference': reference},
+    )
+
+
+def add_tags(run, tags):
+    if not tags:
+        return
+
+    for tag_name, tag_value in tags.items():
+        add_meta_result(
+            m_data={'name': tag_name, 'type': 'tag', 'value': tag_value},
+            mr_data={'result': run},
+        )
+
+
+def add_import_id(run, import_id):
+    add_meta_result(
+        m_data={'name': 'import_id', 'type': 'import', 'value': import_id},
+        mr_data={'result': run},
+    )
+
+
+def set_run_count(run, count_name, count_value):
+    update_or_create_meta_result(
+        m_data={'name': count_name, 'type': 'count', 'value': str(count_value)},
+        mr_data={'result': run},
+    )
+
+
+def set_prologues_counts(iteration, count_name, count_value):
+    update_or_create_meta_result(
+        m_data={'name': count_name, 'type': 'count', 'value': str(count_value)},
+        mr_data={'result': iteration},
+    )
+
+
+def clear_run_count(run, count_name):
+    clear_meta_result(m_data={'name': count_name, 'type': 'count'}, mr_data={'result': run})
+
+
+def set_run_import_mode(run, import_mode):
+    update_or_create_meta_result(
+        m_data={'name': 'import_mode', 'type': 'import', 'value': import_mode},
+        mr_data={'result': run},
+    )
+
+
+def run_status_default(status_key):
+    default_status = {
+        'RUN_STATUS_RUNNING': RunStatus.RUNNING,
+        'RUN_STATUS_DONE': RunStatus.DONE,
+        'RUN_STATUS_ERROR': RunStatus.ERROR,
+        'RUN_STATUS_WARNING': RunStatus.WARNING,
+        'RUN_STATUS_STOPPED': RunStatus.STOPPED,
+        'RUN_STATUS_BUSY': RunStatus.BUSY,
+    }
+    return default_status[status_key]
+
+
+def set_run_status(run, status_key):
+    status_meta_name = getattr(per_conf, 'RUN_STATUS_META', None)
+    status_value = getattr(per_conf, status_key, run_status_default(status_key))
+    if status_meta_name:
+        update_or_create_meta_result(
+            m_data={
+                'name': status_meta_name,
+                'type': 'label',
+                'value': status_value,
+            },
+            mr_data={'result': run},
+        )
+    else:
+        logger.error('cannot set run status because RUN_STATUS_META is not set')
+
+
+def add_obtained_result(iteration_result, result, verdicts=None, err=None):
+    if verdicts is not None:
+        for serial, verdict in enumerate(verdicts):
+            add_meta_result(
+                m_data={'type': 'verdict', 'value': verdict},
+                mr_data={'result': iteration_result, 'serial': serial},
+            )
+
+    if result is not None:
+        add_meta_result(
+            m_data={'type': 'result', 'value': result},
+            mr_data={'result': iteration_result},
+        )
+
+    if err:
+        add_meta_result(
+            m_data={'type': 'err', 'value': err},
+            mr_data={'result': iteration_result},
+        )
+
+
+def add_expected_result(
+    iteration_result,
+    result,
+    verdicts=None,
+    tag_expression=None,
+    key=None,
+    notes=None,
+):
+    expect_metas = []
+
+    if result is not None:
+        expect_metas.append({'meta': {'type': 'result', 'value': result}})
+
+    if verdicts is not None:
+        for index, verdict in enumerate(verdicts):
+            expect_metas.append(
+                {'meta': {'type': 'verdict_expected', 'value': verdict}, 'serial': index},
+            )
+
+    if tag_expression is not None:
+        expect_metas.append({'meta': {'type': 'tag_expression', 'value': tag_expression}})
+
+    if key is not None:
+        expect_metas.extend(prepare_expected_key(key))
+
+    if notes is not None:
+        if isinstance(notes, (list, tuple, set)):
+            for index, note in enumerate(notes):
+                expect_metas.append({'meta': {'type': 'note', 'value': note}, 'serial': index})
+        else:
+            expect_metas.append({'meta': {'type': 'note', 'value': notes}})
+
+    expectation_serializer = serialize(
+        ExpectationSerializer,
+        {'expectmeta_set': expect_metas},
+        logger,
+    )
+    expectation, _ = expectation_serializer.get_or_create()
+    expectation.results.add(iteration_result)
+
+    return expectation
