@@ -78,7 +78,7 @@ def admin_required(function):
             except TokenBackendError:
                 return Response(
                     {'message': 'Not Authenticated'},
-                    status=status.HTTP_401_UNAUTHORIZED,
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
             # check if user is admin
@@ -88,13 +88,13 @@ def admin_required(function):
 
             return Response(
                 {'message': 'You are not authorized to perform this action'},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # Handle regular function call without a request object
         return Response(
             {'message': 'Wrong request'},
-            status=status.HTTP_401_UNAUTHORIZED,
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     return wrapper
@@ -135,7 +135,7 @@ class ActivateView(APIView):
                 'The email is verified. You are registered.',
                 status=status.HTTP_200_OK,
             )
-        return Response('Invalid email verification link', status=status.HTTP_401_UNAUTHORIZED)
+        return Response('Invalid email verification link', status=status.HTTP_403_FORBIDDEN)
 
 
 class LogInView(TokenObtainPairView):
@@ -150,7 +150,7 @@ class LogInView(TokenObtainPairView):
         if not email or not password:
             return Response(
                 {'detail': 'Please provide both email and password'},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # authenticate user
@@ -160,7 +160,7 @@ class LogInView(TokenObtainPairView):
         if not user:
             return Response(
                 {'message': 'Invalid credentials'},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # create refresh and access token
@@ -207,7 +207,7 @@ class ProfileViewSet(GenericViewSet):
         except TokenBackendError:
             return Response(
                 {'message': 'Not Authenticated'},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
     @action(detail=False, methods=['post'])
@@ -238,7 +238,7 @@ class ProfileViewSet(GenericViewSet):
         except TokenBackendError:
             return Response(
                 {'message': 'Not Authenticated'},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
 
@@ -257,7 +257,7 @@ class RefreshTokenView(TokenRefreshView):
             except TokenError:
                 return Response(
                     {'message': 'Not a valid refresh token'},
-                    status=status.HTTP_401_UNAUTHORIZED,
+                    status=status.HTTP_403_FORBIDDEN,
                 )
             access_token = refresh_token.access_token
 
@@ -294,7 +294,7 @@ class RefreshTokenView(TokenRefreshView):
         except Exception as e:
             return Response(
                 {'message': 'Refresh process failed', 'error': str(e)},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
 
@@ -308,7 +308,7 @@ class LogOutView(APIView):
             except TokenError:
                 return Response(
                     {'message': 'Not a valid refresh token'},
-                    status=status.HTTP_401_UNAUTHORIZED,
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
             refresh_token.blacklist()
@@ -327,7 +327,7 @@ class LogOutView(APIView):
         except Exception as e:
             return Response(
                 {'message': 'Logout process failed', 'error': str(e)},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
 
@@ -344,7 +344,7 @@ class ForgotPasswordView(generics.CreateAPIView):
         except ObjectDoesNotExist:
             return Response(
                 'No user found with this email',
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # generate a password reset token
@@ -394,7 +394,7 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
             RefreshToken.for_user(user).blacklist()
 
             return Response('Password reset successfully', status=status.HTTP_200_OK)
-        return Response('Invalid reset link', status=status.HTTP_401_UNAUTHORIZED)
+        return Response('Invalid reset link', status=status.HTTP_403_FORBIDDEN)
 
 
 class AdminViewSet(GenericViewSet):

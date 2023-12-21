@@ -6,7 +6,7 @@ import typing
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -141,6 +141,6 @@ class PasswordResetSerializer(serializers.Serializer):
     def current_password_check(self, user, current_password):
         # Check if the passed current password is valid for the passed user
         if not user.check_password(current_password):
-            raise AuthenticationFailed(
+            raise PermissionDenied(
                 {'current_password': 'Invalid password'},
             )
