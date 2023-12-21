@@ -102,7 +102,6 @@ def handle_iteration(
 @transaction.atomic
 def incremental_import(run_log, meta_data, run_completed, force):
     handle_iteration.counter = Counter(iter_obj=0, created_iter_obj=0)
-    HandlerArtifacts.handle_meas_time = timedelta()
 
     run_start = meta_data.run_start
     run_finish = meta_data.run_finish if run_completed else None

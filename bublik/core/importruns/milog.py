@@ -2,7 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 
@@ -291,6 +291,8 @@ class ViewPointLevel(ViewValueLevel):
 
 
 class HandlerArtifacts:
+    handle_meas_time = timedelta()
+
     def __init__(self, test_iter_result):
         self.test_iter_result = test_iter_result
 
