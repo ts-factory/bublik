@@ -58,9 +58,9 @@ class RunViewSet(ModelViewSet):
             'type': 'revision',
             'expr': self.request.query_params.get('revision_expr', ''),
         }
-        brunch_expr = {
+        branch_expr = {
             'type': 'branch',
-            'expr': self.request.query_params.get('brunch_expr', ''),
+            'expr': self.request.query_params.get('branch_expr', ''),
         }
 
         if start_date:
@@ -78,7 +78,7 @@ class RunViewSet(ModelViewSet):
             queryset = queryset.filter_by_run_metas(metas=run_data, meta_types=meta_types)
 
         # Filter tags, metadata by expression
-        for meta_expr in [tag_expr, label_expr, revision_expr, brunch_expr]:
+        for meta_expr in [tag_expr, label_expr, revision_expr, branch_expr]:
             if meta_expr['expr']:
                 queryset = filter_by_expression(
                 filtered_qs=queryset,
