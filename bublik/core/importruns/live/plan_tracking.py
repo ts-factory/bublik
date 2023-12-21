@@ -154,7 +154,7 @@ class PlanTracker:
         '''Has test execution finished according to the plan?'''
         return self.peek_event() is None
 
-    def skip_until(self, target_id, until_start, on_enter=do_nothing, on_exit=do_nothing):
+    def skip_until(self, target_id, until_start, on_enter=None, on_exit=None):
         '''
         Advance through the plan until
             1. (if until_start is True) we are about to enter the target item;
@@ -169,20 +169,20 @@ class PlanTracker:
         while event is not None and not reached_goal():
             item, enter = event
             if enter:
-                on_enter(item)
+                on_enter(item) if on_enter else self.do_nothing(item)
             else:
-                on_exit(item)
+                on_exit(item) if on_exit else self.do_nothing(item)
             self.next_event()
             event = self.peek_event()
 
-    def skip_all(self, on_enter=do_nothing, on_exit=do_nothing):
+    def skip_all(self, on_enter=None, on_exit=None):
         '''Advance through the plan until the end.'''
         event = self.peek_event()
         while event is not None:
             item, enter = event
             if enter:
-                on_enter(item)
+                on_enter(item) if on_enter else self.do_nothing(item)
             else:
-                on_exit(item)
+                on_exit(item) if on_exit else self.do_nothing(item)
             self.next_event()
             event = self.peek_event()
