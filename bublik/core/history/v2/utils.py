@@ -47,13 +47,15 @@ def prepare_list_results(
         result_finish = test_result['finish']
 
         # Handle expected result
+        expected_result_data = {}
         test_result_obj = TestIterationResult.objects.get(id=result_id)
         expected_results = get_expected_results(test_result_obj)
-        expected_result = expected_results[0]
-        expected_result_data = {
-            'result_type': expected_result['result'],
-            'verdict': expected_result['verdicts'],
-        }
+        if expected_results:
+            expected_result = expected_results[0]
+            expected_result_data = {
+                'result_type': expected_result['result'],
+                'verdict': expected_result['verdicts'],
+            }
 
         # Handle obtained result
         obtained_result_data = {

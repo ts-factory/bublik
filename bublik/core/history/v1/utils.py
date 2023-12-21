@@ -90,9 +90,12 @@ def prepare_list_results(
         )
 
         # Get expected result
+        expected_result_data = {}
         test_result_obj = TestIterationResult.objects.get(id=result_id)
         expected_results = get_expected_results(test_result_obj)
-        expected_result = expected_results[0]
+        if expected_results:
+            expected_result = expected_results[0]
+            expected_result_data = {expected_result['result']: expected_result['verdicts']}
 
         result_start = test_result['start']
         result_finish = test_result['finish']
@@ -100,7 +103,7 @@ def prepare_list_results(
         result = {
             'parameters': parameters,
             'obtained_result': {result_type: verdicts_list},
-            'expected_result': {expected_result['result']: expected_result['verdicts']},
+            'expected_result': expected_result_data,
             'has_error': test_result['has_error'],
             'run_id': str(run_id),
             'result_id': str(result_id),
