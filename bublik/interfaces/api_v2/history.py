@@ -66,9 +66,9 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             'type': 'revision',
             'expr': self.request.query_params.get('revision_expr', ''),
         }
-        brunch_expr = {
+        branch_expr = {
             'type': 'branch',
-            'expr': self.request.query_params.get('brunch_expr', ''),
+            'expr': self.request.query_params.get('branch_expr', ''),
         }
         verdict_expr = self.request.query_params.get('verdict_expr', '')
         test_arg_expr = self.request.query_params.get('test_arg_expr', '')
@@ -106,7 +106,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             runs_results = runs_results.filter_by_run_metas(run_metas)
 
         # Filter by tags, labels, revisions and branches expressions:
-        for meta_expr in [tag_expr, label_expr, revision_expr, brunch_expr]:
+        for meta_expr in [tag_expr, label_expr, revision_expr, branch_expr]:
             if meta_expr['expr']:
                 runs_results = filter_by_expression(
                 filtered_qs=runs_results,
