@@ -19,6 +19,7 @@ __all__ = [
     'UserSerializer',
     'UserEmailSerializer',
     'PasswordResetSerializer',
+    'UpdateUserSerializer',
 ]
 
 
@@ -85,24 +86,6 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs: typing.ClassVar['dict'] = {'password': {'write_only': True}}
 
-    def update(self, user, data):
-        first_name = data.get('first_name', None)
-        last_name = data.get('last_name', None)
-
-        # Update the fields according to the passed data
-        if first_name:
-            user.first_name = first_name
-        if last_name:
-            user.last_name = last_name
-
-        # Update the password if provided
-        password = data.get('password', None)
-        if password:
-            validate_password(password)
-            user.set_password(password)
-
-        user.save()
-
 
 class UserEmailSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -144,3 +127,32 @@ class PasswordResetSerializer(serializers.Serializer):
             raise PermissionDenied(
                 {'current_password': 'Invalid password'},
             )
+
+
+class UpdateUserSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False)
+    first_name = serializers.CharField(required=False)
+    last_name = serializers.CharField(required=False)
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        validators=[validate_password],
+    )
+
+    def update(self, user, data):
+        first_name = data.get('first_name', None)
+        last_name = data.get('last_name', None)
+
+        # Update the fields according to the passed data
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+
+        # Update the password if provided
+        password = data.get('password', None)
+        if password:
+            user.set_password(password)
+
+        user.save()
+        return user

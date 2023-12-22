@@ -28,6 +28,7 @@ from bublik.data.serializers import (
     PasswordResetSerializer,
     RegisterSerializer,
     TokenPairSerializer,
+    UpdateUserSerializer,
     UserEmailSerializer,
     UserSerializer,
 )
@@ -403,6 +404,8 @@ class AdminViewSet(GenericViewSet):
     def get_serializer_class(self):
         if self.action == 'create_user':
             return RegisterSerializer
+        if self.action == 'update_user':
+            return UpdateUserSerializer
         if self.action == 'deactivate_user':
             return UserEmailSerializer
         return UserSerializer
@@ -424,20 +427,19 @@ class AdminViewSet(GenericViewSet):
     @admin_required
     @action(detail=False, methods=['post'])
     def update_user(self, request):
-        edit_user_email = request.data.get('email')
         # get user to edit
-        edit_user = User.objects.get(email=edit_user_email)
+        edit_user = User.objects.get(email=request.data.get('email'))
+        # get serializer class
         serializer_class = self.get_serializer_class()
-        serializer = serializer_class(edit_user)
+        # check if new data is valid
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
         # update user
-        serializer.update(
+        updated_user = serializer.update(
             user=edit_user,
             data=request.data,
         )
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK,
-        )
+        return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
 
     @admin_required
     @action(detail=False, methods=['post'])
