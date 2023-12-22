@@ -399,8 +399,6 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
 
 
 class AdminViewSet(GenericViewSet):
-    queryset = User.objects.all()
-
     def get_serializer_class(self):
         if self.action == 'create_user':
             return RegisterSerializer
@@ -451,12 +449,12 @@ class AdminViewSet(GenericViewSet):
         deactivate_user.save()
         return Response('The user was deactivated', status=status.HTTP_200_OK)
 
-    @method_decorator(never_cache)
     @admin_required
+    @method_decorator(never_cache)
     def list(self, request):
         serializer_class = self.get_serializer_class()
         # return all Users info
         return Response(
-            serializer_class(self.queryset, many=True).data,
+            serializer_class(User.objects.all(), many=True).data,
             status=status.HTTP_200_OK,
         )
