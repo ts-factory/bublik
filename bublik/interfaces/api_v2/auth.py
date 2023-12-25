@@ -192,6 +192,8 @@ class ProfileViewSet(GenericViewSet):
     def get_serializer_class(self):
         if self.action == 'password_reset':
             return PasswordResetSerializer
+        if self.action == 'update_info':
+            return UpdateUserSerializer
         return UserSerializer
 
     @action(detail=False, methods=['get'])
@@ -236,6 +238,31 @@ class ProfileViewSet(GenericViewSet):
             RefreshToken.for_user(user).blacklist()
 
             return Response('Password reset successfully', status=status.HTTP_200_OK)
+        except TokenBackendError:
+            return Response(
+                {'message': 'Not Authenticated'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    @action(detail=False, methods=['post'])
+    def update_info(self, request):
+        # get access token from cookies
+        access_token = request.COOKIES.get('access_token')
+        try:
+            # get user info using access token
+            user_info = get_user_info_from_access_token(access_token)
+            # get user object
+            user = User.objects.get(pk=user_info['user_id'])
+            serializer_class = self.get_serializer_class()
+            # check if new data is valid
+            serializer = serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            # update user
+            updated_user = serializer.update(
+                user=user,
+                data=request.data,
+            )
+            return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
         except TokenBackendError:
             return Response(
                 {'message': 'Not Authenticated'},
