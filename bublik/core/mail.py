@@ -10,7 +10,8 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 import per_conf
 
-from bublik.settings import BUBLIK_HOST, EMAIL_FROM, URL_PREFIX
+from bublik.core.shortcuts import build_absolute_uri
+from bublik.settings import EMAIL_FROM
 
 
 def send_importruns_failed_mail(
@@ -65,7 +66,7 @@ class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
         return str(user.is_active) + str(user.pk) + str(timestamp)
 
 
-def send_verification_link_mail(user):
+def send_verification_link_mail(request, user):
     '''
     Sends an email to the user with a link that activates his account when clicked.
     '''
@@ -74,10 +75,8 @@ def send_verification_link_mail(user):
     token = email_verification_token.make_token(user)
 
     # construct the verification link URL
-    verify_email_link = f'{BUBLIK_HOST}'
-    if URL_PREFIX:
-        verify_email_link += f'/{URL_PREFIX}'
-    verify_email_link += f'/v2/auth/register/activate/{user_id_b64}/{token}/'
+    endpoint = f'v2/auth/register/activate/{user_id_b64}/{token}/'
+    verify_email_link = build_absolute_uri(request, endpoint)
 
     send_mail(
         subject='Verify email',

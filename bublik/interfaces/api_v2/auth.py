@@ -23,6 +23,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
+from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User, UserRoles
 from bublik.data.serializers import (
     PasswordResetSerializer,
@@ -32,7 +33,7 @@ from bublik.data.serializers import (
     UserEmailSerializer,
     UserSerializer,
 )
-from bublik.settings import BUBLIK_HOST, EMAIL_FROM, SIMPLE_JWT, URL_PREFIX
+from bublik.settings import EMAIL_FROM, SIMPLE_JWT
 
 
 __all__ = [
@@ -110,7 +111,7 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.validate(request.data)
         user = serializer.create(request.data)
-        send_verification_link_mail(user)
+        send_verification_link_mail(request, user)
         return Response(
             'A verification link has been sent to your email address',
             status=status.HTTP_200_OK,
@@ -381,10 +382,8 @@ class ForgotPasswordView(generics.CreateAPIView):
         access_token = token_serializer.get_token(user).access_token
 
         # construct the reset link URL
-        reset_link = f'{BUBLIK_HOST}'
-        if URL_PREFIX:
-            reset_link += f'/{URL_PREFIX}'
-        reset_link += f'/v2/auth/forgot_password/password_reset/{user_id_b64}/{access_token}/'
+        endpoint = f'v2/auth/forgot_password/password_reset/{user_id_b64}/{access_token}/'
+        reset_link = build_absolute_uri(request, endpoint)
 
         # send the reset link to the user
         send_mail(
@@ -443,7 +442,7 @@ class AdminViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.validate(request.data)
         user = serializer.create(request.data)
-        send_verification_link_mail(user)
+        send_verification_link_mail(request, user)
         return Response(
             'A verification link has been sent to the user\'s email address',
             status=status.HTTP_200_OK,
