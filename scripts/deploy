@@ -572,9 +572,9 @@ function run_side_servers_handler() {
 function run_services_handler() {
   step "Run services" && {
     source "${ENV_DIR}/bin/activate"
-    read -p "Choose an action {start|restart|status}: " ACTION
+    read -p "Choose an action {start|restart|stop|status}: " ACTION
     case "${ACTION}" in
-      start|restart|status)
+      start|restart|stop|status)
         handle_user_services "${ACTION}"
         ;;
       *)
