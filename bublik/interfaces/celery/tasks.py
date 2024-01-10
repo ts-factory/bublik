@@ -148,7 +148,7 @@ def importruns(
         add_to_message = None
 
         try:
-            errors = parse_log(r'\[ERROR\]', logpath)
+            errors = parse_log(r'"ERROR"', logpath)
             if errors:
                 add_to_message = f'Preview:\n{errors}'
                 send_importruns_failed_mail(requesting_host, task_id, param_url, add_to_message)
