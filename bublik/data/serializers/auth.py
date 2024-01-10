@@ -46,7 +46,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({'password': "Password fields don't match"})
+            raise serializers.ValidationError({'password': 'Password fields don\'t match'})
 
         return attrs
 
@@ -119,7 +119,7 @@ class PasswordResetSerializer(serializers.Serializer):
         self.is_valid(passwords)
         # Check if the new password fields match
         if passwords['new_password'] != passwords['new_password_confirm']:
-            raise serializers.ValidationError({'new_password': "Password fields don't match"})
+            raise serializers.ValidationError({'new_password': 'Password fields don\'t match'})
 
     def current_password_check(self, user, current_password):
         # Check if the passed current password is valid for the passed user
