@@ -113,7 +113,7 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.create(request.data)
         send_verification_link_mail(request, user)
         return Response(
-            'A verification link has been sent to your email address',
+            {'message': 'A verification link has been sent to your email address'},
             status=status.HTTP_200_OK,
         )
 
@@ -134,10 +134,13 @@ class ActivateView(APIView):
             user.is_active = True
             user.save()
             return Response(
-                'The email is verified. You are registered.',
+                {'message': 'The email is verified. You are registered.'},
                 status=status.HTTP_200_OK,
             )
-        return Response('Invalid email verification link', status=status.HTTP_403_FORBIDDEN)
+        return Response(
+            {'message': 'Invalid email verification link'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
 
 class LogInView(TokenObtainPairView):
@@ -151,7 +154,7 @@ class LogInView(TokenObtainPairView):
         # check if email and password are provided
         if not email or not password:
             return Response(
-                {'detail': 'Please provide both email and password'},
+                {'message': 'Please provide both email and password'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -238,7 +241,10 @@ class ProfileViewSet(GenericViewSet):
             # blacklist old refresh tokens
             RefreshToken.for_user(user).blacklist()
 
-            return Response('Password reset successfully', status=status.HTTP_200_OK)
+            return Response(
+                {'message': 'Password reset successfully'},
+                status=status.HTTP_200_OK,
+            )
         except TokenBackendError:
             return Response(
                 {'message': 'Not Authenticated'},
@@ -372,7 +378,7 @@ class ForgotPasswordView(generics.CreateAPIView):
             user = User.objects.get(email=email)
         except ObjectDoesNotExist:
             return Response(
-                'No user found with this email',
+                {'message': 'No user found with this email'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -393,7 +399,10 @@ class ForgotPasswordView(generics.CreateAPIView):
             recipient_list=[user.email],
         )
 
-        return Response('Password reset link sent successfully', status=status.HTTP_200_OK)
+        return Response(
+            {'message': 'Password reset link sent successfully'},
+            status=status.HTTP_200_OK,
+        )
 
 
 class ForgotPasswordResetView(generics.UpdateAPIView):
@@ -420,8 +429,14 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
             # blacklist old refresh tokens
             RefreshToken.for_user(user).blacklist()
 
-            return Response('Password reset successfully', status=status.HTTP_200_OK)
-        return Response('Invalid reset link', status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'message': 'Password reset successfully'},
+                status=status.HTTP_200_OK,
+            )
+        return Response(
+            {'message': 'Invalid reset link'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
 
 class AdminViewSet(GenericViewSet):
@@ -444,7 +459,7 @@ class AdminViewSet(GenericViewSet):
         user = serializer.create(request.data)
         send_verification_link_mail(request, user)
         return Response(
-            'A verification link has been sent to the user\'s email address',
+            {'message': 'A verification link has been sent to the user\'s email address'},
             status=status.HTTP_200_OK,
         )
 
@@ -473,7 +488,10 @@ class AdminViewSet(GenericViewSet):
         # deactivate user
         deactivate_user.is_active = False
         deactivate_user.save()
-        return Response('The user was deactivated', status=status.HTTP_200_OK)
+        return Response(
+            {'message': 'The user was deactivated'},
+            status=status.HTTP_200_OK,
+        )
 
     @admin_required
     @method_decorator(never_cache)
