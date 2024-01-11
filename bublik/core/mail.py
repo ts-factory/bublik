@@ -44,7 +44,7 @@ def send_importruns_failed_mail(
     elif isinstance(item_id, int):
         log_url = urljoin(requesting_host, f'importruns/logs/?run={item_id}')
     else:
-        log_url = urljoin(requesting_host, f'v1/logs/{item_id}')
+        log_url = urljoin(requesting_host, f'importlog/{item_id}')
 
     subject = 'Importruns failed'
 
