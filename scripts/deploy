@@ -572,7 +572,9 @@ function run_side_servers_handler() {
 function run_services_handler() {
   step "Run services" && {
     source "${ENV_DIR}/bin/activate"
-    read -p "Choose an action {start|restart|stop|status} (restart by default): " ACTION
+    if ! "${QUIET}" ; then
+      read -p "Choose an action {start|restart|stop|status} (restart by default): " ACTION
+    fi
     [[ -n "${ACTION}" ]] || ACTION="restart"
     case "${ACTION}" in
       start|restart|stop|status)
