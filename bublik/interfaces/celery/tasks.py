@@ -48,41 +48,67 @@ def get_or_create_task_logger(task_id):
 
 @after_task_publish.connect()
 def add_received_import_task_event(sender=None, headers=None, body=None, **kwargs):
+    body_0_0 = body[0][0] if body[0] else None
+    msg = ' '.join(
+        filter(None, (f'received {sender}', body_0_0, f'-- Celery task ID {headers["id"]}')),
+    )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
-        msg=f'received {sender} {body[0][0]} -- Celery task ID {headers["id"]}',
+        msg=msg,
     )
 
 
 @task_received.connect()
 def add_started_import_task_event(sender=None, headers=None, body=None, **kwargs):
     request = kwargs['request']
+    args = request.args[0] if request.args else None
+    msg = ' '.join(
+        filter(
+            None,
+            (f'started processing {request.name}', args, f'-- Celery task ID {request.id}'),
+        ),
+    )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
-        msg=f'started processing {request.name} {request.args[0]} '
-        f'-- Celery task ID {request.id}',
+        msg=msg,
     )
 
 
 @task_success.connect()
 def add_successful_import_task_event(sender=None, headers=None, body=None, **kwargs):
+    args = sender.request.args[0] if sender.request.args else None
+    msg = ' '.join(
+        filter(
+            None,
+            (f'successful {sender.name}', args, f'-- Celery task ID {kwargs["result"]}'),
+        ),
+    )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
-        msg=f'successful {sender.name} {sender.request.args[0]} '
-        f'-- Celery task ID {kwargs["result"]}',
+        msg=msg,
     )
 
 
 @task_failure.connect()
 def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs):
+    args = sender.request.args[0] if sender.request.args else None
+    msg = ' '.join(
+        filter(
+            None,
+            (
+                f'failed {sender.name}',
+                args,
+                f'-- Celery task ID {kwargs["task_id"]} -- Error: {kwargs["exception"]}',
+            ),
+        ),
+    )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.ERR,
-        msg=f'failed {sender.name} {sender.request.args[0]} '
-        f'-- Celery task ID {kwargs["task_id"]} -- Error: {kwargs["exception"]}',
+        msg=msg,
     )
 
 
