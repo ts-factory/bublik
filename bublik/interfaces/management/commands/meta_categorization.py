@@ -100,7 +100,8 @@ class Command(BaseCommand):
             if category and not set_priority:
                 set_priority = self.DEFAULT_TAG_PRIORITY
                 logger.info(
-                    f'no priority was specified, defaulting to {self.DEFAULT_TAG_PRIORITY}',
+                    f'no priority is specified for {section}, '
+                    f'defaulting to {self.DEFAULT_TAG_PRIORITY}',
                 )
 
             if set_priority and (set_priority < min_priority or set_priority > max_priority):
