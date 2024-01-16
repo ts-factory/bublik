@@ -450,7 +450,8 @@ function pip_requirements_handler() {
 
 function secret_key_handler() {
   step "Generate django secret key" &&
-  source "${ENV_DIR}/bin/activate" && python "${SCRIPTS_DIR}/generate_secret_key.py"
+  source "${ENV_DIR}/bin/activate" &&
+  python "${SCRIPTS_DIR}/generate_secret_key.py" "${BUBLIK_SRC}/secret.txt"
 }
 
 function django_settings_handler() {
