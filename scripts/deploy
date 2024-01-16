@@ -85,6 +85,7 @@ function define_step() {
   STEPS_HELP["$step"]="$descr"
 }
 
+define_step create_log_dir           "Create bublik log directory"
 define_step server_packages          "Install bublik packages (requires root)"
 define_step db_packages              "Install database packages (requires root)"
 define_step general_conf             "Release server options to general.conf"
@@ -102,7 +103,6 @@ define_step nginx_conf               "Create nginx configs (requires root)"
 define_step bootstrap_db             "Bootstrap bublik database"
 define_step migrate_db               "Migrate bublik database"
 define_step static_files             "Copy bublik static files"
-define_step create_log_dir           "Create bublik log directory"
 define_step run_side_servers         "Run redis, rabbitmq, nginx servers (requires root)"
 define_step run_services             "Run bublik services"
 define_step autostart_services       "Automatically start all services at boot (requires root)"
