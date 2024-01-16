@@ -44,10 +44,10 @@ def main(av):
     parser.add_argument(
         '-p',
         '--path',
-        default='secret.txt',
+        default=av[1],
         help='Path to the secret key file',
     )
-    opt = parser.parse_args(av[1:])
+    opt = parser.parse_args(av[2:])
 
     if os.path.isfile(opt.path) and not opt.force:
         logging.error(
