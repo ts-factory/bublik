@@ -406,11 +406,6 @@ function general_conf_handler() {
   create_general_conf
 }
 
-function secret_key_handler() {
-  step "Generate django secret key" &&
-  source "${ENV_DIR}/bin/activate" && python generate_secret_key.py
-}
-
 function create_db_handler() {
   step "Create DB" && {
     # Prepare variables for create_db.template
