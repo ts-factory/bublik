@@ -385,9 +385,14 @@ function check_repo_revisions() {
 ### Steps handlers ###
 
 function reformat_import_logs_handler() {
-  step "Reformat all import logs to a format close to JSON" &&
-  source "${ENV_DIR}/bin/activate" &&
-  python "${SCRIPTS_DIR}/import_logs_converter.py" "${MANAGEMENT_COMMANDS_LOG}"
+  if [ -e $MANAGEMENT_COMMANDS_LOG ] ; then
+    step "Reformat all import logs to a format close to JSON" &&
+    source "${ENV_DIR}/bin/activate" &&
+    python "${SCRIPTS_DIR}/import_logs_converter.py" "${MANAGEMENT_COMMANDS_LOG}"
+  else
+    echo The file/directory \"${MANAGEMENT_COMMANDS_LOG}\" not found
+    CURRENT_STEP_SKIPPED=true
+  fi
 }
 
 function server_packages_handler() {
