@@ -265,11 +265,14 @@ function handle_side_servers() {
 function handle_user_services() {
   local ACTION="$1"
   local services=(
-    bublik-logs-ticket
     bublik-celery
     bublik-flower
     bublik-gunicorn
   )
+
+  if [ -e ${LOGS_TICKET_SERVICE_PATH} ] ; then
+    services+=(bublik-logs-ticket)
+  fi
 
   for service in ${services[*]}; do
     message "${ACTION}" $service
