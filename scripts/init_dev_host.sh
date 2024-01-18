@@ -10,7 +10,7 @@ set -e
 QUIET=false
 ASK=true
 BUBLIK_USER=bublik
-BUBLIK_HOME_PREFIX=/var/local
+BUBLIK_HOME_PREFIX=/opt
 BUBLIK_GIT="https://github.com/ts-factory/bublik.git"
 BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-ui.git"
 BUBLIK_CONF_GIT="https://github.com/ts-factory/ts-rigs-sample.git"
