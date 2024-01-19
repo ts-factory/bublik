@@ -143,10 +143,9 @@ function usage () {
 	cat <<- END_OF_USAGE
 
 	  Usage:
-	    * $(basename $0) [-c project-config]
-	      [-h help] [-q quite] [-y no-ask]
-	      [-u user] [-p url-prefix] [-s static-dir] [-F flower-port]
-	      [-N db-name] [-H db-host] [-U db-user] [-W db-password] [-P db-port]
+	    * $(basename $0) [-h help] [-q quite] [-y no-ask] [-c project-config] [-a react-app]
+	      [-k keytab] [-p url-prefix] [-s static-dir] [-u user] [-d home] [-F flower-port]
+	      [-N db-name] [-U db-user] [-W db-password] [-H db-host] [-P db-port]
 
 	    * $(basename $0) --steps [steps]             |  if you know exactly what to do
 
@@ -163,10 +162,10 @@ function print_help () {
 	    -h                     show this help
 	    -q                     be quiet and do all steps without asking
 	    -y                     do all steps without asking
-	    -c  config             configuration variant to use
+	    -c  project-config     configuration variant to use
 	    -a  react-app          react app in dist/apps/ defining UI-V2 static files
 	    -k  keytab             keytab file for Kerberos auth to get external data
-	    -p  prefix             URL prefix for django server
+	    -p  url-prefix         URL prefix for django server
 	    -s  static-dir         where to put static files
 	    -u  user               system user to run bublik
 	    -F  flower-port        flower binding port (default is ${FLOWER_PORT})
