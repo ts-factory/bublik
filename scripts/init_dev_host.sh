@@ -25,10 +25,13 @@ function usage () {
 
 	test -z "$msg" || echo $msg >&2
 	cat <<- END_OF_USAGE
-	usage: $(basename $0) [-h] [-H db-host] [options] host
+	  Usage:
+	    $(basename $0) [-h help] [-q quite] [-y no-ask] [-c project-config] [-u user] [-d home]
+	    [-i ssh-key] [-b bublik-git-url] [-B bublik-ui-git-url] [-C bublik-conf-git-url]
+	    [-T te-git-url] [deploy options] host
 
-	Initialise Bublik development environment on the host.
-	See help for all options description.
+	  Initialise Bublik development environment on the host.
+	  See help for all options description and deploy help for deploy options description.
 
 	END_OF_USAGE
 	test -z "$msg" || exit 1
@@ -37,23 +40,20 @@ function usage () {
 function print_help () {
 	usage
 	cat <<- END_OF_HELP
-	options:
+	  Available options:
 	    -h                  show this help
 	    -q                  be quiet and do all steps without asking
 	    -y                  do all steps without asking
-	    -c config           configuration variant to use
+	    -c project-config   configuration variant to use
 	    -u user             system user to run bublik
 	                        (default is ${BUBLIK_USER})
 	    -d home             bublik user home directory
 	                        (default is ${BUBLIK_HOME_PREFIX}/\$user)
+	    -i ssh-key          SSH key to use (default is ${SSH_PUB:-unspecified})
 	    -b bublik-git-url   bublik Git repository URL
 	    -B bublik-ui-url    bublik UI Git repository URL
 	    -C bublik-conf-url  bublik configuration Git repository URL
 	    -T te-git-url       OKTET Labs Test Environment Git repo URL
-	    -i ssh-key          SSH key to use (default is ${SSH_PUB:-unspecified})
-	    -k keytab           Optional Kerberos auth keytab to get logs
-	                        on runs import. The file should be already
-	                        located on target host, e.g. /etc/bublik.keytab
 	END_OF_HELP
 }
 
