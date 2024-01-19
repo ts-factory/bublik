@@ -637,21 +637,21 @@ while [[ $# -gt 0 ]] ; do
       ;;
 
     # Apply server options. It is a separate block to check subcommand combinatons
-    -a | -c | -k | -p | -s | -u | -F | -H | -N | -P | -U | -W)
+    -c | -a | -k | -p | -s | -u | -F | -N | -U | -W | -H | -P)
       SERVER_OPTIONS_PROVIDED=true
       case $1 in
-        -a) export BUBLIK_UI_APP="$2" ;;
         -c) export CONFIG_TO_USE="$2" ;;
+        -a) export BUBLIK_UI_APP="$2" ;;
         -k) export KEYTAB="$(realpath ${2})" ;;
         -p) export URL_PREFIX="$(echo "/$2" | tr -s /)" ;;
         -s) export BUBLIK_WEB_STATIC_ROOT="$(realpath $2)" ;;
         -u) export BUBLIK_USER="$2" ;;
         -F) export FLOWER_PORT="$2" ;;
         -N) export DB_NAME="$2" ;;
-        -H) export DB_HOST="$2" ;;
-        -P) export DB_PORT="$2" ;;
         -U) export DB_USER="$2" ;;
         -W) export DB_PASSWORD="$2" ;;
+        -H) export DB_HOST="$2" ;;
+        -P) export DB_PORT="$2" ;;
         *) usage "Unknown server option: $1." ;;
       esac
       shift 2
