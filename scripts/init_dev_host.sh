@@ -15,10 +15,10 @@ BUBLIK_GIT="https://github.com/ts-factory/bublik.git"
 BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-ui.git"
 BUBLIK_CONF_GIT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT="https://github.com/ts-factory/test-environment.git"
-DB_NAME="bublik"
 FLOWER_PORT=5555
 GUNICORN_PORT=8800
 SSH_PUB="${HOME}/.ssh/id_rsa.pub"
+OPTS=()
 
 
 function usage () {
@@ -43,7 +43,6 @@ function print_help () {
 	    -q                  be quiet and do all steps without asking
 	    -y                  do all steps without asking
 	    -c config           configuration variant to use
-	    -p prefix           URL prefix for django server
 	    -u user             system user to run bublik
 	                        (default is ${BUBLIK_USER})
 	    -d home             bublik user home directory
@@ -56,8 +55,6 @@ function print_help () {
 	    -k keytab           Optional Kerberos auth keytab to get logs
 	                        on runs import. The file should be already
 	                        located on target host, e.g. /etc/bublik.keytab
-	    -N db-name          bublik database name (default is ${DB_NAME})
-	    -H db-host          hostname of bublik database (i.e. -H bublik-db)
 	END_OF_HELP
 }
 
@@ -80,7 +77,6 @@ while getopts "qyhc:p:u:d:i:H:B:T:k:N:" OPTION; do
 		q) QUIET=true ;;
 		y) ASK=false ;;
 		c) CONFIG_TO_USE=${OPTARG} ;;
-		p) URL_PREFIX="${OPTARG}" ;;
 		u) BUBLIK_USER=${OPTARG} ;;
 		d) BUBLIK_HOME=${OPTARG} ;;
 		i) SSH_PUB=${OPTARG} ;;
@@ -89,8 +85,9 @@ while getopts "qyhc:p:u:d:i:H:B:T:k:N:" OPTION; do
 		C) BUBLIK_CONF_GIT=${OPTARG} ;;
 		T) TE_GIT=${OPTARG} ;;
 		k) LOGS_KEYTAB=${OPTARG} ;;
-		N) DB_NAME=${OPTARG} ;;
-		H) DB_HOST=${OPTARG} ;;
+		p | N | H)
+			OPTS+=(-${OPTION} "${OPTARG}")
+			;;
 		h) print_help ; exit ;;
 		?) usage ; exit 1 ;;
 	esac
@@ -112,10 +109,6 @@ test -n "${BUBLIK_HOST}" || usage "Host is unspecified"
 
 shift
 test -z "$1" || usage "Extra options specified: $*"
-
-test -n "${DB_HOST}" ||
-usage "If you want to have your DB on the same with Bublik host, \
-please, specify it (-H localhost)."
 
 # End of options processing
 
@@ -197,9 +190,8 @@ fi
 
 step "Run Bublik deploy script" &&
 ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" \
-	"./bublik/scripts/deploy ${LOGS_KEYTAB:+-k \"${LOGS_KEYTAB}\"} -u ${BUBLIK_USER} \
-	-N ${DB_NAME} -H ${DB_HOST} -F ${FLOWER_PORT} -c ${CONFIG_TO_USE} -p ${URL_PREFIX} \
-	-W EujUmUk3Ot"
+	./bublik/scripts/deploy ${LOGS_KEYTAB:+-k "${LOGS_KEYTAB}"} -u ${BUBLIK_USER} \
+	-F ${FLOWER_PORT} -c ${CONFIG_TO_USE} "${OPTS[@]}" -W EujUmUk3Ot
 
 step "Purge Bublik user sudo rights" &&
 ssh "root@${BUBLIK_HOST}" "rm -f /etc/sudoers.d/\"${BUBLIK_USER}\""
