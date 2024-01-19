@@ -15,6 +15,7 @@ BUBLIK_GIT="https://github.com/ts-factory/bublik.git"
 BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-ui.git"
 BUBLIK_CONF_GIT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT="https://github.com/ts-factory/test-environment.git"
+DB_PASSWORD="EujUmUk3Ot"
 SSH_PUB="${HOME}/.ssh/id_rsa.pub"
 OPTS=()
 
@@ -92,6 +93,8 @@ while getopts "qyhc:p:u:d:i:H:B:T:k:N:" OPTION; do
 done
 shift $(($OPTIND - 1))
 
+OPTS+=(-u "${BUBLIK_USER}" -W "${DB_PASSWORD}")
+
 # Check if default SSH key exists
 test -r "${SSH_PUB}" || {
   step "You need to have '${HOME}/.ssh/id_rsa.pub' or
@@ -101,6 +104,7 @@ Continuing you must be sure you have access rights to the server." ||
 }
 
 test -n "${CONFIG_TO_USE}" || usage "Config to use is unspecified"
+OPTS+=(-c "${CONFIG_TO_USE}")
 
 BUBLIK_HOST=$1
 test -n "${BUBLIK_HOST}" || usage "Host is unspecified"
@@ -108,9 +112,11 @@ test -n "${BUBLIK_HOST}" || usage "Host is unspecified"
 shift
 test -z "$1" || usage "Extra options specified: $*"
 
-# End of options processing
-
 test -n "${BUBLIK_HOME}" || BUBLIK_HOME="${BUBLIK_HOME_PREFIX}/${BUBLIK_USER}"
+
+test -z "${LOGS_KEYTAB}" || OPTS+=(-k "${LOGS_KEYTAB}")
+
+# End of options processing
 
 if test -n "${SSH_PUB}" ; then
 	step "Add SSH key ${SSH_PUB} to root@${BUBLIK_HOST}" &&
@@ -187,9 +193,7 @@ fi
 # if a keytab is not provided.
 
 step "Run Bublik deploy script" &&
-ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" \
-	./bublik/scripts/deploy ${LOGS_KEYTAB:+-k "${LOGS_KEYTAB}"} -u ${BUBLIK_USER} \
-	-c ${CONFIG_TO_USE} "${OPTS[@]}" -W EujUmUk3Ot
+ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" ./bublik/scripts/deploy "${OPTS[@]}"
 
 step "Purge Bublik user sudo rights" &&
 ssh "root@${BUBLIK_HOST}" "rm -f /etc/sudoers.d/\"${BUBLIK_USER}\""
