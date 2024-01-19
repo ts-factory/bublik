@@ -26,11 +26,11 @@ function usage () {
 	test -z "$msg" || echo $msg >&2
 	cat <<- END_OF_USAGE
 	  Usage:
-	    $(basename $0) [-h help] [-q quite] [-y no-ask] [-c project-config] [-u user] [-d home]
-	    [-i ssh-key] [-b bublik-git-url] [-B bublik-ui-git-url] [-C bublik-conf-git-url]
-	    [-T te-git-url] [deploy options] host
+	    $(basename $0) [-h help] [-q quite] [-y no-ask] [-u user] [-d home] [-i ssh-key]
+	    [-b bublik-git-url] [-B bublik-ui-git-url] [-C bublik-conf-git-url] [-T te-git-url]
+	    [deploy options] host config
 
-	  Initialise Bublik development environment on the host.
+	  Initialise Bublik development environment on the host using the configuration.
 	  See help for all options description and deploy help for deploy options description.
 
 	END_OF_USAGE
@@ -44,7 +44,6 @@ function print_help () {
 	    -h                  show this help
 	    -q                  be quiet and do all steps without asking
 	    -y                  do all steps without asking
-	    -c project-config   configuration variant to use
 	    -u user             system user to run bublik
 	                        (default is ${BUBLIK_USER})
 	    -d home             bublik user home directory
@@ -71,12 +70,11 @@ function step() {
 	return $result
 }
 
-while getopts "hqyc:u:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
+while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
 	case $OPTION in
 		h) print_help ; exit ;;
 		q) QUIET=true ;;
 		y) ASK=false ;;
-		c) CONFIG_TO_USE=${OPTARG} ;;
 		u) BUBLIK_USER=${OPTARG} ;;
 		d) BUBLIK_HOME=${OPTARG} ;;
 		i) SSH_PUB=${OPTARG} ;;
@@ -104,13 +102,15 @@ Continuing you must be sure you have access rights to the server." ||
   exit 1
 }
 
-test -n "${CONFIG_TO_USE}" || usage "Config to use is unspecified"
-OPTS+=(-c "${CONFIG_TO_USE}")
-
 BUBLIK_HOST=$1
 test -n "${BUBLIK_HOST}" || usage "Host is unspecified"
-
 shift
+
+CONFIG_TO_USE=$1
+test -n "${CONFIG_TO_USE}" || usage "Config to use is unspecified"
+OPTS+=(-c "${CONFIG_TO_USE}")
+shift
+
 test -z "$1" || usage "Extra options specified: $*"
 
 test -n "${BUBLIK_HOME}" || BUBLIK_HOME="${BUBLIK_HOME_PREFIX}/${BUBLIK_USER}"
