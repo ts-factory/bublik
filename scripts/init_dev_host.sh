@@ -26,7 +26,7 @@ function usage () {
 
 	test -z "$msg" || echo $msg >&2
 	cat <<- END_OF_USAGE
-	usage: $(basename $0) [-h] [-O db-host] [options] host
+	usage: $(basename $0) [-h] [-H db-host] [options] host
 
 	Initialise Bublik development environment on the host.
 	See help for all options description.
@@ -46,7 +46,7 @@ function print_help () {
 	    -p prefix           URL prefix for django server
 	    -u user             system user to run bublik
 	                        (default is ${BUBLIK_USER})
-	    -H home             bublik user home directory
+	    -d home             bublik user home directory
 	                        (default is ${BUBLIK_HOME_PREFIX}/\$user)
 	    -B bublik-git-url   bublik Git repository URL
 	    -U bublik-ui-url    bublik UI Git repository URL
@@ -57,7 +57,7 @@ function print_help () {
 	                        on runs import. The file should be already
 	                        located on target host, e.g. /etc/bublik.keytab
 	    -N db-name          bublik database name (default is ${DB_NAME})
-	    -O db-host          hostname of bublik database (i.e. -O bublik-db)
+	    -H db-host          hostname of bublik database (i.e. -H bublik-db)
 	END_OF_HELP
 }
 
@@ -75,14 +75,14 @@ function step() {
 	return $result
 }
 
-while getopts "qyhc:p:u:i:H:B:T:k:N:O:" OPTION; do
+while getopts "qyhc:p:u:d:i:H:B:T:k:N:" OPTION; do
 	case $OPTION in
 		q) QUIET=true ;;
 		y) ASK=false ;;
 		c) CONFIG_TO_USE=${OPTARG} ;;
 		p) URL_PREFIX="${OPTARG}" ;;
 		u) BUBLIK_USER=${OPTARG} ;;
-		H) BUBLIK_HOME=${OPTARG} ;;
+		d) BUBLIK_HOME=${OPTARG} ;;
 		i) SSH_PUB=${OPTARG} ;;
 		B) BUBLIK_GIT=${OPTARG} ;;
 		U) BUBLIK_UI_GIT=${OPTARG} ;;
@@ -90,7 +90,7 @@ while getopts "qyhc:p:u:i:H:B:T:k:N:O:" OPTION; do
 		T) TE_GIT=${OPTARG} ;;
 		k) LOGS_KEYTAB=${OPTARG} ;;
 		N) DB_NAME=${OPTARG} ;;
-		O) DB_HOST=${OPTARG} ;;
+		H) DB_HOST=${OPTARG} ;;
 		h) print_help ; exit ;;
 		?) usage ; exit 1 ;;
 	esac
@@ -115,7 +115,7 @@ test -z "$1" || usage "Extra options specified: $*"
 
 test -n "${DB_HOST}" ||
 usage "If you want to have your DB on the same with Bublik host, \
-please, specify it (-O localhost)."
+please, specify it (-H localhost)."
 
 # End of options processing
 
@@ -197,9 +197,9 @@ fi
 
 step "Run Bublik deploy script" &&
 ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" \
-	"./bublik/scripts/deploy ${LOGS_KEYTAB:+-k \"${LOGS_KEYTAB}\"} \
-	-u ${BUBLIK_USER} -H ${BUBLIK_HOME} -N ${DB_NAME} -H ${DB_HOST} \
-	-F ${FLOWER_PORT} -c ${CONFIG_TO_USE} -p ${URL_PREFIX} -W EujUmUk3Ot"
+	"./bublik/scripts/deploy ${LOGS_KEYTAB:+-k \"${LOGS_KEYTAB}\"} -u ${BUBLIK_USER} \
+	-N ${DB_NAME} -H ${DB_HOST} -F ${FLOWER_PORT} -c ${CONFIG_TO_USE} -p ${URL_PREFIX} \
+	-W EujUmUk3Ot"
 
 step "Purge Bublik user sudo rights" &&
 ssh "root@${BUBLIK_HOST}" "rm -f /etc/sudoers.d/\"${BUBLIK_USER}\""
