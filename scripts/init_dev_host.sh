@@ -46,8 +46,8 @@ function print_help () {
 	                        (default is ${BUBLIK_USER})
 	    -d home             bublik user home directory
 	                        (default is ${BUBLIK_HOME_PREFIX}/\$user)
-	    -B bublik-git-url   bublik Git repository URL
-	    -U bublik-ui-url    bublik UI Git repository URL
+	    -b bublik-git-url   bublik Git repository URL
+	    -B bublik-ui-url    bublik UI Git repository URL
 	    -C bublik-conf-url  bublik configuration Git repository URL
 	    -T te-git-url       OKTET Labs Test Environment Git repo URL
 	    -i ssh-key          SSH key to use (default is ${SSH_PUB:-unspecified})
@@ -71,23 +71,24 @@ function step() {
 	return $result
 }
 
-while getopts "qyhc:p:u:d:i:H:B:T:k:N:" OPTION; do
+while getopts "hqyc:u:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
 	case $OPTION in
+		h) print_help ; exit ;;
 		q) QUIET=true ;;
 		y) ASK=false ;;
 		c) CONFIG_TO_USE=${OPTARG} ;;
 		u) BUBLIK_USER=${OPTARG} ;;
 		d) BUBLIK_HOME=${OPTARG} ;;
 		i) SSH_PUB=${OPTARG} ;;
-		B) BUBLIK_GIT=${OPTARG} ;;
-		U) BUBLIK_UI_GIT=${OPTARG} ;;
+		b) BUBLIK_GIT=${OPTARG} ;;
+		B) BUBLIK_UI_GIT=${OPTARG} ;;
 		C) BUBLIK_CONF_GIT=${OPTARG} ;;
 		T) TE_GIT=${OPTARG} ;;
 		k) LOGS_KEYTAB=${OPTARG} ;;
-		p | N | H)
+		W) DB_PASSWORD="${OPTARG}" ;;
+		a | p | s | F | N | U | H | P)
 			OPTS+=(-${OPTION} "${OPTARG}")
 			;;
-		h) print_help ; exit ;;
 		?) usage ; exit 1 ;;
 	esac
 done
