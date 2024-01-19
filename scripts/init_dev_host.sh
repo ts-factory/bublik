@@ -15,8 +15,6 @@ BUBLIK_GIT="https://github.com/ts-factory/bublik.git"
 BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-ui.git"
 BUBLIK_CONF_GIT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT="https://github.com/ts-factory/test-environment.git"
-FLOWER_PORT=5555
-GUNICORN_PORT=8800
 SSH_PUB="${HOME}/.ssh/id_rsa.pub"
 OPTS=()
 
@@ -191,7 +189,7 @@ fi
 step "Run Bublik deploy script" &&
 ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" \
 	./bublik/scripts/deploy ${LOGS_KEYTAB:+-k "${LOGS_KEYTAB}"} -u ${BUBLIK_USER} \
-	-F ${FLOWER_PORT} -c ${CONFIG_TO_USE} "${OPTS[@]}" -W EujUmUk3Ot
+	-c ${CONFIG_TO_USE} "${OPTS[@]}" -W EujUmUk3Ot
 
 step "Purge Bublik user sudo rights" &&
 ssh "root@${BUBLIK_HOST}" "rm -f /etc/sudoers.d/\"${BUBLIK_USER}\""
