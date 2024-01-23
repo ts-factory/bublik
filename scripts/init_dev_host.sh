@@ -16,7 +16,7 @@ BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-frontend.git"
 BUBLIK_CONF_GIT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT_DEFAULT="https://github.com/ts-factory/test-environment.git"
 DB_PASSWORD="EujUmUk3Ot"
-SSH_PUB="${HOME}/.ssh/id_rsa.pub"
+SSH_SETUP=false
 OPTS=()
 
 
@@ -48,7 +48,7 @@ function print_help () {
 	                        (default is ${BUBLIK_USER})
 	    -d home             bublik user home directory
 	                        (default is ${BUBLIK_HOME_PREFIX}/\$user)
-	    -i ssh-key          SSH key to use (default is ${SSH_PUB:-unspecified})
+	    -i ssh-key          SSH key to use
 	    -b bublik-git-url   bublik Git repository URL
 	    -B bublik-ui-url    bublik UI Git repository URL
 	    -C bublik-conf-url  bublik configuration Git repository URL
@@ -102,12 +102,14 @@ shift $(($OPTIND - 1))
 OPTS+=(-u "${BUBLIK_USER}" -W "${DB_PASSWORD}")
 
 # Check if default SSH key exists
-test -r "${SSH_PUB}" || {
-  step "You need to have '${HOME}/.ssh/id_rsa.pub' or
-if you have it stored in a different place, please, spesify it using -i option.
-Continuing you must be sure you have access rights to the server." ||
-  exit 1
-}
+if test -r "${SSH_PUB}" || ssh-add -L >/dev/null 2>&1 ; then
+	SSH_SETUP=true
+else
+	echo "You need to have SSH agent or spesify public SSH key using -i option.
+	Continuing you must be sure you have access rights to the server." >&2
+	exit 1
+fi
+
 
 BUBLIK_HOST=$1
 test -n "${BUBLIK_HOST}" || usage "Host is unspecified"
@@ -126,9 +128,9 @@ test -z "${LOGS_KEYTAB}" || OPTS+=(-k "${LOGS_KEYTAB}")
 
 # End of options processing
 
-if test -n "${SSH_PUB}" ; then
+if "${SSH_SETUP}" ; then
 	step "Add SSH key ${SSH_PUB} to root@${BUBLIK_HOST}" &&
-	ssh-copy-id -i "${SSH_PUB}" "root@${BUBLIK_HOST}"
+	ssh-copy-id ${SSH_PUB:+-i "${SSH_PUB}"} "root@${BUBLIK_HOST}"
 fi
 
 step "Install packages required for initial bootstrap" &&
@@ -146,17 +148,18 @@ ssh "root@${BUBLIK_HOST}" "
 		>/etc/sudoers.d/\"${BUBLIK_USER}\"
 	"
 
-if test -n "${SSH_PUB}" ; then
+if "${SSH_SETUP}" ; then
 	step "Setup SSH access to ${BUBLIK_USER}@${BUBLIK_HOST}" &&
-	cat "${SSH_PUB}" | ssh "root@${BUBLIK_HOST}" "
-	set -e
-	export SSH_DIR=\"${BUBLIK_HOME}\"/.ssh
-	mkdir --parents --mode=0700 \"\${SSH_DIR}\"
-	export AUTH_KEYS=\"\${SSH_DIR}\"/authorized_keys
-	cat >>\"\${AUTH_KEYS}\"
-	chmod 0600 \"\${AUTH_KEYS}\"
-	chown -R \"${BUBLIK_USER}\":\"${BUBLIK_USER}\" \"\${SSH_DIR}\"
-	"
+	test -n "${SSH_PUB}" && cat "${SSH_PUB}" || ssh-add -L \
+		| ssh "root@${BUBLIK_HOST}" "
+			set -e
+			export SSH_DIR=\"${BUBLIK_HOME}\"/.ssh
+			mkdir --parents --mode=0700 \"\${SSH_DIR}\"
+			export AUTH_KEYS=\"\${SSH_DIR}\"/authorized_keys
+			cat >>\"\${AUTH_KEYS}\"
+			chmod 0600 \"\${AUTH_KEYS}\"
+			chown -R \"${BUBLIK_USER}\":\"${BUBLIK_USER}\" \"\${SSH_DIR}\"
+		"
 fi
 
 if test -n "${TE_GIT}" ; then
