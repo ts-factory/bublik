@@ -58,8 +58,11 @@ function print_help () {
 }
 
 function step() {
+	local -a opts=()
+
 	$QUIET && return 0
-	echo -n "STEP: $@"
+	$ASK && opts+=(-n)
+	echo "${opts[@]}" "STEP: $@"
 	result=0
 	$ASK && while true ; do read -p ' [Yn] ' yn
 		case $yn in
