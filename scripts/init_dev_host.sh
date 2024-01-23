@@ -74,8 +74,14 @@ function step() {
 while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
 	case $OPTION in
 		h) print_help ; exit ;;
-		q) QUIET=true ;;
-		y) ASK=false ;;
+		q)
+			QUIET=true
+			OPTS+=(-${OPTION})
+			;;
+		y)
+			ASK=false
+			OPTS+=(-${OPTION})
+			;;
 		u) BUBLIK_USER=${OPTARG} ;;
 		d) BUBLIK_HOME=${OPTARG} ;;
 		i) SSH_PUB=${OPTARG} ;;
