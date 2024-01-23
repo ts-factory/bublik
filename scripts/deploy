@@ -476,15 +476,16 @@ function enable_linger_handler() {
 }
 
 function kerberos_service_handler() {
-  test -n "${KEYTAB}" &&
-  step "Create Kerberos service" && {
-    export BUBLIK_PRINCIPAL="$(klist -k ${KEYTAB} | awk 'NR == 4 {print $2}')"
-    if [ ! -e "${LOGS_TICKET_SERVICE_PATH}" ] ||
-    step "Kerberos service exists. Rewrite?"  ; then
-      set_up_service "${TEMPLATES_DIR}/bublik-logs-ticket.service.template" \
-                     "${LOGS_TICKET_SERVICE_PATH}"
-    fi
-  }
+  if test -n "${KEYTAB}" ; then
+    step "Create Kerberos service" && {
+      export BUBLIK_PRINCIPAL="$(klist -k ${KEYTAB} | awk 'NR == 4 {print $2}')"
+      if [ ! -e "${LOGS_TICKET_SERVICE_PATH}" ] ||
+      step "Kerberos service exists. Rewrite?"  ; then
+        set_up_service "${TEMPLATES_DIR}/bublik-logs-ticket.service.template" \
+                       "${LOGS_TICKET_SERVICE_PATH}"
+      fi
+    }
+  fi
 }
 
 function per_project_conf_handler() {
