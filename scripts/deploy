@@ -196,7 +196,7 @@ function install_server_packages() {
     sqlite3
     nginx
     virtualenv
-    postgresql-13
+    postgresql-client-13
     python3-setuptools
     libkrb5-dev
     mercurial
