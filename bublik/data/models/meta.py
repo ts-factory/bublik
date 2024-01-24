@@ -29,6 +29,7 @@ class Meta(models.Model):
         help_text='''\
 The meta type, enumeration: result, verdict, note, error, tag, label, \
 revision, branch, repo, log, import, count.''',
+        db_index=True,
     )
     value = models.TextField(null=True, blank=True, help_text='The meta value or none.')
     hash = models.CharField(max_length=64, unique=True, help_text='Name, type and value hash')
