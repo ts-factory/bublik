@@ -125,7 +125,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             return TestIterationResult.objects.none()
 
         # Filter by runs
-        runs_results_ids = runs_results.values_list('id', flat=True)
+        runs_results_ids = list(runs_results.values_list('id', flat=True))
         test_results = TestIterationResult.objects.filter(test_run__in=runs_results_ids)
 
         ### Apply iteration and results filters ###
@@ -162,7 +162,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
                 expr_type='test_argument',
             )
 
-        test_iteration_ids = test_iterations.values_list('id', flat=True)
+        test_iteration_ids = list(test_iterations.values_list('id', flat=True))
         test_results = test_results.filter(iteration__in=test_iteration_ids)
 
         # Filter by result statuses
