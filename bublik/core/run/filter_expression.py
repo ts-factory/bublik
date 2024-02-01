@@ -8,6 +8,8 @@ from django.db.models import Q
 import pyeda.inter
 import pyparsing as pp
 
+from bublik.data.models import TestIterationResult
+
 
 class TestRunMeta:
     def __init__(self, name, value=None, relation=None):
@@ -288,7 +290,14 @@ class TestRunMetasGroup:
             for item in expr_dnf.xs:
                 qs2 = copy.deepcopy(base_qs)
                 qs2 = filter_meta(qs2, item)
-                qs = qs.union(qs2) if qs is not None else qs2
+                if qs:
+                    # The resulting QS should not be a union, because this will make further
+                    # filtering impossible (calling filter() for union is not supported)
+                    qs = TestIterationResult.objects.filter(
+                        id__in=list(qs.union(qs2).values_list('id', flat=True)),
+                    )
+                else:
+                    qs = qs2
         else:
             qs = filter_meta(base_qs, expr_dnf)
 

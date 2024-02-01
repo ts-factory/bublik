@@ -193,6 +193,14 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         elif not verdict and verdict_lookup == 'none':
             test_results = test_results.exclude(meta_results__meta__type='verdict')
 
+        # Filter by verdicts expression
+        if verdict_expr:
+            test_results = filter_by_expression(
+                filtered_qs=test_results,
+                expr_str=verdict_expr,
+                expr_type='verdict',
+            )
+
         # Filter by result type classification: expected / unexpected results
         if result_properties:
             test_results = test_results.filter_by_result_classification(
@@ -218,16 +226,6 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
                 'run_id',
                 'has_error',
                 'is_measurements',
-            )
-
-        # Filter by verdicts expression:
-        # NB! This filter should be applied last because the result can be a union
-        # (calling only count() and order_by() after union() is supported)
-        if verdict_expr:
-            test_results = filter_by_expression(
-                filtered_qs=test_results,
-                expr_str=verdict_expr,
-                expr_type='verdict',
             )
 
         return test_results
