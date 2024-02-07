@@ -25,6 +25,7 @@ from .log import LogViewSet
 from .management import local_logs, meta_categorization
 from .measurements import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
+from .performance import PerformanceCheckView
 from .results import ResultViewSet, RunViewSet
 from .server import ServerViewSet
 from .tree import TreeViewSet
@@ -56,4 +57,5 @@ __all__ = [
     'ForgotPasswordView',
     'ForgotPasswordResetView',
     'AdminViewSet',
+    'PerformanceCheckView',
 ]
