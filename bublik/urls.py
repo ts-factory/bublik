@@ -74,6 +74,7 @@ urlpatterns = [
         api_v2.ForgotPasswordResetView.as_view(),
         name='auth_forgot_password_password_reset',
     ),
+    path('performance_check/', api_v2.PerformanceCheckView.as_view(), name='performance_check'),
 ]
 
 if settings.URL_PREFIX:
