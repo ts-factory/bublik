@@ -60,6 +60,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         results = self.request.query_params.get('results', '')
         result_properties = self.request.query_params.get('result_properties', '')
         tags = self.request.query_params.get('tags', '')
+        labels = self.request.query_params.get('labels', '')
         tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
         label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
         revision_expr = {
@@ -95,13 +96,13 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             start__date__lte=self.to_date,
         )
 
-        # Combine tags, branches, revisions to the one set of metas
+        # Combine tags, labels, branches, revisions to the one set of metas
         run_metas = []
-        for metas_string in [tags, branches, revisions]:
+        for metas_string in [tags, labels, branches, revisions]:
             metas = metas_string.split(query_delimiter)
             run_metas.extend(filter(None, metas))
 
-        # Filter by run metas (tags, metadata, branches and revisions) passed as multiple values
+        # Filter by run metas (tags, labels, branches and revisions) passed as multiple values
         if run_metas:
             runs_results = runs_results.filter_by_run_metas(run_metas)
 
