@@ -59,7 +59,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         hash = self.request.query_params.get('hash', '')
         results = self.request.query_params.get('results', '')
         result_properties = self.request.query_params.get('result_properties', '')
-        run_data = self.request.query_params.get('run_data', '')
+        tags = self.request.query_params.get('tags', '')
         tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
         label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
         revision_expr = {
@@ -95,9 +95,9 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             start__date__lte=self.to_date,
         )
 
-        # Combine run_data, branches, revisions to the one set of metas
+        # Combine tags, branches, revisions to the one set of metas
         run_metas = []
-        for metas_string in [run_data, branches, revisions]:
+        for metas_string in [tags, branches, revisions]:
             metas = metas_string.split(query_delimiter)
             run_metas.extend(filter(None, metas))
 
