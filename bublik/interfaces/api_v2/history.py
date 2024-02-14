@@ -56,29 +56,29 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         # names of the query parameters are terrible, but we have to keep them
         from_date = self.request.query_params.get('start_date', '')
         to_date = self.request.query_params.get('finish_date', '')
-        hash = self.request.query_params.get('hash', '')
-        results = self.request.query_params.get('results', '')
-        result_properties = self.request.query_params.get('result_properties', '')
-        tags = self.request.query_params.get('tags', '')
+        branches = self.request.query_params.get('branches', '')
+        revisions = self.request.query_params.get('revisions', '')
         labels = self.request.query_params.get('labels', '')
-        tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
-        label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
-        revision_expr = {
-            'type': 'revision',
-            'expr': self.request.query_params.get('revision_expr', ''),
-        }
+        tags = self.request.query_params.get('tags', '')
         branch_expr = {
             'type': 'branch',
             'expr': self.request.query_params.get('branch_expr', ''),
         }
-        verdict_expr = self.request.query_params.get('verdict_expr', '')
-        test_arg_expr = self.request.query_params.get('test_arg_expr', '')
+        revision_expr = {
+            'type': 'revision',
+            'expr': self.request.query_params.get('revision_expr', ''),
+        }
+        label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
+        tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
         run_properties = self.request.query_params.get('run_properties', '')
-        branches = self.request.query_params.get('branches', '')
-        revisions = self.request.query_params.get('revisions', '')
+        hash = self.request.query_params.get('hash', '')
         test_parameters = self.request.query_params.get('parameters', [])
+        test_arg_expr = self.request.query_params.get('test_arg_expr', '')
+        results = self.request.query_params.get('results', '')
         verdict = self.request.query_params.get('verdict', '')
         verdict_lookup = self.request.query_params.get('verdict_lookup', '')
+        verdict_expr = self.request.query_params.get('verdict_expr', '')
+        result_properties = self.request.query_params.get('result_properties', '')
 
         tests = get_tests_by_name(test_name)
         if not tests:
