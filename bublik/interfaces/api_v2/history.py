@@ -99,7 +99,6 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         tests = get_tests_by_name(test_name)
         if not tests:
             raise ValidationError(detail='Invalid test name', code=status.HTTP_404_NOT_FOUND)
-        test_ids = list(tests.values_list('id', flat=True))
 
         ### Apply run filters ###
 
@@ -147,6 +146,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         ### Apply iteration filters ###
 
         # Filter test iterations by test name
+        test_ids = list(tests.values_list('id', flat=True))
         test_iterations = TestIteration.objects.filter(test__in=test_ids)
 
         # Filter test iterations by hash
