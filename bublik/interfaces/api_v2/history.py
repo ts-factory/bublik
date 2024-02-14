@@ -52,14 +52,19 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         query_delimiter = settings.QUERY_DELIMITER
         test_arg_delimiter = settings.KEY_VALUE_DELIMITER
 
+        # Get test name
         test_name = self.request.query_params.get('test_name')
-        # names of the query parameters are terrible, but we have to keep them
+
+        ### Get run filter params ###
+        # Get period
         from_date = self.request.query_params.get('from_date', '')
         to_date = self.request.query_params.get('to_date', '')
+        # Get meta data
         branches = self.request.query_params.get('branches', '')
         revisions = self.request.query_params.get('revisions', '')
         labels = self.request.query_params.get('labels', '')
         tags = self.request.query_params.get('tags', '')
+        # Get meta data expressions
         branch_expr = {
             'type': 'branch',
             'expr': self.request.query_params.get('branch_expr', ''),
@@ -70,16 +75,27 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         }
         label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
         tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
+        # Get run properties: compromised / not compromised sessions
         run_properties = self.request.query_params.get('run_properties', '')
+
+        ### Get iteration filter params ###
+        # Get hash
         hash = self.request.query_params.get('hash', '')
+        # Get test arguments and test argument expression
         test_args = self.request.query_params.get('test_args', [])
         test_arg_expr = self.request.query_params.get('test_arg_expr', '')
+
+        ### Get result filter params ###
+        # Get result statuses: PASSED / FAILED / KILLED / CORED / SKIPPED / FAKED / INCOMPLETE
         result_statuses = self.request.query_params.get('result_statuses', '')
+        # Get verdict, its lookup and expression
         verdict = self.request.query_params.get('verdict', '')
         verdict_lookup = self.request.query_params.get('verdict_lookup', '')
         verdict_expr = self.request.query_params.get('verdict_expr', '')
+        # Get result types: expected / unexpected results
         result_types = self.request.query_params.get('result_types', '')
 
+        # Check passed test name first
         tests = get_tests_by_name(test_name)
         if not tests:
             raise ValidationError(detail='Invalid test name', code=status.HTTP_404_NOT_FOUND)
@@ -89,7 +105,6 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
 
         # Filter by dates
         self.from_date, self.to_date, _ = prepare_dates_period(from_date, to_date, 30)
-
         runs_results = TestIterationResult.objects.filter(
             test_run__isnull=True,
             start__date__gte=self.from_date,
@@ -102,11 +117,11 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             metas = metas_string.split(query_delimiter)
             run_metas.extend(filter(None, metas))
 
-        # Filter by run metas (branches, revisions, labels and tags) passed as multiple values
+        # Filter by run metas passed as multiple values
         if run_metas:
             runs_results = runs_results.filter_by_run_metas(run_metas)
 
-        # Filter by branches, revisions, labels and tags expressions:
+        # Filter by run metas expressions
         for meta_expr in [branch_expr, rev_expr, label_expr, tag_expr]:
             if meta_expr['expr']:
                 runs_results = filter_by_expression(
@@ -125,11 +140,13 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         if not runs_results:
             return TestIterationResult.objects.none()
 
-        # Filter by runs
+        # Filter test results by found runs
         runs_results_ids = list(runs_results.values_list('id', flat=True))
         test_results = TestIterationResult.objects.filter(test_run__in=runs_results_ids)
 
-        ### Apply iteration and results filters ###
+        ### Apply iteration filters ###
+
+        # Filter test iterations by test name
         test_iterations = TestIteration.objects.filter(test__in=test_ids)
 
         # Filter test iterations by hash
@@ -163,8 +180,11 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
                 expr_type='test_argument',
             )
 
+        # Filter test results by found iterations
         test_iteration_ids = list(test_iterations.values_list('id', flat=True))
         test_results = test_results.filter(iteration__in=test_iteration_ids)
+
+        ### Apply result filters ###
 
         # Filter by result statuses
         if result_statuses:
@@ -194,7 +214,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         elif not verdict and verdict_lookup == 'none':
             test_results = test_results.exclude(meta_results__meta__type='verdict')
 
-        # Filter by verdicts expression
+        # Filter by verdict expression
         if verdict_expr:
             test_results = filter_by_expression(
                 filtered_qs=test_results,
