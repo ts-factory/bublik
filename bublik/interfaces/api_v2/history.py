@@ -96,18 +96,18 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             start__date__lte=self.to_date,
         )
 
-        # Combine tags, labels, branches, revisions to the one set of metas
+        # Combine branches, revisions, labels, tags to the one set of metas
         run_metas = []
-        for metas_string in [tags, labels, branches, revisions]:
+        for metas_string in [branches, revisions, labels, tags]:
             metas = metas_string.split(query_delimiter)
             run_metas.extend(filter(None, metas))
 
-        # Filter by run metas (tags, labels, branches and revisions) passed as multiple values
+        # Filter by run metas (branches, revisions, labels and tags) passed as multiple values
         if run_metas:
             runs_results = runs_results.filter_by_run_metas(run_metas)
 
-        # Filter by tags, labels, revisions and branches expressions:
-        for meta_expr in [tag_expr, label_expr, revision_expr, branch_expr]:
+        # Filter by branches, revisions, labels and tags expressions:
+        for meta_expr in [branch_expr, revision_expr, label_expr, tag_expr]:
             if meta_expr['expr']:
                 runs_results = filter_by_expression(
                 filtered_qs=runs_results,
