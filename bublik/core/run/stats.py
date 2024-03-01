@@ -113,9 +113,9 @@ def generate_result(test_iter_res, parent, period, path, info, run_results):
 
         unexpected = test_iterations.filter(meta_results__meta__type='err')
 
-        passed_unexpected = passed(unexpected).count()
-        failed_unexpected = failed(unexpected).count()
-        skipped_unexpected = skipped(unexpected).count()
+        passed_unexpected = passed(unexpected).distinct().count()
+        failed_unexpected = failed(unexpected).distinct().count()
+        skipped_unexpected = skipped(unexpected).distinct().count()
 
         test_iter_res_info['stats']['passed'] = all_passed - passed_unexpected
         test_iter_res_info['stats']['failed'] = all_failed - failed_unexpected
