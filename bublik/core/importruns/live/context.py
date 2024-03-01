@@ -338,7 +338,7 @@ class LiveLogContext:
                 iteration=test_iteration,
                 run=self.run,
                 parent_package=parent_result,
-                tin=-1,
+                tin=-2,
                 exec_seqno=self.current_seqno,
             )
             self.push_stack_item(
