@@ -4,6 +4,7 @@
 from collections import Counter
 import logging
 
+from django.db.models import Count
 import per_conf
 
 from bublik.core.meta.categorization import categorize_meta
@@ -333,3 +334,37 @@ def add_expected_result(
     expectation.results.add(iteration_result)
 
     return expectation
+
+
+def del_blank_iteration_results(run_id):
+    run_tir = TestIterationResult.objects.filter(
+        test_run__id=run_id,
+    )
+
+    run_tir_es_dup_counts = (
+        run_tir.values('exec_seqno')
+        .annotate(es_count=Count('exec_seqno'))
+        .filter(es_count__gt=1)
+    )
+
+    run_tir_dups = run_tir.filter(
+        exec_seqno__in=[tir['exec_seqno'] for tir in run_tir_es_dup_counts],
+    )
+    blank_iter_res = run_tir_dups.filter(iteration__hash='')
+
+    logger.info(f'there are {len(blank_iter_res)} blank test iteration results in the DB')
+
+    # protection against cascading deletion of other test iteration results
+    blank_iter_res_ids = list(blank_iter_res.values_list('id', flat=True))
+    blank_iter_res_children = run_tir.filter(
+        parent_package__in=blank_iter_res_ids,
+        test_run_id__in=blank_iter_res_ids,
+    )
+    if blank_iter_res_children:
+        logger.warning(
+            'some blank test iteration results have children! '
+            'Data may be lost as a result of deletion, deletion is skipped',
+        )
+    else:
+        logger.info('blank test iteration results have been successfully deleted!')
+        blank_iter_res.delete()
