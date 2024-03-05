@@ -113,17 +113,49 @@ def add_iteration_result(
     exec_seqno=None,
 ):
 
-    iteration_result, _ = TestIterationResult.objects.update_or_create(
-        iteration=iteration,
-        test_run=run,
-        parent_package=parent_package,
-        tin=tin,
+    # get objects by passed run and exec_seqno
+    iteration_result = TestIterationResult.objects.filter(
         exec_seqno=exec_seqno,
-        defaults={
-            'start': prepare_date(start_time),
-            'finish': prepare_date(finish_time) if finish_time else None,
-        },
+        test_run=run,
     )
+
+    if iteration_result:
+        # check if there are already duplicates by exec_seqno for current run
+        if len(iteration_result) > 1:
+            msg = (
+                f'duplicated TestIterationResult objects were found! '
+                f'IDs: {iteration_result.values_list("id", flat=True)}. '
+                'Check and clean DB!'
+            )
+            raise ValueError(msg)
+        iteration_result = iteration_result.first()
+        # check the objects for compliance (there may be a corresponding blank object
+        # with a different special tin (-1 or -2) and iteration)
+        if (
+            iteration_result.parent_package != parent_package or
+            iteration_result.tin > -1
+        ):
+            msg = (
+                f'TestIterationResult object with passed exec_seqno ({exec_seqno}) '
+                f'already exists to current run: {iteration_result}'
+            )
+            raise ValueError(msg)
+        iteration_result.update(
+            start=prepare_date(start_time),
+            finish=prepare_date(finish_time) if finish_time else None,
+            tin=tin,
+            iteration=iteration,
+        )
+    else:
+        TestIterationResult.objects.create(
+            test_run=run,
+            iteration=iteration,
+            parent_package=parent_package,
+            exec_seqno=exec_seqno,
+            tin=tin,
+            start=prepare_date(start_time),
+            finish=prepare_date(finish_time) if finish_time else None,
+        )
 
     return iteration_result
 
