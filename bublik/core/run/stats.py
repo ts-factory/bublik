@@ -180,8 +180,7 @@ def get_run_stats_detailed(run_id):
     cache = RunCache.by_id(run_id, 'stats')
     run_stats = cache.data
     # Recalculating statistics if it is not stored in the cache
-    # or has an old structure that the UI does not support
-    if not run_stats or 'stats' not in run_stats.keys():
+    if not run_stats:
         run_results = (
             TestIterationResult.objects.filter(test_run=run_id)
             .order_by('start')
