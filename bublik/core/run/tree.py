@@ -7,7 +7,7 @@ from django.db.models import Exists, F, OuterRef
 from treelib import Tree as TreeLib
 
 from bublik.core.queries import get_or_none
-from bublik.data.models import MetaResult, ResultType, TestIterationResult
+from bublik.data.models import Meta, MetaResult, ResultType, TestIterationResult
 
 
 class Tree(TreeLib):
@@ -49,6 +49,10 @@ def path_to_node(result):
 
 
 def tree_representation(result):
+    skipped_meta_ids = list(
+        Meta.objects.filter(value='SKIPPED').values_list('id', flat=True),
+    )
+
     result_nodes = (
         TestIterationResult.objects.filter(test_run=result.root)
         .select_related('iteration__test')
@@ -60,7 +64,7 @@ def tree_representation(result):
                 MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err'),
             ),
             skipped=Exists(
-                MetaResult.objects.filter(result__id=OuterRef('id'), meta__value='SKIPPED'),
+                MetaResult.objects.filter(result__id=OuterRef('id'), meta__in=skipped_meta_ids),
             ),
         )
         .values('id', 'start', 'name', 'entity', 'parent_id', 'has_error', 'skipped')
