@@ -33,3 +33,10 @@ def local_logs(request, task_id):
             'bublik/alert.html',
             {'detail': str(e), 'view': 'local_logs', 'alert_type': 'danger'},
         )
+
+
+@never_cache
+@api_view(['GET', 'POST'])
+def clear_all_runs_stats_cache(request):
+    task_id = tasks.clear_all_runs_stats_cache.delay()
+    return HttpResponse(f'\nYour task id: {task_id}\n')
