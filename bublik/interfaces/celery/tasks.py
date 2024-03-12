@@ -18,7 +18,7 @@ from bublik.core.checks import check_files_for_categorization
 from bublik.core.logging import parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
-from bublik.data.models import EventLog
+from bublik.data.models import EventLog, TestIterationResult
 from bublik.interfaces.celery import app
 
 
@@ -211,3 +211,42 @@ def run_cache(self, *args, **kwargs):
 def update_all_hashed_objects(self):
     '''This is a wrapper to execute an action in the background.'''
     call_command('update_all_hashed_objects')
+
+
+@app.task(bind=True)
+def clear_all_runs_stats_cache(self):
+    task_id = self.request.id
+    logger, logpath = get_or_create_task_logger(task_id)
+
+    query_url = f"curl 'http://{settings.BUBLIK_HOST}/clear_all_runs_stats_cache/'"
+
+    logger.info('clear all runs stats cache task started:')
+    logger.info(f'[RUN]:  {query_url}')
+
+    test_run_ids = list(
+        TestIterationResult.objects.order_by('test_run_id')
+        .distinct('test_run_id')
+        .values_list('test_run_id', flat=True),
+    )
+    test_run_ids = [f'-i {trid}' for trid in test_run_ids if trid is not None]
+
+    with open(logpath, 'a') as log:
+        cmd_run_cache = [
+            './manage.py',
+            'run_cache',
+            'delete',
+            '-d',
+            'stats',
+            '--logger_out',
+            'True',
+        ]
+        subprocess.run(
+            [*cmd_run_cache, *test_run_ids],
+            stdout=log,
+            stderr=log,
+            shell=False,
+            check=True,
+        )
+        log.flush()
+
+    return task_id
