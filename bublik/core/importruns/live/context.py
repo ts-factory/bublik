@@ -338,7 +338,7 @@ class LiveLogContext:
                 iteration=test_iteration,
                 run=self.run,
                 parent_package=parent_result,
-                tin=-1,
+                tin=-2,
                 exec_seqno=self.current_seqno,
             )
             self.push_stack_item(
@@ -603,11 +603,6 @@ class LiveLogContext:
         if 'ts' not in data:
             msg = 'timestamp is required'
             raise LLInvalidInputError(msg)
-
         dt = utc_ts_to_dt(data['ts'])
-
-        on_item_enter, on_item_exit = self.plan_skip_handlers()
-        self.plan_tracker.skip_all(on_item_enter, on_item_exit)
-
         self.last_ts = dt
         self.finish_run('RUN_STATUS_DONE')

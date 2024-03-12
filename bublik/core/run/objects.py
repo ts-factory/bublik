@@ -4,6 +4,7 @@
 from collections import Counter
 import logging
 
+from django.db.models import Count
 import per_conf
 
 from bublik.core.meta.categorization import categorize_meta
@@ -113,17 +114,49 @@ def add_iteration_result(
     exec_seqno=None,
 ):
 
-    iteration_result, _ = TestIterationResult.objects.update_or_create(
-        iteration=iteration,
-        test_run=run,
-        parent_package=parent_package,
-        tin=tin,
+    # get objects by passed run and exec_seqno
+    iteration_result = TestIterationResult.objects.filter(
         exec_seqno=exec_seqno,
-        defaults={
-            'start': prepare_date(start_time),
-            'finish': prepare_date(finish_time) if finish_time else None,
-        },
+        test_run=run,
     )
+
+    if iteration_result:
+        # check if there are already duplicates by exec_seqno for current run
+        if len(iteration_result) > 1:
+            msg = (
+                f'duplicated TestIterationResult objects were found! '
+                f'IDs: {iteration_result.values_list("id", flat=True)}. '
+                'Check and clean DB!'
+            )
+            raise ValueError(msg)
+        iteration_result = iteration_result.first()
+        # check the objects for compliance (there may be a corresponding blank object
+        # with a different special tin (-1 or -2) and iteration)
+        if (
+            iteration_result.parent_package != parent_package or
+            iteration_result.tin > -1
+        ):
+            msg = (
+                f'TestIterationResult object with passed exec_seqno ({exec_seqno}) '
+                f'already exists to current run: {iteration_result}'
+            )
+            raise ValueError(msg)
+        iteration_result.update(
+            start=prepare_date(start_time),
+            finish=prepare_date(finish_time) if finish_time else None,
+            tin=tin,
+            iteration=iteration,
+        )
+    else:
+        TestIterationResult.objects.create(
+            test_run=run,
+            iteration=iteration,
+            parent_package=parent_package,
+            exec_seqno=exec_seqno,
+            tin=tin,
+            start=prepare_date(start_time),
+            finish=prepare_date(finish_time) if finish_time else None,
+        )
 
     return iteration_result
 
@@ -301,3 +334,37 @@ def add_expected_result(
     expectation.results.add(iteration_result)
 
     return expectation
+
+
+def del_blank_iteration_results(run_id):
+    run_tir = TestIterationResult.objects.filter(
+        test_run__id=run_id,
+    )
+
+    run_tir_es_dup_counts = (
+        run_tir.values('exec_seqno')
+        .annotate(es_count=Count('exec_seqno'))
+        .filter(es_count__gt=1)
+    )
+
+    run_tir_dups = run_tir.filter(
+        exec_seqno__in=[tir['exec_seqno'] for tir in run_tir_es_dup_counts],
+    )
+    blank_iter_res = run_tir_dups.filter(iteration__hash='')
+
+    logger.info(f'there are {len(blank_iter_res)} blank test iteration results in the DB')
+
+    # protection against cascading deletion of other test iteration results
+    blank_iter_res_ids = list(blank_iter_res.values_list('id', flat=True))
+    blank_iter_res_children = run_tir.filter(
+        parent_package__in=blank_iter_res_ids,
+        test_run_id__in=blank_iter_res_ids,
+    )
+    if blank_iter_res_children:
+        logger.warning(
+            'some blank test iteration results have children! '
+            'Data may be lost as a result of deletion, deletion is skipped',
+        )
+    else:
+        logger.info('blank test iteration results have been successfully deleted!')
+        blank_iter_res.delete()

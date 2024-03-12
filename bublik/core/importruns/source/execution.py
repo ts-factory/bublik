@@ -19,6 +19,7 @@ from bublik.core.run.objects import (
     add_tags,
     add_test,
     clear_run_count,
+    del_blank_iteration_results,
     set_prologues_counts,
     set_run_count,
     set_run_import_mode,
@@ -124,8 +125,10 @@ def incremental_import(run_log, meta_data, run_completed, force):
             force_update = True
             if was_online:
                 logger.info('this is a reupload of an online import')
+                del_blank_iteration_results(run_id)
             if force:
                 logger.info('this is a re-import of an already imported run')
+                del_blank_iteration_results(run_id)
             logger.info(f'the run will be fully added, finish timestamp - {run_finish}')
     else:
         run_data = {'test_run': None, 'start': run_start}
