@@ -22,7 +22,7 @@ from .history import HistoryViewSet
 from .importruns import ImportrunsViewSet
 from .index import render_react
 from .log import LogViewSet
-from .management import local_logs, meta_categorization
+from .management import clear_all_runs_stats_cache, local_logs, meta_categorization
 from .measurements import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
 from .performance import PerformanceCheckView
@@ -58,4 +58,5 @@ __all__ = [
     'ForgotPasswordResetView',
     'AdminViewSet',
     'PerformanceCheckView',
+    'clear_all_runs_stats_cache',
 ]

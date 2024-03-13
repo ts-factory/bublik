@@ -113,9 +113,9 @@ def generate_result(test_iter_res, parent, period, path, info, run_results):
 
         unexpected = test_iterations.filter(meta_results__meta__type='err')
 
-        passed_unexpected = passed(unexpected).count()
-        failed_unexpected = failed(unexpected).count()
-        skipped_unexpected = skipped(unexpected).count()
+        passed_unexpected = passed(unexpected).distinct().count()
+        failed_unexpected = failed(unexpected).distinct().count()
+        skipped_unexpected = skipped(unexpected).distinct().count()
 
         test_iter_res_info['stats']['passed'] = all_passed - passed_unexpected
         test_iter_res_info['stats']['failed'] = all_failed - failed_unexpected
@@ -180,8 +180,7 @@ def get_run_stats_detailed(run_id):
     cache = RunCache.by_id(run_id, 'stats')
     run_stats = cache.data
     # Recalculating statistics if it is not stored in the cache
-    # or has an old structure that the UI does not support
-    if not run_stats or 'stats' not in run_stats.keys():
+    if not run_stats:
         run_results = (
             TestIterationResult.objects.filter(test_run=run_id)
             .order_by('start')

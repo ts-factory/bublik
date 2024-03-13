@@ -40,6 +40,11 @@ urlpatterns = [
     # Management commands web interface
     path('importruns/', include(importruns_router.urls)),
     path('meta_categorization/', api_v2.meta_categorization, name='meta_categorization'),
+    path(
+        'clear_all_runs_stats_cache/',
+        api_v2.clear_all_runs_stats_cache,
+        name='clear_all_runs_stats_cache',
+    ),
     re_path(r'importlog/(?:(?P<task_id>[a-fA-F-\d]{36})?)$',
             cache_page(60 * 20)(api_v2.local_logs), name='logs'),
     # V2
