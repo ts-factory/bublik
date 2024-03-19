@@ -21,6 +21,7 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 '''
 
+from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta
 from .measurement import (
@@ -79,4 +80,5 @@ __all__ = [
     'User',
     'UserManager',
     'UserRoles',
+    'EndpointURL',
 ]

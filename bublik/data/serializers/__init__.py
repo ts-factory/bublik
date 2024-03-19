@@ -9,6 +9,7 @@ from .auth import (
     UserEmailSerializer,
     UserSerializer,
 )
+from .endpoint_url import EndpointURLSerializer
 from .eventlog import EventLogSerializer
 from .expectation import (
     ExpectationSerializer,
@@ -54,4 +55,5 @@ __all__ = [
     'UserEmailSerializer',
     'PasswordResetSerializer',
     'UpdateUserSerializer',
+    'EndpointURLSerializer',
 ]
