@@ -81,6 +81,7 @@ urlpatterns = [
         name='auth_forgot_password_password_reset',
     ),
     path('performance_check/', api_v2.PerformanceCheckView.as_view(), name='performance_check'),
+    path('url_shortner/', api_v2.URLShortnerView.as_view(), name='url_shortner'),
 ]
 
 if settings.URL_PREFIX:
