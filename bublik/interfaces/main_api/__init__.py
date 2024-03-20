@@ -9,6 +9,7 @@ from .redirects import (
     redirect_root,
     redirect_run_stats,
     redirect_runs_stats,
+    redirect_short,
     redirect_tests_run,
 )
 
@@ -22,4 +23,5 @@ __all__ = [
     'redirect_runs_stats',
     'redirect_tests_run',
     'redirect_flower',
+    'redirect_short',
 ]

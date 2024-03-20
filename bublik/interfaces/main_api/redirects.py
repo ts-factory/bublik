@@ -2,10 +2,13 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import HttpResponseNotFound
 from django.shortcuts import redirect
 
 from bublik.core.run.tests_organization import get_run_root
 from bublik.core.shortcuts import build_absolute_uri
+from bublik.data.models import EndpointURL
 
 
 def redirect_root(request):
@@ -55,3 +58,14 @@ def redirect_next(request):
 def redirect_flower(request):
     flower_url = (request, 'flower')
     return redirect(flower_url)
+
+
+def redirect_short(request, view_endpoint_hash):
+    view, endpoint_hash = view_endpoint_hash.split('/', 1)
+    try:
+        endpoint_by_hash = EndpointURL.objects.get(hash=endpoint_hash).endpoint
+    except ObjectDoesNotExist:
+        return HttpResponseNotFound('<h1>Page not found</h1>')
+    new_endpoint = f'{settings.UI_PREFIX}/{view}{endpoint_by_hash}'
+    new_view_path = build_absolute_uri(request, new_endpoint)
+    return redirect(new_view_path)
