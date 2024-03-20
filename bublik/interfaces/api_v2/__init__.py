@@ -30,6 +30,7 @@ from .report import ReportViewSet
 from .results import ResultViewSet, RunViewSet
 from .server import ServerViewSet
 from .tree import TreeViewSet
+from .url_shortener import URLShortnerView
 
 
 __all__ = [
@@ -61,4 +62,5 @@ __all__ = [
     'PerformanceCheckView',
     'clear_all_runs_stats_cache',
     'ReportViewSet',
+    'URLShortnerView',
 ]
