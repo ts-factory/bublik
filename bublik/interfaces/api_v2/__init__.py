@@ -29,6 +29,7 @@ from .performance import PerformanceCheckView
 from .results import ResultViewSet, RunViewSet
 from .server import ServerViewSet
 from .tree import TreeViewSet
+from .url_shortener import URLShortnerView
 
 
 __all__ = [
@@ -58,4 +59,5 @@ __all__ = [
     'ForgotPasswordResetView',
     'AdminViewSet',
     'PerformanceCheckView',
+    'URLShortnerView',
 ]

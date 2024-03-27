@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/v2/', include((api_v2_router.urls, 'api-v2'), namespace='api-v2')),
     # Redirects
     path('', main_api.redirect_root),
+    re_path(r'eh/(?P<endpoint_hash>[A-Za-z0-9+/=]+)$', main_api.redirect_short),
     path('dashboard/', main_api.redirect_dashboard),
     path('v1/runs_stats/', main_api.redirect_runs_stats),
     path('v1/flower/', main_api.redirect_flower, name='flower_site'),
@@ -75,6 +76,7 @@ urlpatterns = [
         name='auth_forgot_password_password_reset',
     ),
     path('performance_check/', api_v2.PerformanceCheckView.as_view(), name='performance_check'),
+    path('url_shortner/', api_v2.URLShortnerView.as_view(), name='url_shortner'),
 ]
 
 if settings.URL_PREFIX:
