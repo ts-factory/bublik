@@ -56,6 +56,15 @@ def get_user_info_from_access_token(access_token):
     return token_backend.decode(access_token, verify=True)
 
 
+def get_user_by_access_token(access_token):
+    try:
+        user_info = get_user_info_from_access_token(access_token)
+        user = User.objects.get(pk=user_info['user_id'])
+        return user
+    except TokenBackendError:
+        return None
+
+
 def admin_required(function):
     @wraps(function)
     def wrapper(*args, **kwargs):
@@ -73,11 +82,8 @@ def admin_required(function):
 
         if request:
             access_token = request.COOKIES.get('access_token')
-            try:
-                # get user
-                user_info = get_user_info_from_access_token(access_token=access_token)
-                user = User.objects.get(pk=user_info['user_id'])
-            except TokenBackendError:
+            user = get_user_by_access_token(access_token)
+            if not user:
                 return Response(
                     {'message': 'Not Authenticated'},
                     status=status.HTTP_403_FORBIDDEN,
@@ -204,77 +210,64 @@ class ProfileViewSet(GenericViewSet):
     def info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
-        try:
-            # get user info using access token
-            user_info = get_user_info_from_access_token(access_token)
-            # get user object
-            user = User.objects.get(pk=user_info['user_id'])
-            serializer_class = self.get_serializer_class()
-            return Response(serializer_class(user).data, status=status.HTTP_200_OK)
-        except TokenBackendError:
+        user = get_user_by_access_token(access_token)
+        if not user:
             return Response(
                 {'message': 'Not Authenticated'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        serializer_class = self.get_serializer_class()
+        return Response(serializer_class(user).data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
     def password_reset(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
-        try:
-            # get user info using access token
-            user_info = get_user_info_from_access_token(access_token)
-            # get user object
-            user = User.objects.get(pk=user_info['user_id'])
-
-            # check current password and validate new password
-            passwords = request.data
-            serializer_class = self.get_serializer_class()
-            serializer = serializer_class(data=passwords)
-            serializer.current_password_check(user, passwords['current_password'])
-            serializer.validate_passwords(passwords)
-
-            # password reset
-            user.set_password(passwords['new_password'])
-            user.save()
-
-            # blacklist old refresh tokens
-            RefreshToken.for_user(user).blacklist()
-
-            return Response(
-                {'message': 'Password reset successfully'},
-                status=status.HTTP_200_OK,
-            )
-        except TokenBackendError:
+        user = get_user_by_access_token(access_token)
+        if not user:
             return Response(
                 {'message': 'Not Authenticated'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        # check current password and validate new password
+        passwords = request.data
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(data=passwords)
+        serializer.current_password_check(user, passwords['current_password'])
+        serializer.validate_passwords(passwords)
+
+        # password reset
+        user.set_password(passwords['new_password'])
+        user.save()
+
+        # blacklist old refresh tokens
+        RefreshToken.for_user(user).blacklist()
+
+        return Response(
+            {'message': 'Password reset successfully'},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['post'])
     def update_info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
-        try:
-            # get user info using access token
-            user_info = get_user_info_from_access_token(access_token)
-            # get user object
-            user = User.objects.get(pk=user_info['user_id'])
-            serializer_class = self.get_serializer_class()
-            # check if new data is valid
-            serializer = serializer_class(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            # update user
-            updated_user = serializer.update(
-                user=user,
-                data=request.data,
-            )
-            return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
-        except TokenBackendError:
+        user = get_user_by_access_token(access_token)
+        if not user:
             return Response(
                 {'message': 'Not Authenticated'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        serializer_class = self.get_serializer_class()
+        # check if new data is valid
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # update user
+        updated_user = serializer.update(
+            user=user,
+            data=request.data,
+        )
+        return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
 
 
 class RefreshTokenView(TokenRefreshView):
@@ -296,9 +289,12 @@ class RefreshTokenView(TokenRefreshView):
                 )
             access_token = refresh_token.access_token
 
-            # get user info and User object
-            user_info = get_user_info_from_access_token(str(access_token))
-            user = User.objects.get(pk=user_info['user_id'])
+            user = get_user_by_access_token(access_token)
+            if not user:
+                return Response(
+                    {'message': 'Not Authenticated'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
             # blacklist refresh token
             refresh_token.blacklist()
