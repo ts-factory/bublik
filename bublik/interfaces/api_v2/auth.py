@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from functools import wraps
-
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
@@ -13,19 +11,18 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.cache import never_cache
 from rest_framework import generics, status
 from rest_framework.decorators import action
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-from rest_framework_simplejwt.backends import TokenBackend
-from rest_framework_simplejwt.exceptions import TokenBackendError, TokenError
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from bublik.core.auth import auth_required, get_user_by_access_token, get_user_info_from_access_token
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.data.models import User, UserRoles
+from bublik.data.models import User
 from bublik.data.serializers import (
     PasswordResetSerializer,
     RegisterSerializer,
@@ -46,67 +43,6 @@ __all__ = [
     'ForgotPasswordResetView',
     'AdminViewSet',
 ]
-
-
-def get_user_info_from_access_token(access_token):
-    token_backend = TokenBackend(
-        algorithm=settings.SIMPLE_JWT['ALGORITHM'],
-        signing_key=settings.SIMPLE_JWT['SIGNING_KEY'],
-    )
-    return token_backend.decode(access_token, verify=True)
-
-
-def get_user_by_access_token(access_token):
-    try:
-        user_info = get_user_info_from_access_token(access_token)
-        user = User.objects.get(pk=user_info['user_id'])
-        return user
-    except TokenBackendError:
-        return None
-
-
-def get_request(*args, **kwargs):
-    # check if 'request' is present in the keyword arguments
-    if 'request' in kwargs and isinstance(kwargs['request'], Request):
-        request = kwargs['request']
-    # check if the first argument is an instance of Request
-    elif args and isinstance(args[0], Request):
-        request = args[0]
-    # check if the first argument has a 'request' attribute (ViewSet case)
-    elif hasattr(args[0], 'request') and isinstance(args[0].request, Request):
-        request = args[0].request
-    else:
-        return None
-    return request
-
-
-def auth_required(as_admin=False):
-    def decorator(function):
-        @wraps(function)
-        def wrapper(*args, **kwargs):
-            request = get_request(*args, **kwargs)
-            if not request:
-                # Handle regular function call without a request object
-                return Response(
-                    {'message': 'Wrong request'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            access_token = request.COOKIES.get('access_token')
-            user = get_user_by_access_token(access_token)
-            if not user:
-                return Response(
-                    {'message': 'Not Authenticated'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            # check if user is admin
-            if as_admin and UserRoles.ADMIN not in user.roles:
-                return Response(
-                    {'message': 'You are not authorized to perform this action'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            return function(*args, **kwargs)
-        return wrapper
-    return decorator
 
 
 class RegisterView(generics.CreateAPIView):
