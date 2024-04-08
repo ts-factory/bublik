@@ -65,21 +65,25 @@ def get_user_by_access_token(access_token):
         return None
 
 
+def get_request(*args, **kwargs):
+    # check if 'request' is present in the keyword arguments
+    if 'request' in kwargs and isinstance(kwargs['request'], Request):
+        request = kwargs['request']
+    # check if the first argument is an instance of Request
+    elif args and isinstance(args[0], Request):
+        request = args[0]
+    # check if the first argument has a 'request' attribute (ViewSet case)
+    elif hasattr(args[0], 'request') and isinstance(args[0].request, Request):
+        request = args[0].request
+    else:
+        return None
+    return request
+
+
 def admin_required(function):
     @wraps(function)
     def wrapper(*args, **kwargs):
-        request = None
-
-        # Check if 'request' is present in the keyword arguments
-        if 'request' in kwargs and isinstance(kwargs['request'], Request):
-            request = kwargs['request']
-        # Check if the first argument is an instance of Request
-        elif args and isinstance(args[0], Request):
-            request = args[0]
-        # Check if the first argument has a 'request' attribute (ViewSet case)
-        elif hasattr(args[0], 'request') and isinstance(args[0].request, Request):
-            request = args[0].request
-
+        request = get_request(*args, **kwargs)
         if request:
             access_token = request.COOKIES.get('access_token')
             user = get_user_by_access_token(access_token)
