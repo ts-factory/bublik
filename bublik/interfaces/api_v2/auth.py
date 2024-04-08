@@ -80,11 +80,17 @@ def get_request(*args, **kwargs):
     return request
 
 
-def admin_required(function):
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        request = get_request(*args, **kwargs)
-        if request:
+def auth_required(as_admin=False):
+    def decorator(function):
+        @wraps(function)
+        def wrapper(*args, **kwargs):
+            request = get_request(*args, **kwargs)
+            if not request:
+                # Handle regular function call without a request object
+                return Response(
+                    {'message': 'Wrong request'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             access_token = request.COOKIES.get('access_token')
             user = get_user_by_access_token(access_token)
             if not user:
@@ -92,24 +98,15 @@ def admin_required(function):
                     {'message': 'Not Authenticated'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-
             # check if user is admin
-            if UserRoles.ADMIN in user.roles:
-                # call the original function
-                return function(*args, **kwargs)
-
-            return Response(
-                {'message': 'You are not authorized to perform this action'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        # Handle regular function call without a request object
-        return Response(
-            {'message': 'Wrong request'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    return wrapper
+            if as_admin and UserRoles.ADMIN not in user.roles:
+                return Response(
+                    {'message': 'You are not authorized to perform this action'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return function(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 class RegisterView(generics.CreateAPIView):
@@ -210,29 +207,21 @@ class ProfileViewSet(GenericViewSet):
             return UpdateUserSerializer
         return UserSerializer
 
+    @auth_required(as_admin=False)
     @action(detail=False, methods=['get'])
     def info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
-        if not user:
-            return Response(
-                {'message': 'Not Authenticated'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         serializer_class = self.get_serializer_class()
         return Response(serializer_class(user).data, status=status.HTTP_200_OK)
 
+    @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def password_reset(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
-        if not user:
-            return Response(
-                {'message': 'Not Authenticated'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         # check current password and validate new password
         passwords = request.data
         serializer_class = self.get_serializer_class()
@@ -252,16 +241,12 @@ class ProfileViewSet(GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def update_info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
-        if not user:
-            return Response(
-                {'message': 'Not Authenticated'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         serializer_class = self.get_serializer_class()
         # check if new data is valid
         serializer = serializer_class(data=request.data)
@@ -449,7 +434,7 @@ class AdminViewSet(GenericViewSet):
             return UserEmailSerializer
         return UserSerializer
 
-    @admin_required
+    @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def create_user(self, request):
         serializer_class = self.get_serializer_class()
@@ -463,7 +448,7 @@ class AdminViewSet(GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @admin_required
+    @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def update_user(self, request):
         # get user to edit
@@ -480,7 +465,7 @@ class AdminViewSet(GenericViewSet):
         )
         return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
 
-    @admin_required
+    @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def deactivate_user(self, request):
         # get user to delete
@@ -493,7 +478,7 @@ class AdminViewSet(GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @admin_required
+    @auth_required(as_admin=True)
     @method_decorator(never_cache)
     def list(self, request):
         serializer_class = self.get_serializer_class()
