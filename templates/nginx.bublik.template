@@ -24,7 +24,6 @@ server {
     }
 
     location $URL_PREFIX/flower/ {
-        rewrite ^$URL_PREFIX/flower/(.*)$ /$1 break;
         proxy_pass http://$BUBLIK_BIND_FLOWER;
         proxy_set_header Host ${DOLLAR}host;
         proxy_redirect off;
