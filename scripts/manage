@@ -6,7 +6,7 @@ source "$(dirname $0)/exports"
 
 set -e
 
-pushd "${BUBLIK_SRC}"
+pushd "${BUBLIK_SRC}" >/dev/null
 source "${ENV_DIR}/bin/activate"
 ./manage.py "$@"
-popd
+popd >/dev/null
