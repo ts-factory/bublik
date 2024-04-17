@@ -8,5 +8,5 @@ set -e
 
 pushd "${BUBLIK_SRC}" >/dev/null
 source "${ENV_DIR}/bin/activate"
-./manage.py "$@"
+[[ $# -eq 0 ]] || ./manage.py "$@"
 popd >/dev/null
