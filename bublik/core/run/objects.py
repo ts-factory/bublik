@@ -4,6 +4,7 @@
 from collections import Counter
 import logging
 
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Count
 import per_conf
 
@@ -114,22 +115,12 @@ def add_iteration_result(
     exec_seqno=None,
 ):
 
-    # get objects by passed run and exec_seqno
-    iteration_result = TestIterationResult.objects.filter(
-        exec_seqno=exec_seqno,
-        test_run=run,
-    )
-
-    if iteration_result:
-        # check if there are already duplicates by exec_seqno for current run
-        if len(iteration_result) > 1:
-            msg = (
-                f'duplicated TestIterationResult objects were found! '
-                f'IDs: {iteration_result.values_list("id", flat=True)}. '
-                'Check and clean DB!'
-            )
-            raise ValueError(msg)
-        iteration_result = iteration_result.first()
+    try:
+        # get objects by passed run and exec_seqno
+        iteration_result = TestIterationResult.objects.get(
+            exec_seqno=exec_seqno,
+            test_run=run,
+        )
         # check the objects for compliance (there may be a corresponding blank object
         # with a different special tin (-1 or -2) and iteration)
         if (
@@ -141,14 +132,24 @@ def add_iteration_result(
                 f'already exists to current run: {iteration_result}'
             )
             raise ValueError(msg)
-        iteration_result.update(
-            start=prepare_date(start_time),
-            finish=prepare_date(finish_time) if finish_time else None,
-            tin=tin,
-            iteration=iteration,
+        iteration_result.start = prepare_date(start_time)
+        iteration_result.finish = prepare_date(finish_time) if finish_time else None
+        iteration_result.tin = tin
+        iteration_result.iteration = iteration
+        iteration_result.save()
+    except MultipleObjectsReturned as mor:
+        iteration_result = TestIterationResult.objects.filter(
+            exec_seqno=exec_seqno,
+            test_run=run,
         )
-    else:
-        TestIterationResult.objects.create(
+        msg = (
+            f'duplicated TestIterationResult objects were found! '
+            f'IDs: {list(iteration_result.values_list("id", flat=True))}. '
+            'Check and clean DB!'
+        )
+        raise ValueError(msg) from mor
+    except ObjectDoesNotExist:
+        iteration_result = TestIterationResult.objects.create(
             test_run=run,
             iteration=iteration,
             parent_package=parent_package,
