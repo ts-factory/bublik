@@ -124,8 +124,9 @@ def add_iteration_result(
         # check the objects for compliance (there may be a corresponding blank object
         # with a different special tin (-1 or -2) and iteration)
         if (
-            iteration_result.parent_package != parent_package or
-            iteration_result.tin > -1
+            iteration_result.parent_package != parent_package
+            or iteration_result.tin != int(tin)
+            and iteration_result.tin > -1
         ):
             msg = (
                 f'TestIterationResult object with passed exec_seqno ({exec_seqno}) '
