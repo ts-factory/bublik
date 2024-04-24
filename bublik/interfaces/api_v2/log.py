@@ -44,7 +44,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
             return Response(data={'url': None}, status=status.HTTP_200_OK)
 
         page = request.query_params.get('page')
-        if not page.isdigit():
+        if page and not page.isdigit():
             message = f'Incorrect value for page query parameter: {page}. Expecting number'
             return Response(
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
