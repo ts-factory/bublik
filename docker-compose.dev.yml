@@ -1,0 +1,118 @@
+services:
+  django:
+    container_name: django
+    build:
+      context: ..
+      dockerfile: bublik/Dockerfile.dev
+    env_file:
+      - ../bublik/.env.local
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - 8000:8000
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    volumes:
+      - ../bublik:/app/bublik
+      - ../bublik/logs:/app/bublik/logs
+      - static_data:/app/bublik/bublik/representation/static
+  db:
+    container_name: postgres
+    image: postgres
+    environment:
+      POSTGRES_DB: bublik
+      POSTGRES_USER: bublik
+      POSTGRES_PASSWORD: bublik
+    volumes:
+      - db_data:/var/lib/postgresql/data/
+    ports:
+      - 5432:5432
+  redis:
+    container_name: redis
+    image: redis
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+  celery:
+    container_name: celery
+    build:
+      context: ..
+      dockerfile: bublik/Dockerfile.dev
+    env_file:
+      - ../bublik/.env.local
+    command: >
+      watchfiles --filter python 'celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} -l ${CELERY_LOG_LEVEL}'
+    depends_on:
+      - db
+      - rabbitmq
+    volumes:
+      - ../bublik:/app/bublik
+      - ../bublik/logs:/app/bublik/logs
+  flower:
+    image: mher/flower
+    container_name: flower
+    command: celery flower -A ${CELERY_APP} --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - FLOWER_PORT=${FLOWER_PORT}
+    ports:
+      - 5555:5555
+    depends_on:
+      - django
+      - db
+      - redis
+      - rabbitmq
+    volumes:
+      - flower_data:/data
+  bublik-ui:
+    command: pnpm run nx serve --host=0.0.0.0 --base=${URL_PREFIX}/v2
+    container_name: bublik-ui
+    build:
+      context: ../bublik-ui
+      dockerfile: apps/bublik/Dockerfile.dev
+    environment:
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      - BASE_URL=${URL_PREFIX}/v2
+      - BUBLIK_UI_DEV_BACKEND_TARGET=http://localhost
+      - URL_PREFIX=${URL_PREFIX}
+    volumes:
+      - ../bublik-ui:/app
+      - /app/node_modules
+    ports:
+      - 4200:4200
+  storybook:
+    container_name: storybook
+    command: nx run bublik:storybook --host 0.0.0.0
+    build:
+      context: ../bublik-ui
+      dockerfile: apps/bublik/Dockerfile.dev
+    volumes:
+      - ../bublik-ui:/app
+      - /app/node_modules
+    ports:
+      - 4400:4400
+  nginx:
+    container_name: nginx
+    build:
+      context: ..
+      dockerfile: bublik/nginx/Dockerfile.dev
+    env_file:
+      - ../bublik/.env.local
+    ports:
+      - 80:80
+    volumes:
+      - ../bublik/nginx/templates/local:/etc/nginx/templates
+      - static_data:/app/bublik/bublik/representation/static
+    depends_on:
+      - django
+      - bublik-ui
+      - flower
+
+volumes:
+  db_data:
+  flower_data:
+  static_data:
