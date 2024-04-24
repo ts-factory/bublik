@@ -372,3 +372,12 @@ SIMPLE_JWT = {
 }
 
 AUTH_USER_MODEL = 'data.User'
+
+# Views loading timeouts
+VIEWS_TIMEOUTS = {
+    'dashboard': 10,
+    'runs_list': 5,
+    'runs_charts': 300,
+    'history_list_base': 120,
+    'history_list_intense': 120,
+}
