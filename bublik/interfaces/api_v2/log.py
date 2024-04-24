@@ -35,7 +35,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
         Route: /api/v2/logs/<ID>/json/?page=<page\>.
         '''
 
-        if not pk.isdigit():
+        if pk is None or not str(pk).isdigit():
             message = f'Incorrect id: {pk}. Expecting number'
             return Response(
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -49,7 +49,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
             return Response(data={'url': None}, status=status.HTTP_200_OK)
 
         page = request.query_params.get('page')
-        if not page.isdigit():
+        if page and not page.isdigit():
             message = f'Incorrect value for page query parameter: {page}. Expecting number'
             return Response(
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
