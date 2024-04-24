@@ -1,0 +1,104 @@
+services:
+  django:
+    container_name: django
+    build:
+      context: ..
+      dockerfile: bublik/Dockerfile
+    command: >
+      gunicorn bublik.wsgi:application  
+      --bind ${BUBLIK_BIND_GUNICORN}
+      --limit-request-line 0
+      --chdir ${BUBLIK_SRC}
+      --workers ${BUBLIK_WORKERS}
+      --timeout ${BUBLIK_TIMEOUT}
+      --graceful-timeout ${BUBLIK_GRACEFUL_TIMEOUT}
+      --log-file ${BUBLIK_LOG}
+      --access-logfile ${BUBLIK_ACCESS_LOG}
+      --log-level info
+      --name "${BUBLIK_WEB_NAME}"
+    expose:
+      - 8000
+    env_file:
+      - ../bublik/.env
+    entrypoint: ../bublik/entrypoint.sh
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - logs_data:/app/bublik/logs
+      - static_data:/app/bublik/bublik/representation/static
+  db:
+    container_name: postgres
+    image: postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    env_file:
+      - ../bublik/.env
+    volumes:
+      - db_data:/var/lib/postgresql/data/
+  redis:
+    container_name: redis
+    image: redis
+    volumes:
+      - "redis_data:/data"
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    expose:
+      - 5672
+  celery:
+    container_name: celery
+    build:
+      context: ..
+      dockerfile: bublik/Dockerfile
+    env_file:
+      - ../bublik/.env
+    command: celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} -l ${CELERY_LOG_LEVEL}
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    volumes:
+      - logs_data:/app/bublik/logs:rw
+  flower:
+    image: mher/flower
+    container_name: flower
+    command: celery flower -A ${CELERY_APP} --persistent=${FLOWER_PERSISTENT} --url_prefix=${URL_PREFIX}${FLOWER_URL_PREFIX}
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - FLOWER_PORT=${FLOWER_PORT}
+    expose:
+      - 5555
+    depends_on:
+      - django
+      - db
+      - redis
+      - rabbitmq
+    volumes:
+      - flower_data:/data
+  nginx:
+    container_name: nginx
+    build:
+      context: ..
+      dockerfile: bublik/nginx/Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+    env_file:
+      - ../bublik/.env
+    environment:
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
+    ports:
+      - 80:80
+    volumes:
+      - ../bublik/nginx/templates/prod:/etc/nginx/templates:ro
+      - static_data:/app/bublik/bublik/representation/static
+    depends_on:
+      - django
+volumes:
+  logs_data:
+  db_data:
+  static_data:
+  flower_data:
+  redis_data:

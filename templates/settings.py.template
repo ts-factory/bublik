@@ -193,7 +193,7 @@ CACHES = {
     },
     'run': {
         'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': '127.0.0.1:6379',
+        'LOCATION': '${REDIS_HOST}:6379',
         'OPTIONS': {
             'DB': 0,
             'COMPRESSOR_CLASS': 'redis_cache.compressors.BZip2Compressor',

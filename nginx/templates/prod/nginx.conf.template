@@ -1,0 +1,38 @@
+upstream django {
+    server django:8000;
+}
+
+upstream flower {
+    server flower:5555;
+}
+
+server {
+    listen 80;
+    large_client_header_buffers 16 5120k;
+
+    location ${URL_PREFIX}/ {
+        proxy_pass http://django;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+        proxy_redirect off;
+    }
+
+    location ${URL_PREFIX}/v2/ {
+        alias /etc/nginx/html/;
+        index index.html index.htm;
+        try_files ${DOLLAR}uri ${DOLLAR}uri/ /index.html =404;
+    }
+
+    location ${URL_PREFIX}/flower/ {
+        proxy_pass http://flower;
+        proxy_set_header Host $host;
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+    
+    location ${URL_PREFIX}/static/ {
+        alias /app/bublik/bublik/representation/static/;
+    }
+}

@@ -7,6 +7,9 @@ __pycache__/
 .Python
 .env/
 
+# Git
+.gitconfig
+
 # IDE
 .vscode/
 .idea/
@@ -25,9 +28,11 @@ secret.txt
 flower.db
 
 # Came from templates
-bublik/settings.py
 bublik/general.conf
 scripts/create_db
+scripts/runflower
+scripts/runcelery
+scripts/run
 
 # Precalculated data
 cache/
@@ -35,3 +40,12 @@ cache/
 # Coverage results
 .coverage
 htmlcov/
+
+# Per-project configs
+conf/
+
+# Env
+.env
+
+# Static files
+bublik/representation/static

@@ -18,6 +18,10 @@ from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
 from bublik.core.importruns.utils import indicate_collision
 from bublik.core.shortcuts import build_absolute_uri, get_current_scheme_host_prefix
 from bublik.core.utils import get_local_log
+from bublik.core.shortcuts import get_current_scheme_host_prefix
+from bublik.interfaces.api_v2.auth import admin_required
+from bublik.core.shortcuts import build_absolute_uri, get_current_scheme_host_prefix
+from bublik.core.utils import get_local_log
 from bublik.interfaces.celery import tasks
 
 
@@ -29,6 +33,7 @@ class ImportrunsViewSet(ViewSet):
     ViewSet to import run logs.
     '''
 
+    @admin_required
     @method_decorator(never_cache)
     @action(detail=False, methods=['get', 'post'])
     def source(self, request):
@@ -40,6 +45,8 @@ class ImportrunsViewSet(ViewSet):
         param_from = request.query_params.get('from', '')
         param_to = request.query_params.get('to', '')
         param_force = request.query_params.get('force', 'false')
+        param_from = request.query_params.get('from', '')
+        param_to = request.query_params.get('to', '')
 
         try:
             requesting_host = get_current_scheme_host_prefix(request)

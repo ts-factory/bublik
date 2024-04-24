@@ -35,6 +35,16 @@ from .url_shortener import URLShortnerView
 
 
 __all__ = [
+    'AdminViewSet',
+    'ChangePasswordView',
+    'GenerateTokenView',
+    'LogInView',
+    'RegisterView',
+    'LogOutView',
+    'MeView',
+    'RefreshTokenView',
+    'PasswordResetView',
+    'PasswordResetConfirmView',
     'DashboardViewSet',
     'DashboardFormatting',
     'DashboardPayload',
