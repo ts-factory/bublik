@@ -7,6 +7,7 @@ from .auth import (
     TokenPairSerializer,
     UpdateUserSerializer,
     UserEmailSerializer,
+    UpdateUserSerializer,
     UserSerializer,
 )
 from .config import ConfigSerializer
