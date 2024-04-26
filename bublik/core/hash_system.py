@@ -88,7 +88,14 @@ class HashedModelSerializer(ModelSerializer):
         return super().create(self.validated_data_and_hash)
 
     def get_or_create(self):
-        return self.Meta.model.objects.get_or_create(**self.validated_data_and_hash)
+        hash_value = self.validated_data_and_hash.get('hash')
+        obj = self.get_or_none(hash=hash_value)
+
+        if obj:
+            return obj, False
+
+        obj = self.Meta.model.objects.create(**self.validated_data_and_hash)
+        return obj, True
 
     @property
     def validated_data_and_hash(self):
