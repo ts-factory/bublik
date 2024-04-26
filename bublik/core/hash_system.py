@@ -22,6 +22,10 @@ class HashedModelSerializer(ModelSerializer):
     does not influence the hash produced by DeepHash class.
     '''
 
+    def hashable_data(self, data):
+        hashable_fields = self.Meta.model.hashable
+        return OrderedDict((k, v) for k, v in data.items() if k in hashable_fields)
+
     def is_valid(self, *args, **kwargs):
         status_valid = super().is_valid(*args, **kwargs)
         if status_valid:
@@ -39,7 +43,8 @@ class HashedModelSerializer(ModelSerializer):
         HASH_SALT will be applied to the created hash until it's OK.
         """
 
-        salted_data = {'data': copy.deepcopy(data)}
+        hashable_data = self.hashable_data(data)
+        salted_data = {'data': copy.deepcopy(hashable_data)}
 
         while True:
             data_hash = DeepHash(salted_data, hasher=hasher)[salted_data]
@@ -48,9 +53,10 @@ class HashedModelSerializer(ModelSerializer):
             if not obj:
                 return data_hash
 
-            data = OrderedDict(data)
+            hashable_data = OrderedDict(hashable_data)
             obj_data = OrderedDict(self.__class__(instance=obj).data)
-            diff = DeepDiff(data, obj_data, ignore_order=True)
+            hashable_obj_data = self.hashable_data(obj_data)
+            diff = DeepDiff(hashable_data, hashable_obj_data, ignore_order=True)
             if not diff:
                 '''Just Get the same object'''
                 return data_hash
