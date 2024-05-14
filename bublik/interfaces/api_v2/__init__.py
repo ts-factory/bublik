@@ -26,6 +26,7 @@ from .management import clear_all_runs_stats_cache, local_logs, meta_categorizat
 from .measurements import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
 from .performance import PerformanceCheckView
+from .report import ReportViewSet
 from .results import ResultViewSet, RunViewSet
 from .server import ServerViewSet
 from .tree import TreeViewSet
@@ -59,4 +60,5 @@ __all__ = [
     'AdminViewSet',
     'PerformanceCheckView',
     'clear_all_runs_stats_cache',
+    'ReportViewSet',
 ]
