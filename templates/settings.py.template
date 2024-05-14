@@ -392,3 +392,26 @@ VIEWS_TIMEOUTS = {
     'history_list_base': 120,
     'history_list_intense': 120,
 }
+
+REPORT_CONFIG_COMPONENTS = {
+    'required_keys': [
+        'id',
+        'name',
+        'description',
+        'version',
+        'title_content',
+        'test_names_order',
+        'tests',
+    ],
+    'required_test_keys': [
+        'table_view',
+        'chart_view',
+        'axis_x',
+        'axis_y',
+        'sequence_group_arg',
+        'percentage_base_value',
+        'sequence_name_conversion',
+        'not_show_args',
+        'records_order',
+    ],
+}
