@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+from itertools import groupby
 import logging
 
 from rest_framework import status
@@ -9,14 +10,19 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.meta.match_references import build_revision_references
+from bublik.core.report.components import ReportPoint, ReportTest
 from bublik.core.report.services import (
+    args_type_convesion,
     build_report_title,
     check_report_config,
+    filter_by_axis_y,
+    filter_by_not_show_args,
+    get_common_args,
     get_report_config_by_id,
 )
 from bublik.core.run.external_links import get_sources
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.data.models import Meta, TestIterationResult
+from bublik.data.models import MeasurementResult, Meta, TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
 
 
@@ -91,8 +97,103 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         ).values('name', 'value')
         revisions = build_revision_references(meta_revisions)
 
-        ### Collect report data ###
+        ### Get record points and build axis names ###
 
+        mmrs_run = MeasurementResult.objects.filter(
+            result__test_run=main_pkg,
+        )
+
+        # get common arguments by tests and filter measurement results by test configs
+        common_args = {}
+        mmrs_report = MeasurementResult.objects.none()
+        for test_name, test_config in report_config['tests'].items():
+            # collect arguments with the same value for all test iterations
+            common_args[test_name] = get_common_args(main_pkg, test_name)
+
+            # filter measurement results by test name
+            mmrs_test = mmrs_run.filter(result__iteration__test__name=test_name)
+
+            # filter measurement results by axis y
+            axis_y = test_config['axis_y']
+            mmrs_test = filter_by_axis_y(mmrs_test, axis_y)
+            if not mmrs_test:
+                msg = (
+                    f'incorrect value \'{axis_y}\' for \'axis_y\' key for \'{test_name}\' '
+                    'test in the report config'
+                )
+                return Response(
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    data={'message': msg},
+                )
+
+            # filter measurement results by not show params
+            not_show_args = test_config['not_show_args']
+            mmrs_test = filter_by_not_show_args(mmrs_test, not_show_args)
+            if not mmrs_test:
+                msg = (
+                    f'for \'{test_name}\' test there are no measurement '
+                    'results corresponding to the report config',
+                )
+                logger.warning(msg)
+                if test_name in report_config['test_names_order']:
+                    report_config['test_names_order'].remove(test_name)
+
+            mmrs_report = mmrs_report.union(mmrs_test)
+
+        mmrs_report = mmrs_report.order_by('id')
+
+        # get points with data
+        points = []
+        for mmr in mmrs_report:
+            point = ReportPoint(mmr, common_args, report_config)
+            if not point.point:
+                msg = (
+                    f'incorrect value \'{point.axis_x}\' for \'axis_x\' key '
+                    f'for \'{point.test_name}\' test in the report config'
+                )
+                return Response(
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    data={'message': msg},
+                )
+            if not point.sequence_group_arg_val:
+                msg = (
+                    f'incorrect value \'{point.sequence_group_arg}\' for '
+                    f'\'sequence_group_arg\' key for \'{point.test_name}\' test '
+                    'in the report config'
+                )
+                return Response(
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    data={'message': msg},
+                )
+            points.append(point)
+
+        ### Group points into records ###
+
+        def by_test_name_sort(point_groups):
+            return dict(
+                [test_name, point_groups[test_name]]
+                for test_name in report_config['test_names_order']
+            )
+
+        # group points into tests, and divide them into records and sequences
+        test_records = []
+        points = sorted(points, key=ReportPoint.points_grouper_tests)
+        point_groups_by_test_name = dict(
+            [test_name, list(points_group)]
+            for test_name, points_group in groupby(points, ReportPoint.points_grouper_tests)
+        )
+
+        if report_config['test_names_order']:
+            point_groups_by_test_name = by_test_name_sort(point_groups_by_test_name)
+
+        # convert values of numeric arguments to int
+        point_groups_by_test_name = args_type_convesion(point_groups_by_test_name)
+
+        for test_name, test_points in point_groups_by_test_name.items():
+            test = ReportTest(test_name, common_args, list(test_points), report_config)
+            test_records.append(test.__dict__)
+
+        ### Collect report data ###
         content = [
             {
                 'type': 'branch-block',
@@ -107,6 +208,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
                 'content': revisions,
             },
         ]
+        content += test_records
 
         report = {
             'title': title,
