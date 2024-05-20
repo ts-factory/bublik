@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+import pytz
+
 from datetime import datetime
 
 from django.conf import settings
@@ -74,7 +76,7 @@ def localize_date(date):
         date = to_db_format(date)
     # No need to localize an aware datetime (may have been passed by user)
     if date.tzinfo is None or date.tzinfo.utcoffset(date) is None:
-        date = current_tz.localize(date)
+        date = pytz.timezone(str(current_tz)).localize(date)
     return date
 
 
