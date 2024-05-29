@@ -5,6 +5,7 @@ from itertools import groupby
 import logging
 
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -18,6 +19,7 @@ from bublik.core.report.services import (
     filter_by_axis_y,
     filter_by_not_show_args,
     get_common_args,
+    get_report_config,
     get_report_config_by_id,
 )
 from bublik.core.run.external_links import get_sources
@@ -37,6 +39,58 @@ __all__ = [
 class ReportViewSet(RetrieveModelMixin, GenericViewSet):
     queryset = TestIterationResult.objects.all()
     serializer_class = TestIterationResultSerializer
+
+    @action(detail=True, methods=['get'])
+    def configs(self, request, pk=None):
+        '''
+        Return a list of configs that can be used to build a report on the current run.
+        Route: /api/v2/report/<run_id>/configs/
+        '''
+        run = self.get_object()
+        iters = TestIterationResult.objects.filter(test_run=run)
+        test_names = list(
+            iters.distinct('iteration__test__name').values_list(
+                'iteration__test__name',
+                flat=True,
+            ),
+        )
+
+        run_report_configs = []
+        invalid_report_config_files = []
+        for report_config_file, report_config in get_report_config():
+            if report_config:
+                try:
+                    report_config_test_names = report_config['test_names_order']
+                    # check whether the sets of run tests and config tests overlap
+                    if set(report_config_test_names).intersection(test_names):
+                        run_report_configs.append(
+                            {
+                                'id': report_config['id'],
+                                'name': report_config['name'],
+                                'description': report_config['description'],
+                            },
+                        )
+                except KeyError as ke:
+                    invalid_report_config_files.append(
+                        {
+                            'file': report_config_file,
+                            'reason': f'Invalid format: the key {ke} is missing',
+                        },
+                    )
+            else:
+                invalid_report_config_files.append(
+                    {
+                        'file': report_config_file,
+                        'reason': 'Invalid format: JSON is expected',
+                    },
+                )
+
+        data = {
+            'run_report_configs': run_report_configs,
+            'invalid_report_config_files': invalid_report_config_files,
+        }
+
+        return Response(data=data)
 
     def retrieve(self, request, pk=None):
         ### Get and check report config ###
