@@ -1,0 +1,42 @@
+{
+    "id": 1,
+    "name": "dpdk-ethdev-ts_example",
+    "description": "An example of a run report config for dpdk-ethdev-ts",
+    "version": "v1",
+    "title_content": [
+        "CAMPAIGN_DATE",
+        "CFG",
+        "SSN",
+        "XDP_HW_CSUM",
+        "LINK_AGGR"
+    ],
+    "test_names_order": [
+        "testpmd_rxonly"
+    ],
+    "tests": {
+        "testpmd_rxonly": {
+            "table_view": true,
+            "chart_view": true,
+            "axis_x": "packet_size",
+            "axis_y": {
+                "throughput": []
+            },
+            "sequence_group_arg": "testpmd_arg_burst",
+            "percentage_base_value": 32,
+            "sequence_name_conversion": {
+                "32": "32 packets",
+                "64": "64 packets"
+            },
+            "not_show_args": {
+                "testpmd_command_flow_ctrl_tx": ["off"],
+                "n_rx_cores": [1, 4],
+                "packet_size": [42, 252, 508, 1514, 2044]
+            },
+            "records_order": [
+                "testpmd_command_flow_ctrl_tx",
+                "n_rx_cores",
+                "testpmd_arg_rxq"
+            ]
+        }
+    }
+}
