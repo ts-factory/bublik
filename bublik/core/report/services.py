@@ -13,7 +13,7 @@ from bublik.settings import REPORT_CONFIG_COMPONENTS
 
 
 def get_report_config():
-    report_configs_dir = os.path.join(settings.PER_CONF_DIR, 'report_configs')
+    report_configs_dir = os.path.join(settings.PER_CONF_DIR, 'reports')
     for root, _, report_config_files in os.walk(report_configs_dir):
         for report_config_file in report_config_files:
             with open(os.path.join(root, report_config_file)) as rсf:
