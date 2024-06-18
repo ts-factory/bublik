@@ -145,20 +145,22 @@ def filter_by_axis_y(mmrs_test, axis_y):
     '''
     Filter passed measurement results QS by axis y value from config.
     '''
+    axis_y_mmrs = MeasurementResult.objects.none()
     for meas_type, meas_names in axis_y.items():
-        mmrs_test = mmrs_test.filter(
+        meas_type_name_mmrs = mmrs_test.filter(
             measurement__metas__name='type',
             measurement__metas__type='measurement_subject',
             measurement__metas__value=meas_type,
         )
         if meas_names:
-            mmrs_test = mmrs_test.filter(
+            meas_type_name_mmrs = meas_type_name_mmrs.filter(
                 measurement__metas__name='name',
                 measurement__metas__type='measurement_subject',
                 measurement__metas__value__in=meas_names,
             )
+        axis_y_mmrs = axis_y_mmrs.union(meas_type_name_mmrs)
 
-    return mmrs_test
+    return axis_y_mmrs
 
 
 def filter_by_not_show_args(mmrs_test, not_show_args):
