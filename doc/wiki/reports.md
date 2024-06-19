@@ -22,7 +22,7 @@ Test configuration must include:
 - 'table_view' (flag),
 - 'chart_view' (flag),
 - 'axis_x' (test argument),
-- 'axis_y' (measurement type with a list of measurement names (if you want specific ones) or with an empty list),
+- 'axis_y' (measurement type with a dictionary of measurement parameters ('name', 'aggr', 'keys') and their values to use),
 - 'sequence_group_arg' (test argument that will be used to group the measurement results in a sequences),
 - 'percentage_base_value' (sequence group argument value, relative to which the percentages will be calculated),
 - 'sequence_name_conversion' (sequence argument values with corresponding sequences names),

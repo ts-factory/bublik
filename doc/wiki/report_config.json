@@ -19,7 +19,15 @@
             "chart_view": true,
             "axis_x": "packet_size",
             "axis_y": {
-                "throughput": []
+                "throughput": {
+                    "name": [],
+                    "aggr": [
+                        "mean"
+                    ],
+                    "keys": {
+                        "Side":"Rx"
+                    }
+                }
             },
             "sequence_group_arg": "testpmd_arg_burst",
             "percentage_base_value": 32,

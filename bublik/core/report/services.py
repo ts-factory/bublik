@@ -44,6 +44,7 @@ def check_report_config(report_config):
             msg = f'the required key \'{key}\' is missing in the configuration'
             raise KeyError(msg)
 
+    possible_axis_y_keys = REPORT_CONFIG_COMPONENTS['possible_axis_y_keys']
     for test_name, test_configuration in report_config['tests'].items():
         for key in REPORT_CONFIG_COMPONENTS['required_test_keys']:
             if key not in test_configuration.keys():
@@ -52,6 +53,15 @@ def check_report_config(report_config):
                     'test in the configuration'
                 )
                 raise KeyError(msg)
+        for _, meas_params in test_configuration['axis_y'].items():
+            for meas_param in meas_params:
+                if meas_param not in possible_axis_y_keys:
+                    payk_str = ', '.join(f'\'{key}\'' for key in possible_axis_y_keys)
+                    msg = (
+                        f'unsupported measurement parameter \'{meas_param}\' for \'{test_name}\' '
+                        f'test in the configuration. Possible are {payk_str}'
+                    )
+                    raise KeyError(msg)
 
 
 def build_report_title(main_pkg, title_content):
@@ -146,19 +156,33 @@ def filter_by_axis_y(mmrs_test, axis_y):
     Filter passed measurement results QS by axis y value from config.
     '''
     axis_y_mmrs = MeasurementResult.objects.none()
-    for meas_type, meas_names in axis_y.items():
-        meas_type_name_mmrs = mmrs_test.filter(
+    for meas_type, meas_type_details in axis_y.items():
+        meas_mmrs = mmrs_test.filter(
             measurement__metas__name='type',
             measurement__metas__type='measurement_subject',
             measurement__metas__value=meas_type,
         )
-        if meas_names:
-            meas_type_name_mmrs = meas_type_name_mmrs.filter(
-                measurement__metas__name='name',
+
+        if 'keys' in meas_type_details:
+            meas_key_mmrs = MeasurementResult.objects.none()
+            keys_vals = meas_type_details.pop('keys')
+            for key_name, key_vals in keys_vals.items():
+                meas_key_mmrs_group = meas_mmrs.filter(
+                    measurement__metas__name=key_name,
+                    measurement__metas__type='measurement_key',
+                    measurement__metas__value__in=key_vals,
+                )
+                meas_key_mmrs = meas_key_mmrs.union(meas_key_mmrs_group)
+            meas_mmrs = meas_key_mmrs
+
+        for meas_detail, meas_detail_vals in meas_type_details.items():
+            meas_mmrs = meas_mmrs.filter(
+                measurement__metas__name=meas_detail,
                 measurement__metas__type='measurement_subject',
-                measurement__metas__value__in=meas_names,
+                measurement__metas__value__in=meas_detail_vals,
             )
-        axis_y_mmrs = axis_y_mmrs.union(meas_type_name_mmrs)
+
+        axis_y_mmrs = axis_y_mmrs.union(meas_mmrs)
 
     return axis_y_mmrs
 

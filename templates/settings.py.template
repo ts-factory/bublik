@@ -414,4 +414,9 @@ REPORT_CONFIG_COMPONENTS = {
         'not_show_args',
         'records_order',
     ],
+    'possible_axis_y_keys': [
+        'name',
+        'aggr',
+        'keys',
+    ],
 }
