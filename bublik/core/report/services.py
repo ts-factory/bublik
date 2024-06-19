@@ -82,6 +82,52 @@ def build_report_title(main_pkg, title_content):
     return '-'.join(title)
 
 
+def build_axis_y_name(mmr):
+    '''
+    Form the y axis name according to the scheme:
+    "<measurement name>/<measurement type> - <aggr> -
+    <measurement key name>:<measurement key value> (<base_units> * <multiplier>)".
+    '''
+    # get metas
+    meta_subjects = {}
+    meta_keys = {}
+    for meta in mmr.measurement.metas.filter(
+        type='measurement_subject',
+        name__in=['name', 'type', 'aggr', 'base_units', 'multiplier'],
+    ):
+        meta_subjects[meta.name] = meta.value
+    for meta in mmr.measurement.metas.filter(type='measurement_key'):
+        meta_keys[meta.name] = meta.value
+
+    # build units part
+    axis_y_tail = ''
+    if meta_subjects['base_units'] and meta_subjects['multiplier']:
+        axis_y_tail = f"({meta_subjects['base_units']} * {meta_subjects['multiplier']})"
+    meta_subjects.pop('base_units')
+    meta_subjects.pop('multiplier')
+
+    # build main part
+    axis_y_items = []
+    if 'name' in meta_subjects:
+        axis_y_items.append(meta_subjects['name'])
+        meta_subjects.pop('name')
+        meta_subjects.pop('type')
+    else:
+        axis_y_items.append(meta_subjects['type'])
+        meta_subjects.pop('type')
+    for _, value in meta_subjects.items():
+        axis_y_items.append(value)
+    for name, value in meta_keys.items():
+        axis_y_items.append(f'{name}={value}')
+    axis_y_name = ' - '.join(axis_y_items)
+
+    # join parts
+    if axis_y_tail:
+        axis_y_name = f'{axis_y_name} {axis_y_tail}'
+
+    return axis_y_name
+
+
 def type_conversion(arg_value):
     with contextlib.suppress(AttributeError):
         if arg_value.isdigit():

@@ -5,7 +5,12 @@ import copy
 
 from itertools import groupby
 
-from bublik.core.report.services import args_sort, sequence_name_conversion, type_conversion
+from bublik.core.report.services import (
+    args_sort,
+    build_axis_y_name,
+    sequence_name_conversion,
+    type_conversion,
+)
 
 
 '''
@@ -51,17 +56,8 @@ class ReportPoint:
             elif arg.name not in common_args[self.test_name].keys():
                 self.args_vals[arg.name] = arg.value
 
-        # form the name of the y axis from the corresponding metas
-        metas = {}
-        for meta in mmr.measurement.metas.filter(
-            type='measurement_subject',
-            name__in=['name', 'type', 'base_units', 'multiplier'],
-        ):
-            metas[meta.name] = meta.value
-        if 'name' in metas:
-            self.axis_y = f"{metas['name']} ({metas['base_units']} * {metas['multiplier']})"
-        else:
-            self.axis_y = f"{metas['type']} ({metas['base_units']} * {metas['multiplier']})"
+        # build the name of the y axis
+        self.axis_y = build_axis_y_name(mmr)
 
     def points_grouper_tests(self):
         return self.test_name
