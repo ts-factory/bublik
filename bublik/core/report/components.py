@@ -137,10 +137,22 @@ class ReportRecord:
             sequences[sequence_group_arg_val] = sequence
         return sequences, string_args
 
+    def complete_sequences(self, sequences):
+        axis_x_vals = set()
+        for sequence_group_arg_val, sequence in sequences.items():
+            for k in sequence.keys():
+                axis_x_vals.add(k)
+
+        for sequence_group_arg_val, sequence in sequences.items():
+            for k in axis_x_vals:
+                if k not in sequence.keys():
+                    sequences[sequence_group_arg_val][k] = '-'
+
     def create_dataset(self, sequences, test_config):
         '''
         Regroup points into datasets that are more convenient for UI.
         '''
+        self.complete_sequences(sequences)
         dataset = []
         for axis_x_val in list(sequences.values())[0]:
             dataset.append([axis_x_val])
