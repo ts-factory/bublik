@@ -180,13 +180,15 @@ class ReportRecord:
                         self.dataset_table[0].append(f'{dataset_label} gain')
                         idx = dataset_labels.index(dataset_label)
                         for dataset_record in self.dataset_table[1:]:
-                            if dataset_record[pbv_idx]:
+                            try:
                                 percentage = round(
                                     100 * (dataset_record[idx] / dataset_record[pbv_idx] - 1),
                                     2,
                                 )
-                            else:
-                                percentage = 0
+                            except ZeroDivisionError:
+                                percentage = 'na'
+                            except TypeError:
+                                percentage = '-'
                             dataset_record.append(percentage)
             else:
                 self.warnings.append(
