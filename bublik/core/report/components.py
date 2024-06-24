@@ -174,10 +174,13 @@ class ReportRecord:
         percentage_base_value = sequence_name_conversion(percentage_base_value, test_config)
         if percentage_base_value is not None:
             if percentage_base_value in dataset_labels:
+                self.formatters = {}
                 pbv_idx = dataset_labels.index(percentage_base_value)
                 for dataset_label in dataset_labels[1:]:
                     if dataset_label != percentage_base_value:
-                        self.dataset_table[0].append(f'{dataset_label} gain')
+                        dataset_label_gain = f'{dataset_label} gain'
+                        self.dataset_table[0].append(dataset_label_gain)
+                        self.formatters[dataset_label_gain] = '%'
                         idx = dataset_labels.index(dataset_label)
                         for dataset_record in self.dataset_table[1:]:
                             try:
