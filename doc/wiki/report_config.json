@@ -28,9 +28,20 @@
                 "64": "64 packets"
             },
             "not_show_args": {
-                "testpmd_command_flow_ctrl_tx": ["off"],
-                "n_rx_cores": [1, 4],
-                "packet_size": [42, 252, 508, 1514, 2044]
+                "testpmd_command_flow_ctrl_tx": [
+                    "off"
+                ],
+                "n_rx_cores": [
+                    1,
+                    4
+                ],
+                "packet_size": [
+                    42,
+                    252,
+                    508,
+                    1514,
+                    2044
+                ]
             },
             "records_order": [
                 "testpmd_command_flow_ctrl_tx",
