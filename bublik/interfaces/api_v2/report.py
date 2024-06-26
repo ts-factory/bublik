@@ -166,6 +166,8 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
             # filter measurement results by test name
             mmrs_test = mmrs_run.filter(result__iteration__test__name=test_name)
+            if not mmrs_test:
+                continue
 
             # filter measurement results by axis y
             axis_y = test_config['axis_y']
@@ -224,10 +226,13 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         ### Group points into records ###
 
         def by_test_name_sort(point_groups):
-            return dict(
-                [test_name, point_groups[test_name]]
-                for test_name in report_config['test_names_order']
-            )
+            sorted_point_groups = {}
+            for test_name in report_config['test_names_order']:
+                try:
+                    sorted_point_groups[test_name] = point_groups[test_name]
+                except KeyError:
+                    continue
+            return sorted_point_groups
 
         # group points into tests, and divide them into records and sequences
         test_records = []
