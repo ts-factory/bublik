@@ -169,7 +169,7 @@ def args_type_convesion(point_groups_by_test_name):
 
 def args_sort(records_order, args_vals):
     if records_order:
-        return dict([arg, args_vals[arg]] for arg in records_order)
+        return {arg: args_vals[arg] for arg in records_order if arg in args_vals}
     return dict(sorted(args_vals.items()))
 
 
