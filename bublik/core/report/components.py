@@ -219,19 +219,10 @@ class ReportTest:
         self.content = []
 
         for test_point in test_points:
-            try:
-                test_point.args_vals = args_sort(
-                    records_order,
-                    test_point.args_vals,
-                )
-            except KeyError as incorrect_arg:
-                msg = (
-                    f'incorrect argument {incorrect_arg} in \'records_order\' for '
-                    f'\'{test_name}\' test in the configuration. '
-                    f'Check that {incorrect_arg} is not a sequence argument or an argument '
-                    'that has the same value for all iterations.'
-                )
-                raise ValueError(msg) from incorrect_arg
+            test_point.args_vals = args_sort(
+                records_order,
+                test_point.args_vals,
+            )
         test_points = sorted(test_points, key=ReportPoint.points_grouper_records)
 
         for record_info, record_points in groupby(
