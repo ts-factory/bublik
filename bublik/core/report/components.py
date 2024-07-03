@@ -90,21 +90,31 @@ class ReportRecord:
 
         if table_view or chart_view:
             # group points into sequences
-            sequences, string_args = self.get_sequences_and_str_args(record_points)
-            dataset = self.create_dataset(sequences, test_config)
+            sequences = self.get_sequences(record_points)
+            # create datasets by sequences
+            dataset_labels, dataset_data = self.create_dataset(sequences, test_config)
 
         if table_view:
-            self.dataset_table = copy.deepcopy(dataset)
-            self.percentage_calc(self.dataset_table[0], test_config)
+            dataset_table_labels, dataset_table_data = self.percentage_calc(
+                dataset_labels,
+                dataset_data,
+                test_config,
+            )
+            self.dataset_table = [dataset_table_labels, *dataset_table_data]
 
         if chart_view:
-            if string_args:
-                self.warnings.append(
-                    f'Invalid values \'{string_args}\' of the axis x argument for plotting '
-                    'the chart. Chart building is skipped.',
-                )
-            else:
-                self.dataset_chart = copy.deepcopy(dataset)
+            self.dataset_chart = []
+            for dataset_item in dataset_data:
+                # include in the chart dataset only those results that correspond
+                # to the numeric values of the x-axis argument
+                if type(dataset_item[0]) != int:
+                    self.warnings.append(
+                        f'The results corresponding to {dataset_labels[0]}={dataset_item[0]} '
+                        'cannot be displayed on the chart',
+                    )
+                else:
+                    self.dataset_chart.append(dataset_item)
+            self.dataset_chart = [dataset_labels, *self.dataset_chart]
 
     def build_id_and_label(self):
         '''
@@ -115,12 +125,11 @@ class ReportRecord:
             label_list.append(str(val))
         return '-'.join(label_list)
 
-    def get_sequences_and_str_args(self, record_points):
+    def get_sequences(self, record_points):
         '''
-        Group points into sequences. Get string arguments.
+        Group points into sequences.
         '''
         sequences = {}
-        string_args = set()
         record_points = sorted(record_points, key=ReportPoint.points_grouper_sequences)
         for seq_arg_id_and_val, sequence_points in groupby(
             record_points,
@@ -131,11 +140,9 @@ class ReportRecord:
             sequence = {}
             for sequence_point in list(sequence_points):
                 for arg, val in sequence_point.point.items():
-                    if type(arg) != int:
-                        string_args.add(arg)
                     sequence[arg] = val
             sequences[sequence_group_arg_val] = sequence
-        return sequences, string_args
+        return sequences
 
     def complete_sequences(self, sequences):
         axis_x_vals = set()
@@ -153,25 +160,28 @@ class ReportRecord:
         Regroup points into datasets that are more convenient for UI.
         '''
         self.complete_sequences(sequences)
-        dataset = []
+        dataset_data = []
         for axis_x_val in list(sequences.values())[0]:
-            dataset.append([axis_x_val])
+            dataset_data.append([axis_x_val])
         dataset_labels = [self.axis_x_key]
         for sequence_group_arg_val, sequence in sequences.items():
             dataset_labels.append(
                 sequence_name_conversion(sequence_group_arg_val, test_config),
             )
             for i, point in enumerate(sequence.values()):
-                dataset[i].append(point)
-        dataset.insert(0, dataset_labels)
-        return dataset
+                dataset_data[i].append(point)
+        return dataset_labels, dataset_data
 
-    def percentage_calc(self, dataset_labels, test_config):
+    def percentage_calc(self, dataset_labels, dataset_data, test_config):
         '''
         Calculate gain relative to "base" sequence.
         '''
+        dataset_labels = copy.deepcopy(dataset_labels)
+        dataset_data = copy.deepcopy(dataset_data)
+
         percentage_base_value = test_config['percentage_base_value']
         percentage_base_value = sequence_name_conversion(percentage_base_value, test_config)
+
         if percentage_base_value is not None:
             if percentage_base_value in dataset_labels:
                 self.formatters = {}
@@ -179,26 +189,28 @@ class ReportRecord:
                 for dataset_label in dataset_labels[1:]:
                     if dataset_label != percentage_base_value:
                         dataset_label_gain = f'{dataset_label} gain'
-                        self.dataset_table[0].append(dataset_label_gain)
+                        dataset_labels.append(dataset_label_gain)
                         self.formatters[dataset_label_gain] = '%'
                         idx = dataset_labels.index(dataset_label)
-                        for dataset_record in self.dataset_table[1:]:
+                        for dataset_item in dataset_data:
                             try:
                                 percentage = round(
-                                    100 * (dataset_record[idx] / dataset_record[pbv_idx] - 1),
+                                    100 * (dataset_item[idx] / dataset_item[pbv_idx] - 1),
                                     2,
                                 )
                             except ZeroDivisionError:
                                 percentage = 'na'
                             except TypeError:
                                 percentage = '-'
-                            dataset_record.append(percentage)
+                            dataset_item.append(percentage)
             else:
                 self.warnings.append(
                     f'There is no sequence corresponding to the passed '
                     f'base value \'{percentage_base_value}\'. '
                     'Persentage calculation is skipped.',
                 )
+
+        return dataset_labels, dataset_data
 
 
 class ReportTest:
