@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+import contextlib
 import copy
 
 from itertools import groupby
@@ -100,6 +101,8 @@ class ReportRecord:
                 dataset_data,
                 test_config,
             )
+            with contextlib.suppress(TypeError):
+                dataset_table_data = sorted(dataset_table_data)
             self.dataset_table = [dataset_table_labels, *dataset_table_data]
 
         if chart_view:
@@ -114,7 +117,7 @@ class ReportRecord:
                     )
                 else:
                     self.dataset_chart.append(dataset_item)
-            self.dataset_chart = [dataset_labels, *self.dataset_chart]
+            self.dataset_chart = [dataset_labels, *sorted(self.dataset_chart)]
 
     def build_id_and_label(self):
         '''
