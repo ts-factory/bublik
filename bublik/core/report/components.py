@@ -83,11 +83,12 @@ class ReportRecord:
         self.type = 'record-entity'
         self.warnings = []
         self.args_vals = record_points[0].args_vals
-        self.id = self.label = self.build_id_and_label()
         self.sequence_group_arg = test_config['sequence_group_arg']
         self.axis_x_key = test_config['axis_x']
         self.axis_x_label = test_config['axis_x']
         self.axis_y_label = record_info[1]
+        self.label = self.build_label()
+        self.id = f'{self.label}-{self.axis_y_label.replace(' ', '')}'
 
         if table_view or chart_view:
             # group points into sequences
@@ -119,7 +120,7 @@ class ReportRecord:
                     self.dataset_chart.append(dataset_item)
             self.dataset_chart = [dataset_labels, *sorted(self.dataset_chart)]
 
-    def build_id_and_label(self):
+    def build_label(self):
         '''
         Build record id and label.
         '''
