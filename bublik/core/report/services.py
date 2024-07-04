@@ -8,6 +8,7 @@ import json
 import os
 
 from bublik import settings
+from bublik.core.utils import get_metric_prefix_units
 from bublik.data.models import MeasurementResult, Meta, TestArgument
 from bublik.settings import REPORT_CONFIG_COMPONENTS
 
@@ -102,7 +103,13 @@ def build_axis_y_name(mmr):
     # build units part
     axis_y_tail = ''
     if meta_subjects['base_units'] and meta_subjects['multiplier']:
-        axis_y_tail = f"({meta_subjects['base_units']} * {meta_subjects['multiplier']})"
+        try:
+            axis_y_tail = get_metric_prefix_units(
+                meta_subjects['multiplier'],
+                meta_subjects['base_units'],
+            )
+        except KeyError:
+            axis_y_tail = f'{meta_subjects['base_units']} * {meta_subjects['multiplier']}'
     meta_subjects.pop('base_units')
     meta_subjects.pop('multiplier')
 
@@ -123,7 +130,7 @@ def build_axis_y_name(mmr):
 
     # join parts
     if axis_y_tail:
-        axis_y_name = f'{axis_y_name} {axis_y_tail}'
+        axis_y_name = f'{axis_y_name} ({axis_y_tail})'
 
     return axis_y_name
 

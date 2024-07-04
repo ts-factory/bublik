@@ -142,6 +142,22 @@ def get_readable_value(value, multiplier, base_units):
     return str(apply_multiplier(value, multiplier)) + ' ' + base_units
 
 
+def get_metric_prefix_units(multiplier, base_units):
+    prefixes = {
+        '1e-9': ['nano', 'n'],
+        '1e-6': ['micro', 'μ'],
+        '1e-3': ['milli', 'm'],
+        '1': ['plain', ''],
+        '1e+3': ['kilo', 'k'],
+        '1x1p10': ['kibi', 'Ki'],
+        '1e+6': ['mega', 'M'],
+        '0x1p20': ['mebi', 'Mi'],
+        '1e+9': ['giga', 'G'],
+        '0x1p30': ['gibi', 'Gi'],
+    }
+    return f'{prefixes[multiplier][1]}{base_units}'
+
+
 def isnumeric_int(value):
     try:
         int(value)
