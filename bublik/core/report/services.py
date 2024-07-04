@@ -59,8 +59,8 @@ def check_report_config(report_config):
                 if meas_param not in possible_axis_y_keys:
                     payk_str = ', '.join(f'\'{key}\'' for key in possible_axis_y_keys)
                     msg = (
-                        f'unsupported measurement parameter \'{meas_param}\' for \'{test_name}\' '
-                        f'test in the configuration. Possible are {payk_str}'
+                        f'unsupported measurement parameter \'{meas_param}\' for '
+                        f'\'{test_name}\' test in the configuration. Possible are {payk_str}'
                     )
                     raise KeyError(msg)
 

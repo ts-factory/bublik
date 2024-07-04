@@ -150,8 +150,8 @@ class ReportRecord:
 
     def complete_sequences(self, sequences):
         axis_x_vals = set()
-        for sequence_group_arg_val, sequence in sequences.items():
-            for k in sequence.keys():
+        for _, sequence in sequences.items():
+            for k in sequence:
                 axis_x_vals.add(k)
 
         for sequence_group_arg_val, sequence in sequences.items():
