@@ -88,7 +88,9 @@ class ReportRecord:
         self.axis_x_label = test_config['axis_x']
         self.axis_y_label = record_info[1]
         self.label = self.build_label()
-        self.id = f'{self.label}-{self.axis_y_label.replace(' ', '')}'
+
+        id_tail = self.axis_y_label.replace(' ', '')
+        self.id = f'{self.label}-{id_tail}'
 
         if table_view or chart_view:
             # group points into sequences

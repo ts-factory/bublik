@@ -109,7 +109,9 @@ def build_axis_y_name(mmr):
                 meta_subjects['base_units'],
             )
         except KeyError:
-            axis_y_tail = f'{meta_subjects['base_units']} * {meta_subjects['multiplier']}'
+            base_units = meta_subjects['base_units']
+            multiplier = meta_subjects['multiplier']
+            axis_y_tail = f'{base_units} * {multiplier}'
     meta_subjects.pop('base_units')
     meta_subjects.pop('multiplier')
 
