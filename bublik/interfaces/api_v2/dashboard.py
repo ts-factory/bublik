@@ -89,6 +89,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
         rows_data = []
         for run in runs:
+            conclusion, conclusion_reason = get_run_conclusion(run)
             row_data = self.prepare_row_data(run)
             rows_data.append(
                 {
@@ -97,8 +98,9 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                         'run_id': run.id,
                         'start': run.start.timestamp(),
                         'status': get_run_status(run),
-                        'status_by_nok': get_run_status_by_nok(run),
-                        'conclusion': get_run_conclusion(run),
+                        'status_by_nok': get_run_status_by_nok(run)[0],
+                        'conclusion': conclusion,
+                        'conclusion_reason': conclusion_reason,
                     },
                 },
             )
