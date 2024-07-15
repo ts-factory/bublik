@@ -676,14 +676,21 @@ def get_run_conclusion(run):
     run_id = run.id
     status = get_run_status(run_id)
     compromised = is_run_compromised(run)
-    status_by_nok = get_run_status_by_nok(run)
+    status_by_nok, unexpected_percent = get_run_status_by_nok(run)
     driver_unload = get_driver_unload(run)
-    return RunConclusion.identify(status, status_by_nok, compromised, driver_unload)
+    return RunConclusion.identify(
+        status,
+        status_by_nok,
+        unexpected_percent,
+        compromised,
+        driver_unload,
+    )
 
 
 def generate_all_run_details(run):
     logger.debug('[run_details]: enter')
     run_id = run.id
+    conclusion, conclusion_reason = get_run_conclusion(run)
     important_tags, relevant_tags = get_tags_by_runs([run_id])
     category_names = getattr(per_conf, 'SPECIAL_CATEGORIES', [])
     run_meta_results = run.meta_results.select_related('meta')
@@ -704,9 +711,10 @@ def generate_all_run_details(run):
         'duration': run.duration,
         'main_package': run.main_package.iteration.test.name if run.main_package else None,
         'status': get_run_status(run_id),
-        'status_by_nok': get_run_status_by_nok(run),
+        'status_by_nok': get_run_status_by_nok(run)[0],
         'compromised': get_compromised_details(run),
-        'conclusion': get_run_conclusion(run),
+        'conclusion': conclusion,
+        'conclusion_reason': conclusion_reason,
         'important_tags': important_tags.get(run_id, []),
         'relevant_tags': relevant_tags.get(run_id, []),
         'branches': key_value_list_transforming(branches),
@@ -723,6 +731,7 @@ def generate_runs_details(runs):
     runs_data = []
     for run in runs:
         run_id = run.id
+        conclusion, conclusion_reason = get_run_conclusion(run)
         runs_data.append(
             {
                 'id': run_id,
@@ -730,9 +739,10 @@ def generate_runs_details(runs):
                 'finish': run.finish,
                 'duration': run.duration,
                 'status': get_run_status(run_id),
-                'status_by_nok': get_run_status_by_nok(run),
+                'status_by_nok': get_run_status_by_nok(run)[0],
                 'compromised': is_run_compromised(run),
-                'conclusion': get_run_conclusion(run),
+                'conclusion': conclusion,
+                'conclusion_reason': conclusion_reason,
                 'metadata': metadata_by_runs.get(run_id, []),
                 'important_tags': important_tags.get(run_id, []),
                 'relevant_tags': relevant_tags.get(run_id, []),
