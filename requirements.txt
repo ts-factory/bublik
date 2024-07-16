@@ -69,7 +69,7 @@ pycparser==2.19
 pydot==2.0.0
 pyeda==0.28.0
 pyflakes==2.3.1
-pykerberos==1.2.1
+pykerberos==1.2.4
 pylint==0.28.0
 pyparsing==3.1.2
 python-dateutil==2.8.2
@@ -81,7 +81,7 @@ pytzdata==2020.1
 PyYAML==6.0.1
 redis==3.5.3
 requests==2.32.3
-requests-kerberos==0.14.0
+requests-kerberos==0.15.0
 ruff
 screen==1.0.1
 shell==1.0.1
