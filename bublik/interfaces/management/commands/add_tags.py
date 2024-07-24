@@ -17,6 +17,7 @@ import os
 import shutil
 import tempfile
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 import pytz
@@ -26,7 +27,6 @@ from bublik.core.importruns.telog import JSONLog
 from bublik.core.run.objects import add_tags
 from bublik.core.url import save_url_to_dir
 from bublik.data.models import MetaResult, TestIterationResult
-from bublik.settings import TIME_ZONE
 
 
 logger = logging.getLogger('bublik.server')
@@ -131,7 +131,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options) -> None:
         logger.info('Running a command to add tags.')
-        start_time = datetime.now(tz=pytz.timezone(TIME_ZONE))
+        start_time = datetime.now(tz=pytz.timezone(settings.TIME_ZONE))
 
         # Get the base url that is the same for all runs
         log_base_url = options['log_base']
@@ -153,12 +153,12 @@ class Command(BaseCommand):
             from_date = datetime.combine(
                 date=options['from'].date(),
                 time=options['from'].time(),
-                tzinfo=pytz.timezone(TIME_ZONE),
+                tzinfo=pytz.timezone(settings.TIME_ZONE),
             )
             to_date = datetime.combine(
                 date=options['to'].date(),
                 time=options['to'].time(),
-                tzinfo=pytz.timezone(TIME_ZONE),
+                tzinfo=pytz.timezone(settings.TIME_ZONE),
             )
 
             logger.debug(f'The starting date of updating tags is {from_date}.')
@@ -177,16 +177,16 @@ class Command(BaseCommand):
                 return
 
         for run in runs:
-            log_processing_start_time = datetime.now(tz=pytz.timezone(TIME_ZONE))
+            lp_start_time = datetime.now(tz=pytz.timezone(settings.TIME_ZONE))
             try:
                 Command.process_log_and_update_tags(run=run, log_base_url=log_base_url)
             except ObjectDoesNotExist:
                 continue
             logger.info(
                 f'Adding tags for run {run.pk} is completed in '
-                f'{datetime.now(tz=pytz.timezone(TIME_ZONE)) - log_processing_start_time}',
+                f'{datetime.now(tz=pytz.timezone(settings.TIME_ZONE)) - lp_start_time}',
             )
 
         logger.info(
-            f'Completed in {datetime.now(tz=pytz.timezone(TIME_ZONE)) - start_time}.',
+            f'Completed in {datetime.now(tz=pytz.timezone(settings.TIME_ZONE)) - start_time}.',
         )

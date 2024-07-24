@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from django.conf import settings
 import per_conf
 
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
-
-from bublik.settings import REPO_REVISIONS
 
 
 __all__ = [
@@ -26,5 +25,5 @@ class ServerViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=False, methods=['get'])
     def version(self, request):
-        data = REPO_REVISIONS
+        data = settings.REPO_REVISIONS
         return Response(data=data)
