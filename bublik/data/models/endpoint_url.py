@@ -21,7 +21,7 @@ class EndpointURL(models.Model):
     )
     created = models.DateTimeField(help_text='Timestamp of the short URL creation.')
     view = models.TextField(help_text='The Bublik URL view.')
-    endpoint = models.TextField(help_text='The Bublik URL endpoint.')
+    endpoint = models.TextField(blank=True, help_text='The Bublik URL endpoint.')
     hash = models.CharField(
         max_length=16,
         unique=True,
