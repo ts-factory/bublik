@@ -598,13 +598,15 @@ def generate_results_details(test_results):
         iteration_id = iteration.id
 
         # Handle expected result
+        expected_result_data = {}
         expected_results = get_expected_results(test_result)
-        expected_result = expected_results[0]
-        expected_result_data = {
-            'result_type': expected_result['result'],
-            'verdict': expected_result['verdicts'],
-            'key': expected_result['key'],
-        }
+        if expected_results:
+            expected_result = expected_results[0]
+            expected_result_data = {
+                'result_type': expected_result['result'],
+                'verdict': expected_result['verdicts'],
+                'key': expected_result['key'],
+            }
 
         # Handle obtained result and comments
         result_type = None
