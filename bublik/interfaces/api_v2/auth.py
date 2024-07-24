@@ -3,6 +3,7 @@
 
 from functools import wraps
 
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
@@ -33,7 +34,6 @@ from bublik.data.serializers import (
     UserEmailSerializer,
     UserSerializer,
 )
-from bublik.settings import EMAIL_FROM, SIMPLE_JWT
 
 
 __all__ = [
@@ -50,8 +50,8 @@ __all__ = [
 
 def get_user_info_from_access_token(access_token):
     token_backend = TokenBackend(
-        algorithm=SIMPLE_JWT['ALGORITHM'],
-        signing_key=SIMPLE_JWT['SIGNING_KEY'],
+        algorithm=settings.SIMPLE_JWT['ALGORITHM'],
+        signing_key=settings.SIMPLE_JWT['SIGNING_KEY'],
     )
     return token_backend.decode(access_token, verify=True)
 
@@ -395,7 +395,7 @@ class ForgotPasswordView(generics.CreateAPIView):
         send_mail(
             subject='Password Reset',
             message=f'Click the following link to reset your password: {reset_link}',
-            from_email=EMAIL_FROM,
+            from_email=settings.EMAIL_FROM,
             recipient_list=[user.email],
         )
 
