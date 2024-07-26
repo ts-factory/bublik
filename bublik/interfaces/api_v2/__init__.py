@@ -13,6 +13,7 @@ from .auth import (
     RegisterView,
 )
 from .comments import TestCommentViewSet
+from .config import ConfigViewSet
 from .dashboard import (
     DashboardFormatting,
     DashboardPayload,
@@ -65,4 +66,5 @@ __all__ = [
     'ReportViewSet',
     'URLShortnerView',
     'TestCommentViewSet',
+    'ConfigViewSet',
 ]
