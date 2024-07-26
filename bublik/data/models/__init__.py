@@ -21,6 +21,7 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 '''
 
+from .config import Config, ConfigTypes, GlobalConfigNames
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta
@@ -83,4 +84,7 @@ __all__ = [
     'UserRoles',
     'EndpointURL',
     'MetaTest',
+    'ConfigTypes',
+    'GlobalConfigNames',
+    'Config',
 ]
