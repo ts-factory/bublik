@@ -7,10 +7,10 @@ from itertools import groupby
 import json
 import os
 
-from bublik import settings
+from django.conf import settings
+
 from bublik.core.utils import get_metric_prefix_units
 from bublik.data.models import MeasurementResult, Meta, TestArgument
-from bublik.settings import REPORT_CONFIG_COMPONENTS
 
 
 def get_report_config():
@@ -40,14 +40,23 @@ def check_report_config(report_config):
     '''
     Check the passed report config for compliance with the expected format.
     '''
-    for key in REPORT_CONFIG_COMPONENTS['required_keys']:
+    try:
+        report_config_components = settings.REPORT_CONFIG_COMPONENTS
+    except AttributeError as ae:
+        msg = ("The key 'REPORT_CONFIG_COMPONENTS' is missing in the settings. "
+               "Take the 'django_settings' deployment step.")
+        raise AttributeError(
+            msg,
+        ) from ae
+
+    for key in report_config_components['required_keys']:
         if key not in report_config.keys():
             msg = f'the required key \'{key}\' is missing in the configuration'
             raise KeyError(msg)
 
-    possible_axis_y_keys = REPORT_CONFIG_COMPONENTS['possible_axis_y_keys']
+    possible_axis_y_keys = report_config_components['possible_axis_y_keys']
     for test_name, test_configuration in report_config['tests'].items():
-        for key in REPORT_CONFIG_COMPONENTS['required_test_keys']:
+        for key in report_config_components['required_test_keys']:
             if key not in test_configuration.keys():
                 msg = (
                     f'the required key \'{key}\' is missing for \'{test_name}\' '

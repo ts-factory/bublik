@@ -11,7 +11,6 @@ from django.utils.http import urlsafe_base64_encode
 import per_conf
 
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.settings import EMAIL_FROM
 
 
 def send_importruns_failed_mail(
@@ -70,6 +69,8 @@ def send_verification_link_mail(request, user):
     '''
     Sends an email to the user with a link that activates his account when clicked.
     '''
+    from_email = getattr(settings, 'EMAIL_FROM', None)
+
     email_verification_token = EmailVerificationTokenGenerator()
     user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
     token = email_verification_token.make_token(user)
@@ -81,6 +82,6 @@ def send_verification_link_mail(request, user):
     send_mail(
         subject='Verify email',
         message=f'Click the following link to verify your email: {verify_email_link}',
-        from_email=EMAIL_FROM,
+        from_email=from_email,
         recipient_list=[user.email],
     )
