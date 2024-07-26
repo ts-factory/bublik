@@ -9,6 +9,7 @@ from .auth import (
     UserEmailSerializer,
     UserSerializer,
 )
+from .config import ConfigSerializer
 from .endpoint_url import EndpointURLSerializer
 from .eventlog import EventLogSerializer
 from .expectation import (
@@ -58,4 +59,5 @@ __all__ = [
     'UpdateUserSerializer',
     'EndpointURLSerializer',
     'MetaTestSerializer',
+    'ConfigSerializer',
 ]

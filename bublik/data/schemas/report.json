@@ -1,0 +1,136 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "title_content": {
+            "description": "Metas for title genegation",
+            "type": "array",
+            "items": {
+                "description": "Meta with label type",
+                "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "test_names_order": {
+            "description": "Test names for tests sorting",
+            "type": "array",
+            "items": {
+                "description": "Test name",
+                "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "tests": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "table_view": {
+                        "description": "Table view flag",
+                        "type": "boolean"
+                    },
+                    "chart_view": {
+                        "description": "Chart view flag",
+                        "type": "boolean"
+                    },
+                    "axis_x": {
+                        "description": "Axis x test argument",
+                        "type": "string",
+                        "minLength": 2
+                    },
+                    "axis_y": {
+                        "description": "Measurement parameters",
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "tool": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "name": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "aggr": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "keys": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "sequence_group_arg": {
+                        "description": "Sequence group argument",
+                        "type": ["string", "null"]
+                    },
+                    "percentage_base_value": {
+                        "description": "Base value for percentage calculation",
+                        "type": ["string", "number", "null"]
+                    },
+                    "sequence_name_conversion": {
+                        "type": "object",
+                        "additionalProperties": true
+                    },
+                    "not_show_args": {
+                        "description": "Arguments and their values for excluding results from the report",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "records_order": {
+                        "description": "Test names list for records sorting",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "table_view",
+                    "chart_view",
+                    "axis_x",
+                    "axis_y",
+                    "sequence_group_arg",
+                    "percentage_base_value",
+                    "sequence_name_conversion",
+                    "not_show_args",
+                    "records_order"
+                ]
+            }
+        }
+    },
+    "required": [
+        "title_content",
+        "test_names_order",
+        "tests"
+    ],
+    "additionalProperties": false
+}

@@ -46,6 +46,7 @@ idna==2.8
 importlab==0.8.1
 importlib-metadata==4.13.0
 isort==5.8.0
+jsonschema==4.17.3
 kombu==5.3.3
 logilab-astng==0.24.3
 logilab-common==1.4.2
