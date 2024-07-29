@@ -4,6 +4,7 @@
 from datetime import datetime
 import logging
 import os
+import re
 import shutil
 import tempfile
 
@@ -86,7 +87,7 @@ class HTTPDirectoryTraverser:
         for node in ast.find_all(
             lambda t: t.name == 'a'
             and hasattr(t, 'href')
-            and not t['href'].startswith('..')
+            and not re.match(r'(\./)?\.\./?', t['href'])
             and t['href'].endswith('/'),
         ):
             a_href = node['href'].strip()
