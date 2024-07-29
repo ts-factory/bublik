@@ -5,4 +5,8 @@
 source "$(dirname $0)/manage"
 cd "${BUBLIK_SRC}"
 
+until timeout 10s celery -A "${CELERY_APP}" --broker="${CELERY_BROKER_URL}" inspect ping ; do
+    echo "Celery workers not available" >&2
+done
+
 celery -A "${CELERY_APP}" --broker="${CELERY_BROKER_URL}" flower --persistent=${FLOWER_PERSISTENT} --port="${FLOWER_PORT}" --url_prefix="${URL_PREFIX:1}/${FLOWER_URL_PREFIX}" &
