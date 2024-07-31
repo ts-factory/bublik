@@ -63,14 +63,14 @@ class RunStatusByUnexpected:
     def identify(cls, run_stats):
         total = run_stats['total']
         unexpected = run_stats['unexpected']
-        unexpected_percent = unexpected / total * 100 if total else 0
+        unexpected_percent = round(unexpected / total * 100) if total else 0
         left_border, right_border = getattr(per_conf, 'RUN_STATUS_BY_NOK_BORDERS', (20.0, 80.0))
 
         if total == 0 or unexpected_percent >= right_border:
-            return cls.ERROR
+            return cls.ERROR, unexpected_percent
         if unexpected_percent > left_border and unexpected_percent < right_border:
-            return cls.WARNING
-        return cls.SUCCESS
+            return cls.WARNING, unexpected_percent
+        return cls.SUCCESS, unexpected_percent
 
 
 class RunConclusion:
@@ -91,33 +91,51 @@ class RunConclusion:
         return [value for name, value in vars(cls).items() if name.isupper()]
 
     @classmethod
-    def identify(cls, run_status, run_status_by_nok, run_compromised, driver_unload):
+    def identify(
+        cls,
+        run_status,
+        run_status_by_nok,
+        unexpected_percent,
+        run_compromised,
+        driver_unload,
+    ):
+        # conclusion by compromised meta
         if run_compromised:
-            return cls.COMPROMISED
+            reason = 'Run marked as compromised'
+            return cls.COMPROMISED, reason
 
-        if run_status == RunStatus.RUNNING:
-            return cls.RUNNING
+        # conclusion by run status
+        conclusions_by_statuses = {
+            RunStatus.RUNNING: cls.RUNNING,
+            RunStatus.WARNING: cls.WARNING,
+            RunStatus.ERROR: cls.ERROR,
+            RunStatus.STOPPED: cls.STOPPED,
+            RunStatus.BUSY: cls.BUSY,
+        }
+        run_status_meta = per_conf.RUN_STATUS_META
+        if run_status in conclusions_by_statuses:
+            reason = f'{run_status_meta} reported by TE is {run_status}'
+            return conclusions_by_statuses[run_status], reason
 
-        if run_status == RunStatus.BUSY:
-            return cls.BUSY
+        # conclusion by nok
+        if run_status == RunStatus.DONE and run_status_by_nok == RunStatusByUnexpected.WARNING:
+            reason = f'{unexpected_percent}% of the results are unexpected'
+            return cls.WARNING, reason
 
-        if run_status == RunStatus.STOPPED:
-            return cls.STOPPED
+        if run_status_by_nok == RunStatusByUnexpected.ERROR:
+            reason = f'{unexpected_percent}% of the results are unexpected'
+            return cls.ERROR, reason
 
-        if run_status == RunStatus.WARNING or (
-            run_status == RunStatus.DONE and run_status_by_nok == RunStatusByUnexpected.WARNING
-        ):
-            return cls.WARNING
+        # conclusion by unknown DU or run_status
+        if driver_unload not in ['OK', 'REUSE', '-', None]:
+            reason = f'Unknown DU reported by TE: {driver_unload}'
+            return cls.ERROR, reason
 
-        if (
-            run_status == RunStatus.ERROR
-            or run_status_by_nok == RunStatusByUnexpected.ERROR
-            or driver_unload not in ['OK', 'REUSE', '-', None]
-            or run_status not in RunStatus.all()
-        ):
-            return cls.ERROR
+        if run_status not in RunStatus.all():
+            reason = f'Unknown {run_status_meta} reported by TE: {run_status}'
+            return cls.ERROR, reason
 
-        return cls.OK
+        return cls.OK, None
 
 
 class ResultStatus:
