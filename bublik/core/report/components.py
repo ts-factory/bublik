@@ -188,7 +188,7 @@ class ReportRecord:
         percentage_base_value = test_config['percentage_base_value']
         percentage_base_value = sequence_name_conversion(percentage_base_value, test_config)
 
-        if percentage_base_value is not None:
+        if percentage_base_value not in ['', 'None']:
             if percentage_base_value in dataset_labels:
                 self.formatters = {}
                 pbv_idx = dataset_labels.index(percentage_base_value)
