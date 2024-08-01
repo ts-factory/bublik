@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.meta.match_references import build_revision_references
-from bublik.core.report.components import ReportPoint, ReportTest
+from bublik.core.report.components import ReportPoint, ReportTestLevel
 from bublik.core.report.services import (
     args_type_convesion,
     build_report_title,
@@ -258,7 +258,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         point_groups_by_test_name = args_type_convesion(point_groups_by_test_name)
 
         for test_name, test_points in point_groups_by_test_name.items():
-            test = ReportTest(test_name, common_args, list(test_points), report_config)
+            test = ReportTestLevel(test_name, common_args, list(test_points), report_config)
             test_records.append(test.__dict__)
 
         ### Collect report data ###
