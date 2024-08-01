@@ -15,9 +15,11 @@ from bublik.core.report.services import (
 
 
 '''
-The report consists of blocks corresponding to the tests. Inside each of these blocks
-there are records corresponding to a certain set of arguments. The points on each of the record
-are combined into sequences according to the value of one specific argument and regrouded
+The report has three levels of nesting:
+1. Test level. It contains test common arguments and enabled views.
+2. Arguments values level. It contains arguments with their values.
+3. Measurement level. It contains measurements and records. The points on each of the record
+are combined into sequences according to the value of one specific argument and regrouped
 into datasets according to axis x values (more convenient for UI).
 '''
 
@@ -63,16 +65,20 @@ class ReportPoint:
     def points_grouper_tests(self):
         return self.test_name
 
-    def points_grouper_records(self):
-        return list(self.args_vals.values()), self.axis_y
+    def points_grouper_args_vals(self):
+        return list(self.args_vals.values())
+
+    def points_grouper_measurements(self):
+        return self.axis_y
 
     def points_grouper_sequences(self):
         return self.sequence_group_arg_val
 
 
-class ReportRecord:
+class ReportMeasurementLevel:
     '''
-    This class describes the records.
+    This class describes the report blocks corresponding
+    to the measurements and include datasets.
     '''
 
     def __init__(self, record_info, record_points, test_name, report_config):
@@ -80,17 +86,13 @@ class ReportRecord:
         table_view = test_config['table_view']
         chart_view = test_config['chart_view']
 
-        self.type = 'record-entity'
+        self.type = 'measurement-block'
         self.warnings = []
-        self.args_vals = record_points[0].args_vals
         self.sequence_group_arg = test_config['sequence_group_arg']
         self.axis_x_key = test_config['axis_x']
         self.axis_x_label = test_config['axis_x']
-        self.axis_y_label = record_info[1]
-        self.label = self.build_label()
-
-        id_tail = self.axis_y_label.replace(' ', '')
-        self.id = f'{self.label}-{id_tail}'
+        self.axis_y_label = record_info
+        self.id = self.axis_y_label
 
         if table_view or chart_view:
             # group points into sequences
@@ -121,15 +123,6 @@ class ReportRecord:
                 else:
                     self.dataset_chart.append(dataset_item)
             self.dataset_chart = [dataset_labels, *sorted(self.dataset_chart)]
-
-    def build_label(self):
-        '''
-        Build record id and label.
-        '''
-        label_list = []
-        for _, val in self.args_vals.items():
-            label_list.append(str(val))
-        return '-'.join(label_list)
 
     def get_sequences(self, record_points):
         '''
@@ -219,7 +212,47 @@ class ReportRecord:
         return dataset_labels, dataset_data
 
 
-class ReportTest:
+class ReportArgsValsLevel:
+    '''
+    This class describes the report blocks corresponding to the test arguments
+    and their values.
+    '''
+
+    def __init__(self, arg_val_record_points, test_name, report_config):
+        self.type = 'arg-val-block'
+        self.args_vals = arg_val_record_points[0].args_vals
+        self.label = self.build_label()
+        self.id = self.label
+        self.content = []
+
+        arg_val_record_points = sorted(
+            arg_val_record_points,
+            key=ReportPoint.points_grouper_measurements,
+        )
+
+        for axis_y_record_info, axis_y_record_points in groupby(
+            arg_val_record_points,
+            ReportPoint.points_grouper_measurements,
+        ):
+            axis_y_record = ReportMeasurementLevel(
+                axis_y_record_info,
+                list(axis_y_record_points),
+                test_name,
+                report_config,
+            )
+            self.content.append(axis_y_record.__dict__)
+
+    def build_label(self):
+        '''
+        Build record label.
+        '''
+        label_list = []
+        for _, val in self.args_vals.items():
+            label_list.append(str(val))
+        return '-'.join(label_list)
+
+
+class ReportTestLevel:
     '''
     This class describes the report blocks corresponding to the tests.
     '''
@@ -241,11 +274,15 @@ class ReportTest:
                 records_order,
                 test_point.args_vals,
             )
-        test_points = sorted(test_points, key=ReportPoint.points_grouper_records)
+        test_points = sorted(test_points, key=ReportPoint.points_grouper_args_vals)
 
-        for record_info, record_points in groupby(
+        for _, arg_val_record_points in groupby(
             test_points,
-            ReportPoint.points_grouper_records,
+            ReportPoint.points_grouper_args_vals,
         ):
-            record = ReportRecord(record_info, list(record_points), test_name, report_config)
-            self.content.append(record.__dict__)
+            arg_val_record = ReportArgsValsLevel(
+                list(arg_val_record_points),
+                test_name,
+                report_config,
+            )
+            self.content.append(arg_val_record.__dict__)
