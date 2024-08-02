@@ -174,7 +174,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             mmrs_test = filter_by_axis_y(mmrs_test, axis_y)
             if not mmrs_test:
                 msg = (
-                    f'incorrect value \'{axis_y}\' for \'axis_y\' key for \'{test_name}\' '
+                    f'incorrect value for \'axis_y\' key for \'{test_name}\' '
                     'test in the report config'
                 )
                 return Response(

@@ -415,8 +415,10 @@ REPORT_CONFIG_COMPONENTS = {
         'records_order',
     ],
     'possible_axis_y_keys': [
+        'tool',
+        'type',
         'name',
-        'aggr',
         'keys',
+        'aggr',
     ],
 }
