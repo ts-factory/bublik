@@ -63,8 +63,8 @@ def check_report_config(report_config):
                     'test in the configuration'
                 )
                 raise KeyError(msg)
-        for _, meas_params in test_configuration['axis_y'].items():
-            for meas_param in meas_params:
+        for measurement in test_configuration['axis_y']:
+            for meas_param in measurement:
                 if meas_param not in possible_axis_y_keys:
                     payk_str = ', '.join(f'\'{key}\'' for key in possible_axis_y_keys)
                     msg = (
@@ -220,34 +220,37 @@ def filter_by_axis_y(mmrs_test, axis_y):
     Filter passed measurement results QS by axis y value from config.
     '''
     axis_y_mmrs = MeasurementResult.objects.none()
-    for meas_type, meas_type_details in axis_y.items():
-        meas_mmrs = mmrs_test.filter(
-            measurement__metas__name='type',
-            measurement__metas__type='measurement_subject',
-            measurement__metas__value=meas_type,
-        )
+    for measurement in axis_y:
+        # filter by tool
+        if 'tool' in measurement:
+            tools = measurement.pop('tool')
+            mmrs_test = mmrs_test.filter(
+                measurement__metas__name='tool',
+                measurement__metas__type='tool',
+                measurement__metas__value__in=tools,
+            )
 
-        if 'keys' in meas_type_details:
+        # filter by keys
+        if 'keys' in measurement:
             meas_key_mmrs = MeasurementResult.objects.none()
-            keys_vals = meas_type_details.pop('keys')
+            keys_vals = measurement.pop('keys')
             for key_name, key_vals in keys_vals.items():
-                meas_key_mmrs_group = meas_mmrs.filter(
+                meas_key_mmrs_group = mmrs_test.filter(
                     measurement__metas__name=key_name,
                     measurement__metas__type='measurement_key',
                     measurement__metas__value__in=key_vals,
                 )
                 meas_key_mmrs = meas_key_mmrs.union(meas_key_mmrs_group)
-            meas_mmrs = meas_key_mmrs
+            mmrs_test = meas_key_mmrs
 
-        for meas_detail, meas_detail_vals in meas_type_details.items():
-            meas_mmrs = meas_mmrs.filter(
-                measurement__metas__name=meas_detail,
+        # filter by measurement subjects (type, name, aggr)
+        for ms, ms_values in measurement.items():
+            mmrs_test = mmrs_test.filter(
+                measurement__metas__name=ms,
                 measurement__metas__type='measurement_subject',
-                measurement__metas__value__in=meas_detail_vals,
+                measurement__metas__value__in=ms_values,
             )
-
-        axis_y_mmrs = axis_y_mmrs.union(meas_mmrs)
-
+        axis_y_mmrs = axis_y_mmrs.union(mmrs_test)
     return axis_y_mmrs
 
 
