@@ -81,7 +81,7 @@ class ReportMeasurementLevel:
     to the measurements and include datasets.
     '''
 
-    def __init__(self, record_info, record_points, test_name, report_config):
+    def __init__(self, test_name, av_lvl_id, record_info, record_points, report_config):
         test_config = report_config['tests'][test_name]
         table_view = test_config['table_view']
         chart_view = test_config['chart_view']
@@ -92,7 +92,7 @@ class ReportMeasurementLevel:
         self.axis_x_key = test_config['axis_x']
         self.axis_x_label = test_config['axis_x']
         self.axis_y_label = record_info
-        self.id = self.axis_y_label
+        self.id = '_'.join([av_lvl_id, self.axis_y_label.replace(' ', '')])
 
         if table_view or chart_view:
             # group points into sequences
@@ -218,11 +218,11 @@ class ReportArgsValsLevel:
     and their values.
     '''
 
-    def __init__(self, arg_val_record_points, test_name, report_config):
+    def __init__(self, test_name, test_lvl_id, arg_val_record_points, report_config):
         self.type = 'arg-val-block'
         self.args_vals = arg_val_record_points[0].args_vals
         self.label = self.build_label()
-        self.id = self.label
+        self.id = '_'.join([test_lvl_id, self.label.replace(' ', '')])
         self.content = []
 
         arg_val_record_points = sorted(
@@ -235,9 +235,10 @@ class ReportArgsValsLevel:
             ReportPoint.points_grouper_measurements,
         ):
             axis_y_record = ReportMeasurementLevel(
+                test_name,
+                self.id,
                 axis_y_record_info,
                 list(axis_y_record_points),
-                test_name,
                 report_config,
             )
             self.content.append(axis_y_record.__dict__)
@@ -281,8 +282,9 @@ class ReportTestLevel:
             ReportPoint.points_grouper_args_vals,
         ):
             arg_val_record = ReportArgsValsLevel(
-                list(arg_val_record_points),
                 test_name,
+                self.id,
+                list(arg_val_record_points),
                 report_config,
             )
             self.content.append(arg_val_record.__dict__)
