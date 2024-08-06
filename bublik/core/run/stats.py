@@ -12,10 +12,10 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models
 from django.db.models import Exists, F, OuterRef, Q, Value
 from django.db.models.functions import Concat
-import per_conf
 from references import References
 
 from bublik.core.cache import RunCache
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.datetime_formatting import (
     display_to_date_in_numbers,
     display_to_seconds,
@@ -748,7 +748,7 @@ def generate_result_details(test_result):
 
 
 def get_run_status(run):
-    status_meta_name = getattr(per_conf, 'RUN_STATUS_META', None)
+    status_meta_name = getattr_from_per_conf('RUN_STATUS_META')
     status_meta = MetaResult.objects.filter(result=run, meta__name=status_meta_name).first()
     if status_meta:
         return status_meta.meta.value
@@ -785,7 +785,7 @@ def generate_all_run_details(run):
     run_id = run.id
     conclusion, conclusion_reason = get_run_conclusion(run)
     important_tags, relevant_tags = get_tags_by_runs([run_id])
-    category_names = getattr(per_conf, 'SPECIAL_CATEGORIES', [])
+    category_names = getattr_from_per_conf('SPECIAL_CATEGORIES', default=[])
     run_meta_results = run.meta_results.select_related('meta')
     q = MetaResultsQuery(run_meta_results)
 

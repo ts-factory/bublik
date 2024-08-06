@@ -8,8 +8,6 @@ from django.db.models.fields import DateField
 from django.db.models.functions import Cast
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
-import per_conf
-
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
@@ -17,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.cache import RunCache
-from bublik.core.checks import check_per_conf
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.importruns.live.check import livelog_check_run_timeout
 from bublik.core.run.external_links import get_sources
 from bublik.core.run.stats import (
@@ -136,7 +134,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return self.check_and_apply_settings()
 
     def apply_if_match_header(self, setting, default=None, ignore=None, keys=False):
-        data = getattr(per_conf, setting, default).copy()
+        data = getattr_from_per_conf(setting, default=default).copy()
 
         comparable = data.keys() if keys else data
 
@@ -147,31 +145,27 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return data
 
     def check_and_apply_settings(self):
-        self.errors = []
-
-        # Mandatory settings (must be defined in per_conf.py):
+        # Mandatory settings (must be defined in per_conf global config object):
         for setting in self.required_settings:
-            if not check_per_conf(setting):
-                self.errors.append(f'dashboard requires {setting} to be defined in per_conf')
+            getattr_from_per_conf(setting, required=True)
 
-        if not self.errors:
-            self.header = per_conf.DASHBOARD_HEADER
-            self.date_meta = getattr(per_conf, 'DASHBOARD_DATE', None)
-            self.default_mode = getattr(
-                per_conf,
-                'DASHBOARD_DEFAULT_MODE',
-                'two_days_two_columns',
-            )
+        self.header = getattr_from_per_conf('DASHBOARD_HEADER', required=True)
+        self.date_meta = getattr_from_per_conf('DASHBOARD_DATE')
+        self.default_mode = getattr_from_per_conf(
+            'DASHBOARD_DEFAULT_MODE',
+            default='two_days_two_columns',
+        )
 
+        self.errors = []
         if getattr(self, 'header', None):
-            # Default settings (can be changed in per_conf.py):
+            # Default settings (can be changed in per_conf global config object):
             self.sort = self.apply_if_match_header(
                 'DASHBOARD_RUNS_SORT',
                 default=['start'],
                 ignore=['start'],
             )
 
-            # Optional settings (can be defined in per_conf.py):
+            # Optional settings (can be defined in per_conf global config object):
             self.payload_settings = self.apply_if_match_header(
                 'DASHBOARD_PAYLOAD',
                 default={},

@@ -6,12 +6,11 @@ import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
-import per_conf
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.shortcuts import build_absolute_uri
 
 
@@ -46,7 +45,10 @@ class PerformanceCheckView(APIView):
         hist_args_common = urlencode(hist_args_common)
 
         try:
-            hist_args_per_conf = per_conf.HISTORY_SEARCH_EXAMPLE
+            hist_args_per_conf = getattr_from_per_conf(
+                'HISTORY_SEARCH_EXAMPLE',
+                required=True,
+            )
             hist_args_intense = urlencode(hist_args_per_conf) + f'&{hist_args_common}'
 
             hist_args_base = {
