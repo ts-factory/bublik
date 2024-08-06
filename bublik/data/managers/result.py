@@ -4,8 +4,8 @@
 from datetime import datetime
 
 from django.db.models import Manager, Q, QuerySet
-import per_conf
 
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.data.managers.utils import create_metas_query
 from bublik.data.models.meta import Meta
 
@@ -27,7 +27,7 @@ It doesn`t have to return a QuerySet.
 
 class TestIterationResultQuerySet(QuerySet):
     def filter_by_run_status(self, run_status):
-        status_meta_name = getattr(per_conf, 'RUN_STATUS_META', None)
+        status_meta_name = getattr_from_per_conf('RUN_STATUS_META')
         return self.filter(
             meta_results__meta__name=status_meta_name,
             meta_results__meta__value=run_status,

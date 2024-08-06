@@ -55,13 +55,6 @@ def check_url(what, required=False, msg=None, logger=None):
 # Special functions:
 
 
-def check_per_conf(what, logger=None, url=None):
-    import per_conf
-
-    msg = modify_msg(f'{what} wasn\'t find in project configs', url)
-    return check_attr(what, per_conf, msg, logger)
-
-
 def check_settings(what, logger=None, url=None):
     from bublik import settings
 
