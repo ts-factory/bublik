@@ -13,12 +13,12 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from django.core.management.base import BaseCommand
 import pendulum
-import per_conf
 
 from references import References
 
 from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url
-from bublik.core.checks import check_per_conf, check_run_file
+from bublik.core.checks import check_run_file, modify_msg
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
@@ -96,7 +96,15 @@ class HTTPDirectoryTraverser:
             yield from self.__find_runs(url_next)
 
     def find_runs(self):
-        if not check_per_conf('RUN_COMPLETE_FILE', logger, self.url):
+        try:
+            getattr_from_per_conf('RUN_COMPLETE_FILE', required=True)
+        except (KeyError, AttributeError):
+            if logger:
+                msg = modify_msg(
+                    'RUN_COMPLETE_FILE wasn\'t found in per_conf global config object',
+                    self.url,
+                )
+                logger.error(msg)
             return
         yield from self.__find_runs(self.url)
 
@@ -184,10 +192,9 @@ class Command(BaseCommand):
                 meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'))
             else:
                 # Save to process dir available files for generating metadata
-                files_to_try = getattr(
-                    per_conf,
+                files_to_try = getattr_from_per_conf(
                     'FILES_TO_GENERATE_METADATA',
-                    ['meta_data.txt'],
+                    default=['meta_data.txt'],
                 )
                 for filename in files_to_try:
                     filename_saved = save_url_to_dir(run_url, process_dir, filename)
@@ -215,7 +222,11 @@ class Command(BaseCommand):
                 return
 
             if meta_data_saved:
-                run_completed = check_run_file(per_conf.RUN_COMPLETE_FILE, run_url, logger)
+                run_completed = check_run_file(
+                    getattr_from_per_conf('RUN_COMPLETE_FILE', required=True),
+                    run_url,
+                    logger,
+                )
             else:
                 # Always count Logs without meta_data.json as completed
                 run_completed = True

@@ -5,8 +5,8 @@ from itertools import chain
 
 from django.db import models
 from django.utils.functional import cached_property
-import per_conf
 
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.queries import MetaResultsQuery, get_or_none
 from bublik.core.utils import get_difference
 from bublik.data.managers import TestIterationResultManager
@@ -64,7 +64,10 @@ class RunStatusByUnexpected:
         total = run_stats['total']
         unexpected = run_stats['unexpected']
         unexpected_percent = round(unexpected / total * 100) if total else 0
-        left_border, right_border = getattr(per_conf, 'RUN_STATUS_BY_NOK_BORDERS', (20.0, 80.0))
+        left_border, right_border = getattr_from_per_conf(
+            'RUN_STATUS_BY_NOK_BORDERS',
+            default=(20.0, 80.0),
+        )
 
         if total == 0 or unexpected_percent >= right_border:
             return cls.ERROR, unexpected_percent
@@ -112,7 +115,7 @@ class RunConclusion:
             RunStatus.STOPPED: cls.STOPPED,
             RunStatus.BUSY: cls.BUSY,
         }
-        run_status_meta = per_conf.RUN_STATUS_META
+        run_status_meta = getattr_from_per_conf('RUN_STATUS_META', required=True)
         if run_status in conclusions_by_statuses:
             reason = f'{run_status_meta} reported by TE is {run_status}'
             return conclusions_by_statuses[run_status], reason

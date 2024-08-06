@@ -8,8 +8,8 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
-import per_conf
 
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.shortcuts import build_absolute_uri
 
 
@@ -29,7 +29,7 @@ def send_importruns_failed_mail(
     '''
 
     email_from = getattr(settings, 'EMAIL_FROM', None)
-    recipients = getattr(per_conf, 'EMAIL_PROJECT_WATCHERS', []) + getattr(
+    recipients = getattr_from_per_conf('EMAIL_PROJECT_WATCHERS', default=[]) + getattr(
         settings,
         'EMAIL_ADMINS',
         [],

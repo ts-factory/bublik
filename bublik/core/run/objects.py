@@ -6,8 +6,8 @@ import logging
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Count
-import per_conf
 
+from bublik.core.config.services import getattr_from_per_conf
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.run.keys import prepare_expected_key
 from bublik.core.run.utils import prepare_date
@@ -259,8 +259,8 @@ def run_status_default(status_key):
 
 
 def set_run_status(run, status_key):
-    status_meta_name = getattr(per_conf, 'RUN_STATUS_META', None)
-    status_value = getattr(per_conf, status_key, run_status_default(status_key))
+    status_meta_name = getattr_from_per_conf('RUN_STATUS_META')
+    status_value = getattr_from_per_conf(status_key, default=run_status_default(status_key))
     if status_meta_name:
         update_or_create_meta_result(
             m_data={
