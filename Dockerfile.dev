@@ -1,4 +1,4 @@
-FROM python:3.8 as base
+FROM python:3.10 AS base
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -35,7 +35,7 @@ WORKDIR /app/te
 COPY ../test-environment .
 RUN ./dispatcher.sh -q --conf-builder=builder.conf.tools --no-run
 
-FROM base as runner
+FROM base AS runner
 
 WORKDIR /app
 

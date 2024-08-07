@@ -1,25 +1,25 @@
-FROM node:17.9.0 as bublik-ui-builder
+FROM node:20.3.1 AS frontend-builder
 
-ARG URL_PREFIX
-ENV PNPM_HOME="/root/.local/share/pnpm"
-ENV PATH="${PATH}:${PNPM_HOME}"
-
-RUN npm install --global pnpm
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+ARG URL_PREFIX=""
 
 RUN pnpm add -g nx
 
 WORKDIR /app
 
-COPY bublik-ui/package.json bublik-ui/pnpm-lock.yaml ./
+COPY ./bublik-ui/package.json ./bublik-ui/pnpm-lock.yaml ./
 
-RUN pnpm install
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
-COPY bublik-ui .
+COPY ./bublik-ui ./
 
-RUN nx run bublik:build:docker --base ${URL_PREFIX}/v2
+RUN BASE_URL="$URL_PREFIX/v2" nx run bublik:build --base="$URL_PREFIX/v2" --sourcemap="true"
 
 FROM nginx:1.21-alpine
 
-RUN rm /etc/nginx/conf.d/default.conf
+COPY --from=frontend-builder /app/dist/apps/bublik /app/bublik-ui
 
-COPY --from=bublik-ui-builder /app/dist/apps/bublik-docker /etc/nginx/html
+RUN rm /etc/nginx/conf.d/default.conf
