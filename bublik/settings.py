@@ -280,6 +280,9 @@ CELERY_TASK_SERIALIZER = os.getenv("CELERY_TASK_SERIALIZER", "json")
 CELERY_RESULT_SERIALIZER = os.getenv("CELERY_RESULT_SERIALIZER", "json")
 CELERY_CREATE_DIRS = os.getenv("CELERY_CREATE_DIRS", "1")
 
+ENABLE_JSON_LOGS_PROXY = os.getenv("ENABLE_JSON_LOGS_PROXY", False)
+SECURE_HTTP = os.getenv("SECURE_HTTP", False)
+
 # Identify a project holding Bublik:
 # - to use per-project variables just doing 'import per_conf'
 # - to get per-project conf files
@@ -402,5 +405,12 @@ REPORT_CONFIG_COMPONENTS = {
         'sequence_name_conversion',
         'not_show_args',
         'records_order',
+    ],
+    'possible_axis_y_keys': [
+        'tool',
+        'type',
+        'name',
+        'keys',
+        'aggr',
     ],
 }

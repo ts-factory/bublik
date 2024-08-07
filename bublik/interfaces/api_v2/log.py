@@ -3,6 +3,10 @@
 
 import os.path
 
+import requests
+from urllib.parse import urlparse
+from django.http import HttpResponse
+from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
@@ -22,6 +26,7 @@ __all__ = [
 class LogViewSet(RetrieveModelMixin, GenericViewSet):
     queryset = TestIterationResult.objects.all()
     serializer_class = TestIterationResultSerializer
+
 
     @action(detail=True, methods=['get'])
     def json(self, request, pk=None):
@@ -64,6 +69,13 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
                 json_tail += '.json'
 
         url = os.path.join(run_source_link, json_tail)
+
+        if settings.ENABLE_JSON_LOGS_PROXY:
+            parsed_url = urlparse(request.build_absolute_uri())
+            origin = f"{'https' if settings.SECURE_HTTP else 'http'}://{parsed_url.netloc}"
+            
+            forwarding_url = f"{origin}{settings.PREFIX}/api/v2/logs/proxy/?url={url}"
+            return Response(data={'url': forwarding_url}, status=status.HTTP_200_OK)
         return Response(data={'url': url}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
@@ -75,3 +87,31 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
         result = self.get_object()
         return Response(data={'url': get_result_log(result)}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def proxy(self, request):
+        r'''
+        Forward the request to the given URL and return the response data.
+        Route: /api/v2/logs/proxy/?url=<forwarding_url>
+        '''
+        forward_url = request.query_params.get('url')
+        if not forward_url:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data={'message': 'URL parameter is missing.'}
+            )
+
+        try:
+            response = requests.get(forward_url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            return Response(
+                status=status.HTTP_502_BAD_GATEWAY,
+                data={'message': f'Error forwarding request: {str(e)}'}
+            )
+
+        return HttpResponse(
+            content=response.content,
+            status=response.status_code,
+            content_type=response.headers.get('Content-Type', 'application/octet-stream')
+        )

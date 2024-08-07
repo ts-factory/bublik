@@ -4,3 +4,6 @@
 [submodule "bublik-ui"]
 	path = bublik-ui
 	url = https://github.com/okt-limonikas/bublik-ui.git
+[submodule "bublik-conf"]
+	path = bublik-conf
+	url = https://github.com/okt-limonikas/bublik-conf.git

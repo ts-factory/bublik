@@ -2,8 +2,8 @@ services:
   django:
     container_name: django
     build:
-      context: ..
-      dockerfile: bublik/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     command: >
       gunicorn bublik.wsgi:application  
       --bind ${BUBLIK_BIND_GUNICORN}
@@ -16,17 +16,56 @@ services:
       --access-logfile ${BUBLIK_ACCESS_LOG}
       --log-level info
       --name "${BUBLIK_WEB_NAME}"
+    environment:
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
+      - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
     expose:
       - 8000
-    env_file:
-      - ../bublik/.env
-    entrypoint: ../bublik/entrypoint.sh
+    entrypoint: ./entrypoint.sh
     depends_on:
       - db
       - redis
     volumes:
       - logs_data:/app/bublik/logs
       - static_data:/app/bublik/bublik/representation/static
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000${URL_PREFIX}/api/v2/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
   db:
     container_name: postgres
     image: postgres
@@ -34,10 +73,14 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    env_file:
-      - ../bublik/.env
     volumes:
       - db_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
   redis:
     container_name: redis
     image: redis
@@ -48,27 +91,106 @@ services:
     image: rabbitmq:3-management
     expose:
       - 5672
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmqctl status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
   celery:
     container_name: celery
     build:
-      context: ..
-      dockerfile: bublik/Dockerfile
-    env_file:
-      - ../bublik/.env
+      context: .
+      dockerfile: Dockerfile
     command: celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} -l ${CELERY_LOG_LEVEL}
+    environment:
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
+      - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
     depends_on:
       - db
       - redis
       - rabbitmq
     volumes:
       - logs_data:/app/bublik/logs:rw
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A ${CELERY_APP} inspect ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
   flower:
-    image: mher/flower
     container_name: flower
-    command: celery flower -A ${CELERY_APP} --persistent=${FLOWER_PERSISTENT} --url_prefix=${URL_PREFIX}${FLOWER_URL_PREFIX}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
     environment:
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
       - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
     expose:
       - 5555
     depends_on:
@@ -77,25 +199,37 @@ services:
       - redis
       - rabbitmq
     volumes:
-      - flower_data:/data
+      - ./:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:5555/${FLOWER_URL_PREFIX}/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
   nginx:
     container_name: nginx
     build:
-      context: ..
-      dockerfile: bublik/nginx/Dockerfile
+      context: .
+      dockerfile: ./nginx/Dockerfile
       args:
         - URL_PREFIX=${URL_PREFIX}
-    env_file:
-      - ../bublik/.env
     environment:
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
-    ports:
-      - 80:80
+      - URL_PREFIX=${URL_PREFIX}
+      - DOLLAR=${DOLLAR}
+    expose:
+      - 80
     volumes:
-      - ../bublik/nginx/templates/prod:/etc/nginx/templates:ro
+      - ./nginx/templates/prod:/etc/nginx/templates:ro
       - static_data:/app/bublik/bublik/representation/static
     depends_on:
       - django
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:80${URL_PREFIX}/v2/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 volumes:
   logs_data:
   db_data:

@@ -4,8 +4,6 @@
 import json
 import traceback
 
-from typing import ClassVar
-
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework import status
@@ -20,7 +18,6 @@ from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
 from bublik.core.importruns.utils import indicate_collision
 from bublik.core.response import bad_request, internal_error
 from bublik.core.shortcuts import build_absolute_uri, get_current_scheme_host_prefix
-from bublik.interfaces.api_v2.auth import admin_required
 from bublik.interfaces.celery import tasks
 
 
@@ -30,9 +27,8 @@ class ImportrunsViewSet(ViewSet):
     Requires authentication. Available for admin users.
     '''
 
-    renderer_classes: ClassVar = [TemplateHTMLRenderer]
+    renderer_classes = [TemplateHTMLRenderer]
 
-    @admin_required
     @method_decorator(never_cache)
     @action(detail=False, methods=['get', 'post'])
     def source(self, request, format=None):
@@ -88,7 +84,6 @@ class ImportrunsViewSet(ViewSet):
         except Exception as e:
             return internal_error(str(e), self.get_view_name())
 
-    @admin_required
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
     def init(self, request, format=None):
@@ -120,7 +115,6 @@ class ImportrunsViewSet(ViewSet):
             traceback.print_exc()
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @admin_required
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
     def feed(self, request, format=None):
@@ -174,7 +168,6 @@ class ImportrunsViewSet(ViewSet):
                 del cache.data
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @admin_required
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
     def finish(self, request, format=None):
@@ -214,7 +207,6 @@ class ImportrunsViewSet(ViewSet):
                 ctx.fatal_error()
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @admin_required
     @action(detail=False, methods=['get'])
     def logs(self, request, format=None):
         '''Shows importruns log for a certain run.'''

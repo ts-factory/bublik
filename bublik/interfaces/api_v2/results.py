@@ -47,7 +47,6 @@ from bublik.core.run.tests_organization import get_tests_by_name
 from bublik.core.utils import get_difference
 from bublik.data import models
 from bublik.data.serializers import TestIterationResultSerializer
-from bublik.interfaces.api_v2.auth import admin_required
 
 
 all = [
@@ -153,7 +152,6 @@ class RunViewSet(ModelViewSet):
         run = self.get_object()
         return Response({'status': get_run_status(run)})
 
-    @admin_required
     @action(detail=True, methods=['get', 'post', 'delete'])
     def compromised(self, request, pk=None):
         run = self.get_object()
