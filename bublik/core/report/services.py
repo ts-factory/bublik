@@ -4,76 +4,11 @@
 import contextlib
 
 from itertools import groupby
-import json
-import os
 
 from django.conf import settings
 
 from bublik.core.utils import get_metric_prefix_units
 from bublik.data.models import MeasurementResult, Meta, TestArgument
-
-
-def get_report_config():
-    report_configs_dir = os.path.join(settings.PER_CONF_DIR, 'reports')
-    for root, _, report_config_files in os.walk(report_configs_dir):
-        for report_config_file in report_config_files:
-            with open(os.path.join(root, report_config_file)) as rcf:
-                try:
-                    report_config = json.load(rcf)
-                    yield report_config_file, report_config
-                except json.decoder.JSONDecodeError:
-                    yield report_config_file, None
-
-
-def get_report_config_by_id(report_config_id):
-    for _, report_config in get_report_config():
-        if report_config:
-            try:
-                if str(report_config['id']) == report_config_id:
-                    return report_config
-            except KeyError:
-                continue
-    return None
-
-
-def check_report_config(report_config):
-    '''
-    Check the passed report config for compliance with the expected format.
-    '''
-    try:
-        report_config_components = settings.REPORT_CONFIG_COMPONENTS
-    except AttributeError as ae:
-        msg = (
-            "The key 'REPORT_CONFIG_COMPONENTS' is missing in the settings. "
-            "Take the 'django_settings' deployment step."
-        )
-        raise AttributeError(
-            msg,
-        ) from ae
-
-    for key in report_config_components['required_keys']:
-        if key not in report_config.keys():
-            msg = f'the required key \'{key}\' is missing in the configuration'
-            raise KeyError(msg)
-
-    possible_axis_y_keys = report_config_components['possible_axis_y_keys']
-    for test_name, test_configuration in report_config['tests'].items():
-        for key in report_config_components['required_test_keys']:
-            if key not in test_configuration.keys():
-                msg = (
-                    f'the required key \'{key}\' is missing for \'{test_name}\' '
-                    'test in the configuration'
-                )
-                raise KeyError(msg)
-        for measurement in test_configuration['axis_y']:
-            for meas_param in measurement:
-                if meas_param not in possible_axis_y_keys:
-                    payk_str = ', '.join(f'\'{key}\'' for key in possible_axis_y_keys)
-                    msg = (
-                        f'unsupported measurement parameter \'{meas_param}\' for '
-                        f'\'{test_name}\' test in the configuration. Possible are {payk_str}'
-                    )
-                    raise KeyError(msg)
 
 
 def build_report_title(main_pkg, title_content):
