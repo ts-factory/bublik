@@ -4,6 +4,7 @@
 from itertools import groupby
 import logging
 
+from django.forms.models import model_to_dict
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
@@ -15,17 +16,19 @@ from bublik.core.report.components import ReportPoint, ReportTestLevel
 from bublik.core.report.services import (
     args_type_convesion,
     build_report_title,
-    check_report_config,
     filter_by_axis_y,
     filter_by_not_show_args,
     get_common_args,
-    get_report_config,
-    get_report_config_by_id,
 )
 from bublik.core.run.external_links import get_sources
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.data.models import MeasurementResult, Meta, TestIterationResult
-from bublik.data.serializers import TestIterationResultSerializer
+from bublik.data.models import (
+    Config,
+    MeasurementResult,
+    Meta,
+    TestIterationResult,
+)
+from bublik.data.serializers import ConfigSerializer, TestIterationResultSerializer
 
 
 logger = logging.getLogger('')
@@ -43,8 +46,8 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
     @action(detail=True, methods=['get'])
     def configs(self, request, pk=None):
         '''
-        Return a list of configs that can be used to build a report on the current run.
-        Route: /api/v2/report/<run_id>/configs/
+        Return a list of current configs that can be used to build a report on the current run.
+        Request: GET /api/v2/report/<run_id>/configs
         '''
         run = self.get_object()
         iters = TestIterationResult.objects.filter(test_run=run)
@@ -55,71 +58,45 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             ),
         )
 
+        current_report_configs = Config.objects.filter(type='report', is_current=True)
+
         run_report_configs = []
-        invalid_report_config_files = []
-        for report_config_file, report_config in get_report_config():
-            if report_config:
-                try:
-                    report_config_test_names = report_config['test_names_order']
-                    # check whether the sets of run tests and config tests overlap
-                    if set(report_config_test_names).intersection(test_names):
-                        run_report_configs.append(
-                            {
-                                'id': report_config['id'],
-                                'name': report_config['name'],
-                                'description': report_config['description'],
-                            },
-                        )
-                except KeyError as ke:
-                    invalid_report_config_files.append(
-                        {
-                            'file': report_config_file,
-                            'reason': f'Invalid format: the key {ke} is missing',
-                        },
-                    )
-            else:
-                invalid_report_config_files.append(
-                    {
-                        'file': report_config_file,
-                        'reason': 'Invalid format: JSON is expected',
-                    },
+        for report_config in current_report_configs:
+            report_config_content = report_config.content
+            # skip invalid
+            if 'test_names_order' not in report_config_content:
+                continue
+            report_config_test_names = report_config_content['test_names_order']
+            if set(report_config_test_names).intersection(test_names):
+                run_report_configs.append(
+                    model_to_dict(
+                        report_config, exclude=['type', 'is_current', 'user', 'content'],
+                    ),
                 )
 
-        data = {
-            'run_report_configs': run_report_configs,
-            'invalid_report_config_files': invalid_report_config_files,
-        }
-
-        return Response(data=data)
+        return Response({'run_report_configs': run_report_configs}, status=status.HTTP_200_OK)
 
     def retrieve(self, request, pk=None):
+        r'''
+        Request: GET /api/v2/report/<run_id>?config=<config_id\>
+        '''
         ### Get and check report config ###
         # check if the config ID has been passed
         report_config_id = request.query_params.get('config')
         if not report_config_id:
             msg = 'report config wasn\'t passed'
             return Response(
+                {'message': msg},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'message': msg},
             )
 
-        # check if there is a config of the correct format with the passed config ID
-        report_config = get_report_config_by_id(report_config_id)
-        if not report_config:
-            msg = 'report config is not found or have an incorrect format. JSON is expected'
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'message': msg},
-            )
+        # get config data
+        report_config_obj = Config.objects.get(id=report_config_id)
+        report_config = report_config_obj.content
 
-        # check if the config has all the necessary keys
-        try:
-            check_report_config(report_config)
-        except KeyError as ke:
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'message': ke.args[0]},
-            )
+        # check if the config content has the correct format
+        serializer = ConfigSerializer(report_config_obj)
+        serializer.validate_content(report_config)
 
         # get the session and the corresponding main package by ID
         result = self.get_object()
@@ -282,7 +259,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             'title': title,
             'run_source_link': run_source_link,
             'run_stats_link': run_stats_link,
-            'version': report_config['version'],
+            'version': report_config_obj.version,
             'content': content,
             'not_processed_points': not_processed_points,
         }
