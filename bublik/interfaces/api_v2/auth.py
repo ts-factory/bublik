@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from functools import wraps
-
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
@@ -12,19 +10,18 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.cache import never_cache
 from rest_framework import generics, status
 from rest_framework.decorators import action
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-from rest_framework_simplejwt.backends import TokenBackend
-from rest_framework_simplejwt.exceptions import TokenBackendError, TokenError
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from bublik.core.auth import auth_required, get_user_by_access_token, get_user_info_from_access_token
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.data.models import User, UserRoles
+from bublik.data.models import User
 from bublik.data.serializers import (
     PasswordResetSerializer,
     RegisterSerializer,
@@ -33,7 +30,7 @@ from bublik.data.serializers import (
     UserEmailSerializer,
     UserSerializer,
 )
-from bublik.settings import EMAIL_FROM, SIMPLE_JWT
+from bublik.settings import EMAIL_FROM
 
 
 __all__ = [
@@ -46,60 +43,6 @@ __all__ = [
     'ForgotPasswordResetView',
     'AdminViewSet',
 ]
-
-
-def get_user_info_from_access_token(access_token):
-    token_backend = TokenBackend(
-        algorithm=SIMPLE_JWT['ALGORITHM'],
-        signing_key=SIMPLE_JWT['SIGNING_KEY'],
-    )
-    return token_backend.decode(access_token, verify=True)
-
-
-def admin_required(function):
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        request = None
-
-        # Check if 'request' is present in the keyword arguments
-        if 'request' in kwargs and isinstance(kwargs['request'], Request):
-            request = kwargs['request']
-        # Check if the first argument is an instance of Request
-        elif args and isinstance(args[0], Request):
-            request = args[0]
-        # Check if the first argument has a 'request' attribute (ViewSet case)
-        elif hasattr(args[0], 'request') and isinstance(args[0].request, Request):
-            request = args[0].request
-
-        if request:
-            access_token = request.COOKIES.get('access_token')
-            try:
-                # get user
-                user_info = get_user_info_from_access_token(access_token=access_token)
-                user = User.objects.get(pk=user_info['user_id'])
-            except TokenBackendError:
-                return Response(
-                    {'message': 'Not Authenticated'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            # check if user is admin
-            if UserRoles.ADMIN in user.roles:
-                # call the original function
-                return function(*args, **kwargs)
-
-            return Response(
-                {'message': 'You are not authorized to perform this action'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        # Handle regular function call without a request object
-        return Response(
-            {'message': 'Wrong request'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    return wrapper
 
 
 class RegisterView(generics.CreateAPIView):
@@ -200,81 +143,56 @@ class ProfileViewSet(GenericViewSet):
             return UpdateUserSerializer
         return UserSerializer
 
+    @auth_required(as_admin=False)
     @action(detail=False, methods=['get'])
     def info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
-        try:
-            # get user info using access token
-            user_info = get_user_info_from_access_token(access_token)
-            # get user object
-            user = User.objects.get(pk=user_info['user_id'])
-            serializer_class = self.get_serializer_class()
-            return Response(serializer_class(user).data, status=status.HTTP_200_OK)
-        except TokenBackendError:
-            return Response(
-                {'message': 'Not Authenticated'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        user = get_user_by_access_token(access_token)
+        serializer_class = self.get_serializer_class()
+        return Response(serializer_class(user).data, status=status.HTTP_200_OK)
 
+    @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def password_reset(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
-        try:
-            # get user info using access token
-            user_info = get_user_info_from_access_token(access_token)
-            # get user object
-            user = User.objects.get(pk=user_info['user_id'])
+        user = get_user_by_access_token(access_token)
+        # check current password and validate new password
+        passwords = request.data
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(data=passwords)
+        serializer.current_password_check(user, passwords['current_password'])
+        serializer.validate_passwords(passwords)
 
-            # check current password and validate new password
-            passwords = request.data
-            serializer_class = self.get_serializer_class()
-            serializer = serializer_class(data=passwords)
-            serializer.current_password_check(user, passwords['current_password'])
-            serializer.validate_passwords(passwords)
+        # password reset
+        user.set_password(passwords['new_password'])
+        user.save()
 
-            # password reset
-            user.set_password(passwords['new_password'])
-            user.save()
+        # blacklist old refresh tokens
+        RefreshToken.for_user(user).blacklist()
 
-            # blacklist old refresh tokens
-            RefreshToken.for_user(user).blacklist()
+        return Response(
+            {'message': 'Password reset successfully'},
+            status=status.HTTP_200_OK,
+        )
 
-            return Response(
-                {'message': 'Password reset successfully'},
-                status=status.HTTP_200_OK,
-            )
-        except TokenBackendError:
-            return Response(
-                {'message': 'Not Authenticated'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
+    @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def update_info(self, request):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
-        try:
-            # get user info using access token
-            user_info = get_user_info_from_access_token(access_token)
-            # get user object
-            user = User.objects.get(pk=user_info['user_id'])
-            serializer_class = self.get_serializer_class()
-            # check if new data is valid
-            serializer = serializer_class(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            # update user
-            updated_user = serializer.update(
-                user=user,
-                data=request.data,
-            )
-            return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
-        except TokenBackendError:
-            return Response(
-                {'message': 'Not Authenticated'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        user = get_user_by_access_token(access_token)
+        serializer_class = self.get_serializer_class()
+        # check if new data is valid
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # update user
+        updated_user = serializer.update(
+            user=user,
+            data=request.data,
+        )
+        return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
 
 
 class RefreshTokenView(TokenRefreshView):
@@ -296,9 +214,12 @@ class RefreshTokenView(TokenRefreshView):
                 )
             access_token = refresh_token.access_token
 
-            # get user info and User object
-            user_info = get_user_info_from_access_token(str(access_token))
-            user = User.objects.get(pk=user_info['user_id'])
+            user = get_user_by_access_token(access_token)
+            if not user:
+                return Response(
+                    {'message': 'Not Authenticated'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
             # blacklist refresh token
             refresh_token.blacklist()
@@ -449,7 +370,7 @@ class AdminViewSet(GenericViewSet):
             return UserEmailSerializer
         return UserSerializer
 
-    @admin_required
+    @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def create_user(self, request):
         serializer_class = self.get_serializer_class()
@@ -463,7 +384,7 @@ class AdminViewSet(GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @admin_required
+    @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def update_user(self, request):
         # get user to edit
@@ -480,7 +401,7 @@ class AdminViewSet(GenericViewSet):
         )
         return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
 
-    @admin_required
+    @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def deactivate_user(self, request):
         # get user to delete
@@ -493,7 +414,7 @@ class AdminViewSet(GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @admin_required
+    @auth_required(as_admin=True)
     @method_decorator(never_cache)
     def list(self, request):
         serializer_class = self.get_serializer_class()
