@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.meta.match_references import build_revision_references
-from bublik.core.report.components import ReportPoint, ReportTest
+from bublik.core.report.components import ReportPoint, ReportTestLevel
 from bublik.core.report.services import (
     args_type_convesion,
     build_report_title,
@@ -174,7 +174,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             mmrs_test = filter_by_axis_y(mmrs_test, axis_y)
             if not mmrs_test:
                 msg = (
-                    f'incorrect value \'{axis_y}\' for \'axis_y\' key for \'{test_name}\' '
+                    f'incorrect value for \'axis_y\' key for \'{test_name}\' '
                     'test in the report config'
                 )
                 return Response(
@@ -198,29 +198,38 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         mmrs_report = mmrs_report.order_by('id')
 
+        def not_processed_point_conversion(point):
+            point = point.__dict__
+            point.pop('axis_y')
+            point['reasons'] = []
+            axis_x_val = list(point['point'].keys())[0] if list(point['point'].keys()) else None
+            matches_list = [
+                ['point', 'axis_x', axis_x_val],
+                [
+                    'sequence_group_arg_val',
+                    'sequence_group_arg',
+                    point['sequence_group_arg_val'],
+                ],
+            ]
+            for match in matches_list:
+                if point[match[0]] not in [{}, None]:
+                    point['args_vals'][point[match[1]]] = match[2]
+                else:
+                    point['reasons'].append(
+                        f'The test has no argument \'{point[match[1]]}\'',
+                    )
+                point.pop(match[0])
+                point.pop(match[1])
+            return point
+
         # get points with data
         points = []
+        not_processed_points = []
         for mmr in mmrs_report:
             point = ReportPoint(mmr, common_args, report_config)
-            if not point.point:
-                msg = (
-                    f'incorrect value \'{point.axis_x}\' for \'axis_x\' key '
-                    f'for \'{point.test_name}\' test in the report config'
-                )
-                return Response(
-                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    data={'message': msg},
-                )
-            if not point.sequence_group_arg_val:
-                msg = (
-                    f'incorrect value \'{point.sequence_group_arg}\' for '
-                    f'\'sequence_group_arg\' key for \'{point.test_name}\' test '
-                    'in the report config'
-                )
-                return Response(
-                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    data={'message': msg},
-                )
+            if not (point.point and point.sequence_group_arg_val is not None):
+                not_processed_points.append(not_processed_point_conversion(point))
+                continue
             points.append(point)
 
         ### Group points into records ###
@@ -249,7 +258,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         point_groups_by_test_name = args_type_convesion(point_groups_by_test_name)
 
         for test_name, test_points in point_groups_by_test_name.items():
-            test = ReportTest(test_name, common_args, list(test_points), report_config)
+            test = ReportTestLevel(test_name, common_args, list(test_points), report_config)
             test_records.append(test.__dict__)
 
         ### Collect report data ###
@@ -275,6 +284,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             'run_stats_link': run_stats_link,
             'version': report_config['version'],
             'content': content,
+            'not_processed_points': not_processed_points,
         }
 
         return Response(data=report, status=status.HTTP_200_OK)

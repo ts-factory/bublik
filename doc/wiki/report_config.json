@@ -18,17 +18,21 @@
             "table_view": true,
             "chart_view": true,
             "axis_x": "packet_size",
-            "axis_y": {
-                "throughput": {
-                    "name": [],
-                    "aggr": [
-                        "mean"
+            "axis_y": [
+                {
+                    "type": [
+                        "throughput"
                     ],
                     "keys": {
-                        "Side":"Rx"
-                    }
+                        "Side": [
+                            "Rx"
+                        ]
+                    },
+                    "aggr": [
+                        "mean"
+                    ]
                 }
-            },
+            ],
             "sequence_group_arg": "testpmd_arg_burst",
             "percentage_base_value": 32,
             "sequence_name_conversion": {
