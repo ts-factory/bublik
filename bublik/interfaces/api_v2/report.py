@@ -93,6 +93,8 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(data=data)
 
     def retrieve(self, request, pk=None):
+        warnings = []
+
         ### Get and check report config ###
         # check if the config ID has been passed
         report_config_id = request.query_params.get('config')
@@ -174,23 +176,21 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             mmrs_test = filter_by_axis_y(mmrs_test, axis_y)
             if not mmrs_test:
                 msg = (
-                    f'incorrect value for \'axis_y\' key for \'{test_name}\' '
-                    'test in the report config'
+                    f'{test_name} test: no results after filtering by axis_y value. '
+                    'Fix report configuration'
                 )
-                return Response(
-                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    data={'message': msg},
-                )
+                warnings.append(msg)
+                continue
 
             # filter measurement results by not show params
             not_show_args = test_config['not_show_args']
             mmrs_test = filter_by_not_show_args(mmrs_test, not_show_args)
             if not mmrs_test:
                 msg = (
-                    f'for \'{test_name}\' test there are no measurement '
-                    'results corresponding to the report config',
+                    f'{test_name} test: no results after filtering by not_show_args value. '
+                    'Fix report configuration'
                 )
-                logger.warning(msg)
+                warnings.append(msg)
                 if test_name in report_config['test_names_order']:
                     report_config['test_names_order'].remove(test_name)
 
@@ -280,6 +280,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         report = {
             'title': title,
+            'warnings': warnings,
             'run_source_link': run_source_link,
             'run_stats_link': run_stats_link,
             'version': report_config['version'],
