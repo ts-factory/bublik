@@ -97,10 +97,10 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         # check if the config ID has been passed
         report_config_id = request.query_params.get('config')
         if not report_config_id:
-            msg = 'report config wasn\'t passed'
+            msg = 'Report config wasn\'t passed'
             return Response(
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'message': msg},
+                data={'type': 'ValueError', 'message': msg},
             )
 
         # check if there is a config of the correct format with the passed config ID
