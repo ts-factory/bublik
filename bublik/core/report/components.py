@@ -89,7 +89,7 @@ class ReportMeasurementLevel:
         self.type = 'measurement-block'
         self.warnings = []
         self.sequence_group_arg = test_config['sequence_group_arg']
-        self.axis_x_key = test_config['axis_x']
+        self.axis_x_key = f'{test_config['axis_x']} / {test_config['sequence_group_arg']}'
         self.axis_x_label = test_config['axis_x']
         self.axis_y_label = record_info
         self.id = '_'.join([av_lvl_id, self.axis_y_label.replace(' ', '')])
