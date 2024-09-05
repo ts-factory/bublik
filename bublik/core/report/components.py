@@ -92,41 +92,39 @@ class ReportRecordLevel:
 
         self.type = 'record-block'
         self.warnings = []
-        self.sequence_group_arg = test_config['sequence_group_arg']
-        self.axis_x_key = f'{test_config["axis_x"]} / {test_config["sequence_group_arg"]}'
+        self.multiple_sequences = bool(test_config['sequence_group_arg'])
+        self.axis_x_key = (
+            f'{test_config["axis_x"]} / {test_config["sequence_group_arg"]}'
+            if self.multiple_sequences
+            else f'{test_config["axis_x"]}'
+        )
         self.axis_x_label = test_config['axis_x']
         self.axis_y_label = record_info
         self.id = f'{meas_lvl_id}_{self.axis_y_label}'
 
         if table_view or chart_view:
-            # group points into sequences
-            sequences = self.get_sequences(record_points)
-            # create datasets by sequences
-            dataset_labels, dataset_data = self.create_dataset(sequences, test_config)
-
+            # create datasets
+            if not self.multiple_sequences:
+                dataset_labels = [self.axis_x_key, self.axis_y_label]
+                dataset_data = []
+                for record_point in list(record_points):
+                    for arg, val in record_point.point.items():
+                        dataset_data.append([arg, val])
+                with contextlib.suppress(TypeError):
+                    dataset_data = sorted(dataset_data)
+            else:
+                # group points into sequences
+                sequences = self.get_sequences(record_points)
+                # create datasets by sequences
+                dataset_labels, dataset_data = self.create_dataset(sequences, test_config)
         if table_view:
-            dataset_table_labels, dataset_table_data = self.percentage_calc(
+            self.dataset_table = self.get_dataset_table(
                 dataset_labels,
                 dataset_data,
                 test_config,
             )
-            with contextlib.suppress(TypeError):
-                dataset_table_data = sorted(dataset_table_data)
-            self.dataset_table = [dataset_table_labels, *dataset_table_data]
-
         if chart_view:
-            self.dataset_chart = []
-            for dataset_item in dataset_data:
-                # include in the chart dataset only those results that correspond
-                # to the numeric values of the x-axis argument
-                if type(dataset_item[0]) != int:
-                    self.warnings.append(
-                        f'The results corresponding to {dataset_labels[0]}={dataset_item[0]} '
-                        'cannot be displayed on the chart',
-                    )
-                else:
-                    self.dataset_chart.append(dataset_item)
-            self.dataset_chart = [dataset_labels, *sorted(self.dataset_chart)]
+            self.dataset_chart = self.get_dataset_chart(dataset_labels, dataset_data)
 
     def get_sequences(self, record_points):
         '''
@@ -185,35 +183,59 @@ class ReportRecordLevel:
         percentage_base_value = test_config['percentage_base_value']
         percentage_base_value = sequence_name_conversion(percentage_base_value, test_config)
 
-        if percentage_base_value not in ['', 'None']:
-            if percentage_base_value in dataset_labels:
-                self.formatters = {}
-                pbv_idx = dataset_labels.index(percentage_base_value)
-                for dataset_label in dataset_labels[1:]:
-                    if dataset_label != percentage_base_value:
-                        dataset_label_gain = f'{dataset_label} gain'
-                        dataset_labels.append(dataset_label_gain)
-                        self.formatters[dataset_label_gain] = '%'
-                        idx = dataset_labels.index(dataset_label)
-                        for dataset_item in dataset_data:
-                            try:
-                                percentage = round(
-                                    100 * (dataset_item[idx] / dataset_item[pbv_idx] - 1),
-                                    2,
-                                )
-                            except ZeroDivisionError:
-                                percentage = 'na'
-                            except TypeError:
-                                percentage = '-'
-                            dataset_item.append(percentage)
-            else:
-                self.warnings.append(
-                    f'There is no sequence corresponding to the passed '
-                    f'base value \'{percentage_base_value}\'. '
-                    'Persentage calculation is skipped.',
-                )
+        if percentage_base_value in dataset_labels:
+            self.formatters = {}
+            pbv_idx = dataset_labels.index(percentage_base_value)
+            for dataset_label in dataset_labels[1:]:
+                if dataset_label != percentage_base_value:
+                    dataset_label_gain = f'{dataset_label} gain'
+                    dataset_labels.append(dataset_label_gain)
+                    self.formatters[dataset_label_gain] = '%'
+                    idx = dataset_labels.index(dataset_label)
+                    for dataset_item in dataset_data:
+                        try:
+                            percentage = round(
+                                100 * (dataset_item[idx] / dataset_item[pbv_idx] - 1),
+                                2,
+                            )
+                        except ZeroDivisionError:
+                            percentage = 'na'
+                        except TypeError:
+                            percentage = '-'
+                        dataset_item.append(percentage)
+        else:
+            self.warnings.append(
+                f'There is no sequence corresponding to the passed '
+                f'base value {percentage_base_value}. '
+                'Persentage calculation is skipped.',
+            )
 
         return dataset_labels, dataset_data
+
+    def get_dataset_table(self, dataset_labels, dataset_data, test_config):
+        if self.multiple_sequences and test_config['percentage_base_value'] is not None:
+            dataset_labels, dataset_data = self.percentage_calc(
+                dataset_labels,
+                dataset_data,
+                test_config,
+            )
+        with contextlib.suppress(TypeError):
+            dataset_data = sorted(dataset_data)
+        return [dataset_labels, *dataset_data]
+
+    def get_dataset_chart(self, dataset_labels, dataset_data):
+        dataset_chart_data = []
+        for dataset_item in dataset_data:
+            # include in the chart dataset only those results that correspond
+            # to the numeric values of the x-axis argument
+            if type(dataset_item[0]) != int:
+                self.warnings.append(
+                    f'The results corresponding to {dataset_labels[0]}={dataset_item[0]} '
+                    'cannot be displayed on the chart',
+                )
+            else:
+                dataset_chart_data.append(dataset_item)
+        return [dataset_labels, *sorted(dataset_chart_data)]
 
 
 class ReportMeasurementLevel:
@@ -222,8 +244,13 @@ class ReportMeasurementLevel:
     '''
 
     def __init__(
-            self, test_name, av_lvl_id, measurement_info, measurement_points, report_config,
-        ):
+        self,
+        test_name,
+        av_lvl_id,
+        measurement_info,
+        measurement_points,
+        report_config,
+    ):
         self.type = 'measurement-block'
         self.label = measurement_info
         self.id = '_'.join([av_lvl_id, self.label.replace(' ', '')])
