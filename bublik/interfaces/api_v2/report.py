@@ -201,7 +201,8 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         def not_processed_point_conversion(point):
             point = point.__dict__
             point['common_args'] = common_args[point['test_name']]
-            point.pop('axis_y')
+            point.pop('measurement_label')
+            point.pop('measurement_name')
             point['reasons'] = []
             axis_x_val = list(point['point'].keys())[0] if list(point['point'].keys()) else None
             matches_list = [

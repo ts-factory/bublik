@@ -94,11 +94,13 @@ def build_report_title(main_pkg, title_content):
     return '-'.join(title)
 
 
-def build_axis_y_name(mmr):
+def get_meas_label_and_name(mmr):
     '''
-    Form the y axis name according to the scheme:
-    "<measurement name>/<measurement type> - <aggr> -
-    <measurement key name>:<measurement key value> (<base_units> * <multiplier>)".
+    Return the label and the name of the measurement:
+    - measurement name = <measurement name>/<measurement type>
+    - measurement label = "<measurement type> - <aggr> -
+      <measurement key name>:<measurement key value>
+      (<base_units> * <multiplier>)".
     '''
     # get metas
     meta_subjects = {}
@@ -113,41 +115,42 @@ def build_axis_y_name(mmr):
     for meta in mmr.measurement.metas.filter(type='measurement_key'):
         meta_keys[meta.name] = meta.value
 
-    # build units part
-    axis_y_tail = ''
+    # set y-axis name
+    if 'name' in meta_subjects:
+        axis_y_name = meta_subjects.pop('name')
+    else:
+        axis_y_name = meta_subjects['type']
+
+    # build units part of the record_label
+    record_label_tail = ''
     if meta_subjects['base_units'] and meta_subjects['multiplier']:
+        base_units = meta_subjects.pop('base_units')
+        multiplier = meta_subjects.pop('multiplier')
+        import logging
+
+        logger = logging.getLogger('')
+        logger.info(f'{base_units=}, {multiplier=}')
         try:
-            axis_y_tail = get_metric_prefix_units(
-                meta_subjects['multiplier'],
-                meta_subjects['base_units'],
+            record_label_tail = get_metric_prefix_units(
+                multiplier,
+                base_units,
             )
         except KeyError:
-            base_units = meta_subjects['base_units']
-            multiplier = meta_subjects['multiplier']
-            axis_y_tail = f'{base_units} * {multiplier}'
-    meta_subjects.pop('base_units')
-    meta_subjects.pop('multiplier')
+            record_label_tail = f'{base_units} * {multiplier}'
 
-    # build main part
-    axis_y_items = []
-    if 'name' in meta_subjects:
-        axis_y_items.append(meta_subjects['name'])
-        meta_subjects.pop('name')
-        meta_subjects.pop('type')
-    else:
-        axis_y_items.append(meta_subjects['type'])
-        meta_subjects.pop('type')
+    # build main part of the record_label
+    record_label_items = [meta_subjects.pop('type')]
     for _, value in meta_subjects.items():
-        axis_y_items.append(value)
+        record_label_items.append(value)
     for name, value in meta_keys.items():
-        axis_y_items.append(f'{name}={value}')
-    axis_y_name = ' - '.join(axis_y_items)
+        record_label_items.append(f'{name}={value}')
+    record_label = ' - '.join(record_label_items)
 
-    # join parts
-    if axis_y_tail:
-        axis_y_name = f'{axis_y_name} ({axis_y_tail})'
+    # join title parts
+    if record_label_tail:
+        record_label = f'{record_label} ({record_label_tail})'
 
-    return axis_y_name
+    return record_label, axis_y_name
 
 
 def type_conversion(arg_value):
