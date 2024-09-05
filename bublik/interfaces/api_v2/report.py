@@ -21,6 +21,7 @@ from bublik.core.report.services import (
     get_common_args,
     get_report_config,
     get_report_config_by_id,
+    get_unprocessed_iter_info,
 )
 from bublik.core.run.external_links import get_sources
 from bublik.core.shortcuts import build_absolute_uri
@@ -198,41 +199,15 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         mmrs_report = mmrs_report.order_by('id')
 
-        def not_processed_point_conversion(point):
-            point = point.__dict__
-            point['common_args'] = common_args[point['test_name']]
-            point.pop('measurement_label')
-            point.pop('measurement_name')
-            point['reasons'] = []
-            axis_x_val = list(point['point'].keys())[0] if list(point['point'].keys()) else None
-            matches_list = [
-                ['point', 'axis_x', axis_x_val],
-                [
-                    'sequence_group_arg_val',
-                    'sequence_group_arg',
-                    point['sequence_group_arg_val'][1]
-                    if point['sequence_group_arg_val']
-                    else None,
-                ],
-            ]
-            for match in matches_list:
-                if point[match[0]] not in [{}, None]:
-                    point['args_vals'][point[match[1]]] = match[2]
-                else:
-                    point['reasons'].append(
-                        f'The test has no argument \'{point[match[1]]}\'',
-                    )
-                point.pop(match[0])
-                point.pop(match[1])
-            return point
-
         # get points with data
         points = []
-        not_processed_points = []
+        unprocessed_iters = []
         for mmr in mmrs_report:
             point = ReportPoint(mmr, common_args, report_config)
-            if not (point.point and point.sequence_group_arg_val is not None):
-                not_processed_points.append(not_processed_point_conversion(point))
+            if not point.point or (
+                point.sequence_group_arg and not point.sequence_group_arg_val
+            ):
+                unprocessed_iters.append(get_unprocessed_iter_info(point))
                 continue
             points.append(point)
 
@@ -289,7 +264,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             'run_stats_link': run_stats_link,
             'version': report_config['version'],
             'content': content,
-            'not_processed_points': not_processed_points,
+            'unprocessed_iters': unprocessed_iters,
         }
 
         return Response(data=report, status=status.HTTP_200_OK)
