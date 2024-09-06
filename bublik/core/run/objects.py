@@ -274,6 +274,13 @@ def set_run_status(run, status_key):
         logger.error('cannot set run status because RUN_STATUS_META is not set')
 
 
+def add_objective(iteration_result, objective):
+    add_meta_result(
+        m_data={'type': 'objective', 'value': objective},
+        mr_data={'result': iteration_result},
+    )
+
+
 def add_obtained_result(iteration_result, result, verdicts=None, err=None):
     if verdicts is not None:
         for serial, verdict in enumerate(verdicts):

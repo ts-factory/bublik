@@ -15,6 +15,7 @@ from bublik.core.run.objects import (
     add_expected_result,
     add_iteration,
     add_iteration_result,
+    add_objective,
     add_obtained_result,
     add_tags,
     add_test,
@@ -63,6 +64,11 @@ def handle_iteration(
         parent_package,
         data['tin'],
         data['test_id'],
+    )
+
+    add_objective(
+        iteration_result,
+        data['objective'],
     )
 
     plan_id = int(data['plan_id'])
