@@ -67,7 +67,7 @@ def abnormal(results):
     return results.filter(meta_results__meta__in=Meta.abnormal)
 
 
-def generate_result(test_iter_res, parent, period, path, info, run_results):
+def generate_result(test_iter_res, parent, period, path, info, objectives, run_results):
     test = test_iter_res.iteration.test
     test_name = test.name
     path = [*path, test_name]
@@ -82,6 +82,7 @@ def generate_result(test_iter_res, parent, period, path, info, run_results):
         'name': test_name,
         'period': period_to_str(period),
         'path': path,
+        'objective': objectives[test_iter_res.id] if test_iter_res.id in objectives else "",
         'children': [],
         'stats': {
             'passed': 0,
@@ -146,6 +147,7 @@ def generate_result(test_iter_res, parent, period, path, info, run_results):
                     (prev_child['start'], prev_child['finish']),
                     path,
                     prev_child['info'],
+                    objectives,
                     run_results,
                 )
 
@@ -163,6 +165,7 @@ def generate_result(test_iter_res, parent, period, path, info, run_results):
                 (prev_child['start'], prev_child['finish']),
                 path,
                 prev_child['info'],
+                objectives,
                 run_results,
             )
 
@@ -189,12 +192,19 @@ def get_run_stats_detailed(run_id):
         main_package = run_results.filter(parent_package__isnull=True).first()
         if not main_package:
             return None
+        # get objectives for all run iterations at once
+        objectives = dict(
+            Meta.objects.filter(
+                metaresult__result__test_run=run_id, type='objective',
+            ).values_list('metaresult__result__id', 'value'),
+        )
         run_stats = generate_result(
             test_iter_res=main_package,
             parent=None,
             period=(main_package.start, main_package.finish),
             path=[],
             info=None,
+            objectives=objectives,
             run_results=run_results,
         )
         cache.data = run_stats
