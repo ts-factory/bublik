@@ -28,7 +28,7 @@ class Meta(models.Model):
         max_length=64,
         help_text='''\
 The meta type, enumeration: result, verdict, note, error, tag, label, \
-revision, branch, repo, log, import, count.''',
+revision, branch, repo, log, import, count, objective.''',
         db_index=True,
     )
     value = models.TextField(null=True, blank=True, help_text='The meta value or none.')

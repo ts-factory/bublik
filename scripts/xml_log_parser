@@ -74,6 +74,7 @@ sub handle_start
         $cur_iter->{result} = "";
         $cur_iter->{err} = "";
         $cur_iter->{result_expected} = "";
+        $cur_iter->{objective} = "";
         $cur_iter->{verdicts} = [];
         $cur_iter->{verdicts_expected} = [];
         $cur_iter->{artifacts} = [];
@@ -164,6 +165,10 @@ sub handle_char
     elsif ($p->current_element() eq "end-ts")
     {
         $p->{end_ts} .= $str;
+    }
+    elsif ($p->current_element() eq "objective")
+    {
+        $p->{objective} = $str;
     }
     elsif ($p->current_element() eq "verdict")
     {
@@ -274,6 +279,10 @@ sub handle_end
     {
         $cur_iter->{end_ts} = fix_date($p->{end_ts});
         $last_ts = $cur_iter->{end_ts};
+    }
+    elsif ($e eq "objective")
+    {
+        $cur_iter->{objective} = $p->{objective};
     }
     elsif ($e eq "verdict")
     {
