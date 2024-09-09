@@ -96,7 +96,7 @@ class MetaCategory(models.Model):
         max_length=64,
         help_text='''\
 The meta type, enumeration: result, verdict, note, error, tag, label, \
-revision, branch, repo, log, import, count.''',
+revision, branch, repo, log, import, count, objective.''',
     )
 
     class Admin:
