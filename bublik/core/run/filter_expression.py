@@ -223,7 +223,7 @@ class TestRunMetasGroup:
 
         condition.setParseAction(create_meta)
 
-        prec = pp.operatorPrecedence(
+        prec = pp.infixNotation(
             condition,
             [
                 ('!', 1, pp.opAssoc.RIGHT),
