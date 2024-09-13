@@ -25,6 +25,7 @@ from .meta import MetaSerializer
 from .reference import ReferenceSerializer
 from .result import (
     MetaResultSerializer,
+    MetaTestSerializer,
     TestArgumentSerializer,
     TestIterationRelationSerializer,
     TestIterationResultSerializer,
@@ -56,4 +57,5 @@ __all__ = [
     'PasswordResetSerializer',
     'UpdateUserSerializer',
     'EndpointURLSerializer',
+    'MetaTestSerializer',
 ]
