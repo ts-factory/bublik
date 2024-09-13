@@ -25,7 +25,7 @@ from bublik.core.run.stats import (
     generate_results_details,
     generate_runs_details,
     get_nok_results_distribution,
-    get_run_stats_detailed,
+    get_run_stats_detailed_with_comments,
     get_run_status,
 )
 from bublik.core.run.tests_organization import get_tests_by_name
@@ -125,7 +125,7 @@ class RunViewSet(ModelViewSet):
     @action(detail=True, methods=['get'])
     def stats(self, request, pk=None):
         run = self.get_object()
-        return Response({'results': get_run_stats_detailed(run.id)})
+        return Response({'results': get_run_stats_detailed_with_comments(run.id)})
 
     @action(detail=True, methods=['get'])
     def source(self, request, pk=None):

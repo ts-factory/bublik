@@ -2,12 +2,16 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import OrderedDict
+import json
 import logging
 import re
 import sys
 
 from django.conf import settings
-from django.db.models import Exists, F, OuterRef, Q
+from django.contrib.postgres.aggregates import ArrayAgg
+from django.db import models
+from django.db.models import Exists, F, OuterRef, Q, Value
+from django.db.models.functions import Concat
 import per_conf
 
 from references import References
@@ -33,6 +37,7 @@ from bublik.core.utils import key_value_dict_transforming, key_value_list_transf
 from bublik.data.models import (
     Meta,
     MetaResult,
+    MetaTest,
     ResultType,
     RunConclusion,
     RunStatusByUnexpected,
@@ -179,6 +184,36 @@ def generate_result(test_iter_res, parent, period, path, info, objectives, run_r
     return info
 
 
+def get_run_stats_detailed_with_comments(run_id):
+    run_stats = get_run_stats_detailed(run_id)
+    tests_comments = get_tests_comments(run_id)
+    add_comments(run_stats, tests_comments)
+    return run_stats
+
+
+def add_comments(node, tests_comments):
+    '''
+    Add a list of comments to each node. The comment format is
+    {
+        'comment_id': <meta_id>,
+        'updated': <metatest_updated>,
+        'serial': <metatest_serial>,
+        'comment': <meta_value>
+    }
+    The order of comments is determined by the serial value.
+    '''
+    node['comments'] = (
+        tests_comments[node['result_id']] if node['result_id'] in tests_comments else []
+    )
+    node['comments'] = [
+        json.loads(comment) if isinstance(comment, str) else comment
+        for comment in node['comments']
+    ]
+    node['comments'] = sorted(node['comments'], key=lambda x: x['serial'])
+    for child in node['children']:
+        add_comments(child, tests_comments)
+
+
 def get_run_stats_detailed(run_id):
     cache = RunCache.by_id(run_id, 'stats')
     run_stats = cache.data
@@ -209,6 +244,52 @@ def get_run_stats_detailed(run_id):
         )
         cache.data = run_stats
     return run_stats
+
+
+def get_tests_comments(run_id):
+    '''
+    Return all run test comments in the format
+    {
+        'test_id': [
+            {
+                'metatest_id': <metatest_id>,
+                'metatest__serial': <metatest__serial>,
+                'value': <meta_value>,
+            }, ...
+        ], ...
+    }
+    '''
+    test_ids = list(
+        (
+            TestIterationResult.objects.filter(test_run=run_id)
+            .order_by('start')
+            .select_related('iteration__test')
+        ).values_list('iteration__test__id', flat=True),
+    )
+    return dict(
+        MetaTest.objects.filter(
+            meta__type='comment',
+            test__id__in=test_ids,
+        )
+        .values('test__id')
+        .annotate(
+            comment_list=ArrayAgg(
+                Concat(
+                    Value('{"comment_id": "'),
+                    F('meta__id'),
+                    Value('", "updated": "'),
+                    F('updated'),
+                    Value('", "serial": "'),
+                    F('serial'),
+                    Value('", "comment": '),
+                    F('meta__value'),
+                    Value('}'),
+                    output_field=models.JSONField(),
+                ),
+            ),
+        )
+        .values_list('test__id', 'comment_list'),
+    )
 
 
 def get_packages_stats(data):
