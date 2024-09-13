@@ -39,6 +39,7 @@ from .meta import (
 from .reference import Reference
 from .result import (
     MetaResult,
+    MetaTest,
     ResultStatus,
     ResultType,
     RunConclusion,
@@ -81,4 +82,5 @@ __all__ = [
     'UserManager',
     'UserRoles',
     'EndpointURL',
+    'MetaTest',
 ]

@@ -26,6 +26,7 @@ __all__ = [
     'TestIterationRelation',
     'TestIterationResult',
     'MetaResult',
+    'MetaTest',
 ]
 
 
@@ -555,3 +556,41 @@ Serial number of a meta result, can be used to determine verdicts order.''',
             repr(self.serial),
             repr(self.result),
         )
+
+
+class MetaTest(models.Model):
+    '''
+    The table connects a test with metadata.
+    '''
+
+    updated = models.DateTimeField(help_text='Timestamp of the connection creation.')
+    meta = models.ForeignKey(
+        Meta,
+        on_delete=models.CASCADE,
+        help_text='A metadata identifier.',
+    )
+    serial = models.IntegerField(
+        default=0,
+        help_text='The serial number is used to determine the order of comments.',
+    )
+    test = models.ForeignKey(
+        Test,
+        on_delete=models.CASCADE,
+        help_text='The test identifier.',
+    )
+
+    class Admin:
+        pass
+
+    class Meta:
+        db_table = 'bublik_metatest'
+
+    def delete(self, *args, **kwargs):
+        meta_id = self.meta_id
+        super().delete(*args, **kwargs)
+        metatests_with_meta_id = MetaTest.objects.filter(meta_id=meta_id)
+        if not metatests_with_meta_id:
+            Meta.objects.get(id=meta_id).delete()
+
+    def __repr__(self):
+        return f'MetaTest(test={self.test!r}, serial={self.serial!r}, meta={self.meta!r})'
