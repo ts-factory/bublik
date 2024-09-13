@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
+from typing import ClassVar
 
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
@@ -44,7 +45,7 @@ class TestArgumentSerializer(HashedModelSerializer):
     class Meta:
         model = TestArgument
         fields = model.hashable
-        extra_kwargs = {'value': {'trim_whitespace': False}}
+        extra_kwargs: ClassVar[dict] = {'value': {'trim_whitespace': False}}
 
 
 class TestIterationSerializer(ModelSerializer):
@@ -81,7 +82,7 @@ class MetaResultSerializer(ModelSerializer):
     class Meta:
         model = MetaResult
         fields = ('id', 'meta', 'reference', 'result', 'ref_index', 'serial')
-        extra_kwargs = {
+        extra_kwargs: ClassVar[dict] = {
             'ref_index': {'default': None},
             'serial': {'default': 0},
         }

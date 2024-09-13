@@ -2,6 +2,8 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 
+from typing import ClassVar
+
 from bublik.core.hash_system import HashedModelSerializer
 from bublik.core.utils import empty_to_none
 from bublik.data.models import Meta
@@ -16,7 +18,7 @@ class MetaSerializer(HashedModelSerializer):
     class Meta:
         model = Meta
         fields = model.hashable
-        extra_kwargs = {
+        extra_kwargs: ClassVar[dict] = {
             'name': {'default': None},
             'comment': {'default': None},
             'value': {'trim_whitespace': False, 'default': None},

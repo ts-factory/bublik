@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from typing import ClassVar
+
 from descriptors import cachedclassproperty
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -39,7 +41,7 @@ revision, branch, repo, log, import, count, objective, comment.''',
 
     class Meta:
         db_table = 'bublik_meta'
-        indexes = [models.Index(fields=['type', 'name', 'value'])]
+        indexes: ClassVar[list] = [models.Index(fields=['type', 'name', 'value'])]
 
     def __repr__(self):
         return (

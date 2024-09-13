@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from itertools import chain
+from typing import ClassVar
 
 from django.db import models
 from django.utils.functional import cached_property
@@ -146,7 +147,7 @@ class ResultStatus:
     have any result statuses they want just assigning them to the fixed group.
     '''
 
-    RESULT_STATUSES_BY_GROUPS = {
+    RESULT_STATUSES_BY_GROUPS: ClassVar[dict] = {
         'passed': ['PASSED'],
         'failed': ['FAILED'],
         'skipped': ['SKIPPED'],
@@ -196,9 +197,9 @@ class ResultType:
     SESSION = 'session'
     PACKAGE = 'pkg'
 
-    SET = {TEST: 'T', SESSION: 'S', PACKAGE: 'P'}
+    SET: ClassVar[dict] = {TEST: 'T', SESSION: 'S', PACKAGE: 'P'}
 
-    INV_SET = {v: k for k, v in SET.items()}
+    INV_SET: ClassVar[dict] = {v: k for k, v in SET.items()}
 
     @classmethod
     def conv(cls, item):
