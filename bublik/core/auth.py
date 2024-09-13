@@ -3,6 +3,8 @@
 
 from functools import wraps
 
+import per_conf
+
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -72,3 +74,25 @@ def auth_required(as_admin=False):
             return function(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def check_action_permission(action):
+    '''
+    Check if the action requires permission.
+    '''
+
+    def wrapper(func):
+        @wraps(func)
+        def inner(*args, **kwargs):
+            not_permission_required_actions = getattr(
+                per_conf,
+                'NOT_PERMISSION_REQUIRED_ACTIONS',
+                [],
+            )
+            if action in not_permission_required_actions:
+                return func(*args, **kwargs)
+            return auth_required(as_admin=True)(func)(*args, **kwargs)
+
+        return inner
+
+    return wrapper
