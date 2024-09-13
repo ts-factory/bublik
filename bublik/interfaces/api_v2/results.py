@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from typing import ClassVar
+
 from django.conf import settings
 from django.db.models import Q
 from rest_framework import status
@@ -42,7 +44,7 @@ all = [
 
 class RunViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
-    filter_backends = []
+    filter_backends: ClassVar[list] = []
 
     def get_queryset(self):
         queryset = models.TestIterationResult.objects.filter(test_run__isnull=True)
@@ -175,7 +177,7 @@ class RunViewSet(ModelViewSet):
 
 class ResultViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
-    filter_backends = []
+    filter_backends: ClassVar[list] = []
 
     def get_queryset(self):
         queries = Q()
