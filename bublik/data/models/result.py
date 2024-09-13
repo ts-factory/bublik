@@ -273,11 +273,7 @@ class TestArgument(models.Model):
         db_table = 'bublik_testargument'
 
     def __repr__(self):
-        return 'TestArgument(name={}, value={}, hash={})'.format(
-            repr(self.name),
-            repr(self.value),
-            repr(self.hash),
-        )
+        return f'TestArgument(name={self.name!r}, value={self.value!r}, hash={self.hash!r})'
 
 
 class TestIteration(models.Model):
@@ -301,10 +297,9 @@ class TestIteration(models.Model):
         db_table = 'bublik_testiteration'
 
     def __repr__(self):
-        return 'TestIteration(test={}, test_arguments={}, hash={})'.format(
-            repr(self.test),
-            repr(self.test_arguments),
-            repr(self.hash),
+        return (
+            f'TestIteration(test={self.test!r}, test_arguments={self.test_arguments!r}, '
+            f'hash={self.hash!r})'
         )
 
     def get_packages(self, package_strip=None, package_ignore=None):
@@ -377,10 +372,9 @@ class TestIterationRelation(models.Model):
         pass
 
     def __repr__(self):
-        return 'TestIterationRelation(test_iteration={}, parent_iteration={}, depth={}'.format(
-            repr(self.test_iteration),
-            repr(self.parent_iteration),
-            repr(self.depth),
+        return (
+            f'TestIterationRelation(test_iteration={self.test_iteration!r}, '
+            f'parent_iteration={self.parent_iteration!r}, depth={self.depth!r}'
         )
 
 
@@ -448,16 +442,9 @@ Timestamp of the iteration (or test run) execution end.''',
 
     def __repr__(self):
         return (
-            'TestIterationResult(id={}, iteration={}, test_run={}, tin={}, exec_seqno={}, '
-            'start={}, finish={})'.format(
-                repr(self.id),
-                repr(self.iteration),
-                repr(self.test_run),
-                repr(self.tin),
-                repr(self.exec_seqno),
-                repr(self.start),
-                repr(self.finish),
-            )
+            f'TestIterationResult(id={self.id!r}, iteration={self.iteration!r}, '
+            f'test_run={self.test_run!r}, tin={self.tin!r}, exec_seqno={self.exec_seqno!r}, '
+            f'start={self.start!r}, finish={self.finish!r})'
         )
 
     @cached_property
@@ -549,12 +536,9 @@ Serial number of a meta result, can be used to determine verdicts order.''',
         db_table = 'bublik_metaresult'
 
     def __repr__(self):
-        return 'MetaResult(meta={}, reference={}, ref_index={}, serial={}, result={})'.format(
-            repr(self.meta),
-            repr(self.reference),
-            repr(self.ref_index),
-            repr(self.serial),
-            repr(self.result),
+        return (
+            f'MetaResult(meta={self.meta!r}, reference={self.reference!r}, '
+            f'ref_index={self.ref_index!r}, serial={self.serial!r}, result={self.result!r})'
         )
 
 

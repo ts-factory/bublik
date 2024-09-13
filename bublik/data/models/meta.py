@@ -42,12 +42,9 @@ revision, branch, repo, log, import, count, objective, comment.''',
         indexes = [models.Index(fields=['type', 'name', 'value'])]
 
     def __repr__(self):
-        return 'Meta(name={}, type={}, value={}, hash={}, comment={})'.format(
-            repr(self.name),
-            repr(self.type),
-            repr(self.value),
-            repr(self.hash),
-            repr(self.comment),
+        return (
+            f'Meta(name={self.name!r}, type={self.type!r}, value={self.value!r}, '
+            f'hash={self.hash!r}, comment={self.comment!r})'
         )
 
     @cachedclassproperty
@@ -107,11 +104,9 @@ revision, branch, repo, log, import, count.''',
         db_table = 'bublik_metacategory'
 
     def __repr__(self):
-        return 'MetaCategory(name={}, priority={}, comment={}, metas={})'.format(
-            repr(self.name),
-            repr(self.priority),
-            repr(self.comment),
-            repr(self.metas),
+        return (
+            f'MetaCategory(name={self.name!r}, priority={self.priority!r}, '
+            'comment={self.comment!r}, metas={self.metas!r})'
         )
 
 
@@ -140,7 +135,4 @@ class MetaPattern(models.Model):
         db_table = 'bublik_metapattern'
 
     def __repr__(self):
-        return 'MetaPattern(pattern={}, category={})'.format(
-            repr(self.pattern),
-            repr(self.category),
-        )
+        return f'MetaPattern(pattern={self.pattern!r}, category={self.category!r})'
