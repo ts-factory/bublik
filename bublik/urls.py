@@ -32,6 +32,11 @@ api_v2_router.register(r'importruns', api_v2.ImportrunsViewSet, 'importruns')
 api_v2_router.register(r'auth/profile', api_v2.ProfileViewSet, 'profile')
 api_v2_router.register(r'auth/admin', api_v2.AdminViewSet, 'admin')
 api_v2_router.register(r'report', api_v2.ReportViewSet, 'report')
+api_v2_router.register(
+    r'tests/(?P<test_id>[0-9]+)/comments',
+    api_v2.TestCommentViewSet,
+    basename='tests_comments',
+)
 
 ### URL patterns mounting ###
 urlpatterns = [
