@@ -4,7 +4,6 @@
 from descriptors import cachedclassproperty
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Q
 
 from bublik.core.queries import get_or_none
 
@@ -67,7 +66,7 @@ revision, branch, repo, log, import, count, objective, comment.''',
     def abnormal(self):
         return Meta.objects.filter(
             type='result',
-            value__in = ['KILLED', 'CORED', 'FAKED', 'INCOMPLETE'],
+            value__in=['KILLED', 'CORED', 'FAKED', 'INCOMPLETE'],
         )
 
 
