@@ -81,10 +81,10 @@ class RunViewSet(ModelViewSet):
         for meta_expr in [tag_expr, label_expr, revision_expr, branch_expr]:
             if meta_expr['expr']:
                 queryset = filter_by_expression(
-                filtered_qs=queryset,
-                expr_str=meta_expr['expr'],
-                expr_type=meta_expr['type'],
-            )
+                    filtered_qs=queryset,
+                    expr_str=meta_expr['expr'],
+                    expr_type=meta_expr['type'],
+                )
 
         return queryset.order_by('-start')
 

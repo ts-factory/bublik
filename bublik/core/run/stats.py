@@ -13,7 +13,6 @@ from django.db import models
 from django.db.models import Exists, F, OuterRef, Q, Value
 from django.db.models.functions import Concat
 import per_conf
-
 from references import References
 
 from bublik.core.cache import RunCache
@@ -87,7 +86,7 @@ def generate_result(test_iter_res, parent, period, path, info, objectives, run_r
         'name': test_name,
         'period': period_to_str(period),
         'path': path,
-        'objective': objectives[test_iter_res.id] if test_iter_res.id in objectives else "",
+        'objective': objectives.get(test_iter_res.id, ''),
         'children': [],
         'stats': {
             'passed': 0,
@@ -230,7 +229,8 @@ def get_run_stats_detailed(run_id):
         # get objectives for all run iterations at once
         objectives = dict(
             Meta.objects.filter(
-                metaresult__result__test_run=run_id, type='objective',
+                metaresult__result__test_run=run_id,
+                type='objective',
             ).values_list('metaresult__result__id', 'value'),
         )
         run_stats = generate_result(

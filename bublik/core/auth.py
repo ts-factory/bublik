@@ -26,8 +26,7 @@ def get_user_info_from_access_token(access_token):
 def get_user_by_access_token(access_token):
     try:
         user_info = get_user_info_from_access_token(access_token)
-        user = User.objects.get(pk=user_info['user_id'])
-        return user
+        return User.objects.get(pk=user_info['user_id'])
     except TokenBackendError:
         return None
 
@@ -72,7 +71,9 @@ def auth_required(as_admin=False):
                     status=status.HTTP_403_FORBIDDEN,
                 )
             return function(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 

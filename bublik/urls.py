@@ -7,7 +7,6 @@ from django.urls import include, path, re_path
 from django.views.decorators.cache import cache_page
 from rest_framework.routers import DefaultRouter
 
-from bublik.core.cache import cache_page_if_run_done
 from bublik.core.routers import ActionsOnlyRouter
 from bublik.interfaces import api_v1, api_v2, main_api
 
@@ -51,8 +50,11 @@ urlpatterns = [
         api_v2.clear_all_runs_stats_cache,
         name='clear_all_runs_stats_cache',
     ),
-    re_path(r'importlog/(?:(?P<task_id>[a-fA-F-\d]{36})?)$',
-            cache_page(60 * 20)(api_v2.local_logs), name='logs'),
+    re_path(
+        r'importlog/(?:(?P<task_id>[a-fA-F-\d]{36})?)$',
+        cache_page(60 * 20)(api_v2.local_logs),
+        name='logs',
+    ),
     # V2
     re_path(r'^v2/$', api_v2.render_react, name='ui-v2-index'),
     re_path(r'^v2/(?:.*)/?$', api_v2.render_react, name='ui-v2-routes'),
