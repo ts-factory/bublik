@@ -103,6 +103,8 @@ def build_axis_y_name(mmr):
     # get metas
     meta_subjects = {}
     meta_keys = {}
+    for meta in mmr.measurement.metas.filter(type='tool'):
+        meta_subjects[meta.name] = meta.value
     for meta in mmr.measurement.metas.filter(
         type='measurement_subject',
         name__in=['name', 'type', 'aggr', 'base_units', 'multiplier'],
