@@ -43,8 +43,10 @@ def check_report_config(report_config):
     try:
         report_config_components = settings.REPORT_CONFIG_COMPONENTS
     except AttributeError as ae:
-        msg = ("The key 'REPORT_CONFIG_COMPONENTS' is missing in the settings. "
-               "Take the 'django_settings' deployment step.")
+        msg = (
+            "The key 'REPORT_CONFIG_COMPONENTS' is missing in the settings. "
+            "Take the 'django_settings' deployment step."
+        )
         raise AttributeError(
             msg,
         ) from ae
