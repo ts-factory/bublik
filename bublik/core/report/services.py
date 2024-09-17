@@ -221,12 +221,13 @@ def filter_by_axis_y(mmrs_test, axis_y):
     '''
     Filter passed measurement results QS by axis y value from config.
     '''
-    axis_y_mmrs = MeasurementResult.objects.none()
+    mmrs_test_axis_y = MeasurementResult.objects.none()
     for measurement in axis_y:
+        mmrs_test_measurement = mmrs_test.all()
         # filter by tool
         if 'tool' in measurement:
             tools = measurement.pop('tool')
-            mmrs_test = mmrs_test.filter(
+            mmrs_test_measurement = mmrs_test.filter(
                 measurement__metas__name='tool',
                 measurement__metas__type='tool',
                 measurement__metas__value__in=tools,
@@ -237,23 +238,23 @@ def filter_by_axis_y(mmrs_test, axis_y):
             meas_key_mmrs = MeasurementResult.objects.none()
             keys_vals = measurement.pop('keys')
             for key_name, key_vals in keys_vals.items():
-                meas_key_mmrs_group = mmrs_test.filter(
+                meas_key_mmrs_group = mmrs_test_measurement.filter(
                     measurement__metas__name=key_name,
                     measurement__metas__type='measurement_key',
                     measurement__metas__value__in=key_vals,
                 )
                 meas_key_mmrs = meas_key_mmrs.union(meas_key_mmrs_group)
-            mmrs_test = meas_key_mmrs
+            mmrs_test_measurement = meas_key_mmrs
 
         # filter by measurement subjects (type, name, aggr)
         for ms, ms_values in measurement.items():
-            mmrs_test = mmrs_test.filter(
+            mmrs_test_measurement = mmrs_test_measurement.filter(
                 measurement__metas__name=ms,
                 measurement__metas__type='measurement_subject',
                 measurement__metas__value__in=ms_values,
             )
-        axis_y_mmrs = axis_y_mmrs.union(mmrs_test)
-    return axis_y_mmrs
+        mmrs_test_axis_y = mmrs_test_axis_y.union(mmrs_test_measurement)
+    return mmrs_test_axis_y
 
 
 def filter_by_not_show_args(mmrs_test, not_show_args):
