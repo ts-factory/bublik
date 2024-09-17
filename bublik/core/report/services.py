@@ -254,7 +254,10 @@ def filter_by_axis_y(mmrs_test, axis_y):
                 measurement__metas__value__in=ms_values,
             )
         mmrs_test_axis_y = mmrs_test_axis_y.union(mmrs_test_measurement)
-    return mmrs_test_axis_y
+
+    # the union will be impossible to filter out
+    mmrs_test_axis_y_ids = mmrs_test_axis_y.values_list('id', flat=True)
+    return mmrs_test.filter(id__in=mmrs_test_axis_y_ids)
 
 
 def filter_by_not_show_args(mmrs_test, not_show_args):
