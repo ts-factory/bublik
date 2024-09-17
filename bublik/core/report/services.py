@@ -94,7 +94,7 @@ def build_report_title(main_pkg, title_content):
     return '-'.join(title)
 
 
-def get_meas_label_and_name(mmr):
+def get_meas_label_and_name(mmr, sequence_group_arg):
     '''
     Return the label and the name of the measurement:
     - measurement name = <measurement name>/<measurement type>
@@ -149,6 +149,8 @@ def get_meas_label_and_name(mmr):
     # join title parts
     if record_label_tail:
         record_label = f'{record_label} ({record_label_tail})'
+    if sequence_group_arg:
+        record_label += f' by {sequence_group_arg}'
 
     return record_label, axis_y_name
 
