@@ -62,7 +62,10 @@ class ReportPoint:
                 self.args_vals[arg.name] = arg.value
 
         # build the record label and the name of the y axis
-        self.measurement_label, self.measurement_name = get_meas_label_and_name(mmr)
+        self.measurement_label, self.measurement_name = get_meas_label_and_name(
+            mmr,
+            self.sequence_group_arg,
+        )
 
     def points_grouper_tests(self):
         return self.test_name
