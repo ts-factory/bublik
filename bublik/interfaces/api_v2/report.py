@@ -209,7 +209,9 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
                 [
                     'sequence_group_arg_val',
                     'sequence_group_arg',
-                    point['sequence_group_arg_val'][1],
+                    point['sequence_group_arg_val'][1]
+                    if point['sequence_group_arg_val']
+                    else None,
                 ],
             ]
             for match in matches_list:
