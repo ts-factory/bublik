@@ -1,0 +1,6 @@
+[submodule "test-environment"]
+	path = test-environment
+	url = https://github.com/okt-limonikas/test-environment.git
+[submodule "bublik-ui"]
+	path = bublik-ui
+	url = https://github.com/okt-limonikas/bublik-ui.git
