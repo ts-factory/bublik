@@ -60,7 +60,7 @@ services:
     volumes:
       - logs_data:/app/bublik/logs
       - static_data:/app/bublik/bublik/representation/static
-      - conf_data:/app/bublik/bublik-conf
+      - ./conf_data:/app/bublik/bublik-conf
   db:
     container_name: postgres
     image: postgres
@@ -127,7 +127,7 @@ services:
       - rabbitmq
     volumes:
       - logs_data:/app/bublik/logs:rw
-      - conf_data:/app/bublik/bublik-conf
+      - ./conf_data:/app/bublik/bublik-conf
   flower:
     container_name: flower
     build:
@@ -178,7 +178,7 @@ services:
       - rabbitmq
     volumes:
       - ./:/data
-      - conf_data:/app/bublik/bublik-conf
+      - ./conf_data:/app/bublik/bublik-conf
   nginx:
     container_name: nginx
     build:
