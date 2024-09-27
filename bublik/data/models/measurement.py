@@ -3,6 +3,7 @@
 
 from typing import ClassVar
 
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
@@ -142,6 +143,34 @@ Serial number can be used to determine results order.''',
             'result_id': self.result.id,
             'iteration_id': self.result.iteration.id,
         }
+
+
+class MeasurementResultList(models.Model):
+    '''
+    The table to store sequences of measurement results.
+    '''
+
+    measurement = models.ForeignKey(
+        Measurement,
+        on_delete=models.CASCADE,
+        help_text='The measurement characteristics.',
+    )
+    value = ArrayField(models.FloatField(), help_text='The measurement values of the result')
+    result = models.ForeignKey(
+        TestIterationResult,
+        on_delete=models.CASCADE,
+        help_text='The test iteration result which is measured.',
+    )
+    serial = models.IntegerField(
+        default=0,
+        help_text='Serial number can be used to determine results order',
+    )
+
+    class Meta:
+        db_table = 'bublik_measurementresultlist'
+
+    def __len__(self):
+        return len(self.value)
 
 
 class View(models.Model):
