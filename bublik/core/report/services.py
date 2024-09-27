@@ -98,7 +98,7 @@ def get_meas_label_and_name(mmr, sequence_group_arg):
     '''
     Return the label and the name of the measurement:
     - measurement name = <measurement name>/<measurement type>
-    - measurement label = "<measurement type> - <aggr> -
+    - measurement label = "<measurement type> - <tool> - <aggr> -
       <measurement key name>:<measurement key value>
       (<base_units> * <multiplier>)".
     '''
