@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 import json
 import logging
+from typing import ClassVar
 
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
@@ -30,7 +31,7 @@ class Saver:
     the Saver class, It should also implement the save() method.
     '''
 
-    measurements = []
+    measurements: ClassVar[list] = []
 
     def __init__(self, metas):
         self.metas = metas
@@ -104,18 +105,18 @@ class InstanceLevel:
 
 
 class CommonLevel(InstanceLevel):
-    key_dict_to_meta_type = {
+    key_dict_to_meta_type: ClassVar[dict] = {
         'keys': 'measurement_key',
         'comments': 'measurement_comment',
     }
 
-    key_to_meta_type = {
+    key_to_meta_type: ClassVar[dict] = {
         'tool': 'tool',
         'type': 'note',
         'version': 'note',
     }
 
-    required_constants = {'type': 'measurement', 'version': '1'}
+    required_constants: ClassVar[dict] = {'type': 'measurement', 'version': '1'}
 
     def __init__(self, mi_log):
         self.is_mi_log_valid(mi_log)
@@ -153,7 +154,7 @@ class ResultLevel(InstanceLevel):
 
 class EntryLevel(InstanceLevel, Saver):
     meta_type = 'measurement_subject'
-    counter = Counter()
+    counter: ClassVar[Counter] = Counter()
 
     def __init__(self, entry, serial, parent: ResultLevel):
         value = InstanceLevel.pop(entry, 'value', True)
