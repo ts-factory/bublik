@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from typing import ClassVar
+
 from django.db import models
 
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
@@ -27,9 +29,9 @@ class ChartViewType:
     AXIS_Y = 'axis_y'
     POINT = 'point'
 
-    SET = {AXIS_X: 'X', AXIS_Y: 'Y', POINT: 'P'}
+    SET: ClassVar[dict] = {AXIS_X: 'X', AXIS_Y: 'Y', POINT: 'P'}
 
-    INV_SET = {v: k for k, v in SET.items()}
+    INV_SET: ClassVar[dict] = {v: k for k, v in SET.items()}
 
     @classmethod
     def conv(cls, item):
