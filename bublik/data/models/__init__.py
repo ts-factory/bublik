@@ -30,6 +30,7 @@ from .measurement import (
     ChartViewType,
     Measurement,
     MeasurementResult,
+    MeasurementResultList,
     View,
 )
 from .meta import (
@@ -87,4 +88,5 @@ __all__ = [
     'ConfigTypes',
     'GlobalConfigNames',
     'Config',
+    'MeasurementResultList',
 ]
