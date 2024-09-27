@@ -2,9 +2,45 @@ services:
   django:
     container_name: django
     build:
-      context: ..
-      dockerfile: bublik/Dockerfile.dev
+      context: .
+      dockerfile: Dockerfile
     command: python manage.py runserver 0.0.0.0:8000
+    entrypoint: ./entrypoint.sh
+    environment:
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
+      - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
     ports:
       - 8000:8000
     depends_on:
@@ -12,9 +48,18 @@ services:
       - redis
       - rabbitmq
     volumes:
-      - ../bublik:/app/bublik
-      - ../bublik/logs:/app/bublik/logs
       - static_data:/app/bublik/bublik/representation/static
+    develop:
+      watch:
+       - path: .
+         action: sync
+         target: /app/bublik
+         ignore: 
+          - .venv
+          - bublik-conf
+          - bublik-bublik-ui
+       - path: ./requirements.txt
+         action: rebuild
   db:
     container_name: postgres
     image: postgres
@@ -38,23 +83,100 @@ services:
   celery:
     container_name: celery
     build:
-      context: ..
-      dockerfile: bublik/Dockerfile.dev
+      context: .
+      dockerfile: Dockerfile
     command: >
       watchfiles --filter python 'celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} -l ${CELERY_LOG_LEVEL}'
     depends_on:
       - db
       - rabbitmq
-    volumes:
-      - ../bublik:/app/bublik
-      - ../bublik/logs:/app/bublik/logs
-  flower:
-    image: mher/flower
-    container_name: flower
-    command: celery flower -A ${CELERY_APP} --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
     environment:
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
       - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
+    develop:
+      watch:
+       - path: .
+         action: sync
+         target: /app/bublik
+         ignore: 
+          - .venv
+          - bublik-conf
+          - bublik-bublik-ui
+       - path: ./requirements.txt
+         action: rebuild
+  flower:
+    container_name: flower
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
+    environment:
+      - PER_CONF_DIR=${PER_CONF_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - URL_PREFIX=${URL_PREFIX}
+      - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_SRC=${BUBLIK_SRC}
+      - TE_BASE=${TE_BASE}
+      - TMPDIR=${TMPDIR}
+      - BUBLIK_LOGDIR=${BUBLIK_LOGDIR}
+      - BUBLIK_LOG=${BUBLIK_LOG}
+      - BUBLIK_ACCESS_LOG=${BUBLIK_ACCESS_LOG}
+      - MANAGEMENT_COMMANDS_LOG=${MANAGEMENT_COMMANDS_LOG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - CELERY_APP=${CELERY_APP}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_ACCEPT_CONTENT=${CELERY_ACCEPT_CONTENT}
+      - CELERY_TASK_SERIALIZER=${CELERY_TASK_SERIALIZER}
+      - CELERY_RESULT_SERIALIZER=${CELERY_RESULT_SERIALIZER}
+      - CELERY_CREATE_DIRS=${CELERY_CREATE_DIRS}
+      - CELERYD_MAX_TASKS_PER_CHILD=${CELERYD_MAX_TASKS_PER_CHILD}
+      - CELERY_LOG_LEVEL=${CELERY_LOG_LEVEL}
+      - FLOWER_PERSISTENT=${FLOWER_PERSISTENT}
+      - FLOWER_PORT=${FLOWER_PORT}
+      - FLOWER_URL_PREFIX=${FLOWER_URL_PREFIX}
+      - REDIS_HOST=${REDIS_HOST}
+      - BUBLIK_BIND_GUNICORN=${BUBLIK_BIND_GUNICORN}
+      - BUBLIK_WORKERS=${BUBLIK_WORKERS}
+      - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
+      - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
+      - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
     ports:
       - 5555:5555
     depends_on:
@@ -64,19 +186,54 @@ services:
       - rabbitmq
     volumes:
       - flower_data:/data
+    develop:
+      watch:
+       - path: .
+         action: sync
+         target: /app/bublik
+         ignore: 
+          - .venv
+          - bublik-conf
+          - bublik-bublik-ui
+       - path: ./requirements.txt
+         action: rebuild
   nginx:
     container_name: nginx
     build:
-      context: ..
-      dockerfile: bublik/nginx/Dockerfile.dev
+      context: .
+      dockerfile: ./nginx/Dockerfile.dev
+      args:
+        - URL_PREFIX=${URL_PREFIX}
     ports:
       - 80:80
     volumes:
-      - ../bublik/nginx/templates/local:/etc/nginx/templates
+      - ./nginx/templates/local:/etc/nginx/templates
       - static_data:/app/bublik/bublik/representation/static
+    environment:
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
+      - URL_PREFIX=${URL_PREFIX}
     depends_on:
       - django
       - flower
+      - bublik-ui
+  bublik-ui:
+    container_name: bublik-ui
+    build: 
+      context: ./bublik-ui
+      dockerfile: ./apps/bublik/Dockerfile.dev
+    environment:
+      - BASE_URL=${URL_PREFIX}/v2
+    ports:
+      - 4200:4200
+    develop:
+      watch:
+        - action: sync
+          path: ./bublik-ui
+          target: /app
+          ignore:
+            - node_modules
+        - action: rebuild
+          path: ./bublik-ui/package.json
 
 volumes:
   db_data:
