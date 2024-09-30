@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import contextlib
-
 from itertools import groupby
 import typing
 
-from django.conf import settings
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -36,16 +33,9 @@ class MeasurementViewSet(GenericViewSet):
         serializer = self.get_serializer(Measurement.objects.filter(), many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['post', 'get'])
-    def by_results_ids(self, request):
-        results_ids = None
-        if request.method == 'GET':
-            with contextlib.suppress(AttributeError):
-                results_ids = request.query_params.get('results_ids').split(
-                    settings.QUERY_DELIMITER,
-                )
-        elif request.method == 'POST':
-            results_ids = request.data.get('results_ids')
+    @action(detail=False, methods=['post'])
+    def by_result_ids(self, request):
+        results_ids = request.data.get('results_ids', None)
         if not results_ids:
             return Response({'error': 'No results ids specified'})
 
