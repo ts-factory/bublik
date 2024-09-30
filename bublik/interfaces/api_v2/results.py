@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from itertools import groupby
 from typing import ClassVar
 
 from django.conf import settings
@@ -12,6 +13,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
+from bublik.core.measurement.representation import ChartViewBuilder
+from bublik.core.measurement.services import (
+    get_chart_views,
+    get_lines_chart_views,
+    get_points_chart_views,
+    represent_measurements,
+)
 from bublik.core.queries import get_or_none
 from bublik.core.run.compromised import (
     is_run_compromised,
@@ -253,3 +261,40 @@ class ResultViewSet(ModelViewSet):
             'verdicts': list(result_metas.filter(type='verdict').values()),
         }
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'])
+    def measurements(self, request, pk=None):
+        chart_views = get_chart_views([pk])
+
+        if chart_views:
+            chart_views_lines = get_lines_chart_views(chart_views)
+            chart_views_points = get_points_chart_views(chart_views)
+
+            # Get charts from processing line graph chart views
+            charts_from_lines = []
+            for line_chart_view in chart_views_lines:
+                chart = ChartViewBuilder.by_line_graph(line_chart_view)
+                charts_from_lines.append(chart.representation())
+
+            # Get charts from processing point chart views
+            # Need to group chart_views_points by measurements to make line-graphs from them
+            def grouper_by_measurement(cv):
+                return cv.measurement.id
+
+            charts_from_points = []
+            chart_views_sorted = sorted(chart_views_points, key=grouper_by_measurement)
+            for _measurement_id, points_chart_views in groupby(
+                chart_views_sorted,
+                key=grouper_by_measurement,
+            ):
+                chart = ChartViewBuilder.by_points(points_chart_views)
+                charts_from_points.append(chart)
+                # Make ChartViewBuilder process point chart view as well:
+                # - init by CV line object | list of CV point objects ->
+                # -> ChartViewBuilder.by_points(cvs)
+
+            data = charts_from_lines + charts_from_points
+        else:
+            data = represent_measurements([pk])
+
+        return Response(data)
