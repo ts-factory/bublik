@@ -6,6 +6,10 @@
             "description": "Identifies project matching PROJECT meta in metadata.json",
             "type": "string"
         },
+        "UI_VERSION": {
+            "description": "Default UI version",
+            "type": "number"
+        },
         "EMAIL_PROJECT_WATCHERS": {
             "description": "List of emails to notify about importruns failures",
             "type": "array",
