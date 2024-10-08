@@ -16,6 +16,8 @@ import importlib.util
 
 from datetime import timedelta
 
+from bublik.core.config.services import getattr_from_per_conf
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -310,17 +312,15 @@ def get_module(name, location):
 get_module('per_conf', '${PER_CONF_DIR}/per_conf.py')
 get_module('references', '${PER_CONF_DIR}/references.py')
 
-import per_conf
-
 URL_PREFIX_BY_UI_VERSION = {
     2: 'v2',
 }
 
-UI_VERSION = getattr(per_conf, 'UI_VERSION', 2)
+UI_VERSION = getattr_from_per_conf('UI_VERSION', 2)
 
 UI_PREFIX = URL_PREFIX_BY_UI_VERSION.get(UI_VERSION, '')
 
-CSRF_TRUSTED_ORIGINS = getattr(per_conf, 'CSRF_TRUSTED_ORIGINS', [])
+CSRF_TRUSTED_ORIGINS = getattr_from_per_conf('CSRF_TRUSTED_ORIGINS', [])
 
 ITEMS_PER_PAGE = 25
 
