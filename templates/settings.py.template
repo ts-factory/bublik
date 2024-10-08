@@ -350,13 +350,13 @@ PERIOD_DELIMITER = '-'
 TIMESTAMP_DELIMITER = 's'
 
 # Email settings
-EMAIL_HOST = 'localhost'
-EMAIL_PORT = 25
-EMAIL_USE_TLS = True
+EMAIL_HOST = getattr_from_per_conf('SMTP_HOSTS', 'localhost')
+EMAIL_PORT = getattr_from_per_conf('EMAIL_PORT', 25)
+EMAIL_USE_TLS = getattr_from_per_conf('EMAIL_USE_TLS', True)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_TIMEOUT = 60
-EMAIL_FROM = 'noreply@ts-factory.io'
-EMAIL_ADMINS = ['bublik@ts-factory.io']
+EMAIL_FROM = getattr_from_per_conf('EMAIL_FROM', 'noreply@ts-factory.io')
+EMAIL_ADMINS = getattr_from_per_conf('EMAIL_ADMINS', ['bublik@ts-factory.io'])
 
 # Repo revisions
 REPO_REVISIONS = {
