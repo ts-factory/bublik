@@ -150,7 +150,7 @@ class ConfigViewSet(ModelViewSet):
         serializer = self.get_serializer(data={'type': config_type, 'name': config_name})
         config_type = serializer.validate_type(config_type)
         config_name = serializer.validate_name(config_name)
-        json_schema = serializer.get_json_schema(config_type, config_name)
+        json_schema = self.serializer_class.get_json_schema(config_type, config_name)
         if json_schema:
             return Response(data=json_schema, status=status.HTTP_200_OK)
         msg = 'There is no JSON schema corresponding to the passed configuration type and name'

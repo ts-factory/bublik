@@ -78,7 +78,8 @@ class ConfigSerializer(ModelSerializer):
             msg = 'Invalid format: JSON is expected'
             raise serializers.ValidationError(msg) from e
 
-    def get_json_schema(self, config_type, config_name):
+    @classmethod
+    def get_json_schema(cls, config_type, config_name):
         if config_type == ConfigTypes.REPORT:
             return load_schema('report')
         if config_type == ConfigTypes.GLOBAL and config_name == GlobalConfigNames.PER_CONF:
@@ -110,7 +111,7 @@ class ConfigSerializer(ModelSerializer):
         '''
         content = self.ensure_json(content)
         data = self.get_data()
-        json_schema = self.get_json_schema(data['type'], data['name'])
+        json_schema = self.__class__.get_json_schema(data['type'], data['name'])
         if json_schema:
             try:
                 validate(instance=content, schema=json_schema)
