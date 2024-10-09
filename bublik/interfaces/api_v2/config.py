@@ -59,6 +59,11 @@ class ConfigViewSet(ModelViewSet):
         args = [arg for arg in args if not re.fullmatch(r'__.+?__', arg)]
         per_conf_dict = {arg: getattr(per_conf, arg, None) for arg in args}
 
+        # leave only valid attributes
+        schema = self.serializer_class.get_json_schema('global', 'per_conf')
+        valid_attributes = schema.get('properties', {}).keys()
+        per_conf_dict = {k: v for k, v in per_conf_dict.items() if k in valid_attributes}
+
         # convert tuple into list
         if 'RUN_STATUS_BY_NOK_BORDERS' in per_conf_dict:
             per_conf_dict['RUN_STATUS_BY_NOK_BORDERS'] = list(
