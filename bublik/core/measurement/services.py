@@ -122,7 +122,7 @@ def represent_measurements(results_ids):
 
         mm_data = measurement.representation()
         mm_data['dots'] = [
-            mmr.representation(mm_data['multiplier']) for mmr in mmrs_groups_list
+            mmr.representation() for mmr in mmrs_groups_list
         ]
 
         title_items = []
