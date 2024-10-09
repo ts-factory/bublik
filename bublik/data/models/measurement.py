@@ -3,7 +3,7 @@
 
 from django.db import models
 
-from bublik.core.utils import apply_multiplier, key_value_transforming
+from bublik.core.utils import get_metric_prefix_units, key_value_transforming
 from bublik.data.models.meta import Meta
 from bublik.data.models.result import TestIterationResult
 
@@ -74,11 +74,11 @@ class Measurement(models.Model):
             'name': None,
             'tool': None,
             'aggr': None,
-            'multiplier': None,
             'units': None,
             'keys': [],
             'comments': [],
         }
+
         for m in self.metas.all():
             if m.name == 'type' and m.type == 'measurement_subject':
                 data['type'] = m.value
@@ -88,14 +88,19 @@ class Measurement(models.Model):
                 data['tool'] = m.value
             if m.name == 'aggr':
                 data['aggr'] = m.value
-            if m.name == 'multiplier':
-                data['multiplier'] = m.value
             if m.name == 'base_units':
                 data['units'] = m.value
             if m.type == 'measurement_key':
                 data['keys'].append(key_value_transforming(m.name, m.value))
             if m.type == 'measurement_comment':
                 data['comments'].append(key_value_transforming(m.name, m.value))
+
+        # apply multiplier for base units
+        if data['units']:
+            multiplier = self.get_multiplier()
+            if multiplier:
+                data['units'] = get_metric_prefix_units(multiplier, data['units'])
+
         return data
 
 
@@ -126,13 +131,11 @@ Serial number can be used to determine results order.''',
     class Meta:
         db_table = 'bublik_measurementresult'
 
-    def representation(self, multiplier=None):
-        if not multiplier:
-            multiplier = self.measurement.get_multiplier()
+    def representation(self):
         return {
             'start': self.result.start,
             'sequence_number': self.serial,
-            'value': apply_multiplier(self.value, multiplier),
+            'value': self.value,
             'run_id': self.result.test_run.id,
             'result_id': self.result.id,
             'iteration_id': self.result.iteration.id,

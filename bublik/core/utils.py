@@ -133,12 +133,8 @@ def get_multiplier(multiplier):
         return int(degree[0], 16) * 2 ** float(degree[1])
 
 
-def apply_multiplier(value, multiplier):
-    return value * get_multiplier(multiplier)
-
-
 def get_readable_value(value, multiplier, base_units):
-    return str(apply_multiplier(value, multiplier)) + ' ' + base_units
+    return str(value + ' ' + get_metric_prefix_units(multiplier, base_units))
 
 
 def get_metric_prefix_units(multiplier, base_units):

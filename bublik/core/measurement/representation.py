@@ -4,7 +4,7 @@
 from django.db.models import F, QuerySet
 
 from bublik.core.measurement.services import get_measurement_results
-from bublik.core.utils import apply_multiplier, get_multiplier, key_value_transforming
+from bublik.core.utils import get_metric_prefix_units, key_value_transforming
 from bublik.data.models import ChartView
 
 
@@ -21,8 +21,7 @@ class ChartViewBuilder:
     def __init__(self, view, measurement, measurement_results):
         view_data = view.representation()
         measurement_data = measurement.representation()
-        measurement_multiplier = get_multiplier(measurement_data['multiplier'])
-        self.points = self.get_measurement_values(measurement_results, measurement_multiplier)
+        self.points = self.get_measurement_values(measurement_results)
         self.axises_config = self.prepare_axises_config(view_data, measurement_data)
         self.measurement_data = measurement_data
 
@@ -53,8 +52,8 @@ class ChartViewBuilder:
         # 6. return cls(view, measurement, measurement_results)
         pass
 
-    def get_measurement_values(self, measurement_results, multiplier):
-        values = list(
+    def get_measurement_values(self, measurement_results):
+        return list(
             measurement_results.annotate(
                 start=F('result__start'),
                 sequence_number=F('serial'),
@@ -73,11 +72,6 @@ class ChartViewBuilder:
                 'iteration_id',
             ),
         )
-
-        for value in values:
-            value['value'] = apply_multiplier(value['value'], multiplier)
-
-        return values
 
     def prepare_axises_config(self, view: dict, measurement: dict):
         title_items = []
@@ -173,8 +167,8 @@ class MeasurementRepresentation:
                 self.comments.append(key_value_transforming(m['name'], m['value']))
 
         self.value = {
-            'value': apply_multiplier(value, multiplier),
-            'units': base_units,
+            'value': value,
+            'units': get_metric_prefix_units(multiplier, base_units),
             'aggr': aggr,
         }
 
@@ -263,15 +257,11 @@ class AxisRepresentationBuilder:
         if self.measurement is None:
             return None
 
-        multiplier = self.measurement.representation()['multiplier']
-
-        values = (
+        return (
             mrs.filter(measurement=self.measurement)
             .order_by('serial')
             .values_list('value', flat=True)
         )
-
-        return [apply_multiplier(value, multiplier) for value in values]
 
     @staticmethod
     def fill_none_axis(axes_dict):
