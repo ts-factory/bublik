@@ -4,7 +4,7 @@
 import contextlib
 from itertools import groupby
 
-from bublik.core.utils import get_metric_prefix_units
+from bublik.core.measurement.representation import ChartViewBuilder
 from bublik.data.models import MeasurementResult, Meta, TestArgument
 
 
@@ -30,61 +30,18 @@ def get_meas_label_and_name(mmr, sequence_group_arg):
     '''
     Return the label and the name of the measurement:
     - measurement name = <measurement name>/<measurement type>
-    - measurement label = "<measurement type> - <tool> - <aggr> -
-      <measurement key name>:<measurement key value>
-      (<base_units> * <multiplier>)".
+    - measurement label = "<measurement type> (<measurement units>, <measurement aggr>)
+      by <sequence group arg>: based on <measurement tool>".
     '''
-    # get metas
-    meta_subjects = {}
-    meta_keys = {}
-    for meta in mmr.measurement.metas.filter(type='tool'):
-        meta_subjects[meta.name] = meta.value
-    for meta in mmr.measurement.metas.filter(
-        type='measurement_subject',
-        name__in=['name', 'type', 'aggr', 'base_units', 'multiplier'],
-    ):
-        meta_subjects[meta.name] = meta.value
-    for meta in mmr.measurement.metas.filter(type='measurement_key'):
-        meta_keys[meta.name] = meta.value
-
-    # set y-axis name
-    if 'name' in meta_subjects:
-        axis_y_name = meta_subjects.pop('name')
-    else:
-        axis_y_name = meta_subjects['type']
-
-    # build units part of the record_label
-    record_label_tail = ''
-    if meta_subjects['base_units'] and meta_subjects['multiplier']:
-        base_units = meta_subjects.pop('base_units')
-        multiplier = meta_subjects.pop('multiplier')
-        import logging
-
-        logger = logging.getLogger('')
-        logger.info(f'{base_units=}, {multiplier=}')
-        try:
-            record_label_tail = get_metric_prefix_units(
-                multiplier,
-                base_units,
-            )
-        except KeyError:
-            record_label_tail = f'{base_units} * {multiplier}'
-
-    # build main part of the record_label
-    record_label_items = [meta_subjects.pop('type')]
-    for _, value in meta_subjects.items():
-        record_label_items.append(value)
-    for name, value in meta_keys.items():
-        record_label_items.append(f'{name}={value}')
-    record_label = ' - '.join(record_label_items)
-
-    # join title parts
-    if record_label_tail:
-        record_label = f'{record_label} ({record_label_tail})'
-    if sequence_group_arg:
-        record_label += f' by {sequence_group_arg}'
-
-    return record_label, axis_y_name
+    measurement_data = mmr.measurement.representation()
+    measurement_label = ChartViewBuilder.get_measurement_chart_label(
+        measurement_data,
+        sequence_group_arg,
+    )
+    measurement_name = (
+        measurement_data['name'] if measurement_data['name'] else measurement_data['type']
+    )
+    return measurement_label, measurement_name
 
 
 def type_conversion(arg_value):
