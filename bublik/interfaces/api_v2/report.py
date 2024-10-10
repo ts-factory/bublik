@@ -19,6 +19,7 @@ from bublik.core.report.services import (
     filter_by_axis_y,
     filter_by_not_show_args,
     get_common_args,
+    get_unprocessed_iter_info,
 )
 from bublik.core.run.external_links import get_sources
 from bublik.core.shortcuts import build_absolute_uri
@@ -185,7 +186,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             if not point.point or (
                 point.sequence_group_arg and not point.sequence_group_arg_val
             ):
-                unprocessed_iters.append(get_unprocessed_iter_info(point))
+                unprocessed_iters.append(get_unprocessed_iter_info(point, common_args))
                 continue
             points.append(point)
 
