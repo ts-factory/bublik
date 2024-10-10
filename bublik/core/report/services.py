@@ -2,10 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 import contextlib
-
 from itertools import groupby
-
-from django.conf import settings
 
 from bublik.core.utils import get_metric_prefix_units
 from bublik.data.models import MeasurementResult, Meta, TestArgument
@@ -247,5 +244,5 @@ def get_unprocessed_iter_info(point, common_args):
             f'The test has no argument {point["axis_x"]}',
         )
     else:
-        invalid_iteration['args_vals'][point['axis_x']] = list(point['point'].keys())[0]
+        invalid_iteration['args_vals'][point['axis_x']] = next(iter(point['point'].keys()))
     return invalid_iteration
