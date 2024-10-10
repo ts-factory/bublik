@@ -127,8 +127,7 @@ def get_local_log(filename, basedir=settings.MANAGEMENT_COMMANDS_LOG):
 
 def get_multiplier(multiplier):
     try:
-        degree = float(multiplier)
-        return degree
+        return float(multiplier)
     except ValueError:
         degree = multiplier.split('p')
         return int(degree[0], 16) * 2 ** float(degree[1])
