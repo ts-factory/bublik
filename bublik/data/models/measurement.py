@@ -134,7 +134,11 @@ Serial number can be used to determine results order.''',
     class Meta:
         db_table = 'bublik_measurementresult'
 
-    def representation(self):
+    def representation(self, additional='result'):
+        if additional == 'measurement':
+            mmr_repr = self.measurement.representation()
+            mmr_repr.update({'value': self.value})
+            return mmr_repr
         return {
             'start': self.result.start,
             'sequence_number': self.serial,
