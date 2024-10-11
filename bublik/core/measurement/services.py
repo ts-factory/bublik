@@ -61,7 +61,7 @@ def merge_measurements(data):
     # need to be merged.
     final_data = []
     data_num = len(data)
-    for _num in range(data_num):
+    for _ in range(data_num):
         if len(data) > 0:
             final_d = data.pop(0)
             for dot in final_d['dots']:
@@ -116,14 +116,12 @@ def represent_measurements(results_ids):
         '[represent_measurements]: Number of measurement groups: %d',
         len(list(groupby(mmrs, key=measurements_grouper))),
     )
-    for _measurement_id, mmrs_groups in groupby(mmrs, key=measurements_grouper):
+    for _, mmrs_groups in groupby(mmrs, key=measurements_grouper):
         mmrs_groups_list = list(mmrs_groups)
         measurement = mmrs_groups_list[0].measurement
 
         mm_data = measurement.representation()
-        mm_data['dots'] = [
-            mmr.representation() for mmr in mmrs_groups_list
-        ]
+        mm_data['dots'] = [mmr.representation() for mmr in mmrs_groups_list]
 
         title_items = []
         if mm_data['name']:
