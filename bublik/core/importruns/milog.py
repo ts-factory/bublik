@@ -165,18 +165,19 @@ class EntryLevel(InstanceLevel, Saver):
         InstanceLevel.__init__(self, entry, self.meta_type)
         Saver.__init__(self, self.parent.parent.data + self.parent.data + self.data)
 
-    def save(self, test_iter_result):
+    def get_measurement(self):
         self.counter['meas_obj'] += 1
-
         measure_serializer = serialize(MeasurementSerializer, {'metas': self.metas}, logger)
-
         measurement, created = measure_serializer.get_or_create()
         if created:
             self.counter['created_meas_obj'] += 1
-
         if measurement not in self.measurements:
             self.measurements.append(measurement)
 
+        return measurement
+
+    def save(self, test_iter_result):
+        measurement = self.get_measurement()
         try:
             mr = MeasurementResult.objects.get(
                 measurement=measurement,
