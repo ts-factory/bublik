@@ -232,7 +232,7 @@ class ViewValueLevel(InstanceLevel, Saver):
         view_serializer = serialize(ViewSerializer, {'metas': self.metas}, logger)
         view, _ = view_serializer.get_or_create()
 
-        ChartView.objects.create(
+        ChartView.objects.get_or_create(
             view=view,
             measurement=self.find_measurement,
             result=test_iter_result,
