@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+import logging
+
 from rest_framework.serializers import ModelSerializer
 
 from bublik.core.hash_system import HashedModelSerializer
@@ -10,6 +12,8 @@ from bublik.core.shortcuts import serialize
 from bublik.data.models import Measurement, MeasurementResult, View
 from bublik.data.serializers.meta import MetaSerializer
 
+
+logger = logging.getLogger('bublik.server')
 
 __all__ = [
     'MeasurementSerializer',
@@ -45,12 +49,9 @@ class MeasurementSerializer(HashedModelSerializer):
 
 
 class MeasurementResultSerializer(ModelSerializer):
-    measurement = MeasurementSerializer(read_only=True)
-
     class Meta:
         model = MeasurementResult
-        fields = ('id', 'measurement', 'result', 'value')
-        extra_kwargs = {'serial': {'default': 0}}
+        fields = ('id', 'measurement', 'result', 'serial', 'value')
 
     def to_representation(self, instance):
         metas = instance.measurement.metas.all().values('name', 'type', 'value')
@@ -58,6 +59,24 @@ class MeasurementResultSerializer(ModelSerializer):
         representation = mmr.get_dict(mmr.value)
         representation.update({'id': instance.id})
         return representation
+
+    def get_or_create(self):
+        value = self.validated_data.pop('value')
+        mmr, created = MeasurementResult.objects.get_or_create(
+            **self.validated_data,
+            defaults={'value': value},
+        )
+        if created:
+            return mmr, created
+        if mmr.value != value:
+            logger.warning(
+                'a new value was obtained from imported logs for the exist '
+                f'MeasurementResult object (id = {mmr.id}). '
+                f'Old value is {mmr.value}. New value is {self.value}.',
+            )
+            mmr.value = self.value
+            mmr.save()
+        return mmr, created
 
 
 class ViewSerializer(HashedModelSerializer):
