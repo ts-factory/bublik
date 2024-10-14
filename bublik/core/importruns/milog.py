@@ -12,10 +12,10 @@ from bublik.data.models import (
     ChartView,
     ChartViewType,
     Measurement,
-    MeasurementResult,
     Meta,
 )
 from bublik.data.serializers import (
+    MeasurementResultSerializer,
     MeasurementSerializer,
     MetaResultSerializer,
     ViewSerializer,
@@ -178,30 +178,18 @@ class EntryLevel(InstanceLevel, Saver):
 
     def save(self, test_iter_result):
         measurement = self.get_measurement()
-        try:
-            mr = MeasurementResult.objects.get(
-                measurement=measurement,
-                result=test_iter_result,
-                serial=self.serial,
-            )
-            if mr.value != self.value:
-                logger.warning(
-                    'a new value was obtained from imported logs for the exist '
-                    f'MeasurementResult object (id = {mr.id}). '
-                    f'Old value is {mr.value}. New value is {self.value}.',
-                )
-                MeasurementResult.objects.filter(
-                    measurement=measurement,
-                    result=test_iter_result,
-                    serial=self.serial,
-                ).update(value=self.value)
-        except Exception:
-            MeasurementResult.objects.create(
-                measurement=measurement,
-                result=test_iter_result,
-                serial=self.serial,
-                value=self.value,
-            )
+        mmr_serializer = serialize(
+            MeasurementResultSerializer,
+            {
+                'serial': self.serial,
+                'measurement': measurement.id,
+                'result': test_iter_result.id,
+                'value': self.value,
+            },
+        )
+        mmr_serializer.is_valid(raise_exception=True)
+        _, created = mmr_serializer.get_or_create()
+        if created:
             self.counter['created_meas_res_obj'] += 1
 
 
