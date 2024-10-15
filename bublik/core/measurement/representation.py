@@ -39,7 +39,7 @@ class ChartViewBuilder:
     def by_line_graph(cls, cv: ChartView):
         view = cv.view
         measurement = cv.measurement
-        measurement_results = get_measurement_results([cv.result], measurement)
+        measurement_results = get_measurement_results([cv.result.id], measurement)
         return cls(view, measurement, measurement_results)
 
     @classmethod
