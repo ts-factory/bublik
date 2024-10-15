@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from itertools import groupby
 import typing
 
 from django.db.models import QuerySet
 
+from bublik.core.measurement.services import get_measurement_results
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
 from bublik.data.models import ChartView, Measurement, MeasurementResultList, View
 
@@ -31,7 +33,18 @@ class ChartViewBuilder:
         self.title = view.representation()['title'] if view else None
         self.subtitle = self.get_measurement_chart_label(measurement_data)
 
+    def convert_dataset(self):
+        '''
+        Convert the chart dataset from a dictionary list to a list of lists
+        (more convinient for UI).
+        '''
+        keys = next(iter(self.dataset)).keys()
+        self.dataset = [point.values() for point in self.dataset]
+        self.dataset.insert(0, keys)
+
     def representation(self):
+        if all(isinstance(point, dict) for point in self.dataset):
+            self.convert_dataset()
         return {key: self.__dict__[key] for key in self.__class__.REPR_KEYS}
 
     def by_lines(
@@ -64,6 +77,86 @@ class ChartViewBuilder:
         # 5. view = create manually
         # 6. return cls(view, measurement, measurement_results)
         pass
+
+    def by_measurement_results(self, result_ids):
+        '''
+        This method allows you to obtain data for plotting changes in measurement
+        results over iterations from the passed range. In addition to the values,
+        each point also contains the IDs of the run, result, and iteration in order
+        to be able to switch to other views.
+        '''
+        self.axis_x = AxisRepresentationBuilder(
+            label='Start of measurement test',
+            key='start',
+        ).to_representation()
+        self.axis_y = AxisRepresentationBuilder(
+            measurement=self.measurement,
+            key='value',
+        ).to_representation()
+        self.dataset = []
+        mmrs = get_measurement_results(result_ids, self.measurement)
+        for mmr in mmrs:
+            point_data = mmr.representation()
+            point_data.pop('sequence_number')
+            self.dataset.append(point_data)
+        return self
+
+    def set_merge_key_value(self, merge_mm_key: typing.List[str]):
+        '''
+        Sets the value of the merge key based on the passed measurement attributes.
+        '''
+        measurement_data = self.measurement.representation()
+        self.merge_key_value = [
+            measurement_data[key] for key in measurement_data if key in merge_mm_key
+        ]
+        self.merge_key_value = [kv if kv is not None else '' for kv in self.merge_key_value]
+
+    @staticmethod
+    def merge_charts_by(charts, merge_mm_key: typing.List[str]):
+        '''
+        Merges the passed charts by the values of the passed measurement attributes.
+        '''
+        # get "per point" measurement attributes
+        per_point_attrs = [
+            attr
+            for attr in next(iter(charts)).measurement.representation()
+            if attr not in merge_mm_key
+        ]
+        # prepare charts for merging
+        for chart in charts:
+            # set the merge key value
+            chart.set_merge_key_value(merge_mm_key)
+            # update points with "per point" measurement data
+            per_point_measurement_data = {
+                attr: value
+                for attr, value in chart.measurement.representation().items()
+                if attr in per_point_attrs
+            }
+            for point_data in chart.dataset:
+                point_data.update(per_point_measurement_data)
+
+        # group charts by merge key
+        charts = sorted(charts, key=lambda chart: chart.merge_key_value)
+        chart_groups = [
+            list(group) for _, group in groupby(charts, key=lambda chart: chart.merge_key_value)
+        ]
+
+        # get merged charts
+        merged_charts = []
+        for chart_group in chart_groups:
+            merged_chart = next(iter(chart_group))
+            if len(chart_group) > 1:
+                # get merged dataset
+                for chart in chart_group[1:]:
+                    merged_chart.dataset.extend(chart.dataset)
+                # sort merged dataset
+                merged_chart.dataset = sorted(
+                    merged_chart.dataset,
+                    key=lambda x: x[merged_chart.axis_x_key],
+                )
+            merged_charts.append(merged_chart)
+
+        return merged_charts
 
     @staticmethod
     def get_measurement_chart_label(measurement_data, sequense_group_argument=None):
