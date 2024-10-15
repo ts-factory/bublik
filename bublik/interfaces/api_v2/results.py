@@ -276,7 +276,7 @@ class ResultViewSet(ModelViewSet):
             line_graph_views = get_line_graph_views(views)
             if line_graph_views:
                 for view in line_graph_views:
-                    line_chart_views = get_chart_views([pk], view)
+                    line_chart_views = get_chart_views(pk, view)
                     x_chart_view = get_x_chart_view(line_chart_views)
                     y_chart_views = get_y_chart_views(line_chart_views)
 
@@ -307,7 +307,7 @@ class ResultViewSet(ModelViewSet):
                     return cv.measurement.id
 
                 for view in point_views:
-                    point_chart_views = get_chart_views([pk], view)
+                    point_chart_views = get_chart_views(pk, view)
                     point_chart_views = sorted(point_chart_views, key=grouper_by_measurement)
                     for _measurement_id, points in groupby(
                         point_chart_views,
