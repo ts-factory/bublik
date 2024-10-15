@@ -14,25 +14,26 @@ from bublik.data.models import (
 logger = logging.getLogger('bublik.server')
 
 
-def get_measurements_by_result(result_id):
+def get_measurement_results(result_ids, measurement=None):
     # TODO type processing
-    return MeasurementResult.objects.filter(result__id=result_id).select_related(
-        'measurement',
-        'result',
-        'result__iteration',
-        'result__iteration__test',
+    measurement_results = (
+        MeasurementResult.objects.filter(result__id__in=result_ids)
+        .order_by('measurement__id')
+        .select_related(
+            'measurement',
+            'result',
+            'result__test_run',
+            'result__iteration',
+            'result__iteration__test',
+        )
     )
-
-
-def get_measurement_results(iteration_results, measurement):
-    return MeasurementResult.objects.filter(
-        result__in=iteration_results,
-        measurement=measurement,
-    ).select_related('result', 'result__iteration')
+    if measurement:
+        return measurement_results.filter(measurement=measurement)
+    return measurement_results
 
 
 def get_measurement_results_or_none(result_id):
-    data = get_measurements_by_result(result_id)
+    data = get_measurement_results([result_id])
     if not data:
         return None
     measurement_results = []
