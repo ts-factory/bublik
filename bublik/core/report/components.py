@@ -41,8 +41,10 @@ class ReportPoint:
         test_config = report_config['tests'][self.test_name]
 
         self.args_vals = {}
-        self.axis_x = test_config['axis_x']
-        self.sequence_group_arg = test_config['sequence_group_arg']
+        self.axis_x = test_config['axis_x']['arg']
+        sequences = test_config.get('sequences', {})
+        self.sequence_group_arg = sequences.get('arg', None)
+        sequence_group_arg_label = sequences.get('arg_label', None)
         self.sequence_group_arg_val = None
         self.point = {}
 
@@ -63,7 +65,7 @@ class ReportPoint:
         # build the record label and the name of the y axis
         self.measurement_label, self.measurement_name = get_meas_label_and_name(
             mmr,
-            self.sequence_group_arg,
+            sequence_group_arg_label,
         )
 
     def points_grouper_tests(self):
@@ -94,13 +96,22 @@ class ReportRecordLevel:
 
         self.type = 'record-block'
         self.warnings = []
-        self.multiple_sequences = bool(test_config['sequence_group_arg'])
-        self.axis_x_key = (
-            f'{test_config["axis_x"]} / {test_config["sequence_group_arg"]}'
-            if self.multiple_sequences
-            else f'{test_config["axis_x"]}'
+        self.multiple_sequences = bool('sequences' in test_config)
+
+        self.axis_x_label = test_config['axis_x'].get(
+            'label',
+            test_config['axis_x']['arg'],
         )
-        self.axis_x_label = test_config['axis_x']
+
+        if self.multiple_sequences:
+            sequence_group_arg_label = test_config['sequences'].get(
+                'arg_label',
+                test_config['sequences']['arg'],
+            )
+            self.axis_x_key = f'{self.axis_x_label} / {sequence_group_arg_label}'
+        else:
+            self.axis_x_key = f'{self.axis_x_label}'
+
         self.axis_y_label = record_info
         self.id = f'{meas_lvl_id}_{self.axis_y_label}'
 
@@ -182,7 +193,7 @@ class ReportRecordLevel:
         dataset_labels = copy.deepcopy(dataset_labels)
         dataset_data = copy.deepcopy(dataset_data)
 
-        percentage_base_value = test_config['percentage_base_value']
+        percentage_base_value = test_config['sequences']['percentage_base_value']
         percentage_base_value = sequence_name_conversion(percentage_base_value, test_config)
 
         if percentage_base_value in dataset_labels:
@@ -215,7 +226,7 @@ class ReportRecordLevel:
         return dataset_labels, dataset_data
 
     def get_dataset_table(self, dataset_labels, dataset_data, test_config):
-        if self.multiple_sequences and test_config['percentage_base_value'] is not None:
+        if self.multiple_sequences and 'percentage_base_value' in test_config['sequences']:
             dataset_labels, dataset_data = self.percentage_calc(
                 dataset_labels,
                 dataset_data,

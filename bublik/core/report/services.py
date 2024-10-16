@@ -56,9 +56,10 @@ def sequence_name_conversion(seq_arg_val, test_config):
     Convert the passed sequence name according to the passed test configuration.
     '''
     seq_arg_val = str(seq_arg_val)
-    sequence_name_conversion = test_config['sequence_name_conversion']
-    with contextlib.suppress(KeyError):
-        return str(sequence_name_conversion[seq_arg_val])
+    if 'sequence' in test_config and 'arg_vals_labels' in test_config['sequence']:
+        arg_vals_labels = test_config['arg_vals_labels']
+        with contextlib.suppress(KeyError):
+            return str(arg_vals_labels[seq_arg_val])
     return seq_arg_val
 
 
