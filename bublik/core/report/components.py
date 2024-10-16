@@ -3,7 +3,6 @@
 
 import contextlib
 import copy
-
 from itertools import groupby
 
 from bublik.core.report.services import (
@@ -58,7 +57,7 @@ class ReportPoint:
                     arg.id,
                     sequence_name_conversion(arg.value, test_config),
                 )
-            elif arg.name not in common_args[self.test_name].keys():
+            elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = arg.value
 
         # build the record label and the name of the y axis
@@ -156,7 +155,7 @@ class ReportRecordLevel:
 
         for sequence_group_arg_val, sequence in sequences.items():
             for k in axis_x_vals:
-                if k not in sequence.keys():
+                if k not in sequence:
                     sequences[sequence_group_arg_val][k] = '-'
 
     def create_dataset(self, sequences, test_config):
@@ -165,7 +164,7 @@ class ReportRecordLevel:
         '''
         self.complete_sequences(sequences)
         dataset_data = []
-        for axis_x_val in list(sequences.values())[0]:
+        for axis_x_val in next(iter(sequences.values())):
             dataset_data.append([axis_x_val])
         dataset_labels = [self.axis_x_key]
         for sequence_group_arg_val, sequence in sequences.items():
@@ -231,7 +230,7 @@ class ReportRecordLevel:
         for dataset_item in dataset_data:
             # include in the chart dataset only those results that correspond
             # to the numeric values of the x-axis argument
-            if type(dataset_item[0]) != int:
+            if not isinstance(dataset_item[0], int):
                 self.warnings.append(
                     f'The results corresponding to {dataset_labels[0]}={dataset_item[0]} '
                     'cannot be displayed on the chart',
