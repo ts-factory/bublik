@@ -149,7 +149,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         for setting in self.required_settings:
             getattr_from_per_conf(setting, required=True)
 
-        self.header = getattr_from_per_conf('DASHBOARD_HEADER', required=True)
+        header = getattr_from_per_conf('DASHBOARD_HEADER', required=True)
+        self.header = {item['key']: item['label'] for item in header}
         self.date_meta = getattr_from_per_conf('DASHBOARD_DATE')
         self.default_mode = getattr_from_per_conf(
             'DASHBOARD_DEFAULT_MODE',

@@ -20,12 +20,18 @@
         },
         "DASHBOARD_HEADER": {
             "description": "Sets columns on dashboard",
-            "type": "object",
-            "additionalProperties": {
-                "type": "string",
-                "items": {
-                    "type": "string"
-                }
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
             }
         },
         "DASHBOARD_PAYLOAD": {
