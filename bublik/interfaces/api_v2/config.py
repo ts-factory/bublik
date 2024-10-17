@@ -14,7 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.queries import get_or_none
-from bublik.data.models import Config
+from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -44,8 +44,8 @@ class ConfigViewSet(ModelViewSet):
         '''
         global_config = get_or_none(
             Config.objects,
-            type='global',
-            name='per_conf',
+            type=ConfigTypes.GLOBAL,
+            name=GlobalConfigNames.PER_CONF,
         )
         if global_config:
             return Response(
@@ -60,7 +60,10 @@ class ConfigViewSet(ModelViewSet):
         per_conf_dict = {arg: getattr(per_conf, arg, None) for arg in args}
 
         # leave only valid attributes
-        schema = self.serializer_class.get_json_schema('global', 'per_conf')
+        schema = self.serializer_class.get_json_schema(
+            ConfigTypes.GLOBAL,
+            GlobalConfigNames.PER_CONF,
+        )
         valid_attributes = schema.get('properties', {}).keys()
         per_conf_dict = {k: v for k, v in per_conf_dict.items() if k in valid_attributes}
 
@@ -71,8 +74,8 @@ class ConfigViewSet(ModelViewSet):
             )
 
         data = {
-            'type': 'global',
-            'name': 'per_conf',
+            'type': ConfigTypes.GLOBAL,
+            'name': GlobalConfigNames.PER_CONF,
             'description': 'The main project config',
             'is_active': True,
             'content': per_conf_dict,
