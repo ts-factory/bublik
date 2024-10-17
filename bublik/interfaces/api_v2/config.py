@@ -4,6 +4,7 @@
 import logging
 import re
 
+from django.core.management import call_command
 import per_conf
 
 from rest_framework import status
@@ -73,6 +74,7 @@ class ConfigViewSet(ModelViewSet):
                 per_conf_dict['RUN_STATUS_BY_NOK_BORDERS'],
             )
 
+        # create a configuration object, skipping content validation
         data = {
             'type': ConfigTypes.GLOBAL,
             'name': GlobalConfigNames.PER_CONF,
@@ -80,7 +82,19 @@ class ConfigViewSet(ModelViewSet):
             'is_active': True,
             'content': per_conf_dict,
         }
-        config, created = self.get_or_create(data)
+        serializer = self.get_serializer(data=data)
+        serializer.update_data()
+        config, created = serializer.get_or_create(serializer.initial_data)
+
+        # reformat the content according to the current JSON schema, validate
+        call_command(
+            'reformat_configs',
+            '-t',
+            ConfigTypes.GLOBAL,
+            '-n',
+            GlobalConfigNames.PER_CONF,
+        )
+
         config_data = self.get_serializer(config).data
         if not created:
             return Response(config_data, status=status.HTTP_400_BAD_REQUEST)
