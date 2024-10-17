@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from rest_framework import serializers
 
-from bublik.data.models import Config, ConfigTypes
+from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -167,6 +167,56 @@ class Command(BaseCommand):
 
         return None
 
+    def update_dashboard_header_structure(self, configs):
+        '''
+        Reformat passed global per_conf configs content:
+        DASHBOARD_HEADER: {<key>: <label>} ->
+        DASHBOARD_HEADER: [{"key": <key>, "label": <label>}]
+        '''
+        per_conf_configs = configs.filter(
+            type=ConfigTypes.GLOBAL,
+            name=GlobalConfigNames.PER_CONF,
+        )
+        for per_conf_config in per_conf_configs:
+            try:
+                config_data = per_conf_config.content
+                if isinstance(config_data['DASHBOARD_HEADER'], dict):
+                    config_data['DASHBOARD_HEADER'] = [
+                        {'key': key, 'label': label}
+                        for key, label in config_data['DASHBOARD_HEADER'].items()
+                    ]
+
+                    serializer = ConfigSerializer(
+                        instance=per_conf_config,
+                        data={'content': config_data},
+                        partial=True,
+                    )
+                    serializer.is_valid(raise_exception=True)
+                    per_conf_config.content = serializer.validated_data['content']
+                    per_conf_config.save()
+
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f'{per_conf_config.name} v{per_conf_config.version}: '
+                            'the dashboard header structure has been successfully updated!',
+                        ),
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f'{per_conf_config.name} v{per_conf_config.version}: '
+                            'the dashboard header structure already updated!',
+                        ),
+                    )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f'{per_conf_config.name} v{per_conf_config.version}: '
+                        'failed to update the dashboard header structure: '
+                        f'{type(e).__name__}: {e}',
+                    ),
+                )
+
     def add_arguments(self, parser):
         parser.add_argument(
             '-t',
@@ -195,3 +245,4 @@ class Command(BaseCommand):
 
         self.update_axis_x_structure(configs)
         self.update_seq_settings_structure(configs)
+        self.update_dashboard_header_structure(configs)
