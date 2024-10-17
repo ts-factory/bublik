@@ -13,7 +13,7 @@ from rest_framework.serializers import ModelSerializer
 from bublik.core.auth import get_user_by_access_token
 from bublik.core.queries import get_or_none
 from bublik.core.run.utils import prepare_date
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
+from bublik.data.models import Config, ConfigTypes, GlobalConfigNames, User
 from bublik.data.schemas.services import load_schema
 
 
@@ -121,23 +121,25 @@ class ConfigSerializer(ModelSerializer):
                 raise serializers.ValidationError(msg) from jeve
         return content
 
-    def get_or_create(self, validated_data):
+    def get_or_create(self, config_data):
         config = get_or_none(
             Config.objects,
-            content=validated_data['content'],
+            content=config_data['content'],
         )
         if config:
             return config, False
-        config = self.create(validated_data)
+        config = self.create(config_data)
         return config, True
 
-    def create(self, validated_data):
-        is_active = validated_data['is_active']
+    def create(self, config_data):
+        if not isinstance(config_data['user'], User):
+            config_data['user'] = User.objects.get(id=config_data['user'])
+        is_active = config_data['is_active']
         if is_active:
-            config_type = validated_data['type']
-            config_name = validated_data['name']
+            config_type = config_data['type']
+            config_name = config_data['name']
             active = Config.get_active_version(config_type, config_name)
             if active:
                 active.is_active = False
                 active.save()
-        return Config.objects.create(**validated_data)
+        return Config.objects.create(**config_data)
