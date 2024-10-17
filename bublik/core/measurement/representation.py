@@ -112,6 +112,35 @@ class ChartViewBuilder:
             },
         }
 
+    @classmethod
+    def get_measurement_chart_label(cls, measurement_data, sequense_group_argument=None):
+        label_items = {
+            'type': measurement_data['type'],
+            'units': measurement_data['units'],
+            'aggr': measurement_data['aggr'],
+            'sequense_group_arg': sequense_group_argument,
+            'tool': measurement_data['tool'],
+        }
+
+        units_aggr_data = ', '.join(
+            label_items[key] for key in ['units', 'aggr'] if label_items[key]
+        )
+
+        label_parts = {
+            'type': (measurement_data['type'][0].upper() + measurement_data['type'][1:])
+            if measurement_data['type']
+            else None,
+            'units_arrg': f'({units_aggr_data})',
+            'sga': f'by {label_items["sequense_group_arg"]}'
+            if label_items['sequense_group_arg']
+            else None,
+            'tool': f': based on {label_items["tool"]}' if label_items['tool'] else None,
+        }
+
+        return ' '.join(
+            [label_part for label_part in label_parts.values() if label_part],
+        ).replace(' :', ':')
+
 
 class MeasurementRepresentation:
     def __init__(self, metas, value):

@@ -37,8 +37,20 @@
                     },
                     "axis_x": {
                         "description": "Axis x test argument",
-                        "type": "string",
-                        "minLength": 2
+                        "type": "object",
+                        "properties": {
+                            "arg": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "label": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        },
+                        "required": [
+                            "arg"
+                        ]
                     },
                     "axis_y": {
                         "description": "Measurement parameters",
@@ -83,17 +95,31 @@
                             "additionalProperties": false
                         }
                     },
-                    "sequence_group_arg": {
-                        "description": "Sequence group argument",
-                        "type": ["string", "null"]
-                    },
-                    "percentage_base_value": {
-                        "description": "Base value for percentage calculation",
-                        "type": ["string", "number", "null"]
-                    },
-                    "sequence_name_conversion": {
+                    "sequences": {
+                        "description": "Sequences settings",
                         "type": "object",
-                        "additionalProperties": true
+                        "properties": {
+                            "arg": {
+                                "description": "Specify an argument for displaying iteration results on the same axes",
+                                "type": ["string"]
+                            },
+                            "arg_label": {
+                                "description": "Specify label to display the sequense group argument",
+                                "type": ["string"]
+                            },
+                            "percentage_base_value": {
+                                "description": "Base value for percentage calculation",
+                                "type": ["string", "number"]
+                            },
+                            "arg_vals_labels": {
+                                "description": "Specify labels to display the sequense group argument values",
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "arg"
+                        ]
                     },
                     "not_show_args": {
                         "description": "Arguments and their values for excluding results from the report",
@@ -118,9 +144,6 @@
                     "chart_view",
                     "axis_x",
                     "axis_y",
-                    "sequence_group_arg",
-                    "percentage_base_value",
-                    "sequence_name_conversion",
                     "not_show_args",
                     "records_order"
                 ]

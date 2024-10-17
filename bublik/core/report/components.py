@@ -3,7 +3,6 @@
 
 import contextlib
 import copy
-
 from itertools import groupby
 
 from bublik.core.report.services import (
@@ -42,8 +41,10 @@ class ReportPoint:
         test_config = report_config['tests'][self.test_name]
 
         self.args_vals = {}
-        self.axis_x = test_config['axis_x']
-        self.sequence_group_arg = test_config['sequence_group_arg']
+        self.axis_x = test_config['axis_x']['arg']
+        sequences = test_config.get('sequences', {})
+        self.sequence_group_arg = sequences.get('arg', None)
+        sequence_group_arg_label = sequences.get('arg_label', None)
         self.sequence_group_arg_val = None
         self.point = {}
 
@@ -58,13 +59,13 @@ class ReportPoint:
                     arg.id,
                     sequence_name_conversion(arg.value, test_config),
                 )
-            elif arg.name not in common_args[self.test_name].keys():
+            elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = arg.value
 
         # build the record label and the name of the y axis
         self.measurement_label, self.measurement_name = get_meas_label_and_name(
             mmr,
-            self.sequence_group_arg,
+            sequence_group_arg_label,
         )
 
     def points_grouper_tests(self):
@@ -95,13 +96,22 @@ class ReportRecordLevel:
 
         self.type = 'record-block'
         self.warnings = []
-        self.multiple_sequences = bool(test_config['sequence_group_arg'])
-        self.axis_x_key = (
-            f'{test_config["axis_x"]} / {test_config["sequence_group_arg"]}'
-            if self.multiple_sequences
-            else f'{test_config["axis_x"]}'
+        self.multiple_sequences = bool('sequences' in test_config)
+
+        self.axis_x_label = test_config['axis_x'].get(
+            'label',
+            test_config['axis_x']['arg'],
         )
-        self.axis_x_label = test_config['axis_x']
+
+        if self.multiple_sequences:
+            sequence_group_arg_label = test_config['sequences'].get(
+                'arg_label',
+                test_config['sequences']['arg'],
+            )
+            self.axis_x_key = f'{self.axis_x_label} / {sequence_group_arg_label}'
+        else:
+            self.axis_x_key = f'{self.axis_x_label}'
+
         self.axis_y_label = record_info
         self.id = f'{meas_lvl_id}_{self.axis_y_label}'
 
@@ -156,7 +166,7 @@ class ReportRecordLevel:
 
         for sequence_group_arg_val, sequence in sequences.items():
             for k in axis_x_vals:
-                if k not in sequence.keys():
+                if k not in sequence:
                     sequences[sequence_group_arg_val][k] = '-'
 
     def create_dataset(self, sequences, test_config):
@@ -165,7 +175,7 @@ class ReportRecordLevel:
         '''
         self.complete_sequences(sequences)
         dataset_data = []
-        for axis_x_val in list(sequences.values())[0]:
+        for axis_x_val in next(iter(sequences.values())):
             dataset_data.append([axis_x_val])
         dataset_labels = [self.axis_x_key]
         for sequence_group_arg_val, sequence in sequences.items():
@@ -183,7 +193,7 @@ class ReportRecordLevel:
         dataset_labels = copy.deepcopy(dataset_labels)
         dataset_data = copy.deepcopy(dataset_data)
 
-        percentage_base_value = test_config['percentage_base_value']
+        percentage_base_value = test_config['sequences']['percentage_base_value']
         percentage_base_value = sequence_name_conversion(percentage_base_value, test_config)
 
         if percentage_base_value in dataset_labels:
@@ -216,7 +226,7 @@ class ReportRecordLevel:
         return dataset_labels, dataset_data
 
     def get_dataset_table(self, dataset_labels, dataset_data, test_config):
-        if self.multiple_sequences and test_config['percentage_base_value'] is not None:
+        if self.multiple_sequences and 'percentage_base_value' in test_config['sequences']:
             dataset_labels, dataset_data = self.percentage_calc(
                 dataset_labels,
                 dataset_data,
@@ -231,7 +241,7 @@ class ReportRecordLevel:
         for dataset_item in dataset_data:
             # include in the chart dataset only those results that correspond
             # to the numeric values of the x-axis argument
-            if type(dataset_item[0]) != int:
+            if not isinstance(dataset_item[0], int):
                 self.warnings.append(
                     f'The results corresponding to {dataset_labels[0]}={dataset_item[0]} '
                     'cannot be displayed on the chart',
