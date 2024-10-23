@@ -3,6 +3,7 @@
 
 import contextlib
 import copy
+
 from itertools import groupby
 
 from bublik.core.report.services import (
