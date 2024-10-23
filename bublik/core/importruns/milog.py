@@ -221,7 +221,7 @@ class ViewValueLevel(InstanceLevel, Saver):
         Saver.__init__(self, parent.data)
 
     def save(self, test_iter_result, view_type):
-        if self.find_measurement_count == 0 and self.find_measurement is not None:
+        if self.find_measurement is None:
             msg = f'Failed to found result for {self.parent} for {view_type}'
             raise ValueError(msg)
 
