@@ -244,3 +244,12 @@ class ResultViewSet(ModelViewSet):
     def list(self, request):
         results = self.paginate_queryset(self.get_queryset())
         return self.get_paginated_response(generate_results_details(results))
+
+    @action(detail=True, methods=['get'])
+    def artifacts_and_verdicts(self, request, pk=None):
+        result_metas = models.Meta.objects.filter(metaresult__result__id=pk)
+        data = {
+            'artifacts': list(result_metas.filter(type='artifact').values()),
+            'verdicts': list(result_metas.filter(type='verdict').values()),
+        }
+        return Response(data, status=status.HTTP_200_OK)
