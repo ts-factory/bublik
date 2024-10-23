@@ -325,9 +325,9 @@ class ReportArgsValsLevel:
         Build arg-val block label.
         '''
         label_list = []
-        for _, val in self.args_vals.items():
-            label_list.append(str(val))
-        return '-'.join(label_list)
+        for arg, val in self.args_vals.items():
+            label_list.append(f'{arg}: {val}')
+        return ' | '.join(label_list)
 
 
 class ReportTestLevel:
