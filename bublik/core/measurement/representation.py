@@ -135,6 +135,15 @@ class ChartViewBuilder:
             [label_part for label_part in label_parts.values() if label_part],
         ).replace(' :', ':')
 
+    @classmethod
+    def get_measurement_axis_label(cls, measurement_data):
+        measurement_axis_label = (
+            measurement_data['name'] if measurement_data['name'] else measurement_data['type']
+        )
+        if measurement_data['units']:
+            measurement_axis_label += f' ({measurement_data["units"]})'
+        return measurement_axis_label
+
 
 class MeasurementRepresentation:
     def __init__(self, metas, value):

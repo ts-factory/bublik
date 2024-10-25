@@ -26,10 +26,10 @@ def build_report_title(main_pkg, title_content):
     return '-'.join(title)
 
 
-def get_meas_label_and_name(mmr, sequence_group_arg):
+def get_labels(mmr, sequence_group_arg):
     '''
-    Return the label and the name of the measurement:
-    - measurement name = <measurement name>/<measurement type>
+    Return the measurement block label and the y-axis label:
+    - y-axis label = <measurement name>/<measurement type> (<measurement units>)
     - measurement label = "<measurement type> (<measurement units>, <measurement aggr>)
       by <sequence group arg>: based on <measurement tool>".
     '''
@@ -38,10 +38,9 @@ def get_meas_label_and_name(mmr, sequence_group_arg):
         measurement_data,
         sequence_group_arg,
     )
-    measurement_name = (
-        measurement_data['name'] if measurement_data['name'] else measurement_data['type']
-    )
-    return measurement_label, measurement_name
+    axis_y_label = ChartViewBuilder.get_measurement_axis_label(measurement_data)
+
+    return measurement_label, axis_y_label
 
 
 def type_conversion(arg_value):

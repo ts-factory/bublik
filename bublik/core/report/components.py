@@ -8,7 +8,7 @@ from itertools import groupby
 
 from bublik.core.report.services import (
     args_sort,
-    get_meas_label_and_name,
+    get_labels,
     sequence_name_conversion,
     type_conversion,
 )
@@ -63,11 +63,8 @@ class ReportPoint:
             elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = arg.value
 
-        # build the record label and the name of the y axis
-        self.measurement_label, self.measurement_name = get_meas_label_and_name(
-            mmr,
-            sequence_group_arg_label,
-        )
+        # get the measurement block label and the y-axis label
+        self.measurement_label, self.axis_y_label = get_labels(mmr, sequence_group_arg_label)
 
     def points_grouper_tests(self):
         return self.test_name
@@ -79,7 +76,7 @@ class ReportPoint:
         return self.measurement_label
 
     def points_grouper_records(self):
-        return self.measurement_name
+        return self.axis_y_label
 
     def points_grouper_sequences(self):
         return self.sequence_group_arg_val
@@ -90,7 +87,7 @@ class ReportRecordLevel:
     This class describes the report blocks corresponding to the records (charts and/or tables).
     '''
 
-    def __init__(self, test_name, meas_lvl_id, record_info, record_points, report_config):
+    def __init__(self, test_name, meas_lvl_id, axis_y_label, record_points, report_config):
         test_config = report_config['tests'][test_name]
         table_view = test_config['table_view']
         chart_view = test_config['chart_view']
@@ -113,7 +110,7 @@ class ReportRecordLevel:
         else:
             self.axis_x_key = f'{self.axis_x_label}'
 
-        self.axis_y_label = record_info
+        self.axis_y_label = axis_y_label
         self.id = f'{meas_lvl_id}_{self.axis_y_label}'
 
         if table_view or chart_view:
@@ -275,14 +272,14 @@ class ReportMeasurementLevel:
             key=ReportPoint.points_grouper_records,
         )
 
-        for record_info, record_points in groupby(
+        for axis_y_label, record_points in groupby(
             measurement_points,
             ReportPoint.points_grouper_records,
         ):
             record = ReportRecordLevel(
                 test_name,
                 self.id,
-                record_info,
+                axis_y_label,
                 list(record_points),
                 report_config,
             )
