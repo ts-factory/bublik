@@ -37,19 +37,19 @@ class MeasurementViewSet(GenericViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['post', 'get'])
-    def by_results_ids(self, request):
-        results_ids = None
+    def by_result_ids(self, request):
+        result_ids = None
         if request.method == 'GET':
             with contextlib.suppress(AttributeError):
-                results_ids = request.query_params.get('results_ids').split(
+                result_ids = request.query_params.get('result_ids').split(
                     settings.QUERY_DELIMITER,
                 )
         elif request.method == 'POST':
-            results_ids = request.data.get('results_ids')
-        if not results_ids:
+            result_ids = request.data.get('result_ids')
+        if not result_ids:
             return Response({'error': 'No results ids specified'})
 
-        chart_views = get_chart_views(results_ids)
+        chart_views = get_chart_views(result_ids)
 
         if chart_views:
             chart_views_lines = get_lines_chart_views(chart_views)
@@ -80,7 +80,7 @@ class MeasurementViewSet(GenericViewSet):
 
             data = charts_from_lines + charts_from_points
         else:
-            data = represent_measurements(results_ids)
+            data = represent_measurements(result_ids)
 
         return Response(data)
 
