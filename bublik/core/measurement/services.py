@@ -47,8 +47,8 @@ def exist_measurement_results(test_result):
     return test_result.measurement_results.exists()
 
 
-def get_chart_views(results_ids):
-    return ChartView.objects.filter(result_id__in=results_ids).select_related(
+def get_chart_views(result_ids):
+    return ChartView.objects.filter(result_id__in=result_ids).select_related(
         'view',
         'measurement',
     )
@@ -95,10 +95,10 @@ def merge_measurements(data):
     return final_data
 
 
-def represent_measurements(results_ids):
-    logger.debug('[represent_measurements]: start for %d ids', len(results_ids))
+def represent_measurements(result_ids):
+    logger.debug('[represent_measurements]: start for %d ids', len(result_ids))
     mmrs = list(
-        MeasurementResult.objects.filter(result__in=results_ids).order_by('measurement__id')
+        MeasurementResult.objects.filter(result__in=result_ids).order_by('measurement__id')
         # we need all the related fields because final json gives information
         # about result and run so that UI is able to provide convenient links to
         # the user
@@ -163,7 +163,7 @@ def represent_measurements(results_ids):
 
         data.append(mm_data)
 
-    if len(results_ids) > 1:
+    if len(result_ids) > 1:
         data = merge_measurements(data)
     logger.debug('[represent_measurements]: completed, data len = %d', len(data))
 

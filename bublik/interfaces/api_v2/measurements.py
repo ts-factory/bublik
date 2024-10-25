@@ -35,11 +35,11 @@ class MeasurementViewSet(GenericViewSet):
 
     @action(detail=False, methods=['post'])
     def by_result_ids(self, request):
-        results_ids = request.data.get('results_ids', None)
-        if not results_ids:
+        result_ids = request.data.get('result_ids', None)
+        if not result_ids:
             return Response({'error': 'No results ids specified'})
 
-        chart_views = get_chart_views(results_ids)
+        chart_views = get_chart_views(result_ids)
 
         if chart_views:
             chart_views_lines = get_lines_chart_views(chart_views)
@@ -70,7 +70,7 @@ class MeasurementViewSet(GenericViewSet):
 
             data = charts_from_lines + charts_from_points
         else:
-            data = represent_measurements(results_ids)
+            data = represent_measurements(result_ids)
 
         return Response(data)
 
