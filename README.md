@@ -10,9 +10,8 @@ Full documentation for the project is available at <>.
 # Overview
 # Requirements
 
-- **Debian 11 or 12, or Ubuntu 22.04 or 24.04**
-- **Python 3.9 or 3.10**
-- **Django 3.2**
+- **Debian 12, or Ubuntu 22.04 or 24.04**
+- **Python 3.10 or 3.11 or 3.12**
 
 # Installation
 1. Clone [bublik backend](https://github.com/ts-factory/bublik.git) to /opt/bublik/**bublik**.
