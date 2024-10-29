@@ -123,15 +123,13 @@ class MetaTestSerializer(ModelSerializer):
         '''
         self.initial_data['updated'] = prepare_date(datetime.now())
         if 'serial' not in self.initial_data:
-            leatest_serial = (
+            latest_serial = (
                 MetaTest.objects.filter(test=self.initial_data['test'])
                 .order_by('serial')
                 .values_list('serial', flat=True)
                 .last()
             )
-            self.initial_data['serial'] = (
-                leatest_serial + 1 if leatest_serial is not None else 0
-            )
+            self.initial_data['serial'] = latest_serial + 1 if latest_serial is not None else 0
 
     def validate_meta(self, meta):
         if not meta['value']:
