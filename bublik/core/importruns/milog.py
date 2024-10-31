@@ -3,6 +3,7 @@
 
 from collections import Counter
 from datetime import datetime, timedelta
+from itertools import groupby
 import json
 import logging
 from typing import ClassVar
@@ -15,6 +16,7 @@ from bublik.data.models import (
     Meta,
 )
 from bublik.data.serializers import (
+    MeasurementResultListSerializer,
     MeasurementResultSerializer,
     MeasurementSerializer,
     MetaResultSerializer,
@@ -178,15 +180,26 @@ class EntryLevel(InstanceLevel, Saver):
 
     def save(self, test_iter_result):
         measurement = self.get_measurement()
-        mmr_serializer = serialize(
-            MeasurementResultSerializer,
-            {
-                'serial': self.serial,
-                'measurement': measurement.id,
-                'result': test_iter_result.id,
-                'value': self.value,
-            },
-        )
+        if len(self.value) > 1:
+            mmr_serializer = serialize(
+                MeasurementResultListSerializer,
+                {
+                    'serial': self.serial,
+                    'measurement': measurement.id,
+                    'result': test_iter_result.id,
+                    'value': self.value,
+                },
+            )
+        else:
+            mmr_serializer = serialize(
+                MeasurementResultSerializer,
+                {
+                    'serial': self.serial,
+                    'measurement': measurement.id,
+                    'result': test_iter_result.id,
+                    'value': self.value[0],
+                },
+            )
         mmr_serializer.is_valid(raise_exception=True)
         _, created = mmr_serializer.get_or_create()
         if created:
@@ -358,7 +371,18 @@ class HandlerArtifacts:
             for result in results:
                 entries = InstanceLevel.pop(result, 'entries', True)
                 resultlvl = ResultLevel(result, commonlvl)
-                for serial, entry in enumerate(entries):
+
+                def entries_by_measurements(entry):
+                    return [entry['aggr'], entry['base_units'], entry['multiplier']]
+
+                entries = sorted(entries, key=entries_by_measurements)
+                serial = -1
+                for _, entries_group in groupby(entries, key=entries_by_measurements):
+                    serial += 1
+                    entries_group = list(entries_group)
+                    values = [entry['value'] for entry in entries_group]
+                    entry = entries_group[0]
+                    entry['value'] = values
                     try:
                         entrylvl = EntryLevel(entry, serial, resultlvl)
                         entrylvl.save(self.test_iter_result)
