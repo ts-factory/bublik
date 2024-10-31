@@ -14,8 +14,8 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.measurement.representation import ChartViewBuilder
 from bublik.core.measurement.services import (
     get_chart_views,
-    get_lines_chart_views,
     get_points_chart_views,
+    get_y_chart_views,
     represent_measurements,
 )
 from bublik.data.models import Measurement
@@ -52,7 +52,7 @@ class MeasurementViewSet(GenericViewSet):
         chart_views = get_chart_views(result_ids)
 
         if chart_views:
-            chart_views_lines = get_lines_chart_views(chart_views)
+            chart_views_lines = get_y_chart_views(chart_views)
             chart_views_points = get_points_chart_views(chart_views)
 
             # Get charts from processing line graph chart views

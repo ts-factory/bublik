@@ -16,9 +16,11 @@ from bublik.core.cache import RunCache
 from bublik.core.measurement.representation import ChartViewBuilder
 from bublik.core.measurement.services import (
     get_chart_views,
-    get_lines_chart_views,
+    get_measurement_result_lists,
+    get_measurement_results,
     get_points_chart_views,
-    represent_measurements,
+    get_x_chart_view,
+    get_y_chart_views,
 )
 from bublik.core.queries import get_or_none
 from bublik.core.run.compromised import (
@@ -264,17 +266,33 @@ class ResultViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def measurements(self, request, pk=None):
-        chart_views = get_chart_views([pk])
-
+        # get charts
+        chart_views = get_chart_views(pk)
         if chart_views:
-            chart_views_lines = get_lines_chart_views(chart_views)
+            y_chart_views = get_y_chart_views(chart_views)
+            x_chart_view = get_x_chart_view(chart_views)
             chart_views_points = get_points_chart_views(chart_views)
+
+            axis_x = get_measurement_result_lists(
+                x_chart_view.result.id,
+                x_chart_view.measurement,
+            )
 
             # Get charts from processing line graph chart views
             charts_from_lines = []
-            for line_chart_view in chart_views_lines:
-                chart = ChartViewBuilder.by_line_graph(line_chart_view)
-                charts_from_lines.append(chart.representation())
+            for y_chart_view in y_chart_views:
+                axis_y = get_measurement_result_lists(
+                    y_chart_view.result.id,
+                    y_chart_view.measurement,
+                )
+                charts_from_lines.append(
+                    ChartViewBuilder(axis_y.measurement, y_chart_view.view)
+                    .by_lines(
+                        axis_y,
+                        axis_x,
+                    )
+                    .representation(),
+                )
 
             # Get charts from processing point chart views
             # Need to group chart_views_points by measurements to make line-graphs from them
@@ -293,8 +311,24 @@ class ResultViewSet(ModelViewSet):
                 # - init by CV line object | list of CV point objects ->
                 # -> ChartViewBuilder.by_points(cvs)
 
-            data = charts_from_lines + charts_from_points
+            charts = charts_from_lines + charts_from_points
         else:
-            data = represent_measurements([pk])
+            mmr_lists = get_measurement_result_lists(pk)
+            charts = [
+                ChartViewBuilder(mmr_list.measurement).by_lines(mmr_list).representation()
+                for mmr_list in mmr_lists
+            ]
+
+        # get tables
+        mmrs = get_measurement_results([pk])
+        tables = [mmr.representation(additional='measurement') for mmr in mmrs]
+
+        test_iter_res = self.get_object()
+        data = {
+            'run_id': test_iter_res.test_run_id,
+            'iteration_id': test_iter_res.iteration_id,
+            'charts': charts,
+            'tables': tables,
+        }
 
         return Response(data)

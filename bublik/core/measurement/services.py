@@ -8,6 +8,7 @@ from bublik.data.models import (
     ChartView,
     ChartViewType,
     MeasurementResult,
+    MeasurementResultList,
 )
 
 
@@ -30,6 +31,15 @@ def get_measurement_results(result_ids, measurement=None):
     if measurement:
         return measurement_results.filter(measurement=measurement)
     return measurement_results
+
+
+def get_measurement_result_lists(result_id, measurement=None):
+    measurement_result_lists = MeasurementResultList.objects.filter(
+        result__id=result_id,
+    )
+    if measurement:
+        return measurement_result_lists.filter(measurement=measurement).first()
+    return measurement_result_lists
 
 
 def get_measurement_results_or_none(result_id):
@@ -168,13 +178,17 @@ def represent_measurements(result_ids):
     return data
 
 
-def get_lines_chart_views(chart_views):
-    # Get line-graph chart views where test result has number of measurements.
-    # Since it's going to change ChartView type options to point/line,
-    # now filtering 'type = axis_y' is added
+def get_y_chart_views(chart_views):
     return chart_views.filter(
         view__metas__value='line-graph',
         type=ChartViewType.conv(ChartViewType.AXIS_Y),
+    )
+
+
+def get_x_chart_view(chart_views):
+    return chart_views.get(
+        view__metas__value='line-graph',
+        type=ChartViewType.conv(ChartViewType.AXIS_X),
     )
 
 

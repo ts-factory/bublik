@@ -176,6 +176,20 @@ class MeasurementResultList(models.Model):
     def __len__(self):
         return len(self.value)
 
+    def representation(self, additional='result'):
+        if additional == 'measurement':
+            mmr_repr = self.measurement.representation()
+            mmr_repr.update({'value': self.value})
+            return mmr_repr
+        return {
+            'start': self.result.start,
+            'sequence_number': self.serial,
+            'value': self.value,
+            'run_id': self.result.test_run.id,
+            'result_id': self.result.id,
+            'iteration_id': self.result.iteration.id,
+        }
+
 
 class View(models.Model):
     '''
