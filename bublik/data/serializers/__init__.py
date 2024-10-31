@@ -18,6 +18,7 @@ from .expectation import (
     ExpectMetaWriteSerializer,
 )
 from .measurement import (
+    MeasurementResultListSerializer,
     MeasurementResultSerializer,
     MeasurementSerializer,
     ViewSerializer,
@@ -60,4 +61,5 @@ __all__ = [
     'EndpointURLSerializer',
     'MetaTestSerializer',
     'ConfigSerializer',
+    'MeasurementResultListSerializer',
 ]

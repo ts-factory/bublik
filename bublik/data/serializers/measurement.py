@@ -9,7 +9,7 @@ from bublik.core.hash_system import HashedModelSerializer
 from bublik.core.measurement.representation import MeasurementRepresentation
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.shortcuts import serialize
-from bublik.data.models import Measurement, MeasurementResult, View
+from bublik.data.models import Measurement, MeasurementResult, MeasurementResultList, View
 from bublik.data.serializers.meta import MetaSerializer
 
 
@@ -48,11 +48,7 @@ class MeasurementSerializer(HashedModelSerializer):
         return measurement, True
 
 
-class MeasurementResultSerializer(ModelSerializer):
-    class Meta:
-        model = MeasurementResult
-        fields = ('id', 'measurement', 'result', 'serial', 'value')
-
+class MeasurementResultCommonSerializer(ModelSerializer):
     def to_representation(self, instance):
         metas = instance.measurement.metas.all().values('name', 'type', 'value')
         mmr = MeasurementRepresentation(metas, instance.value)
@@ -61,8 +57,9 @@ class MeasurementResultSerializer(ModelSerializer):
         return representation
 
     def get_or_create(self):
+        model = self.Meta.model
         value = self.validated_data.pop('value')
-        mmr, created = MeasurementResult.objects.get_or_create(
+        mmr, created = model.objects.get_or_create(
             **self.validated_data,
             defaults={'value': value},
         )
@@ -71,12 +68,24 @@ class MeasurementResultSerializer(ModelSerializer):
         if mmr.value != value:
             logger.warning(
                 'a new value was obtained from imported logs for the exist '
-                f'MeasurementResult object (id = {mmr.id}). '
+                f'{model.__name__} object (id = {mmr.id}). '
                 f'Old value is {mmr.value}. New value is {self.value}.',
             )
             mmr.value = self.value
             mmr.save()
         return mmr, created
+
+
+class MeasurementResultSerializer(MeasurementResultCommonSerializer):
+    class Meta:
+        model = MeasurementResult
+        fields = ('id', 'measurement', 'result', 'serial', 'value')
+
+
+class MeasurementResultListSerializer(MeasurementResultCommonSerializer):
+    class Meta:
+        model = MeasurementResultList
+        fields = ('id', 'measurement', 'result', 'serial', 'value')
 
 
 class ViewSerializer(HashedModelSerializer):
