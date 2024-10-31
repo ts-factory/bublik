@@ -33,7 +33,8 @@ class Saver:
     the Saver class, It should also implement the save() method.
     '''
 
-    measurements: ClassVar[list] = []
+    single_measurements: ClassVar[list] = []
+    list_measurements: ClassVar[list] = []
 
     def __init__(self, metas):
         self.metas = metas
@@ -173,8 +174,6 @@ class EntryLevel(InstanceLevel, Saver):
         measurement, created = measure_serializer.get_or_create()
         if created:
             self.counter['created_meas_obj'] += 1
-        if measurement not in self.measurements:
-            self.measurements.append(measurement)
 
         return measurement
 
@@ -190,6 +189,8 @@ class EntryLevel(InstanceLevel, Saver):
                     'value': self.value,
                 },
             )
+            if measurement not in self.list_measurements:
+                self.list_measurements.append(measurement)
         else:
             mmr_serializer = serialize(
                 MeasurementResultSerializer,
@@ -200,6 +201,8 @@ class EntryLevel(InstanceLevel, Saver):
                     'value': self.value[0],
                 },
             )
+            if measurement not in self.single_measurements:
+                self.single_measurements.append(measurement)
         mmr_serializer.is_valid(raise_exception=True)
         _, created = mmr_serializer.get_or_create()
         if created:
@@ -250,11 +253,11 @@ class ViewAxisXLevel(ViewValueLevel):
             metas = self.get_list_of_meta_objects()
 
             ids = [m.id for meta in metas for m in meta]
-            for m in self.measurements[:]:
+            for m in self.list_measurements[:]:
                 if Saver.check_metas_in_measurement(m, ids):
                     self.find_measurement_count += 1
                     self.find_measurement = m
-                    self.measurements_copy.remove(m)
+                    self.list_measurements_copy.remove(m)
 
         ViewValueLevel.save(self, test_iter_result, 'axis_x')
 
@@ -273,7 +276,7 @@ class ViewAxisYLevel(ViewValueLevel):
         if self.find_measurement is None:
             metas = self.get_list_of_meta_objects()
             ids = [m.id for meta in metas for m in meta]
-            for m in self.measurements:
+            for m in self.list_measurements:
                 if Saver.check_metas_in_measurement(m, ids):
                     self.find_measurement = m
                     self.find_measurement_count += 1
@@ -285,7 +288,7 @@ class ViewPointLevel(ViewValueLevel):
     def save(self, test_iter_result):
         metas = self.get_list_of_meta_objects()
         ids = [m.id for meta in metas for m in meta]
-        for m in self.measurements:
+        for m in self.single_measurements:
             if Saver.check_metas_in_measurement(m, ids):
                 self.find_measurement = m
                 self.find_measurement_count += 1
@@ -347,14 +350,14 @@ class HandlerArtifacts:
                     point_lvl.save(self.test_iter_result)
                 else:
                     axis_x_lvl = ViewAxisXLevel(axis_x, viewlvl)
-                    Saver.measurements_copy = Saver.measurements.copy()
+                    Saver.list_measurements_copy = Saver.list_measurements.copy()
                     axis_x_lvl.save(self.test_iter_result)
                     if axis_y is not None:
                         for y in axis_y:
                             axis_y_lvl = ViewAxisYLevel(y, viewlvl)
                             axis_y_lvl.save(self.test_iter_result)
                     else:
-                        for y in Saver.measurements_copy:
+                        for y in Saver.list_measurements_copy:
                             axis_y_lvl = ViewAxisYLevel(y, viewlvl)
                             axis_y_lvl.save(self.test_iter_result)
         except Exception as e:
@@ -405,4 +408,5 @@ class HandlerArtifacts:
                 f'without saving.',
             )
         finally:
-            Saver.measurements.clear()
+            Saver.single_measurements.clear()
+            Saver.list_measurements.clear()
