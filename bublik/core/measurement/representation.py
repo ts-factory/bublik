@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from django.db.models import F, QuerySet
+import typing
 
-from bublik.core.measurement.services import get_measurement_results
+from django.db.models import QuerySet
+
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
-from bublik.data.models import ChartView
+from bublik.data.models import ChartView, Measurement, MeasurementResultList, View
 
 
 class ChartViewBuilder:
@@ -14,33 +15,45 @@ class ChartViewBuilder:
     on a single graph ChartViewBuilder provides the interface to do this.
     '''
 
-    points = None
-    axises_config = None
-    measurement_data = None
+    REPR_KEYS: typing.ClassVar[list] = [
+        'id',
+        'title',
+        'subtitle',
+        'axis_x',
+        'axis_y',
+        'dataset',
+    ]
 
-    def __init__(self, view, measurement, measurement_results):
-        view_data = view.representation()
-        measurement_data = measurement.representation()
-        self.points = self.get_measurement_values(measurement_results)
-        self.axises_config = self.prepare_axises_config(view_data, measurement_data)
-        self.measurement_data = measurement_data
+    def __init__(self, y_measurement: Measurement, view: View = None):
+        self.measurement = y_measurement
+        measurement_data = self.measurement.representation()
+        self.id = measurement_data['measurement_id']
+        self.title = view.representation()['title'] if view else None
+        self.subtitle = self.get_measurement_chart_label(measurement_data)
 
     def representation(self):
-        data = self.measurement_data
-        data.update(
-            {
-                'dots': self.points,
-                'axises_config': self.axises_config,
-            },
-        )
-        return data
+        return {key: self.__dict__[key] for key in self.__class__.REPR_KEYS}
 
-    @classmethod
-    def by_line_graph(cls, cv: ChartView):
-        view = cv.view
-        measurement = cv.measurement
-        measurement_results = get_measurement_results([cv.result.id], measurement)
-        return cls(view, measurement, measurement_results)
+    def by_lines(
+        self,
+        y_meas_res_list: MeasurementResultList,
+        x_meas_res_list: MeasurementResultList = None,
+    ):
+        '''
+        This method allows you to obtain data for plotting the dependence of the Y measurement
+        results on the X measurement results (on the ordinal number of the measurement value
+        in the sequence of results in the absence of measurement X).
+        '''
+        axis_x_measurement = x_meas_res_list.measurement if x_meas_res_list else None
+        self.axis_x = AxisRepresentationBuilder(axis_x_measurement).to_representation()
+        self.axis_y = AxisRepresentationBuilder(self.measurement).to_representation()
+
+        y_values = y_meas_res_list.representation()['value']
+        x_values = x_meas_res_list.value if x_meas_res_list else list(range(len(y_values)))
+        self.dataset = [[x, y] for x, y in zip(x_values, y_values)]
+        self.dataset.insert(0, [self.axis_x['key'], self.axis_y['key']])
+
+        return self
 
     @classmethod
     def by_points(cls, cvs: QuerySet[ChartView]):
@@ -52,62 +65,8 @@ class ChartViewBuilder:
         # 6. return cls(view, measurement, measurement_results)
         pass
 
-    def get_measurement_values(self, measurement_results):
-        return list(
-            measurement_results.annotate(
-                start=F('result__start'),
-                sequence_number=F('serial'),
-                # value=ExpressionWrapper(F('value') * Value(multiplier),
-                # output_field=CharField()),
-                run_id=F('result__test_run'),
-                iteration_id=F('result__iteration_id'),
-            )
-            .order_by('serial')
-            .values(
-                'start',
-                'sequence_number',
-                'value',
-                'run_id',
-                'result_id',
-                'iteration_id',
-            ),
-        )
-
-    def prepare_axises_config(self, view: dict, measurement: dict):
-        title_items = []
-        if view['title']:
-            title_items.append(view['title'])
-        if measurement['aggr']:
-            title_items.append(measurement['aggr'].capitalize())
-        if measurement['keys']:
-            title_items.append(', '.join(measurement['keys']))
-
-        return {
-            'title': ' - '.join(title_items),
-            'default_x': 'sequence_number',
-            'default_y': 'value',
-            'getters': ['start', 'value', 'sequence_number'],
-            'axises': {
-                'start': {
-                    'getter': 'start',
-                    'label': 'Start of measurement test',
-                    'units': 'timestamp',
-                },
-                'sequence_number': {
-                    'getter': 'sequence_number',
-                    'label': 'Sequence Number',
-                    'units': '',
-                },
-                'value': {
-                    'getter': 'value',
-                    'label': measurement['name'],
-                    'units': measurement['units'],
-                },
-            },
-        }
-
-    @classmethod
-    def get_measurement_chart_label(cls, measurement_data, sequense_group_argument=None):
+    @staticmethod
+    def get_measurement_chart_label(measurement_data, sequense_group_argument=None):
         label_items = {
             'type': measurement_data['type'],
             'units': measurement_data['units'],
@@ -136,15 +95,6 @@ class ChartViewBuilder:
         return ' '.join(
             [label_part for label_part in label_parts.values() if label_part],
         ).replace(' :', ':')
-
-    @classmethod
-    def get_measurement_axis_label(cls, measurement_data):
-        measurement_axis_label = (
-            measurement_data['name'] if measurement_data['name'] else measurement_data['type']
-        )
-        if measurement_data['units']:
-            measurement_axis_label += f' ({measurement_data["units"]})'
-        return measurement_axis_label
 
 
 class MeasurementRepresentation:

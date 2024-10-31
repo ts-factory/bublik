@@ -8,6 +8,8 @@ from bublik.data.models import (
     ChartView,
     ChartViewType,
     MeasurementResult,
+    MeasurementResultList,
+    View,
 )
 
 
@@ -32,6 +34,15 @@ def get_measurement_results(result_ids, measurement=None):
     return measurement_results
 
 
+def get_measurement_result_lists(result_id, measurement=None):
+    measurement_result_lists = MeasurementResultList.objects.filter(
+        result__id=result_id,
+    )
+    if measurement:
+        return measurement_result_lists.filter(measurement=measurement).first()
+    return measurement_result_lists
+
+
 def get_measurement_results_or_none(result_id):
     data = get_measurement_results([result_id])
     if not data:
@@ -47,10 +58,26 @@ def exist_measurement_results(test_result):
     return test_result.measurement_results.exists()
 
 
-def get_chart_views(result_ids):
-    return ChartView.objects.filter(result_id__in=result_ids).select_related(
-        'view',
-        'measurement',
+def get_views(result_id):
+    return View.objects.filter(chart_views__result_id=result_id).distinct('id')
+
+
+def get_line_graph_views(views):
+    return views.filter(metas__value='line-graph')
+
+
+def get_point_views(views):
+    return views.filter(metas__value='point')
+
+
+def get_chart_views(result_ids, view=None):
+    return (
+        ChartView.objects.filter(result_id__in=result_ids, view=view)
+        .select_related(
+            'view',
+            'measurement',
+        )
+        .distinct('id')
     )
 
 
@@ -170,12 +197,14 @@ def represent_measurements(result_ids):
     return data
 
 
-def get_lines_chart_views(chart_views):
-    # Get line-graph chart views where test result has number of measurements.
-    # Since it's going to change ChartView type options to point/line,
-    # now filtering 'type = axis_y' is added
-    return chart_views.filter(
-        view__metas__value='line-graph',
+def get_x_chart_view(line_chart_views):
+    return line_chart_views.get(
+        type=ChartViewType.conv(ChartViewType.AXIS_X),
+    )
+
+
+def get_y_chart_views(line_chart_views):
+    return line_chart_views.filter(
         type=ChartViewType.conv(ChartViewType.AXIS_Y),
     )
 
