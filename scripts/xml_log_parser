@@ -108,10 +108,15 @@ sub handle_start
         }
 
         $cur_iter->{params} = {};
+        $cur_iter->{reqs} = [];
     }
     elsif ($e eq "param")
     {
         $cur_iter->{params}->{$attrs{name}} = $attrs{value};
+    }
+    elsif ($e eq "req")
+    {
+        push(@{$cur_iter->{reqs}}, $attrs{id});
     }
     elsif ($e eq "msg")
     {
