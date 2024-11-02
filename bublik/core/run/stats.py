@@ -702,6 +702,7 @@ def generate_results_details(test_results):
         # Handle obtained result and comments
         result_type = None
         verdict = []
+        artifacts = []
         comments = []
         requirements = []
 
@@ -710,6 +711,8 @@ def generate_results_details(test_results):
                 result_type = meta_result.meta.value
             elif meta_result.meta.type == 'verdict':
                 verdict.append(meta_result.meta.value)
+            elif meta_result.meta.type == 'artifact':
+                artifacts.append(meta_result.meta.value)
             elif meta_result.meta.type == 'note':
                 comments.append(meta_result.meta.value)
             elif meta_result.meta.type == 'requirement':
@@ -735,6 +738,7 @@ def generate_results_details(test_results):
             'start': test_result.start,
             'obtained_result': obtained_result_data,
             'expected_result': expected_result_data,
+            'artifacts': artifacts,
             'parameters': parameters_list,
             'comments': comments,
             'requirements': requirements,
