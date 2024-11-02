@@ -37,7 +37,10 @@ def get_sources(result, source=None):
 
         if log and log.reference:
             log_base = log.reference.uri
-            return os.path.join(log_base, log.meta.value)
+            source_tail = log.meta.value
+            if log_base.endswith('/') or source_tail.startswith('/'):
+                return f'{log_base.rstrip("/")}/{source_tail.lstrip("/")}'
+            return log_base + source_tail
 
         return None
 
