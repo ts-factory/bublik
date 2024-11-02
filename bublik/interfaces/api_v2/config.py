@@ -177,7 +177,6 @@ class ConfigViewSet(ModelViewSet):
             return Response(data=json_schema, status=status.HTTP_200_OK)
         msg = 'There is no JSON schema corresponding to the passed configuration type and name'
         return Response(
-            {'message': msg},
             status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             data={'type': 'ValueError', 'message': msg},
         )

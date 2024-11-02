@@ -90,7 +90,6 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         if not report_config_id:
             msg = 'Report config wasn\'t passed'
             return Response(
-                {'message': msg},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 data={'type': 'ValueError', 'message': msg},
             )
