@@ -281,6 +281,14 @@ def add_objective(iteration_result, objective):
     )
 
 
+def add_requirements(iteration_result, requirements):
+    for requirement in requirements:
+        add_meta_result(
+            m_data={'type': 'requirement', 'value': requirement},
+            mr_data={'result': iteration_result},
+        )
+
+
 def add_obtained_result(iteration_result, result, verdicts=None, err=None):
     if verdicts is not None:
         for serial, verdict in enumerate(verdicts):
