@@ -17,6 +17,7 @@ from bublik.core.run.objects import (
     add_iteration_result,
     add_objective,
     add_obtained_result,
+    add_requirements,
     add_tags,
     add_test,
     clear_run_count,
@@ -69,6 +70,11 @@ def handle_iteration(
     add_objective(
         iteration_result,
         data['objective'],
+    )
+
+    add_requirements(
+        iteration_result,
+        data['reqs'],
     )
 
     plan_id = int(data['plan_id'])
