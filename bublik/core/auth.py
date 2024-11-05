@@ -3,15 +3,13 @@
 
 from functools import wraps
 
-import per_conf
-
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
 
-from bublik.data.models import User, UserRoles
+from bublik.data.models import Config, ConfigTypes, GlobalConfigNames, User, UserRoles
 from bublik.settings import SIMPLE_JWT
 
 
@@ -85,8 +83,12 @@ def check_action_permission(action):
     def wrapper(func):
         @wraps(func)
         def inner(*args, **kwargs):
-            not_permission_required_actions = getattr(
-                per_conf,
+            per_conf = Config.objects.get(
+                type=ConfigTypes.GLOBAL,
+                name=GlobalConfigNames.PER_CONF,
+                is_active=True,
+            )
+            not_permission_required_actions = per_conf.content.get(
                 'NOT_PERMISSION_REQUIRED_ACTIONS',
                 [],
             )
