@@ -2,7 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 
 from django.core.management import call_command
