@@ -98,6 +98,14 @@ class Config(models.Model):
             .values('id', 'version', 'is_active', 'description', 'created')
         )
 
+    def activate(self):
+        active = self.__class__.get_active_version(self.type, self.name)
+        if active:
+            active.is_active = False
+            active.save()
+        self.is_active = True
+        self.save()
+
     def delete(self, *args, **kwargs):
         if self.is_active:
             config_type = self.type
@@ -105,8 +113,7 @@ class Config(models.Model):
             super().delete(*args, **kwargs)
             latest = self.get_latest_version(config_type, config_name)
             if latest:
-                latest.is_active = True
-                latest.save()
+                latest.activate()
         else:
             super().delete(*args, **kwargs)
 

@@ -234,20 +234,13 @@ class ConfigViewSet(ModelViewSet):
         Request: GET api/v2/config/<ID>/change_status.
         '''
         config = self.get_object()
+
         if config.is_active is True:
             config.is_active = False
             config.save()
             return Response(self.get_serializer(config).data, status=status.HTTP_200_OK)
 
-        config_data = self.get_serializer(config).data
-        active = Config.get_active_version(config_data['type'], config_data['name'])
-        if active:
-            active.is_active = False
-            active.save()
-
-        config.is_active = True
-        config.save()
-
+        config.activate()
         return Response(self.get_serializer(config).data, status=status.HTTP_200_OK)
 
     @auth_required(as_admin=True)
