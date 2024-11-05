@@ -703,6 +703,7 @@ def generate_results_details(test_results):
         result_type = None
         verdict = []
         comments = []
+        requirements = []
 
         for meta_result in test_result.meta_results.all():
             if meta_result.meta.type == 'result':
@@ -711,6 +712,8 @@ def generate_results_details(test_results):
                 verdict.append(meta_result.meta.value)
             elif meta_result.meta.type == 'note':
                 comments.append(meta_result.meta.value)
+            elif meta_result.meta.type == 'requirement':
+                requirements.append(meta_result.meta.value)
 
         obtained_result_data = {
             'result_type': result_type,
@@ -734,6 +737,7 @@ def generate_results_details(test_results):
             'expected_result': expected_result_data,
             'parameters': parameters_list,
             'comments': comments,
+            'requirements': requirements,
             'has_error': is_result_unexpected(test_result),
             'has_measurements': exist_measurement_results(test_result),
         }
