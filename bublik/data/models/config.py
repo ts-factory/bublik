@@ -87,6 +87,17 @@ class Config(models.Model):
             is_active=True,
         ).first()
 
+    @classmethod
+    def get_all_versions(cls, config_type, config_name):
+        return (
+            Config.objects.filter(
+                type=config_type,
+                name=config_name,
+            )
+            .order_by('-is_active', '-created')
+            .values('id', 'version', 'is_active', 'description', 'created')
+        )
+
     def delete(self, *args, **kwargs):
         if self.is_active:
             config_type = self.type
