@@ -131,13 +131,40 @@ class ConfigViewSet(ModelViewSet):
         config_data = self.get_serializer(config).data
         updated_data = {
             'type': config_data['type'],
-            'name': config_data['name'],
             'is_active': config_data['is_active'],
         }
-        for attr in ['description', 'content']:
+        for attr in ['name', 'description', 'content']:
             updated_data[attr] = (
                 request.data[attr] if attr in request.data else config_data[attr]
             )
+
+        if 'name' in request.data:
+            # check the passed name for uniqueness
+            same_name_configs = Config.objects.filter(
+                type=updated_data['type'],
+                name=updated_data['name'],
+            )
+            if same_name_configs:
+                msg = f'A {updated_data["type"]} configuration with the same name already exist'
+                data = {
+                    attr: updated_data[attr]
+                    for attr in ['type', 'name', 'description', 'content']
+                }
+                return Response(
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    data={
+                        'type': 'ValueError',
+                        'message': msg,
+                        'new_config_data': data,
+                    },
+                )
+            if 'content' not in request.data:
+                # rename all config versions
+                serializer = self.get_serializer(config, data=updated_data, partial=True)
+                serializer.validate_name(updated_data['name'])
+                Config.get_all_versions(config_data['type'], config_data['name']).update(
+                    name=updated_data['name'],
+                )
 
         if 'content' in request.data:
             # create new object version
