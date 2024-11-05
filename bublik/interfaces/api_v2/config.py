@@ -190,15 +190,7 @@ class ConfigViewSet(ModelViewSet):
         '''
         config = self.get_object()
         config_data = self.get_serializer(config).data
-
-        all_config_versions = (
-            Config.objects.filter(
-                type=config_data['type'],
-                name=config_data['name'],
-            )
-            .order_by('-is_active', '-created')
-            .values('id', 'version', 'is_active', 'description', 'created')
-        )
+        all_config_versions = Config.get_all_versions(config_data['type'], config_data['name'])
 
         data = {
             'type': config_data['type'],
