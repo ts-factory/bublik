@@ -131,9 +131,8 @@ class ConfigViewSet(ModelViewSet):
         config_data = self.get_serializer(config).data
         updated_data = {
             'type': config_data['type'],
-            'is_active': config_data['is_active'],
         }
-        for attr in ['name', 'description', 'content']:
+        for attr in ['name', 'description', 'is_active', 'content']:
             updated_data[attr] = (
                 request.data[attr] if attr in request.data else config_data[attr]
             )
@@ -174,14 +173,15 @@ class ConfigViewSet(ModelViewSet):
                 return Response(new_config_data, status=status.HTTP_400_BAD_REQUEST)
             return Response(new_config_data, status=status.HTTP_201_CREATED)
 
-        if 'description' in request.data:
-            # update object with passed description
-            serializer = self.get_serializer(config, data=updated_data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(config, data=updated_data, partial=True)
+        serializer.is_valid(raise_exception=True)
 
-        return Response(config_data, status=status.HTTP_200_OK)
+        if 'is_active' in request.data and updated_data['is_active']:
+            config.activate()
+
+        self.perform_update(serializer)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @auth_required(as_admin=True)
     def destroy(self, request, *args, **kwargs):
@@ -225,23 +225,6 @@ class ConfigViewSet(ModelViewSet):
             'all_config_versions': all_config_versions,
         }
         return Response(data, status=status.HTTP_200_OK)
-
-    @auth_required(as_admin=True)
-    @action(detail=True, methods=['patch'])
-    def change_status(self, request, *args, **kwargs):
-        '''
-        Allows you to change config status.
-        Request: GET api/v2/config/<ID>/change_status.
-        '''
-        config = self.get_object()
-
-        if config.is_active is True:
-            config.is_active = False
-            config.save()
-            return Response(self.get_serializer(config).data, status=status.HTTP_200_OK)
-
-        config.activate()
-        return Response(self.get_serializer(config).data, status=status.HTTP_200_OK)
 
     @auth_required(as_admin=True)
     def list(self, request):
