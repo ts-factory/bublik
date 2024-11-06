@@ -70,6 +70,7 @@ if not DEBUG:
     INSTALLED_APPS.append('cachalot')
 
 MIDDLEWARE = [
+    'bublik.middleware.DynamicSettingsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.cache.UpdateCacheMiddleware',
@@ -202,6 +203,11 @@ CACHES = {
                 'compresslevel': 9,
             },
         }
+    },
+    'config': {
+        'BACKEND': 'redis_cache.RedisCache',
+        'LOCATION': '127.0.0.1:6379',
+        'TIMEOUT': 86400,
     }
 }
 
@@ -311,16 +317,6 @@ get_module('per_conf', '${PER_CONF_DIR}/per_conf.py')
 get_module('references', '${PER_CONF_DIR}/references.py')
 
 import per_conf
-
-URL_PREFIX_BY_UI_VERSION = {
-    2: 'v2',
-}
-
-UI_VERSION = getattr(per_conf, 'UI_VERSION', 2)
-
-UI_PREFIX = URL_PREFIX_BY_UI_VERSION.get(UI_VERSION, '')
-
-CSRF_TRUSTED_ORIGINS = getattr(per_conf, 'CSRF_TRUSTED_ORIGINS', [])
 
 ITEMS_PER_PAGE = 25
 
