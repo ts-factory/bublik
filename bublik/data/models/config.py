@@ -107,15 +107,14 @@ class Config(models.Model):
         self.save()
 
     def delete(self, *args, **kwargs):
-        if self.is_active:
-            config_type = self.type
-            config_name = self.name
-            super().delete(*args, **kwargs)
+        config_type = self.type
+        config_name = self.name
+        config_active = self.is_active
+        super().delete(*args, **kwargs)
+        if config_active:
             latest = self.get_latest_version(config_type, config_name)
             if latest:
                 latest.activate()
-        else:
-            super().delete(*args, **kwargs)
 
     def __repr__(self):
         return (
