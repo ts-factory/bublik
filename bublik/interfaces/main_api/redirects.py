@@ -51,7 +51,7 @@ def redirect_result_log(request, result_id):
 
 
 def redirect_next(request):
-    new_path = request.path.replace('next', settings.URL_PREFIX_BY_UI_VERSION[2])
+    new_path = request.path.replace('next', settings.UI_PREFIX)
     return redirect(new_path)
 
 
