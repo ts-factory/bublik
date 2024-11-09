@@ -53,7 +53,9 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         run = self.get_object()
         iters = TestIterationResult.objects.filter(test_run=run)
         test_names = list(
-            iters.distinct('iteration__test__name').values_list(
+            iters.filter(iteration__test__result_type=ResultType.conv(ResultType.TEST))
+            .distinct('iteration__test__name')
+            .values_list(
                 'iteration__test__name',
                 flat=True,
             ),
