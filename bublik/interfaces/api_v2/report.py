@@ -11,24 +11,20 @@ from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.meta.match_references import build_revision_references
 from bublik.core.report.components import ReportPoint, ReportTestLevel
 from bublik.core.report.services import (
     args_type_convesion,
-    build_report_title,
     filter_by_axis_y,
     filter_by_not_show_args,
     get_common_args,
     get_unprocessed_iter_info,
 )
-from bublik.core.run.external_links import get_sources
-from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import (
     Config,
     MeasurementResult,
-    Meta,
     TestIterationResult,
 )
+from bublik.data.models.result import ResultType
 from bublik.data.serializers import ConfigSerializer, TestIterationResultSerializer
 
 
@@ -98,6 +94,10 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         # get config data
         report_config_obj = Config.objects.get(id=report_config_id)
+        config_data = model_to_dict(
+            report_config_obj,
+            fields=['name', 'description', 'version'],
+        )
         report_config = report_config_obj.content
 
         # check if the config content has the correct format
@@ -107,32 +107,6 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         # get the session and the corresponding main package by ID
         result = self.get_object()
         main_pkg = result.root
-
-        ### Get common report data ###
-
-        # form the title according to report config
-        title_content = report_config['title_content']
-        title = build_report_title(main_pkg, title_content)
-
-        # get run source link
-        run_source_link = get_sources(main_pkg)
-
-        # get Bublik run stats link
-        run_stats_link = build_absolute_uri(request, f'v2/runs/{main_pkg.id}')
-
-        # get branches
-        meta_branches = Meta.objects.filter(
-            metaresult__result__id=main_pkg.id,
-            type='branch',
-        ).values('name', 'value')
-        branches = meta_branches
-
-        # get revisions
-        meta_revisions = Meta.objects.filter(
-            metaresult__result__id=main_pkg.id,
-            type='revision',
-        ).values('name', 'value')
-        revisions = build_revision_references(meta_revisions)
 
         ### Get record points and build axis names ###
 
@@ -220,30 +194,10 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             test = ReportTestLevel(test_name, common_args, list(test_points), report_config)
             test_records.append(test.__dict__)
 
-        ### Collect report data ###
-        content = [
-            {
-                'type': 'branch-block',
-                'id': 'branches',
-                'label': 'Branches',
-                'content': branches,
-            },
-            {
-                'type': 'rev-block',
-                'id': 'revisions',
-                'label': 'Revisions',
-                'content': revisions,
-            },
-        ]
-        content += test_records
-
         report = {
-            'title': title,
             'warnings': warnings,
-            'run_source_link': run_source_link,
-            'run_stats_link': run_stats_link,
-            'version': report_config_obj.version,
-            'content': content,
+            'config': config_data,
+            'content': test_records,
             'unprocessed_iters': unprocessed_iters,
         }
 
