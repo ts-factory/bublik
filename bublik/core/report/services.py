@@ -5,25 +5,7 @@ import contextlib
 from itertools import groupby
 
 from bublik.core.measurement.representation import ChartViewBuilder
-from bublik.data.models import MeasurementResult, Meta, TestArgument
-
-
-def build_report_title(main_pkg, title_content):
-    '''
-    Form the title of the report according to configuration.
-    '''
-    meta_labels = Meta.objects.filter(
-        metaresult__result__id=main_pkg.id,
-        type='label',
-        name__in=title_content,
-    ).values_list('name', 'value')
-    meta_labels = dict(meta_labels)
-
-    title = []
-    for title_obj in title_content:
-        if title_obj in meta_labels:
-            title.append(meta_labels[title_obj])
-    return '-'.join(title)
+from bublik.data.models import MeasurementResult, TestArgument
 
 
 def get_labels(mmr, sequence_group_arg):
