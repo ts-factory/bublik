@@ -182,7 +182,7 @@ class ChartViewBuilder:
             if label_items['sequense_group_arg']
             else None,
             'tool': f': based on {label_items["tool"]}' if label_items['tool'] else None,
-            'keys': f' ({(", ".join(label_items["keys"]))})' if label_items['keys'] else None,
+            'keys': f'({(", ".join(label_items["keys"]))})' if label_items['keys'] else None,
         }
 
         return ' '.join(
