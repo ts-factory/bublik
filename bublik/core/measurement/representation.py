@@ -212,51 +212,44 @@ class MeasurementRepresentation:
 
 
 class AxisRepresentationBuilder:
-    def __init__(self, measurement, mrs):
+    def __init__(self, measurement=None, label=None, key=None):
         self.measurement = measurement
-        self.values = self._get_mr_values_by_measurement(mrs)
+        self.label = self.get_label(label)
+        self.key = self.get_key(key)
+        self.values = []
 
-        self.label = None
-        self.units = None
-        self.representation_data = []
-
-    def set_label(self, label=None):
+    def get_label(self, label):
+        if label is not None:
+            return label
         if self.measurement is None:
-            self.label = 'Sequence number'
+            return 'Sequence number'
+        measurement_data = self.measurement.representation()
+        label = (
+            measurement_data['name'] if measurement_data['name'] else measurement_data['type']
+        )
+        if measurement_data['units']:
+            label += f' ({measurement_data["units"]})'
+        return label
 
-        elif label is None:
-            measure_name = (
-                self.measurement.metas.filter(name='name', type='measurement_subject')
-                .values_list('value', flat=True)
-                .first()
-            )
-            measure_type = (
-                self.measurement.metas.filter(name='type', type='measurement_subject')
-                .values_list('value', flat=True)
-                .first()
-            )
+    def get_key(self, key):
+        if key is not None:
+            return key
+        return self.label
 
-            if measure_name is None:
-                self.label = measure_type
-            else:
-                self.label = measure_name + ' ' + measure_type
+    def add_values(self, values):
+        self.values = values
 
-        else:
-            self.label = label
+    def to_representation(self):
+        axis_data = {'label': self.label, 'key': self.key}
+        if self.values:
+            axis_data.update({'values': self.values})
+        return axis_data
 
     def set_units(self):
         if self.measurement is not None:
             self.units = self.measurement.representation()['units']
         else:
             self.units = None
-
-    def to_representation(self):
-        d = {'values': self.values, 'label': self.label, 'units': self.units}
-
-        for i in self.representation_data:
-            d = dict(list(d.items()) + list(i.items()))
-
-        return d
 
     def add_dict_to_representation(self, d):
         if not isinstance(d, dict):

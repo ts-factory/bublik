@@ -4,7 +4,7 @@
 import contextlib
 from itertools import groupby
 
-from bublik.core.measurement.representation import ChartViewBuilder
+from bublik.core.measurement.representation import AxisRepresentationBuilder, ChartViewBuilder
 from bublik.data.models import MeasurementResult, TestArgument
 
 
@@ -15,12 +15,12 @@ def get_labels(mmr, sequence_group_arg):
     - measurement label = "<measurement type> (<measurement units>, <measurement aggr>)
       by <sequence group arg>: based on <measurement tool>".
     '''
-    measurement_data = mmr.measurement.representation()
+    measurement = mmr.measurement
     measurement_label = ChartViewBuilder.get_measurement_chart_label(
-        measurement_data,
+        measurement.representation(),
         sequence_group_arg,
     )
-    axis_y_label = ChartViewBuilder.get_measurement_axis_label(measurement_data)
+    axis_y_label = AxisRepresentationBuilder(measurement).to_representation()['label']
 
     return measurement_label, axis_y_label
 
