@@ -38,7 +38,7 @@ class ReportPoint:
 
         # get sequences level data
         self.test_config = report_config['tests'][self.test_name]
-        self.sequence_group_arg = self.test_config.get('sequences', {}).get('arg', None)
+        sequence_group_arg = self.test_config.get('sequences', {}).get('arg', None)
         self.sequence_group_arg_val = None
 
         # get measurements level data
@@ -55,10 +55,19 @@ class ReportPoint:
             if arg.name == self.axis_x_arg:
                 axis_x_value = type_conversion(arg.value)
                 value = mmr.value
-            elif arg.name == self.sequence_group_arg:
+            elif arg.name == sequence_group_arg:
                 self.sequence_group_arg_val = type_conversion(arg.value)
             elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = type_conversion(arg.value)
+
+        # check iteration
+        warnings = []
+        if axis_x_value is None:
+            warnings.append(f'The test has no argument {self.axis_x_arg}')
+        if sequence_group_arg is not None and self.sequence_group_arg_val is None:
+            warnings.append(f'The test has no argument {sequence_group_arg}')
+        if warnings:
+            raise ValueError(warnings)
 
         # handle argument values (sort and build label)
         self.sort_arg_vals()
