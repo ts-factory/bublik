@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-from itertools import groupby
-
 from django.forms.models import model_to_dict
 from rest_framework import status
 from rest_framework.decorators import action
@@ -172,19 +170,14 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         ### Group points into records ###
         content = []
-        points = sorted(points, key=ReportPoint.points_grouper_tests)
-        point_groups_by_test_name = dict(
-            [test_name, list(points_group)]
-            for test_name, points_group in groupby(points, ReportPoint.points_grouper_tests)
-        )
-
+        points_by_test_names = ReportPoint.grouper(points, 'test_name')
         if report_config['test_names_order']:
-            point_groups_by_test_name = ReportPoint.by_test_name_sort(
-                point_groups_by_test_name,
+            points_by_test_names = ReportPoint.by_test_name_sort(
+                points_by_test_names,
                 report_config['test_names_order'],
             )
 
-        for test_name, test_points in point_groups_by_test_name.items():
+        for test_name, test_points in points_by_test_names.items():
             test = ReportTestLevel(test_name, common_args, list(test_points), report_config)
             content.append(test.__dict__)
 
