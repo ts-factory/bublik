@@ -15,7 +15,7 @@ from bublik.core.report.services import (
     filter_by_axis_y,
     filter_by_not_show_args,
     get_common_args,
-    get_unprocessed_iter_info,
+    type_conversion,
 )
 from bublik.data.models import (
     Config,
@@ -152,11 +152,23 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         points = []
         unprocessed_iters = []
         for mmr in mmrs_report:
-            point = ReportPoint(mmr, common_args, report_config)
-            if not next(iter(point.point.keys())) or not point.sequence_group_arg_val:
-                unprocessed_iters.append(get_unprocessed_iter_info(point, common_args))
-                continue
-            points.append(point)
+            try:
+                points.append(ReportPoint(mmr, common_args, report_config))
+            except ValueError as ve:
+                test_name = mmr.result.iteration.test.name
+                common_test_args = common_args[test_name]
+                invalid_iteration = {
+                    'test_name': test_name,
+                    'common_args': common_test_args,
+                    'args_vals': {
+                        arg.name: type_conversion(arg.value)
+                        for arg in mmr.result.iteration.test_arguments.all()
+                        if arg.name not in common_test_args
+                    },
+                    'reasons': ve.args[0],
+                }
+                if invalid_iteration not in unprocessed_iters:
+                    unprocessed_iters.append(invalid_iteration)
 
         ### Group points into records ###
         content = []

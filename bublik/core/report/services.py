@@ -95,34 +95,3 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
         not_show_mmrs = not_show_mmrs.union(arg_vals_mmrs)
 
     return mmrs_test.difference(not_show_mmrs)
-
-
-def get_unprocessed_iter_info(point, common_args):
-    '''
-    Get information about an unprocessed iteration with the reasons why it cannot be processed.
-    '''
-    point = point.__dict__
-    invalid_iteration = {
-        'test_name': point['test_name'],
-        'common_args': common_args[point['test_name']],
-        'args_vals': point['args_vals'],
-        'reasons': [],
-    }
-    if point['sequence_group_arg']:
-        if not point['sequence_group_arg_val']:
-            invalid_iteration['reasons'].append(
-                f'The test has no argument {point["sequence_group_arg"]}',
-            )
-        else:
-            invalid_iteration['args_vals'][point['sequence_group_arg']] = point[
-                'sequence_group_arg_val'
-            ]
-    axis_x_arg = point['axis_x_arg']
-    axis_x_value = next(iter(point['point'].keys()))
-    if not axis_x_value:
-        invalid_iteration['reasons'].append(
-            f'The test has no argument {axis_x_arg}',
-        )
-    else:
-        invalid_iteration['args_vals'][axis_x_arg] = axis_x_value
-    return invalid_iteration
