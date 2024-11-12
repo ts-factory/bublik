@@ -2,7 +2,6 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from itertools import groupby
-import logging
 
 from django.forms.models import model_to_dict
 from rest_framework import status
@@ -26,9 +25,6 @@ from bublik.data.models import (
 )
 from bublik.data.models.result import ResultType
 from bublik.data.serializers import ConfigSerializer, TestIterationResultSerializer
-
-
-logger = logging.getLogger('')
 
 
 __all__ = [
@@ -108,7 +104,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         result = self.get_object()
         main_pkg = result.root
 
-        ### Get record points and build axis names ###
+        ### Get report points and unprocessed iterations ###
 
         mmrs_run = MeasurementResult.objects.filter(
             result__test_run=main_pkg,
@@ -153,7 +149,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         mmrs_report = mmrs_report.order_by('id')
 
-        # get points with data
+        # get points with data and unprocessed iterations
         points = []
         unprocessed_iters = []
         for mmr in mmrs_report:
