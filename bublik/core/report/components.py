@@ -7,7 +7,6 @@ import copy
 from itertools import groupby
 
 from bublik.core.report.services import (
-    args_sort,
     get_labels,
     sequence_name_conversion,
     type_conversion,
@@ -39,11 +38,11 @@ class ReportPoint:
         according to report config.
         '''
         self.test_name = mmr.result.iteration.test.name
-        test_config = report_config['tests'][self.test_name]
+        self.test_config = report_config['tests'][self.test_name]
 
         self.args_vals = {}
-        self.axis_x = test_config['axis_x']['arg']
-        sequences = test_config.get('sequences', {})
+        self.axis_x = self.test_config['axis_x']['arg']
+        sequences = self.test_config.get('sequences', {})
         self.sequence_group_arg = sequences.get('arg', None)
         sequence_group_arg_label = sequences.get('arg_label', None)
         self.sequence_group_arg_val = None
@@ -58,19 +57,39 @@ class ReportPoint:
                 # it is grouped in the future
                 self.sequence_group_arg_val = (
                     arg.id,
-                    sequence_name_conversion(arg.value, test_config),
+                    sequence_name_conversion(arg.value, self.test_config),
                 )
             elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = arg.value
 
+        # handle argument values (sort and build label)
+        self.sort_arg_vals()
+        self.arg_val_label = ' | '.join(
+            [f'{arg}: {val}' for arg, val in self.args_vals.items()],
+        )
+
         # get the measurement block label and the y-axis label
         self.measurement_label, self.axis_y_label = get_labels(mmr, sequence_group_arg_label)
+
+    def sort_arg_vals(self):
+        '''
+        Sort object argument values according to the configuration.
+        '''
+        records_order = self.test_config['records_order']
+        if self.test_config['records_order']:
+            args_vals_sorted = {
+                arg: self.args_vals[arg] for arg in records_order if arg in self.args_vals
+            }
+            args_vals_sorted.update(self.args_vals)
+            self.args_vals = args_vals_sorted
+        else:
+            self.args_vals = dict(sorted(self.args_vals.items()))
 
     def points_grouper_tests(self):
         return self.test_name
 
     def points_grouper_args_vals(self):
-        return list(self.args_vals.values())
+        return self.arg_val_label
 
     def points_grouper_measurements(self):
         return self.measurement_label
@@ -295,7 +314,7 @@ class ReportArgsValsLevel:
     def __init__(self, test_name, test_lvl_id, arg_val_record_points, report_config):
         self.type = 'arg-val-block'
         self.args_vals = arg_val_record_points[0].args_vals
-        self.label = self.build_label()
+        self.label = next(iter(arg_val_record_points)).arg_val_label
         self.id = '_'.join([test_lvl_id, self.label.replace(' ', '')])
         self.content = []
 
@@ -317,15 +336,6 @@ class ReportArgsValsLevel:
             )
             self.content.append(measurement_record.__dict__)
 
-    def build_label(self):
-        '''
-        Build arg-val block label.
-        '''
-        label_list = []
-        for arg, val in self.args_vals.items():
-            label_list.append(f'{arg}: {val}')
-        return ' | '.join(label_list)
-
 
 class ReportTestLevel:
     '''
@@ -334,7 +344,6 @@ class ReportTestLevel:
 
     def __init__(self, test_name, common_args, test_points, report_config):
         test_config = report_config['tests'][test_name]
-        records_order = test_config['records_order']
 
         self.type = 'test-block'
         self.id = test_name
@@ -344,11 +353,6 @@ class ReportTestLevel:
         self.common_args = common_args[test_name]
         self.content = []
 
-        for test_point in test_points:
-            test_point.args_vals = args_sort(
-                records_order,
-                test_point.args_vals,
-            )
         test_points = sorted(test_points, key=ReportPoint.points_grouper_args_vals)
 
         for _, arg_val_record_points in groupby(
