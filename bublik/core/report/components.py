@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-from itertools import groupby
-
 from bublik.core.measurement.representation import ReportRecordBuilder
 from bublik.core.report.services import type_conversion
 
@@ -21,8 +19,8 @@ The report has four levels of nesting:
 
 class ReportPoint:
     '''
-    This class describes the points of records and the functions
-    used to group them by tests, agruments, measurements, records and sequences.
+    This class describes the points of records and the function that allows you to group
+    them by the value of the passed attribute.
     '''
 
     def __init__(self, mmr, common_args, report_config):
@@ -113,14 +111,19 @@ class ReportPoint:
         by_test_name_points_sorted.update(by_test_name_points)
         return by_test_name_points_sorted
 
-    def points_grouper_tests(self):
-        return self.test_name
-
-    def points_grouper_args_vals(self):
-        return self.arg_val_label
-
-    def points_grouper_measurements(self):
-        return self.measurement_id
+    @staticmethod
+    def grouper(points, attr_name):
+        '''
+        Return the points grouped by the value of the attribute passed.
+        '''
+        point_groups = {}
+        for point in points:
+            attr_value = getattr(point, attr_name)
+            if attr_value not in point_groups:
+                point_groups[attr_value] = [point]
+            else:
+                point_groups[attr_value].append(point)
+        return point_groups
 
 
 class ReportMeasurementLevel:
@@ -151,23 +154,20 @@ class ReportArgsValsLevel:
     and their values.
     '''
 
-    def __init__(self, test_name, test_lvl_id, arg_val_record_points, report_config):
+    def __init__(self, test_name, test_lvl_id, arg_val_label, arg_val_points, report_config):
         self.type = 'arg-val-block'
-        self.args_vals = arg_val_record_points[0].args_vals
-        self.label = next(iter(arg_val_record_points)).arg_val_label
+        self.args_vals = arg_val_points[0].args_vals
+        self.label = arg_val_label
         self.id = '_'.join([test_lvl_id, self.label.replace(' ', '')])
         self.content = []
 
         # create measurement records
         records = []
-        for _measurement_id, measurement_points in groupby(
-            arg_val_record_points,
-            ReportPoint.points_grouper_measurements,
-        ):
-            points = measurement_points
+        points_by_measurements = ReportPoint.grouper(arg_val_points, 'measurement')
+        for measurement, points in points_by_measurements.items():
             records.append(
                 ReportRecordBuilder(
-                    next(iter(points)).measurement,
+                    measurement,
                     report_config['tests'][test_name],
                     points,
                 ),
@@ -195,15 +195,14 @@ class ReportTestLevel:
         self.common_args = common_args[test_name]
         self.content = []
 
-        test_points = sorted(test_points, key=ReportPoint.points_grouper_args_vals)
-        for _, arg_val_record_points in groupby(
-            test_points,
-            ReportPoint.points_grouper_args_vals,
-        ):
+        points_by_argvals = ReportPoint.grouper(test_points, 'arg_val_label')
+
+        for arg_val_label, points in points_by_argvals.items():
             arg_val_record = ReportArgsValsLevel(
                 test_name,
                 self.id,
-                list(arg_val_record_points),
+                arg_val_label,
+                points,
                 report_config,
             )
             self.content.append(arg_val_record.__dict__)
