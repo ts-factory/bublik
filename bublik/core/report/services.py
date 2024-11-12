@@ -4,25 +4,7 @@
 import contextlib
 from itertools import groupby
 
-from bublik.core.measurement.representation import AxisRepresentationBuilder, ChartViewBuilder
 from bublik.data.models import MeasurementResult, TestArgument
-
-
-def get_labels(mmr, sequence_group_arg):
-    '''
-    Return the measurement block label and the y-axis label:
-    - y-axis label = <measurement name>/<measurement type> (<measurement units>)
-    - measurement label = "<measurement type> (<measurement units>, <measurement aggr>)
-      by <sequence group arg>: based on <measurement tool>".
-    '''
-    measurement = mmr.measurement
-    measurement_label = ChartViewBuilder.get_measurement_chart_label(
-        measurement.representation(),
-        sequence_group_arg,
-    )
-    axis_y_label = AxisRepresentationBuilder(measurement).to_representation()['label']
-
-    return measurement_label, axis_y_label
 
 
 def type_conversion(arg_value):
@@ -30,39 +12,6 @@ def type_conversion(arg_value):
         if arg_value.isdigit():
             return int(arg_value)
     return arg_value
-
-
-def sequence_name_conversion(seq_arg_val, test_config):
-    '''
-    Convert the passed sequence name according to the passed test configuration.
-    '''
-    seq_arg_val = str(seq_arg_val)
-    if 'sequence' in test_config and 'arg_vals_labels' in test_config['sequence']:
-        arg_vals_labels = test_config['arg_vals_labels']
-        with contextlib.suppress(KeyError):
-            return str(arg_vals_labels[seq_arg_val])
-    return seq_arg_val
-
-
-def args_type_convesion(point_groups_by_test_name):
-    '''
-    The argument values are used to sort the records. Thus, for proper sorting, it is necessary
-    to determine numeric arguments and convert their values from str to int.
-    '''
-    args_to_convert = {}
-    for test_name, test_points in point_groups_by_test_name.items():
-        args_to_convert[test_name] = set(test_points[0].args_vals.keys())
-        for test_point in test_points:
-            for arg, val in test_point.args_vals.items():
-                if not isinstance(type_conversion(val), int):
-                    args_to_convert[test_name].discard(arg)
-
-    for test_name, test_points in point_groups_by_test_name.items():
-        for test_point in test_points:
-            for arg in args_to_convert[test_name]:
-                test_point.args_vals[arg] = type_conversion(test_point.args_vals[arg])
-
-    return point_groups_by_test_name
 
 
 def get_common_args(main_pkg, test_name):
@@ -167,11 +116,13 @@ def get_unprocessed_iter_info(point, common_args):
         else:
             invalid_iteration['args_vals'][point['sequence_group_arg']] = point[
                 'sequence_group_arg_val'
-            ][1]
-    if not point['point']:
+            ]
+    axis_x_arg = point['axis_x_arg']
+    axis_x_value = next(iter(point['point'].keys()))
+    if not axis_x_value:
         invalid_iteration['reasons'].append(
-            f'The test has no argument {point["axis_x"]}',
+            f'The test has no argument {axis_x_arg}',
         )
     else:
-        invalid_iteration['args_vals'][point['axis_x']] = next(iter(point['point'].keys()))
+        invalid_iteration['args_vals'][axis_x_arg] = axis_x_value
     return invalid_iteration
