@@ -4,6 +4,7 @@
 from itertools import groupby
 import typing
 
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -37,7 +38,10 @@ class MeasurementViewSet(GenericViewSet):
     def by_result_ids(self, request):
         result_ids = request.data.get('result_ids', None)
         if not result_ids:
-            return Response({'error': 'No results ids specified'})
+            return Response(
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                data={'type': 'ValueError', 'message': 'No result IDs specified'},
+            )
 
         chart_views = get_chart_views(result_ids)
 
