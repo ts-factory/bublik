@@ -203,6 +203,54 @@ class Command(BaseCommand):
                     ),
                 )
 
+    def update_csrf_trusted_origins(self, configs):
+        '''
+        Reformat passed global per_conf configs content:
+        CSRF_TRUSTED_ORIGINS: ["http://origin1", "origin2", "https://origin3"] ->
+        CSRF_TRUSTED_ORIGINS: ["http://origin1", "https://origin2", "https://origin3"]
+        '''
+        per_conf_configs = configs.filter(
+            type=ConfigTypes.GLOBAL,
+            name=GlobalConfigNames.PER_CONF,
+        )
+        for per_conf_config in per_conf_configs:
+            try:
+                config_data = per_conf_config.content
+                csrf_trusted_origins = config_data.get('CSRF_TRUSTED_ORIGINS', [])
+                updated_csrf_trusted_origins = [
+                    (
+                        origin
+                        if origin.startswith(('http://', 'https://'))
+                        else f'https://{origin}'
+                    )
+                    for origin in csrf_trusted_origins
+                ]
+                if csrf_trusted_origins != updated_csrf_trusted_origins:
+                    config_data['CSRF_TRUSTED_ORIGINS'] = updated_csrf_trusted_origins
+                    update_config_content(per_conf_config, config_data)
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'{per_conf_config.name} v{per_conf_config.version}: '
+                            'HTTPS has been added to CSRF trusted origins without a scheme. '
+                            'Update manually if HTTP is needed.',
+                        ),
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f'{per_conf_config.name} v{per_conf_config.version}: '
+                            'CSRF trusted origins already updated!',
+                        ),
+                    )
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f'{per_conf_config.name} v{per_conf_config.version}: '
+                        'failed to update CSRF trusted origins: '
+                        f'{type(e).__name__}: {e}',
+                    ),
+                )
+
     def add_arguments(self, parser):
         parser.add_argument(
             '-t',
@@ -232,3 +280,4 @@ class Command(BaseCommand):
         self.update_axis_x_structure(configs)
         self.update_seq_settings_structure(configs)
         self.update_dashboard_header_structure(configs)
+        self.update_csrf_trusted_origins(configs)
