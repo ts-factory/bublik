@@ -425,7 +425,7 @@ class ReportTableBuilder:
         Add sequences with percentages.
         '''
         table_sequences = copy.deepcopy(sequences)
-        if base_series_label is not None:
+        if base_series_label != 'None':
             if base_series_label in sequences:
                 table_sequences = self.sort_sequences(table_sequences, base_series_label)
                 table_sequences.update(self.get_percentages(sequences, base_series_label))
