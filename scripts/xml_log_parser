@@ -221,9 +221,14 @@ sub get_unix_date
         my $time_in_sec = $1 * 60 * 60 + $2 * 60 + $3;
         my $day_in_sec = 24 * 60 * 60;
 
+        # update the UNIX date according to the time
+        my $day_start = $base_tv - ($base_tv % $day_in_sec);
+        $unix_date = $day_start + $time_in_sec;
+
+        # add 1 day to the UNIX date if the time is less than the base time
         if ($base_tv % $day_in_sec > $time_in_sec)
         {
-            $unix_date = $base_tv + $day_in_sec;
+            $unix_date += $day_in_sec;
         }
     }
 
