@@ -4,7 +4,7 @@
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 
 from bublik.data.models import (
     ChartView,
@@ -66,19 +66,21 @@ class Command(BaseCommand):
         '''
         self.stdout.write('Delete incorrect ChartView objects:')
 
-        all_incorrect = 0
-        remaining_mmr = MeasurementResult.objects.values('result', 'measurement').distinct()
-        for data in remaining_mmr:
-            incorrect, _ = (
-                ChartView.objects.exclude(type='P')
-                .filter(result_id=data['result'], measurement_id=data['measurement'])
-                .delete()
+        deleted_cv_count, _ = (
+            ChartView.objects.exclude(type='P')
+            .filter(
+                Exists(
+                    MeasurementResult.objects.filter(
+                        measurement=OuterRef('measurement'),
+                        result=OuterRef('result'),
+                    ),
+                ),
             )
-            all_incorrect += incorrect
-
+            .delete()
+        )
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tDELETED: {all_incorrect} ChartView objects',
+                f'\tDELETED: {deleted_cv_count=} ChartView objects',
             ),
         )
 
