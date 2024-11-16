@@ -90,22 +90,27 @@ class Command(BaseCommand):
         '''
         self.stdout.write('Delete duplicate ChartView objects:')
 
-        duplicate = 0
-        with transaction.atomic():
-            unique_views_data = set()
-            for cv in ChartView.objects.all():
-                view_data = (cv.type, cv.measurement, cv.result, cv.view)
-                if view_data in unique_views_data:
-                    cv.delete()
-                    duplicate += 1
-                else:
-                    unique_views_data.add(view_data)
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f'\tDELETED: {duplicate} ChartView objects',
-            ),
+        cv_dups = (
+            ChartView.objects.values('type', 'measurement', 'result', 'view')
+            .annotate(count=Count('id'))
+            .filter(count__gt=1)
         )
+        with transaction.atomic():
+            all_deleted_cv_count = 0
+            for cv_dup in cv_dups:
+                cv = ChartView.objects.filter(
+                    type=cv_dup['type'],
+                    measurement=cv_dup['measurement'],
+                    result=cv_dup['result'],
+                    view=cv_dup['view'],
+                )
+                deleted_cv_count, _ = cv.exclude(id=cv.first().id).delete()
+                all_deleted_cv_count += deleted_cv_count
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'\tDELETED: {all_deleted_cv_count} ChartView objects',
+                ),
+            )
 
     def delete_unused_views(self):
         '''
