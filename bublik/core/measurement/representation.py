@@ -350,7 +350,7 @@ class ReportChartBuilder:
             - set(self.axis_x['values']),
         )
         return [
-            f'The results corresponding to {self.axis_x['label']}={iaxv} '
+            f'The results corresponding to {self.axis_x["label"]}={iaxv} '
             'cannot be displayed on the chart' for iaxv in invalid_axis_x_values
         ]
 
