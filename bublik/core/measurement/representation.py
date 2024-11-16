@@ -102,6 +102,7 @@ class ChartViewBuilder:
             point_data = mmr.representation()
             point_data.pop('sequence_number')
             self.dataset.append(point_data)
+        self.dataset = sorted(self.dataset, key=lambda x: x['start'])
         return self
 
     def set_merge_key_value(self, merge_mm_key: typing.List[str]):
