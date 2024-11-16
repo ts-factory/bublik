@@ -307,21 +307,21 @@ sub handle_end
 
     if ($e eq "start-ts")
     {
-        $cur_iter->{start_ts} = fix_start($p->{start_ts});
-        if ($first_ts eq '')
-        {
-            $first_ts = $cur_iter->{start_ts};
-        }
+        $cur_iter->{start_ts} = $p->{start_ts};
     }
     elsif ($e eq "end-ts")
     {
         $cur_iter->{end_ts} = $p->{end_ts};
-        $last_ts = $cur_iter->{end_ts};
     }
     elsif ($e eq "duration")
     {
-        $cur_iter->{end_ts} = fix_end($p->{start_ts}, $cur_iter->{end_ts}, $p->{duration});
+        $cur_iter->{end_ts} = fix_end($cur_iter->{start_ts}, $cur_iter->{end_ts}, $p->{duration});
         $last_ts = $cur_iter->{end_ts};
+        $cur_iter->{start_ts} = fix_start($cur_iter->{start_ts});
+        if ($first_ts eq '')
+        {
+            $first_ts = $cur_iter->{start_ts};
+        }
     }
     elsif ($e eq "objective")
     {
