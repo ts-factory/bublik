@@ -33,19 +33,20 @@ class Command(BaseCommand):
         # delete the corresponding MeasurementResult objects
         created_mmrl_count = 0
         all_deleted_mmr_count = 0
-        for data in aggregated_data:
-            MeasurementResultList.objects.create(
-                result_id=data['result'],
-                measurement_id=data['measurement'],
-                value=data['value_list'],
-            )
-            created_mmrl_count += 1
+        with transaction.atomic():
+            for data in aggregated_data:
+                MeasurementResultList.objects.create(
+                    result_id=data['result'],
+                    measurement_id=data['measurement'],
+                    value=data['value_list'],
+                )
+                created_mmrl_count += 1
 
-            deleted_mr_count, _ = MeasurementResult.objects.filter(
-                result_id=data['result'],
-                measurement_id=data['measurement'],
-            ).delete()
-            all_deleted_mmr_count += deleted_mr_count
+                deleted_mr_count, _ = MeasurementResult.objects.filter(
+                    result_id=data['result'],
+                    measurement_id=data['measurement'],
+                ).delete()
+                all_deleted_mmr_count += deleted_mr_count
 
         self.stdout.write(
             self.style.SUCCESS(
