@@ -5,6 +5,7 @@ from itertools import groupby
 from typing import ClassVar
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
@@ -270,7 +271,7 @@ class ResultViewSet(ModelViewSet):
     def measurements(self, request, pk=None):
         # get charts
         views = get_views(pk)
-        if views:
+        try:
             # get line-graph charts
             charts_from_lines = []
             line_graph_views = get_line_graph_views(views)
@@ -319,7 +320,7 @@ class ResultViewSet(ModelViewSet):
                         # -> ChartViewBuilder.by_points(cvs)
             # get all views charts
             charts = charts_from_lines + charts_from_points
-        else:
+        except ObjectDoesNotExist:
             mmr_lists = get_measurement_result_lists(pk)
             charts = [
                 ChartViewBuilder(mmr_list.measurement).by_lines(mmr_list).representation()
