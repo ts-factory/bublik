@@ -80,7 +80,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tDELETED: {deleted_cv_count=} ChartView objects',
+                f'\tDELETED: {deleted_cv_count} ChartView objects',
             ),
         )
 
