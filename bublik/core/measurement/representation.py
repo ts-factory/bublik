@@ -156,7 +156,7 @@ class ChartViewBuilder:
                 # sort merged dataset
                 merged_chart.dataset = sorted(
                     merged_chart.dataset,
-                    key=lambda x: x[merged_chart.axis_x_key],
+                    key=lambda x: x[merged_chart.axis_x['key']],
                 )
             merged_charts.append(merged_chart)
 
