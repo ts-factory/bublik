@@ -116,7 +116,7 @@ class PasswordResetSerializer(serializers.Serializer):
     def validate_passwords(self, passwords):
         # Check if new password and its confirmation were passed
         # and if the new password is valid
-        self.is_valid(passwords)
+        self.is_valid(raise_exception=True)
         # Check if the new password fields match
         if passwords['new_password'] != passwords['new_password_confirm']:
             raise serializers.ValidationError({'new_password': 'Password fields don\'t match'})
