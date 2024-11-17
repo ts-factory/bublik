@@ -29,33 +29,36 @@ class Command(BaseCommand):
             .filter(count__gt=1)
         )
 
-        # save the sequences as MeasurementResultList objects and
-        # delete the corresponding MeasurementResult objects
-        created_mmrl_count = 0
-        all_deleted_mmr_count = 0
         with transaction.atomic():
-            for data in aggregated_data:
-                MeasurementResultList.objects.create(
-                    result_id=data['result'],
-                    measurement_id=data['measurement'],
-                    value=data['value_list'],
+            # save the sequences as MeasurementResultList objects
+            mmr_lists = [
+                MeasurementResultList(
+                    result_id=ad['result'],
+                    measurement_id=ad['measurement'],
+                    value=ad['value_list'],
                 )
-                created_mmrl_count += 1
+                for ad in aggregated_data
+            ]
+            created_mmrl = MeasurementResultList.objects.bulk_create(mmr_lists)
 
-                deleted_mr_count, _ = MeasurementResult.objects.filter(
-                    result_id=data['result'],
-                    measurement_id=data['measurement'],
-                ).delete()
-                all_deleted_mmr_count += deleted_mr_count
+            # delete the corresponding MeasurementResult objects
+            deleted_mmr_count, _ = MeasurementResult.objects.filter(
+                Exists(
+                    MeasurementResultList.objects.filter(
+                        result=OuterRef('result'),
+                        measurement=OuterRef('measurement'),
+                    ),
+                ),
+            ).delete()
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tCREATED: {created_mmrl_count} MeasurementResultList objects',
+                f'\tCREATED: {len(created_mmrl)} MeasurementResultList objects',
             ),
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tDELETED: {all_deleted_mmr_count} MeasurementResult objects',
+                f'\tDELETED: {deleted_mmr_count} MeasurementResult objects',
             ),
         )
 
