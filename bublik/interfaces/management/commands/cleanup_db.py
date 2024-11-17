@@ -39,7 +39,10 @@ class Command(BaseCommand):
                 )
                 for ad in aggregated_data
             ]
-            created_mmrl = MeasurementResultList.objects.bulk_create(mmr_lists)
+            created_mmrl = MeasurementResultList.objects.bulk_create(
+                mmr_lists,
+                batch_size=1000,
+            )
 
             # delete the corresponding MeasurementResult objects
             deleted_mmr_count, _ = MeasurementResult.objects.filter(
