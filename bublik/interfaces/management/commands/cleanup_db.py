@@ -86,7 +86,14 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tDELETED: {deleted_cv_count} ChartView objects',
+                f'\tDELETED: {deleted_cv_count} ChartView objects (incorrect type)',
+            ),
+        )
+
+        deleted_cv_count, _ = ChartView.objects.filter(measurement__isnull=True).delete()
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'\tDELETED: {deleted_cv_count} ChartView objects (empty measurement)',
             ),
         )
 
