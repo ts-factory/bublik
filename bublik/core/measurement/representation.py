@@ -1,17 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 from collections import defaultdict
 import contextlib
 import copy
 from itertools import groupby
 import typing
-
-from django.db.models import QuerySet
+from typing import TYPE_CHECKING
 
 from bublik.core.measurement.services import get_measurement_results
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
-from bublik.data.models import ChartView, Measurement, MeasurementResultList, View
+
+
+if TYPE_CHECKING:
+    from django.db.models import QuerySet
+
+    from bublik.data.models import ChartView, Measurement, MeasurementResultList, View
 
 
 class ChartViewBuilder:
@@ -105,7 +111,7 @@ class ChartViewBuilder:
         self.dataset = sorted(self.dataset, key=lambda x: x['start'])
         return self
 
-    def set_merge_key_value(self, merge_mm_key: typing.List[str]):
+    def set_merge_key_value(self, merge_mm_key: list[str]):
         '''
         Sets the value of the merge key based on the passed measurement attributes.
         '''
@@ -116,7 +122,7 @@ class ChartViewBuilder:
         self.merge_key_value = [kv if kv is not None else '' for kv in self.merge_key_value]
 
     @staticmethod
-    def merge_charts_by(charts, merge_mm_key: typing.List[str]):
+    def merge_charts_by(charts, merge_mm_key: list[str]):
         '''
         Merges the passed charts by the values of the passed measurement attributes.
         '''
@@ -178,13 +184,17 @@ class ChartViewBuilder:
         )
 
         label_parts = {
-            'type': (measurement_data['type'][0].upper() + measurement_data['type'][1:])
-            if measurement_data['type']
-            else None,
+            'type': (
+                (measurement_data['type'][0].upper() + measurement_data['type'][1:])
+                if measurement_data['type']
+                else None
+            ),
             'units_arrg': f'({units_aggr_data})',
-            'sga': f'by {label_items["sequense_group_arg"]}'
-            if label_items['sequense_group_arg']
-            else None,
+            'sga': (
+                f'by {label_items["sequense_group_arg"]}'
+                if label_items['sequense_group_arg']
+                else None
+            ),
             'tool': f': based on {label_items["tool"]}' if label_items['tool'] else None,
             'keys': f'({(", ".join(label_items["keys"]))})' if label_items['keys'] else None,
         }
@@ -216,7 +226,8 @@ class ReportRecordBuilder(ChartViewBuilder):
         self.test_config = test_config
         sequences_config = test_config.get('sequences', {})
         series_arg_label = sequences_config.get(
-            'arg_label', sequences_config.get('arg', None),
+            'arg_label',
+            sequences_config.get('arg', None),
         )
         self.subtitle = self.get_measurement_chart_label(series_arg_label)
 
@@ -242,7 +253,8 @@ class ReportRecordBuilder(ChartViewBuilder):
                 ).representation()
             if table_view:
                 base_series_label = self.get_series_label(
-                    sequences_config.get('percentage_base_value', None), arg_vals_labels,
+                    sequences_config.get('percentage_base_value', None),
+                    arg_vals_labels,
                 )
                 self.table = ReportTableBuilder(
                     axis_x,
@@ -284,6 +296,7 @@ class ReportRecordDataBuilder:
     This class allows you to get data for building tables and charts
     based on the passed sequences.
     '''
+
     def __init__(self, sequences):
         self.sequences = sequences
 
@@ -300,7 +313,8 @@ class ReportRecordDataBuilder:
                     {'x_value': axis_x_val} | point_data
                     for axis_x_val, point_data in sequence_points.items()
                 ],
-            } for series_name, sequence_points in self.sequences.items()
+            }
+            for series_name, sequence_points in self.sequences.items()
         ]
 
 
@@ -356,12 +370,12 @@ class ReportChartBuilder:
     def get_warnings(self, sequences):
         # points with a non-numeric value of the x-axis argument cannot be displayed on chart
         invalid_axis_x_values = list(
-            set(self.get_axis_x_values(sequences))
-            - set(self.axis_x['values']),
+            set(self.get_axis_x_values(sequences)) - set(self.axis_x['values']),
         )
         return [
             f'The results corresponding to {self.axis_x["label"]}={iaxv} '
-            'cannot be displayed on the chart' for iaxv in invalid_axis_x_values
+            'cannot be displayed on the chart'
+            for iaxv in invalid_axis_x_values
         ]
 
 
@@ -418,9 +432,7 @@ class ReportTableBuilder:
                 try:
                     percentage = round(
                         100
-                        * (
-                            point_data['y_value'] / base_sequence[axis_x_val]['y_value'] - 1
-                        ),
+                        * (point_data['y_value'] / base_sequence[axis_x_val]['y_value'] - 1),
                         2,
                     )
                 except ZeroDivisionError:
