@@ -332,7 +332,7 @@ class ReportChartBuilder:
         }
 
     def get_axis_x_values(self, sequences):
-        return list(max(sequences.values(), key=lambda x: len(x)))
+        return sorted({axis_x for points in sequences.values() for axis_x in points})
 
     def get_chart_sequences(self, sequences):
         '''
