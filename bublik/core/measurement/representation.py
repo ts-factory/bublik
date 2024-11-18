@@ -320,6 +320,7 @@ class ReportChartBuilder:
     def __init__(self, axis_x, axis_y, series_label, sequences):
         chart_sequences = self.get_chart_sequences(sequences)
         axis_x.add_values(self.get_axis_x_values(chart_sequences))
+        self.complete_chart_sequences(axis_x, chart_sequences)
         self.axis_x = axis_x.to_representation()
         self.axis_y = axis_y
         self.series_label = series_label
@@ -343,6 +344,14 @@ class ReportChartBuilder:
             sga: {x: point_data for x, point_data in points.items() if isinstance(x, int)}
             for sga, points in sequences.items()
         }
+
+    def complete_chart_sequences(self, axis_x, chart_sequences):
+        '''
+        Align all sequences to the same x-axis by filling missing points with empty values.
+        '''
+        for sequence_arg, sequence in chart_sequences.items():
+            for axis_x_val in set(axis_x.values) - set(sequence.keys()):
+                chart_sequences[sequence_arg][axis_x_val] = {'y_value': None}
 
     def get_warnings(self, sequences):
         # points with a non-numeric value of the x-axis argument cannot be displayed on chart
