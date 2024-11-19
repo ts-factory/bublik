@@ -6,11 +6,9 @@ from __future__ import annotations
 from collections import defaultdict
 import contextlib
 import copy
-from itertools import groupby
 import typing
 from typing import TYPE_CHECKING
 
-from bublik.core.measurement.services import get_measurement_results
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
 
 
@@ -87,7 +85,7 @@ class ChartViewBuilder:
         # 6. return cls(view, measurement, measurement_results)
         pass
 
-    def by_measurement_results(self, result_ids):
+    def by_measurement_results(self, mmrs):
         '''
         This method allows you to obtain data for plotting changes in measurement
         results over iterations from the passed range. In addition to the values,
@@ -103,10 +101,12 @@ class ChartViewBuilder:
             key='value',
         ).to_representation()
         self.dataset = []
-        mmrs = get_measurement_results(result_ids, self.measurement)
         for mmr in mmrs:
             point_data = mmr.representation()
             point_data.pop('sequence_number')
+            point_data.update(
+                {'comments': mmr.measurement.representation()['comments']},
+            )
             self.dataset.append(point_data)
         self.dataset = sorted(self.dataset, key=lambda x: x['start'])
         return self
@@ -120,53 +120,6 @@ class ChartViewBuilder:
             measurement_data[key] for key in measurement_data if key in merge_mm_key
         ]
         self.merge_key_value = [kv if kv is not None else '' for kv in self.merge_key_value]
-
-    @staticmethod
-    def merge_charts_by(charts, merge_mm_key: list[str]):
-        '''
-        Merges the passed charts by the values of the passed measurement attributes.
-        '''
-        # get "per point" measurement attributes
-        per_point_attrs = [
-            attr
-            for attr in next(iter(charts)).measurement.representation()
-            if attr not in merge_mm_key
-        ]
-        # prepare charts for merging
-        for chart in charts:
-            # set the merge key value
-            chart.set_merge_key_value(merge_mm_key)
-            # update points with "per point" measurement data
-            per_point_measurement_data = {
-                attr: value
-                for attr, value in chart.measurement.representation().items()
-                if attr in per_point_attrs
-            }
-            for point_data in chart.dataset:
-                point_data.update(per_point_measurement_data)
-
-        # group charts by merge key
-        charts = sorted(charts, key=lambda chart: chart.merge_key_value)
-        chart_groups = [
-            list(group) for _, group in groupby(charts, key=lambda chart: chart.merge_key_value)
-        ]
-
-        # get merged charts
-        merged_charts = []
-        for chart_group in chart_groups:
-            merged_chart = next(iter(chart_group))
-            if len(chart_group) > 1:
-                # get merged dataset
-                for chart in chart_group[1:]:
-                    merged_chart.dataset.extend(chart.dataset)
-                # sort merged dataset
-                merged_chart.dataset = sorted(
-                    merged_chart.dataset,
-                    key=lambda x: x[merged_chart.axis_x['key']],
-                )
-            merged_charts.append(merged_chart)
-
-        return merged_charts
 
     def get_measurement_chart_label(self, sequense_group_argument=None):
         measurement_data = self.measurement.representation()

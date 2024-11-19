@@ -15,6 +15,7 @@ from bublik.core.report.services import (
     get_common_args,
     type_conversion,
 )
+from bublik.core.utils import unordered_group_by
 from bublik.data.models import (
     Config,
     MeasurementResult,
@@ -170,7 +171,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
         ### Group points into records ###
         content = []
-        points_by_test_names = ReportPoint.grouper(points, 'test_name')
+        points_by_test_names = unordered_group_by(points, 'test_name')
         if report_config['test_names_order']:
             points_by_test_names = ReportPoint.by_test_name_sort(
                 points_by_test_names,
