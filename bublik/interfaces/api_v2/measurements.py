@@ -9,7 +9,8 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.measurement.representation import ChartViewBuilder
-from bublik.core.measurement.services import get_measurements
+from bublik.core.measurement.services import get_measurement_results
+from bublik.core.utils import unordered_group_by
 from bublik.data.models import Measurement
 from bublik.data.serializers import MeasurementSerializer
 
@@ -37,24 +38,19 @@ class MeasurementViewSet(GenericViewSet):
                 data={'type': 'ValueError', 'message': 'No result IDs specified'},
             )
 
-        measurements = get_measurements(result_ids)
-        charts = [
-            ChartViewBuilder(measurement).by_measurement_results(result_ids)
-            for measurement in measurements
-        ]
-        # The results of measurements that differ from each other only
-        # by the value of comments should be analyzed together,
-        # since comments is not the key information.
-        # Thus, the charts corresponding to such measurements
-        # need to be merged.
-        merge_mm_key = [
-            key
-            for key in next(iter(measurements)).representation()
-            if key not in ['measurement_id', 'comments']
-        ]
-        merged_charts = ChartViewBuilder.merge_charts_by(charts, merge_mm_key)
+        mmrs = get_measurement_results(result_ids)
+        mmrs_groups = unordered_group_by(mmrs, 'measurement_group_key')
 
-        return Response([merged_chart.representation() for merged_chart in merged_charts])
+        return Response(
+            [
+                (
+                    ChartViewBuilder(next(iter(mmr_group)).measurement).by_measurement_results(
+                        mmr_group,
+                    )
+                ).representation()
+                for _mm_key, mmr_group in mmrs_groups.items()
+            ],
+        )
 
     def retrieve(self, request, pk=None):
         measurement = self.get_object()

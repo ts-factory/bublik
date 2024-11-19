@@ -1,15 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 import copy
 import itertools
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 
 from bublik.data.models import EventLog
 
+
+if TYPE_CHECKING:
+    from bublik.core.report.components import ReportPoint
+    from bublik.data.models import MeasurementResult
 
 logger = logging.getLogger('bublik.server')
 
@@ -174,6 +181,17 @@ def dicts_groupby(iterable, dict_key):
     iterable = sorted(iterable, key=key_fn)
     for key, data in itertools.groupby(iterable, key_fn):
         yield key, list(without_key(data))
+
+
+def unordered_group_by(iterable: list[dict | MeasurementResult | ReportPoint], dict_key: str):
+    groups = {}
+    for obj in iterable:
+        attr_value = getattr(obj, dict_key)
+        if attr_value not in groups:
+            groups[attr_value] = [obj]
+        else:
+            groups[attr_value].append(obj)
+    return groups
 
 
 def get_same_key_values(test_list, key, extra_condition=None):

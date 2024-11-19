@@ -3,6 +3,7 @@
 
 from bublik.core.measurement.representation import ReportRecordBuilder
 from bublik.core.report.services import type_conversion
+from bublik.core.utils import unordered_group_by
 
 
 '''
@@ -111,20 +112,6 @@ class ReportPoint:
         by_test_name_points_sorted.update(by_test_name_points)
         return by_test_name_points_sorted
 
-    @staticmethod
-    def grouper(points, attr_name):
-        '''
-        Return the points grouped by the value of the attribute passed.
-        '''
-        point_groups = {}
-        for point in points:
-            attr_value = getattr(point, attr_name)
-            if attr_value not in point_groups:
-                point_groups[attr_value] = [point]
-            else:
-                point_groups[attr_value].append(point)
-        return point_groups
-
 
 class ReportMeasurementLevel:
     '''
@@ -163,7 +150,7 @@ class ReportArgsValsLevel:
 
         # create measurement records
         records = []
-        points_by_measurements = ReportPoint.grouper(arg_val_points, 'measurement_key')
+        points_by_measurements = unordered_group_by(arg_val_points, 'measurement_key')
         for _measurement_key, points in points_by_measurements.items():
             records.append(
                 ReportRecordBuilder(
@@ -195,7 +182,7 @@ class ReportTestLevel:
         self.common_args = common_args[test_name]
         self.content = []
 
-        points_by_argvals = ReportPoint.grouper(test_points, 'arg_val_label')
+        points_by_argvals = unordered_group_by(test_points, 'arg_val_label')
 
         for arg_val_label, points in points_by_argvals.items():
             arg_val_record = ReportArgsValsLevel(
