@@ -40,7 +40,6 @@ class ReportPoint:
         self.sequence_group_arg_val = None
 
         # get measurements level data
-        self.measurement_id = mmr.measurement.id
         self.measurement = mmr.measurement
 
         # get x-axis data
