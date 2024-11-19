@@ -148,6 +148,25 @@ Serial number can be used to determine results order.''',
             'iteration_id': self.result.iteration.id,
         }
 
+    @property
+    def measurement_group_key(self):
+        '''
+        This function returns a tuple containing key information about the measurement,
+        which allows grouping the measurement results.
+        '''
+        mm_repr = self.measurement.representation()
+        mm_repr.pop('measurement_id')
+        mm_repr.pop('comments')
+
+        def make_hashable(mm_repr):
+            if isinstance(mm_repr, dict):
+                return tuple((k, make_hashable(v)) for k, v in mm_repr.items())
+            if isinstance(mm_repr, list):
+                return tuple(make_hashable(v) for v in mm_repr)
+            return mm_repr
+
+        return make_hashable(mm_repr)
+
 
 class MeasurementResultList(models.Model):
     '''
