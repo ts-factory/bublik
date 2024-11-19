@@ -41,6 +41,7 @@ class ReportPoint:
 
         # get measurements level data
         self.measurement = mmr.measurement
+        self.measurement_key = mmr.measurement_group_key
 
         # get x-axis data
         self.axis_x_arg = self.test_config['axis_x']['arg']
@@ -162,11 +163,11 @@ class ReportArgsValsLevel:
 
         # create measurement records
         records = []
-        points_by_measurements = ReportPoint.grouper(arg_val_points, 'measurement')
-        for measurement, points in points_by_measurements.items():
+        points_by_measurements = ReportPoint.grouper(arg_val_points, 'measurement_key')
+        for _measurement_key, points in points_by_measurements.items():
             records.append(
                 ReportRecordBuilder(
-                    measurement,
+                    next(iter(points)).measurement,
                     report_config['tests'][test_name],
                     points,
                 ),
