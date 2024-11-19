@@ -272,6 +272,9 @@ class ResultViewSet(ModelViewSet):
         # get charts
         views = get_views(pk)
         try:
+            # check if there are any views
+            if not views:
+                raise ObjectDoesNotExist
             # get line-graph charts
             charts_from_lines = []
             line_graph_views = get_line_graph_views(views)
