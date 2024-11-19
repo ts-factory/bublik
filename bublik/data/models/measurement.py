@@ -12,11 +12,11 @@ from bublik.data.models.result import TestIterationResult
 
 
 __all__ = [
+    'ChartView',
+    'ChartViewType',
     'Measurement',
     'MeasurementResult',
     'View',
-    'ChartViewType',
-    'ChartView',
 ]
 
 
