@@ -51,15 +51,15 @@ services:
       - static_data:/app/bublik/bublik/representation/static
     develop:
       watch:
-       - path: .
-         action: sync
-         target: /app/bublik
-         ignore: 
-          - .venv
-          - bublik-conf
-          - bublik-bublik-ui
-       - path: ./requirements.txt
-         action: rebuild
+        - path: .
+          action: sync
+          target: /app/bublik
+          ignore:
+            - .venv
+            - bublik-conf
+            - bublik-bublik-ui
+        - path: ./requirements.txt
+          action: rebuild
   db:
     container_name: postgres
     image: postgres
@@ -127,15 +127,15 @@ services:
       - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
     develop:
       watch:
-       - path: .
-         action: sync
-         target: /app/bublik
-         ignore: 
-          - .venv
-          - bublik-conf
-          - bublik-bublik-ui
-       - path: ./requirements.txt
-         action: rebuild
+        - path: .
+          action: sync
+          target: /app/bublik
+          ignore:
+            - .venv
+            - bublik-conf
+            - bublik-bublik-ui
+        - path: ./requirements.txt
+          action: rebuild
   flower:
     container_name: flower
     build:
@@ -188,20 +188,20 @@ services:
       - flower_data:/data
     develop:
       watch:
-       - path: .
-         action: sync
-         target: /app/bublik
-         ignore: 
-          - .venv
-          - bublik-conf
-          - bublik-bublik-ui
-       - path: ./requirements.txt
-         action: rebuild
+        - path: .
+          action: sync
+          target: /app/bublik
+          ignore:
+            - .venv
+            - bublik-conf
+            - bublik-bublik-ui
+        - path: ./requirements.txt
+          action: rebuild
   nginx:
     container_name: nginx
     build:
       context: .
-      dockerfile: ./nginx/Dockerfile.dev
+      dockerfile: ./nginx/Dockerfile
       args:
         - URL_PREFIX=${URL_PREFIX}
     ports:
@@ -218,7 +218,7 @@ services:
       - bublik-ui
   bublik-ui:
     container_name: bublik-ui
-    build: 
+    build:
       context: ./bublik-ui
       dockerfile: ./apps/bublik/Dockerfile.dev
     environment:
