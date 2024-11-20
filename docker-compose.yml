@@ -61,7 +61,11 @@ services:
       - logs_data:/app/bublik/logs
       - static_data:/app/bublik/bublik/representation/static
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8000${URL_PREFIX}/api/v2/ || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail http://localhost:8000${URL_PREFIX}/api/v2/ || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -201,7 +205,11 @@ services:
     volumes:
       - ./:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:5555/${FLOWER_URL_PREFIX}/ || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail http://localhost:5555/${FLOWER_URL_PREFIX}/ || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -225,7 +233,11 @@ services:
     depends_on:
       - django
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:80${URL_PREFIX}/v2/ || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail http://localhost:80${URL_PREFIX}/v2/ || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
