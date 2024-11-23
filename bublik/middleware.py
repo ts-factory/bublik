@@ -43,11 +43,11 @@ class DynamicSettingsMiddleware:
         config = get_config_from_cache()
 
         # set CSRF_TRUSTED_ORIGINS
-        csrf_trusted_origins = config.get('CSRF_TRUSTED_ORIGINS', [])
+        csrf_trusted_origins = config.get('CSRF_TRUSTED_ORIGINS', []) if config else []
         settings.CSRF_TRUSTED_ORIGINS = csrf_trusted_origins
 
         # set UI_PREFIX
-        ui_version = config.get('UI_VERSION', 2)
+        ui_version = config.get('UI_VERSION', 2) if config else 2
         ui_prefix_by_ui_version = {
             2: 'v2',
         }
