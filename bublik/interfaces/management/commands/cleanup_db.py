@@ -15,6 +15,35 @@ from bublik.data.models import (
 
 
 class Command(BaseCommand):
+    def delete_duplicate_mmr(self):
+        '''
+        Delete duplicate MeasurementResult objects.
+        '''
+        self.stdout.write('Delete duplicate MeasurementResult objects:')
+        mmr_dups_iterator = (
+            MeasurementResult.objects.values('result', 'serial', 'measurement', 'value')
+            .annotate(count=Count('id'))
+            .filter(count__gt=1)
+            .iterator()
+        )
+
+        all_deleted_mmr_num = 0
+        with transaction.atomic():
+            for mmr_dup in mmr_dups_iterator:
+                mmr = MeasurementResult.objects.filter(
+                    result=mmr_dup['result'],
+                    serial=mmr_dup['serial'],
+                    measurement=mmr_dup['measurement'],
+                    value=mmr_dup['value'],
+                )
+                deleted_mmr_num, _ = mmr.exclude(id=mmr.first().id).delete()
+                all_deleted_mmr_num += deleted_mmr_num
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'\tDELETED: {all_deleted_mmr_num} MeasurementResult objects',
+            ),
+        )
+
     def move_mmr_sequences(self):
         '''
         Find sequences among MeasurementResult objects and move them
@@ -142,6 +171,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        self.delete_duplicate_mmr()
         self.move_mmr_sequences()
         self.delete_incorrect_cv()
         self.delete_duplicate_cv()
