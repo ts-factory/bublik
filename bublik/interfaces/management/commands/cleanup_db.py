@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+from itertools import islice
+
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -51,46 +53,74 @@ class Command(BaseCommand):
         '''
         self.stdout.write('Move measurement result sequences:')
 
-        # get mmr values sequences
-        aggregated_data = (
-            MeasurementResult.objects.values('result', 'measurement')
-            .annotate(value_list=ArrayAgg('value', ordering='serial'), count=Count('id'))
-            .filter(count__gt=1)
+        mmrl_start_num = MeasurementResultList.objects.count()
+
+        # get all measurements with results
+        unique_measurement_iterator = (
+            MeasurementResult.objects.values_list('measurement', flat=True)
+            .distinct()
+            .iterator()
         )
 
-        with transaction.atomic():
-            # save the sequences as MeasurementResultList objects
-            mmr_lists = [
-                MeasurementResultList(
-                    result_id=ad['result'],
-                    measurement_id=ad['measurement'],
-                    value=ad['value_list'],
-                )
-                for ad in aggregated_data
-            ]
-            created_mmrl = MeasurementResultList.objects.bulk_create(
-                mmr_lists,
-                batch_size=1000,
+        all_deleted_mmr_num = 0
+        batch_size = 5000
+
+        for measurement in unique_measurement_iterator:
+            results = (
+                MeasurementResult.objects.filter(measurement=measurement)
+                .values_list('result', flat=True)
+                .distinct()
+                .iterator()
             )
+            while True:
+                with transaction.atomic():
+                    result_batch = list(islice(results, batch_size))
+                    if not result_batch:
+                        break
+                    aggregated_data = (
+                        MeasurementResult.objects.filter(
+                            measurement=measurement,
+                            result__in=result_batch,
+                        )
+                        .values('result')
+                        .annotate(
+                            value_list=ArrayAgg('value', ordering=['serial', 'id']),
+                            count=Count('id'),
+                        )
+                        .filter(count__gt=1)
+                        .iterator()
+                    )
 
-            # delete the corresponding MeasurementResult objects
-            deleted_mmr_count, _ = MeasurementResult.objects.filter(
-                Exists(
-                    MeasurementResultList.objects.filter(
-                        result=OuterRef('result'),
-                        measurement=OuterRef('measurement'),
-                    ),
-                ),
-            ).delete()
+                    mmr_lists = []
+                    results_for_del = set()
+                    for ad in aggregated_data:
+                        mmr_lists.append(
+                            MeasurementResultList(
+                                result_id=ad['result'],
+                                measurement_id=measurement,
+                                value=ad['value_list'],
+                            ),
+                        )
+                        results_for_del.add(ad['result'])
 
+                    MeasurementResultList.objects.bulk_create(mmr_lists)
+
+                    deleted_mmr_num, _ = MeasurementResult.objects.filter(
+                        measurement_id=measurement,
+                        result__id__in=results_for_del,
+                    ).delete()
+                    all_deleted_mmr_num += deleted_mmr_num
+
+        created_mmrl_num = MeasurementResultList.objects.count() - mmrl_start_num
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tCREATED: {len(created_mmrl)} MeasurementResultList objects',
+                f'\tCREATED: {created_mmrl_num} MeasurementResultList objects',
             ),
         )
+
         self.stdout.write(
             self.style.SUCCESS(
-                f'\tDELETED: {deleted_mmr_count} MeasurementResult objects',
+                f'\tDELETED: {all_deleted_mmr_num} MeasurementResult objects',
             ),
         )
 
