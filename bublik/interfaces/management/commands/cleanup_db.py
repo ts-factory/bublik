@@ -167,8 +167,8 @@ class Command(BaseCommand):
             .annotate(count=Count('id'))
             .filter(count__gt=1)
         )
+        all_deleted_cv_count = 0
         with transaction.atomic():
-            all_deleted_cv_count = 0
             for cv_dup in cv_dups:
                 cv = ChartView.objects.filter(
                     type=cv_dup['type'],
@@ -178,11 +178,11 @@ class Command(BaseCommand):
                 )
                 deleted_cv_count, _ = cv.exclude(id=cv.first().id).delete()
                 all_deleted_cv_count += deleted_cv_count
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f'\tDELETED: {all_deleted_cv_count} ChartView objects',
-                ),
-            )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'\tDELETED: {all_deleted_cv_count} ChartView objects',
+            ),
+        )
 
     def delete_unused_views(self):
         '''
