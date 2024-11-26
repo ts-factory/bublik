@@ -201,9 +201,7 @@ def add_comments(node, tests_comments):
     }
     The order of comments is determined by the serial value.
     '''
-    node['comments'] = (
-        tests_comments[node['result_id']] if node['result_id'] in tests_comments else []
-    )
+    node['comments'] = tests_comments.get(node['result_id'], [])
     node['comments'] = [
         json.loads(comment) if isinstance(comment, str) else comment
         for comment in node['comments']
