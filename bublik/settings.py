@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     'bublik.data',
     'bublik.interfaces',
     'bublik.representation',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 ]
 
 if not DEBUG:
@@ -223,8 +225,18 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ('bublik.core.filter_backends.AllDjangoFilterBackend',),
     'DEFAULT_PAGINATION_CLASS': 'bublik.core.pagination.DefaultPageNumberPagination',
     'EXCEPTION_HANDLER': 'bublik.core.exceptions.custom_exception_handler',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Bublik API',
+    'DESCRIPTION': 'Bublik API documentation',
+    'VERSION': '0.6.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_DIST': 'SIDECAR',  # shorthand to use the sidecar instead
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.11/topics/i18n/
