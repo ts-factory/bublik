@@ -46,6 +46,7 @@ conf/
 
 # Env
 .env
+.envrc
 
 # Static files
 bublik/representation/static
