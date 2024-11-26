@@ -201,14 +201,15 @@ def add_comments(node, tests_comments):
     }
     The order of comments is determined by the serial value.
     '''
-    node['comments'] = tests_comments.get(node['result_id'], [])
-    node['comments'] = [
-        json.loads(comment) if isinstance(comment, str) else comment
-        for comment in node['comments']
-    ]
-    node['comments'] = sorted(node['comments'], key=lambda x: x['serial'])
-    for child in node['children']:
-        add_comments(child, tests_comments)
+    if node:
+        node['comments'] = tests_comments.get(node['result_id'], [])
+        node['comments'] = [
+            json.loads(comment) if isinstance(comment, str) else comment
+            for comment in node['comments']
+        ]
+        node['comments'] = sorted(node['comments'], key=lambda x: x['serial'])
+        for child in node['children']:
+            add_comments(child, tests_comments)
 
 
 def get_run_stats_detailed(run_id):
