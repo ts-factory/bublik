@@ -5,6 +5,11 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.decorators.cache import cache_page
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 from rest_framework.routers import DefaultRouter
 
 from bublik.core.routers import ActionsOnlyRouter
@@ -59,6 +64,13 @@ urlpatterns = [
     # V2
     re_path(r'^v2/$', api_v2.render_react, name='ui-v2-index'),
     re_path(r'^v2/(?:.*)/?$', api_v2.render_react, name='ui-v2-routes'),
+    path('api/v2/schema/swagger.yaml/', SpectacularAPIView.as_view(), name='schema'),
+    path(
+        'api/v2/schema/swagger-ui/',
+        SpectacularSwaggerView.as_view(url_name='schema'),
+        name='swagger-ui',
+    ),
+    path('api/v2/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     path('api/v2/', include((api_v2_router.urls, 'api-v2'), namespace='api-v2')),
     # Redirects
     path('', main_api.redirect_root),
