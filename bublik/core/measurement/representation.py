@@ -286,7 +286,7 @@ class ReportChartBuilder:
 
     def __init__(self, axis_x, axis_y, series_label, sequences):
         chart_sequences = self.get_chart_sequences(sequences)
-        axis_x.add_values(self.get_axis_x_values(chart_sequences))
+        axis_x.add_values(sorted(self.get_axis_x_values(chart_sequences)))
         self.complete_chart_sequences(axis_x, chart_sequences)
         self.axis_x = axis_x.to_representation()
         self.axis_y = axis_y
@@ -300,7 +300,7 @@ class ReportChartBuilder:
         }
 
     def get_axis_x_values(self, sequences):
-        return sorted({axis_x for points in sequences.values() for axis_x in points})
+        return {axis_x for points in sequences.values() for axis_x in points}
 
     def get_chart_sequences(self, sequences):
         '''
