@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-import contextlib
 from itertools import groupby
 
 from bublik.data.models import MeasurementResult, TestArgument
 
 
 def type_conversion(arg_value):
-    with contextlib.suppress(AttributeError):
-        if arg_value.isdigit():
-            return int(arg_value)
-    return arg_value
+    try:
+        return int(arg_value)
+    except ValueError:
+        return arg_value
 
 
 def get_common_args(main_pkg, test_name):
