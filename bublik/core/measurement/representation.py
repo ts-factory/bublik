@@ -323,7 +323,7 @@ class ReportChartBuilder:
     def get_warnings(self, sequences):
         # points with a non-numeric value of the x-axis argument cannot be displayed on chart
         invalid_axis_x_values = list(
-            set(self.get_axis_x_values(sequences)) - set(self.axis_x['values']),
+            set(self.get_axis_x_values(sequences)) - set(self.axis_x.get('values', [])),
         )
         return [
             f'The results corresponding to {self.axis_x["label"]}={iaxv} '
