@@ -177,7 +177,15 @@ sub handle_char
     }
     elsif ($p->current_element() eq "objective")
     {
-        $p->{objective} = $str;
+        if ($p->{objective} eq '')
+        {
+            $p->{objective} .= $str;
+        }
+        else
+        {
+            $p->{objective} .= "\n";
+            $p->{objective} .= $str;
+        }
     }
     elsif ($p->current_element() eq "verdict")
     {
@@ -331,6 +339,7 @@ sub handle_end
     elsif ($e eq "objective")
     {
         $cur_iter->{objective} = $p->{objective};
+        $p->{objective} = '';
     }
     elsif ($e eq "verdict")
     {
