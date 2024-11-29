@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-from itertools import groupby
+from django.db.models import Count, Q
 
 from bublik.data.models import MeasurementResult, TestArgument
 
@@ -13,28 +13,28 @@ def type_conversion(arg_value):
         return arg_value
 
 
-def get_common_args(main_pkg, test_name):
+def get_common_args(mmrs_test):
     '''
     Collect arguments that have the same values for all iterations of the test
     with the passed name within the passed package.
     '''
-    common_args = {}
-    test_args = (
+    mmrs_test_ids = mmrs_test.values_list('id', flat=True)
+
+    return dict(
         TestArgument.objects.filter(
-            test_iterations__testiterationresult__test_run=main_pkg,
-            test_iterations__test__name=test_name,
+            test_iterations__testiterationresult__measurement_results__id__in=mmrs_test_ids,
         )
-        .order_by('name', 'value')
-        .distinct('name', 'value')
-        .values('name', 'value')
+        .annotate(
+            test_arg_count=Count(
+                'test_iterations',
+                filter=Q(
+                    test_iterations__testiterationresult__measurement_results__id__in=mmrs_test_ids,
+                ),
+            ),
+        )
+        .filter(test_arg_count=len(mmrs_test_ids))
+        .values_list('name', 'value'),
     )
-
-    for arg, arg_val in groupby(test_args, key=lambda x: x['name']):
-        arg_val = list(arg_val)
-        if len(arg_val) == 1:
-            common_args[arg] = type_conversion(arg_val[0]['value'])
-
-    return common_args
 
 
 def filter_by_axis_y(mmrs_test, axis_y):

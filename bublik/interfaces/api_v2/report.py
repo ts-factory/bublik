@@ -112,9 +112,6 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         common_args = {}
         mmrs_report = MeasurementResult.objects.none()
         for test_name, test_config in report_config['tests'].items():
-            # collect arguments with the same value for all test iterations
-            common_args[test_name] = get_common_args(main_pkg, test_name)
-
             # filter measurement results by test name
             mmrs_test = mmrs_run.filter(result__iteration__test__name=test_name)
             if not mmrs_test:
@@ -142,6 +139,9 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
                 warnings.append(msg)
                 if test_name in report_config['test_names_order']:
                     report_config['test_names_order'].remove(test_name)
+
+            # collect arguments with the same value for all test iterations
+            common_args[test_name] = get_common_args(mmrs_test)
 
             mmrs_report = mmrs_report.union(mmrs_test)
 
