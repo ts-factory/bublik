@@ -7,7 +7,8 @@ import typing
 
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import IntegrityError, models
 
 
 __all__ = ['User', 'UserManager', 'UserRoles']
@@ -46,6 +47,14 @@ class UserManager(BaseUserManager):
             raise ValueError(msg)
         return self.create_user(email, password, **extra_fields)
 
+    def create_system_user(self):
+        '''
+        Create and save the system user.
+        '''
+        system_user = self.model(is_system=True)
+        system_user.save()
+        return system_user
+
 
 class UserRoles(models.TextChoices):
     ADMIN = 'admin'
@@ -67,6 +76,7 @@ class User(AbstractUser):
     )
     first_name = models.CharField('First name', max_length=64)
     last_name = models.CharField('Last name', max_length=64)
+    is_system = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS: typing.ClassVar[list] = []
@@ -81,6 +91,20 @@ class User(AbstractUser):
             f'first_name={self.first_name!r}, '
             f'last_name={self.last_name!r})'
         )
+
+    def save(self, *args, **kwargs):
+        if self.is_system and User.objects.filter(is_system=True).exclude(id=self.id).exists():
+            msg = 'The system user already exists'
+            raise IntegrityError(msg)
+
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def get_or_create_system_user():
+        try:
+            return User.objects.get(is_system=True)
+        except ObjectDoesNotExist:
+            return User.objects.create_system_user()
 
     class Meta:
         db_table = 'bublik_user'
