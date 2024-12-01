@@ -5,7 +5,6 @@ from datetime import datetime
 import logging
 import os
 import subprocess
-
 from urllib.parse import urljoin
 
 from celery.signals import after_task_publish, task_failure, task_received, task_success

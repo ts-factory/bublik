@@ -2,7 +2,6 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 import logging
-
 from urllib.parse import urlencode
 
 from django.conf import settings

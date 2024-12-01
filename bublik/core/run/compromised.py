@@ -4,7 +4,6 @@
 from django.shortcuts import get_object_or_404
 from references import References
 
-from bublik.core.cache import RunCache
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
 from bublik.data.models import MetaResult, TestIterationResult
@@ -16,10 +15,7 @@ def is_run_compromised(run):
     if isinstance(run, (int, str)):
         run = get_or_none(TestIterationResult.objects, pk=run)
     if isinstance(run, TestIterationResult):
-        compromised_mr = get_or_none(run.meta_results, meta__name='compromised')
-        if compromised_mr:
-            return True
-        return False
+        return bool(get_or_none(run.meta_results, meta__name='compromised'))
     return None
 
 

@@ -10,11 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.11/ref/settings/
 '''
 
+from datetime import timedelta
+import importlib.util
 import os
 import sys
-import importlib.util
 
-from datetime import timedelta
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,7 +56,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
     'django_filters',
     'django_extensions',
     'rest_framework',
@@ -64,7 +63,6 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'drf_spectacular_sidecar',
-
     'bublik.data',
     'bublik.interfaces',
     'bublik.representation',
@@ -115,20 +113,18 @@ CELERY_LOG_LEVEL = os.getenv('CELERYD_LOG_LEVEL', 'INFO')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-
     'formatters': {
         'detailed': {
-            'format': '[%(asctime)s][%(levelname)s](%(module)s) %(message)s'
+            'format': '[%(asctime)s][%(levelname)s](%(module)s) %(message)s',
         },
         'simple': {
-            'format': '[%(asctime)s][%(levelname)s] %(message)s'
+            'format': '[%(asctime)s][%(levelname)s] %(message)s',
         },
         'json': {
             'format': '%(asctime)s %(levelname)s %(module)s %(message)s',
             'class': 'pythonjsonlogger.jsonlogger.JsonFormatter',
         },
     },
-
     'handlers': {
         'command.console': {
             'level': 'DEBUG' if DEBUG else 'INFO',
@@ -147,9 +143,8 @@ LOGGING = {
             'maxBytes': 15728640, # 1024 * 1024 * 15B = 15MB
             'backupCount': 10,
             'formatter': 'detailed',
-        }
+        },
     },
-
     'loggers': {
         '': {
             'handlers': ['console'],
@@ -165,7 +160,7 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
-        'celery.task':{
+        'celery.task': {
             'handlers': [],
             'level': CELERY_LOG_LEVEL,
             'propagate': True,
@@ -182,11 +177,11 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': '${DB_NAME}',
-        'USER' : '${DB_USER}',
-        'PASSWORD' : '${DB_PASSWORD}',
-        'HOST' : '${DB_HOST}',
-        'PORT' : '${DB_PORT}',
-    }
+        'USER': '${DB_USER}',
+        'PASSWORD': '${DB_PASSWORD}',
+        'HOST': '${DB_HOST}',
+        'PORT': '${DB_PORT}',
+    },
 }
 
 
@@ -207,13 +202,13 @@ CACHES = {
                 # 1 - 9; 1 - fastest, biggest; 9 - slowest, smallest
                 'compresslevel': 9,
             },
-        }
+        },
     },
     'config': {
         'BACKEND': 'redis_cache.RedisCache',
         'LOCATION': '127.0.0.1:6379',
         'TIMEOUT': 86400,
-    }
+    },
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
@@ -285,8 +280,10 @@ if BUBLIK_WEB_STATIC:
 else:
     STATIC_ROOT = 'bublik/representation/static/'
 
+
 def show_toolbar(_):
     return bool(DEBUG)
+
 
 if DEBUG:
     INSTALLED_APPS.append('debug_toolbar')
@@ -306,14 +303,13 @@ if DEBUG:
             CACHES[k]['BACKEND'] = 'django.core.cache.backends.dummy.DummyCache'
 
 
-
 CELERY_APP = '${CELERY_APP}'
 CELERY_BROKER_URL = '${CELERY_BROKER_URL}'
 CELERY_RESULT_BACKEND = '${CELERY_RESULT_BACKEND}'
 CELERY_ACCEPT_CONTENT = ${CELERY_ACCEPT_CONTENT}
 CELERY_TASK_SERIALIZER = '${CELERY_TASK_SERIALIZER}'
 CELERY_RESULT_SERIALIZER = '${CELERY_RESULT_SERIALIZER}'
-CELERY_CREATE_DIRS='${CELERY_CREATE_DIRS}'
+CELERY_CREATE_DIRS = '${CELERY_CREATE_DIRS}'
 
 
 # Identify a project holding Bublik:
@@ -322,34 +318,34 @@ CELERY_CREATE_DIRS='${CELERY_CREATE_DIRS}'
 #
 PER_CONF_DIR = '${PER_CONF_DIR}'
 
+
 def get_module(name, location):
     if not os.path.isfile(location):
-        raise FileNotFoundError(f'unable to get {location}')
+        msg = f'unable to get {location}'
+        raise FileNotFoundError(msg)
     spec = importlib.util.spec_from_file_location(name, location)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     sys.modules[name] = module
 
+
 get_module('per_conf', '${PER_CONF_DIR}/per_conf.py')
 get_module('references', '${PER_CONF_DIR}/references.py')
 
-import per_conf
 
 ITEMS_PER_PAGE = 25
 
 DATETIME_FORMATS = {
-    'db' : {
+    'db': {
         'default': '%Y.%m.%d %H:%M:%S.%f',
         'iso_date': '%Y-%m-%d',
     },
-
     'display': {
         'to_date_in_numbers': '%Y-%m-%d',
         'to_date_in_words': '%b %d, %Y',
         'to_seconds': '%b %d %Y, %H:%M:%S',
         'to_microseconds': '%b %d %Y, %H:%M:%S.%f',
     },
-
     'input': {
         'date': ['%Y-%m-%d', '%Y/%m/%d', '%Y.%m.%d'],
     },

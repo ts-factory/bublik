@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from django.conf import settings
+import typing
 
+from django.conf import settings
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
@@ -16,7 +17,7 @@ __all__ = [
 
 
 class ServerViewSet(RetrieveModelMixin, GenericViewSet):
-    filter_backends = []
+    filter_backends: typing.ClassVar['list'] = []
 
     @action(detail=False, methods=['get'])
     def project(self, request):

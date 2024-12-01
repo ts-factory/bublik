@@ -2,6 +2,8 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from references import References
+import typing
+
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
@@ -14,7 +16,7 @@ __all__ = [
 
 
 class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
-    filter_backends = []
+    filter_backends: typing.ClassVar[list] = []
 
     def list(self, request):
         return Response(
