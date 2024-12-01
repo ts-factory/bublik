@@ -10,8 +10,11 @@ class ConfigServices:
     def get_schema(config_type, config_name):
         if config_type == ConfigTypes.REPORT:
             return load_schema('report')
-        if config_type == ConfigTypes.GLOBAL and config_name == GlobalConfigNames.PER_CONF:
-            return load_schema('per_conf')
+        if config_type == ConfigTypes.GLOBAL:
+            if config_name == GlobalConfigNames.PER_CONF:
+                return load_schema('per_conf')
+            if config_name == GlobalConfigNames.REFERENCES:
+                return load_schema('references')
         return None
 
     @staticmethod
