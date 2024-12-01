@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from references import References
+from bublik.core.config.services import ConfigServices
+from bublik.data.models import GlobalConfigNames
 
 
 def build_revision_references(revisions):
     revision_groups_list = []
     for revision in revisions:
-        reference = References.revisions.get(revision['name'])
+        reference = ConfigServices.getattr_from_global(
+            GlobalConfigNames.REFERENCES,
+            'REVISIONS',
+        ).get(revision['name'])
         revision_url = ''
 
         if reference:
