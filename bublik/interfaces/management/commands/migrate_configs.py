@@ -68,7 +68,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Migrate configurations from the directory to the database:')
 
-        config_file_names = ['per_conf.py']
+        config_file_names = ['per_conf.py', 'references.py']
 
         # check the existence of the PER_CONF_DIR directory and the presence
         # of configurations in it
@@ -98,6 +98,13 @@ class Command(BaseCommand):
                     content['RUN_STATUS_BY_NOK_BORDERS'] = list(
                         content['RUN_STATUS_BY_NOK_BORDERS'],
                     )
+            elif config_file_name == 'references.py':
+                name, description = GlobalConfigNames.REFERENCES, None
+                content = {
+                    key.upper(): value
+                    for key, value in vars(vars(content).get('References')).items()
+                    if not key.startswith('__')
+                }
             else:
                 continue
 
