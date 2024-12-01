@@ -35,6 +35,7 @@ class GlobalConfigNames(str, Enum):
     '''
 
     PER_CONF = 'per_conf'
+    REFERENCES = 'references'
 
     def __str__(self):
         return self.value
