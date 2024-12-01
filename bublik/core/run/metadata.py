@@ -78,7 +78,7 @@ class MetaData:
                 ),
             )
             logger.info(f'running command: {cmd}')
-            subprocess.run(cmd, stdout=subprocess.PIPE)
+            subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
 
         except (subprocess.CalledProcessError, FileNotFoundError):
             msg = 'Per-project generate_metadata.py has returned an error {e}'
@@ -91,7 +91,7 @@ class MetaData:
     def __check_metadata(self, meta_data):
         # Check metadata version
         self.version = meta_data.get('version')
-        if not self.version or self.version and self.version > 1:
+        if not self.version or (self.version and self.version > 1):
             logger.error('not valid version of meta_data.json')
             raise ValueError
 
@@ -177,7 +177,7 @@ class MetaData:
             self.run_finish = pendulum.parse(finish_meta['value'])
 
     def check_run_period(self, date_from, date_to):
-        if (
+        return not (
             self.run_start
             and self.run_finish
             and (
@@ -185,9 +185,7 @@ class MetaData:
                 or self.run_start > date_to
                 or self.run_finish > date_to
             )
-        ):
-            return False
-        return True
+        )
 
     def __preprocess_meta(self, m_data, to_data=False):
         dashboard_date_meta = getattr_from_per_conf('DASHBOARD_DATE')
@@ -247,11 +245,7 @@ class MetaData:
                 MetaResult.objects.get_or_create(meta=meta, result=run, reference=reference)
 
             logger.debug(
-                'run meta: {:<13} {:<15} = {:<}'.format(
-                    str(meta.type),
-                    str(meta.name),
-                    str(meta.value),
-                ),
+                f'run meta: {meta.type!s:<13} {meta.name!s:<15} = {meta.value!s:<}',
             )
 
         return True

@@ -22,6 +22,6 @@ def getattr_from_per_conf(data_key, default=None, required=False):
     if data_key in per_conf_obj.content:
         return per_conf_obj.content[data_key]
     if required:
-        msg = f"'{data_key}' wasn\'t found in per_conf global configuration object"
+        msg = f"'{data_key}' wasn't found in per_conf global configuration object"
         raise KeyError(msg)
     return default

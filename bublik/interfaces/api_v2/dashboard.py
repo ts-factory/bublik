@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+import typing
 from typing import Iterable
 
 from django.db.models import F
@@ -29,17 +30,17 @@ from bublik.data.models import Meta, TestIterationResult
 
 
 __all__ = [
-    'DashboardViewSet',
     'DashboardFormatting',
     'DashboardPayload',
+    'DashboardViewSet',
 ]
 
 
 class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
-    required_settings = ['DASHBOARD_HEADER']
-    extended_data = ['total', 'total_expected', 'progress', 'unexpected']
-    available_column_modes = {
+    required_settings: typing.ClassVar[list] = ['DASHBOARD_HEADER']
+    extended_data: typing.ClassVar[list] = ['total', 'total_expected', 'progress', 'unexpected']
+    available_column_modes: typing.ClassVar['dict'] = {
         'one_day_one_column': {'days': 1, 'columns': 1},
         'one_day_two_columns': {'days': 1, 'columns': 2},
         'two_days_two_columns': {'days': 2, 'columns': 2},
@@ -289,8 +290,8 @@ class DashboardFormatting:
     Applies formatting rules to particular values displayed on the dashboard.
     '''
 
-    handlers = {}
-    handlers_available = [
+    handlers: typing.ClassVar['dict'] = {}
+    handlers_available: typing.ClassVar['list'] = [
         'percent',
     ]
 
@@ -332,8 +333,8 @@ class DashboardPayload:
       style is controlled by css classes and can depend on data in rows.
     '''
 
-    handlers = {}
-    handlers_available = {
+    handlers: typing.ClassVar['dict'] = {}
+    handlers_available: typing.ClassVar['dict'] = {
         'go_run': 'go to run details',
         'go_run_failed': 'go to run details with failed results opened',
         'go_tree': 'go to run tests as a tree with its logs and context',

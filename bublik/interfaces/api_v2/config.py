@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-import logging
 import re
 import typing
 
@@ -19,9 +18,6 @@ from bublik.core.config.filters import ConfigFilter
 from bublik.core.queries import get_or_none
 from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
 from bublik.data.serializers import ConfigSerializer
-
-
-logger = logging.getLogger('')
 
 
 class ConfigFilterSet(filters.FilterSet):

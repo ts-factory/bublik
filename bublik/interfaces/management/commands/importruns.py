@@ -7,14 +7,12 @@ import os
 import re
 import shutil
 import tempfile
-
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 import pendulum
-
 from references import References
 
 from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url

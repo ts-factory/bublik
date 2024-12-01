@@ -5,7 +5,6 @@ from datetime import datetime
 import json
 
 import jsonschema
-
 from jsonschema import validate
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer

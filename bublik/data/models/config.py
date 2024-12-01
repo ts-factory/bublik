@@ -9,9 +9,9 @@ from bublik.data.models.user import User
 
 
 __all__ = [
+    'Config',
     'ConfigTypes',
     'GlobalConfigNames',
-    'Config',
 ]
 
 
