@@ -12,7 +12,6 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models
 from django.db.models import Exists, F, OuterRef, Q, Value
 from django.db.models.functions import Concat
-from references import References
 
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
@@ -523,8 +522,12 @@ def get_expected_results(result):
                 key_part = {'name': ref_name, 'url': None}
 
                 # Form the link address, if possible
-                if ref_type in References.logs and ref_tail:
-                    ref_uri = References.logs[ref_type]['uri'][0]
+                logs = ConfigServices.getattr_from_global(
+                    GlobalConfigNames.REFERENCES,
+                    'LOGS',
+                )
+                if ref_type in logs and ref_tail:
+                    ref_uri = logs[ref_type]['uri'][0]
                     ref_url = f'{ref_uri}{ref_tail}'
                     key_part['url'] = ref_url
 

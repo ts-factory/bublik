@@ -4,12 +4,12 @@
 import logging
 
 from django.db.models import F
-from references import References
 
+from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.core.utils import get_local_log
-from bublik.data.models import Meta, MetaResult
+from bublik.data.models import GlobalConfigNames, Meta, MetaResult
 
 
 logger = logging.getLogger('bublik.server')
@@ -21,7 +21,13 @@ class ImportMode:
 
 
 def extract_logs_base(run_url):
-    for uri in References.logs['LOGS_BASE']['uri']:
+    logs_base_uris = ConfigServices.getattr_from_global(
+        GlobalConfigNames.REFERENCES,
+        'LOGS',
+    )[
+        'LOGS_BASE'
+    ]['uri']
+    for uri in logs_base_uris:
         if run_url.startswith(uri):
             return run_url.replace(uri, '')
     return None

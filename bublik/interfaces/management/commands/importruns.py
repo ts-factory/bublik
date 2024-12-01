@@ -13,7 +13,6 @@ from bs4 import BeautifulSoup
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 import pendulum
-from references import References
 
 from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url
 from bublik.core.checks import check_run_file, modify_msg
@@ -256,7 +255,12 @@ class Command(BaseCommand):
 
                 logger.info('the process of adding references is started')
                 start_time = datetime.now()
-                log_references = add_references(References.logs)
+                log_references = add_references(
+                    ConfigServices.getattr_from_global(
+                        GlobalConfigNames.REFERENCES,
+                        'LOGS',
+                    ),
+                )
                 logger.info(
                     f'the process of adding references is completed in ['
                     f'{datetime.now() - start_time}]',
