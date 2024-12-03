@@ -118,7 +118,7 @@ LOGGING = {
             'format': '[%(asctime)s][%(levelname)s](%(module)s) %(message)s',
         },
         'simple': {
-            'format': '[%(asctime)s][%(levelname)s] %(message)s',
+            'format': '%(message)s',
         },
         'json': {
             'format': '%(asctime)s %(levelname)s %(module)s %(message)s',
