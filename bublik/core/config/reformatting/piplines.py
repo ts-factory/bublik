@@ -5,6 +5,7 @@ import logging
 
 from bublik.core.config.reformatting.steps import (
     BaseReformatStep,
+    RemoveUnsupportedAttributes,
     UpdateAxisXStructure,
     UpdateCSRFTrustedOrigins,
     UpdateDashboardHeaderStructure,
@@ -17,21 +18,19 @@ logger = logging.getLogger('')
 
 class ReformatPipeline:
     def __init__(self):
-        self.steps = []
+        self.steps = [RemoveUnsupportedAttributes()]
 
     def add_step(self, step):
         if not isinstance(step, BaseReformatStep):
             msg = 'Step must be an instance of BaseReformatStep'
             raise TypeError(msg)
-        self.steps.append(step)
+        # the RemoveUnsupportedAttributes step should be executed last
+        self.steps.insert(-1, step)
 
-    def run(self, content):
+    def run(self, content, schema):
         reformatted = False
-        if not self.steps:
-            logger.info('\tNo steps provided. Skipped.')
-            return content, reformatted
         for step in self.steps:
-            content, applied = step.apply(content)
+            content, applied = step.apply(content, schema=schema)
             if applied:
                 reformatted = True
         return content, reformatted

@@ -9,7 +9,7 @@ from bublik.core.config.reformatting.piplines import (
     PerConfConfigReformatPipeline,
     ReportConfigReformatPipeline,
 )
-
+from bublik.core.config.services import ConfigServices
 from bublik.data.models import ConfigTypes, GlobalConfigNames
 from bublik.data.serializers import ConfigSerializer
 
@@ -64,8 +64,15 @@ class ConfigReformatDispatcher:
             return ConfigReformatStatuses.SKIPPED
 
         pipeline = self.pipelines[config_data_type]
+
         try:
-            reformatted_content, reformatted = pipeline.run(config.content)
+            reformatted_content, reformatted = pipeline.run(
+                config.content,
+                ConfigServices.get_schema(
+                    config.type,
+                    config.name,
+                ),
+            )
             if reformatted:
                 update_config_content(config, reformatted_content)
                 return ConfigReformatStatuses.SUCCESS
