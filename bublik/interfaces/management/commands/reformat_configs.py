@@ -25,7 +25,7 @@ class Command(BaseCommand):
         '''
         Get a list of configurations filtered by the passed types and names.
         '''
-        configs = Config.objects.all()
+        configs = Config.objects.all().order_by('type', 'name', 'version')
         if not options['type'] and not options['name']:
             return configs
 
