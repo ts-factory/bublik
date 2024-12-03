@@ -188,8 +188,8 @@ class ConfigViewSet(ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     @auth_required(as_admin=True)
-    @action(detail=False, methods=['get'])
-    def schema(self, request, *args, **kwargs):
+    @action(detail=False, methods=['get'], url_path='schema')
+    def get_schema(self, request, *args, **kwargs):
         '''
         Get the JSON schema by passed config type and name.
         Request: GET api/v2/config/get_schema/?type=<config_type>&name=<config_name>.
