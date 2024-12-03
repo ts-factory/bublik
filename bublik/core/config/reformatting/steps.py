@@ -8,14 +8,14 @@ logger = logging.getLogger('')
 
 
 class BaseReformatStep:
-    def apply(self, content):
+    def apply(self, content, **kwargs):
         '''
         Reformats the provided content if it has not been reformatted yet,
         and outputs the execution status. Returns the content.
         '''
         try:
-            if not self.applied(content):
-                content = self.reformat(content)
+            if not self.applied(content, **kwargs):
+                content = self.reformat(content, **kwargs)
                 logger.info(f'\tSTEP: {self.__class__.__name__} - OK')
                 return content, True
             logger.info(f'\tSTEP: {self.__class__.__name__} - SKIPPED')
@@ -24,14 +24,14 @@ class BaseReformatStep:
             logger.info(f'\tSTEP: {self.__class__.__name__} - FAILED:')
             raise err
 
-    def applied(self, content):
+    def applied(self, content, **kwargs):
         '''
         Checks whether the step has already been applied.
         '''
         msg = 'Subclasses must implement `applied`.'
         raise NotImplementedError(msg)
 
-    def reformat(self, content):
+    def reformat(self, content, **kwargs):
         '''
         Reformats the provided content.
         '''
@@ -45,13 +45,13 @@ class UpdateAxisXStructure(BaseReformatStep):
     "axis_x": <str> -> "axis_x": {"arg": <str>}
     '''
 
-    def applied(self, content):
+    def applied(self, content, **kwargs):
         for _test_name, test_config_data in content['tests'].items():
             if isinstance(test_config_data['axis_x'], str):
                 return False
         return True
 
-    def reformat(self, content):
+    def reformat(self, content, **kwargs):
         for test_name, test_config_data in content['tests'].items():
             if isinstance(test_config_data['axis_x'], str):
                 test_config_data['axis_x'] = {
@@ -69,13 +69,13 @@ class UpdateSeqSettingsStructure(BaseReformatStep):
     Rename 'sequence_name_conversion' to 'arg_vals_labels'.
     '''
 
-    def applied(self, content):
+    def applied(self, content, **kwargs):
         for _test_name, test_config_data in content['tests'].items():
             if 'sequences' not in test_config_data:
                 return False
         return True
 
-    def reformat(self, content):
+    def reformat(self, content, **kwargs):
         for test_name, test_config_data in content['tests'].items():
             if 'sequences' not in test_config_data:
                 if test_config_data['sequence_group_arg'] is not None:
@@ -106,10 +106,10 @@ class UpdateDashboardHeaderStructure(BaseReformatStep):
     DASHBOARD_HEADER: [{"key": <key>, "label": <label>}]
     '''
 
-    def applied(self, content):
+    def applied(self, content, **kwargs):
         return not isinstance(content['DASHBOARD_HEADER'], dict)
 
-    def reformat(self, content):
+    def reformat(self, content, **kwargs):
         content['DASHBOARD_HEADER'] = [
             {'key': key, 'label': label} for key, label in content['DASHBOARD_HEADER'].items()
         ]
@@ -123,15 +123,32 @@ class UpdateCSRFTrustedOrigins(BaseReformatStep):
     CSRF_TRUSTED_ORIGINS: ["http://origin1", "https://origin2", "https://origin3"]
     '''
 
-    def applied(self, content):
+    def applied(self, content, **kwargs):
         for origin in content.get('CSRF_TRUSTED_ORIGINS', []):
             if not origin.startswith(('http://', 'https://')):
                 return False
         return True
 
-    def reformat(self, content):
+    def reformat(self, content, **kwargs):
         content['CSRF_TRUSTED_ORIGINS'] = [
             (origin if origin.startswith(('http://', 'https://')) else f'https://{origin}')
             for origin in content.get('CSRF_TRUSTED_ORIGINS', [])
         ]
         return content
+
+
+class RemoveUnsupportedAttributes(BaseReformatStep):
+    def applied(self, content, **kwargs):
+        schema = kwargs.get('schema')
+        valid_attributes = schema.get('properties', {}).keys()
+        return not (
+            isinstance(content, dict)
+            and not schema.get('additionalProperties', True)
+            and not set(content.keys()).issubset(set(valid_attributes))
+        )
+
+    def reformat(self, content, **kwargs):
+        schema = kwargs.get('schema')
+        # leave only valid attributes
+        valid_attributes = schema.get('properties', {}).keys()
+        return {k: v for k, v in content.items() if k in valid_attributes}
