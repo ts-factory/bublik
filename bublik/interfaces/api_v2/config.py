@@ -3,10 +3,12 @@
 
 import logging
 import re
+import typing
 
+from django.contrib.postgres.fields import JSONField
 from django.core.management import call_command
+from django_filters import rest_framework as filters
 import per_conf
-
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -22,9 +24,24 @@ from bublik.data.serializers import ConfigSerializer
 logger = logging.getLogger('')
 
 
+class ConfigFilterSet(filters.FilterSet):
+    class Meta:
+        model = Config
+        fields: typing.ClassVar = ['type', 'name', 'is_active', 'version']
+        filter_overrides: typing.ClassVar = {
+            JSONField: {
+                'filter_class': filters.CharFilter,
+                'extra': lambda f: {
+                    'lookup_expr': 'icontains',
+                },
+            },
+        }
+
+
 class ConfigViewSet(ModelViewSet):
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
+    filterset_class = ConfigFilterSet
 
     def filter_queryset(self, queryset):
         return ConfigFilter(queryset=self.queryset).qs
