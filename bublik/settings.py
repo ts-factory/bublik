@@ -353,13 +353,13 @@ PERIOD_DELIMITER = '-'
 TIMESTAMP_DELIMITER = 's'
 
 # Email settings
-EMAIL_HOST = 'smtp.oktetlabs.ru'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_HOST = os.getenv("EMAIL_HOST", "mailpit")
+EMAIL_PORT = os.getenv("EMAIL_PORT", "1025")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True")
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_TIMEOUT = 60
-EMAIL_FROM = 'noreply@bublik.oktetlabs.ru'
-EMAIL_ADMINS = ['natalia.rybchenko@oktetlabs.ru']
+EMAIL_FROM = os.getenv("EMAIL_FROM")
+EMAIL_ADMINS = [email.strip() for email in os.getenv("EMAIL_ADMINS", "").split(",") if email]
 
 # Repo revisions
 REPO_REVISIONS = {

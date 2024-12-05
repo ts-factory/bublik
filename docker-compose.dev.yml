@@ -41,6 +41,10 @@ services:
       - BUBLIK_TIMEOUT=${BUBLIK_TIMEOUT}
       - BUBLIK_GRACEFUL_TIMEOUT=${BUBLIK_GRACEFUL_TIMEOUT}
       - BUBLIK_WEB_NAME=${BUBLIK_WEB_NAME}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_ADMINS=${EMAIL_ADMINS}
     ports:
       - 8000:8000
     depends_on:
@@ -234,6 +238,15 @@ services:
             - node_modules
         - action: rebuild
           path: ./bublik-ui/package.json
+  mailpit:
+      image: axllent/mailpit
+      container_name: mailpit
+      restart: unless-stopped
+      ports:
+          - 8025:8025
+          - 1025:1025
+      environment:
+        - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
 
 volumes:
   db_data:
