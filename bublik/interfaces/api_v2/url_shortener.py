@@ -25,8 +25,11 @@ class URLShortnerView(APIView):
         url = self.request.query_params.get('url', '')
 
         # Check URL preffix
-        url_head = build_absolute_uri(request, settings.UI_PREFIX)
-        if url.find(url_head) != 0:
+        # Build the expected URL head based on UI_PREFIX
+        url_head = f"{request.scheme}://{request.get_host()}/{settings.UI_PREFIX}"
+
+        # Check if the passed URL starts with the expected prefix
+        if not url.startswith(url_head):
             msg = 'The passed URL has an incorrect prefix'
             return Response({'message': msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -43,7 +46,7 @@ class URLShortnerView(APIView):
         short_url_obj, _ = short_url_serializer.get_or_create()
 
         # Build short URL with the hash of the endpoint of the passed URL
-        short_url_endpoint = f'short/{view}/{short_url_obj.hash}'
-        short_url = build_absolute_uri(request, short_url_endpoint)
+        short_url_endpoint = f'/short/{view}/{short_url_obj.hash}'
+        short_url = request.build_absolute_uri(short_url_endpoint)
 
         return Response(data={'short_url': short_url}, status=status.HTTP_200_OK)
