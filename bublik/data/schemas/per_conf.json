@@ -184,6 +184,34 @@
                 "type": "string"
             },
             "uniqueItems": true
+        },
+        "EMAIL_PORT": {
+            "description": "Defines the port to be used for the email server connection",
+            "type": "number"
+        },
+        "EMAIL_HOST": {
+            "description": "The SMTP server to be used for sending emails",
+            "type": "string"
+        },
+        "EMAIL_USE_TLS": {
+            "description": "A boolean setting that specifies whether to use TLS for email communication",
+            "type": "boolean"
+        },
+        "EMAIL_TIMEOUT": {
+            "description": "Sets the timeout (in seconds) for email sending operations",
+            "type": "number"
+        },
+        "EMAIL_FROM": {
+            "description": "The default \"from\" address for sending emails",
+            "type": "string"
+        },
+        "EMAIL_ADMINS": {
+            "description": "A list of email addresses to which error notifications should be sent",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "uniqueItems": true
         }
     },
     "required": [
