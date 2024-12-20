@@ -59,9 +59,10 @@ class MeasurementResultCommonSerializer(ModelSerializer):
     def get_or_create(self):
         model = self.Meta.model
         value = self.validated_data.pop('value')
+        serial = self.validated_data.pop('serial')
         mmr, created = model.objects.get_or_create(
             **self.validated_data,
-            defaults={'value': value},
+            defaults={'value': value, 'serial': serial},
         )
         if created:
             return mmr, created
