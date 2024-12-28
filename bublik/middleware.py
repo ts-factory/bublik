@@ -54,4 +54,12 @@ class DynamicSettingsMiddleware:
         ui_prefix = ui_prefix_by_ui_version.get(ui_version, '')
         settings.UI_PREFIX = ui_prefix
 
+        # set email settings
+        settings.EMAIL_PORT = config.get('EMAIL_PORT', 25)
+        settings.EMAIL_HOST = config.get('EMAIL_HOST', 'localhost')
+        settings.EMAIL_USE_TLS = config.get('EMAIL_USE_TLS', True)
+        settings.EMAIL_TIMEOUT = config.get('EMAIL_TIMEOUT', 60)
+        settings.EMAIL_FROM = config.get('EMAIL_FROM', 'noreply@ts-factory.io')
+        settings.EMAIL_ADMINS = config.get('EMAIL_ADMINS', ['bublik@ts-factory.io'])
+
         return self.get_response(request)
