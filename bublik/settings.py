@@ -21,7 +21,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Bublik UI repo location
 BUBLIK_UI_DIR = os.getenv('BUBLIK_UI_DIR', "/app/bublik-ui")
-# Bublik UI static location
+
+# Bublik UI docs directory
+BUBLIK_UI_DOCS_DIR = os.getenv('BUBLIK_UI_DOCS_DIR', "/app/bublik/docs")
+
 BUBLIK_UI_STATIC = f"{BUBLIK_UI_DIR}/dist/apps/bublik"
 # Bublik host for urls i.e."http://bublik"
 BUBLIK_HOST = os.getenv('BUBLIK_HOST', "http://bublik")

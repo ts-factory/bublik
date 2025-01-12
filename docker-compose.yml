@@ -21,6 +21,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - URL_PREFIX=${URL_PREFIX}
       - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_UI_DOCS_DIR=${BUBLIK_UI_DOCS_DIR}
       - BUBLIK_SRC=${BUBLIK_SRC}
       - TE_BASE=${TE_BASE}
       - TMPDIR=${TMPDIR}

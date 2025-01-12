@@ -11,6 +11,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - URL_PREFIX=${URL_PREFIX}
       - BUBLIK_UI_DIR=${BUBLIK_UI_DIR}
+      - BUBLIK_UI_DOCS_DIR=${BUBLIK_UI_DOCS_DIR}
       - BUBLIK_SRC=${BUBLIK_SRC}
       - TE_BASE=${TE_BASE}
       - TMPDIR=${TMPDIR}
@@ -242,14 +243,14 @@ services:
         - action: rebuild
           path: ./bublik-ui/package.json
   mailpit:
-      image: axllent/mailpit
-      container_name: mailpit
-      restart: unless-stopped
-      ports:
-          - 8025:8025
-          - 1025:1025
-      environment:
-        - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    ports:
+      - 8025:8025
+      - 1025:1025
+    environment:
+      - MP_SMTP_TLS_REQUIRED=${MP_SMTP_TLS_REQUIRED:-false}
 
 volumes:
   db_data:
