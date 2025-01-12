@@ -64,6 +64,7 @@ urlpatterns = [
     # V2
     re_path(r'^v2/$', api_v2.render_react, name='ui-v2-index'),
     re_path(r'^v2/(?:.*)/?$', api_v2.render_react, name='ui-v2-routes'),
+    re_path(r'^docs/(?:.*)/?$', api_v2.render_docs, name='ui-v2-docs'),
     path('api/v2/schema/swagger.yaml/', SpectacularAPIView.as_view(), name='schema'),
     path(
         'api/v2/schema/swagger-ui/',

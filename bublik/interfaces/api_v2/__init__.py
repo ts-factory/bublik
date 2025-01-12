@@ -22,7 +22,7 @@ from .dashboard import (
 from .event import EventLogViewSet
 from .history import HistoryViewSet
 from .importruns import ImportrunsViewSet
-from .index import render_react
+from .index import render_docs, render_react
 from .log import LogViewSet
 from .management import clear_all_runs_stats_cache, local_logs, meta_categorization
 from .measurements import MeasurementViewSet
@@ -66,5 +66,6 @@ __all__ = [
     'clear_all_runs_stats_cache',
     'local_logs',
     'meta_categorization',
+    'render_docs',
     'render_react',
 ]
