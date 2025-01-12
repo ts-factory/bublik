@@ -53,6 +53,7 @@ services:
       - rabbitmq
     volumes:
       - static_data:/app/bublik/bublik/representation/static
+      - logs_data:/app/bublik/logs
     develop:
       watch:
         - path: .
@@ -94,6 +95,8 @@ services:
     depends_on:
       - db
       - rabbitmq
+    volumes:
+      - logs_data:/app/bublik/logs
     environment:
       - PER_CONF_DIR=${PER_CONF_DIR}
       - SECRET_KEY=${SECRET_KEY}
@@ -252,3 +255,4 @@ volumes:
   db_data:
   flower_data:
   static_data:
+  logs_data:
