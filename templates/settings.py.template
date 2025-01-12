@@ -25,6 +25,9 @@ BUBLIK_UI_DIR = '${BUBLIK_UI_DIR}'
 # Bublik UI static location
 BUBLIK_UI_STATIC = '${BUBLIK_UI_DIR}/dist/apps/${BUBLIK_UI_APP}'
 
+# Bublik documentation location
+BUBLIK_UI_DOCS_DIR = '${BUBLIK_UI_DOCS_DIR}'
+
 # Bublik host for urls i.e.'http://bublik'
 BUBLIK_HOST = '${BUBLIK_HOST}'
 
