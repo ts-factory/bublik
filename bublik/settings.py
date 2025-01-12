@@ -295,7 +295,7 @@ CELERY_TASK_SERIALIZER = os.getenv("CELERY_TASK_SERIALIZER", "json")
 CELERY_RESULT_SERIALIZER = os.getenv("CELERY_RESULT_SERIALIZER", "json")
 CELERY_CREATE_DIRS = os.getenv("CELERY_CREATE_DIRS", "1")
 
-ENABLE_JSON_LOGS_PROXY = os.getenv("ENABLE_JSON_LOGS_PROXY", False)
+ENABLE_JSON_LOGS_PROXY = os.getenv("ENABLE_JSON_LOGS_PROXY", "False").lower() in ("true", "1", "yes")
 SECURE_HTTP = os.getenv("SECURE_HTTP", False)
 
 # Identify a project holding Bublik:
