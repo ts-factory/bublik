@@ -38,6 +38,25 @@ WORKDIR /app/te
 COPY ./test-environment .
 RUN ./dispatcher.sh -q --conf-builder=builder.conf.tools --no-run
 
+FROM node:20.3.1 AS docs-builder
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+ARG URL_PREFIX
+ARG DOCS_URL
+
+WORKDIR /app
+
+COPY ./bublik-release/package.json ./bublik-release/pnpm-lock.yaml ./
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+COPY ./bublik-release .
+
+RUN URL="${DOCS_URL}" BASE_URL="${URL_PREFIX}/docs/" pnpm run build
+
 # 2. Build bublik
 FROM base AS runner
 
@@ -45,6 +64,7 @@ WORKDIR /app
 
 COPY . ./bublik
 COPY ./bublik-conf ./bublik
+COPY --from=docs-builder /app/build ./bublik/docs
 
 # 3. Create user and set permissions
 RUN mkdir -p bublik/logs

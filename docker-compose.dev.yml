@@ -4,6 +4,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
     command: python manage.py runserver 0.0.0.0:8000
     entrypoint: ./entrypoint.sh
     environment:
@@ -92,6 +95,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
     command: >
       watchfiles --filter python 'celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} -l ${CELERY_LOG_LEVEL}'
     depends_on:
@@ -150,6 +156,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
     command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
     environment:
       - PER_CONF_DIR=${PER_CONF_DIR}

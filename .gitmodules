@@ -7,3 +7,6 @@
 [submodule "bublik-conf"]
 	path = bublik-conf
 	url = https://github.com/okt-limonikas/bublik-conf.git
+[submodule "bublik-release"]
+	path = bublik-release
+	url = https://github.com/ts-factory/bublik-release.git

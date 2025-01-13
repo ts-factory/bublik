@@ -4,6 +4,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
     command: >
       gunicorn bublik.wsgi:application  
       --bind ${BUBLIK_BIND_GUNICORN}
@@ -107,6 +110,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
     command: celery -A ${CELERY_APP} worker --max-tasks-per-child ${CELERYD_MAX_TASKS_PER_CHILD} -l ${CELERY_LOG_LEVEL}
     environment:
       - PER_CONF_DIR=${PER_CONF_DIR}
@@ -160,6 +166,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - URL_PREFIX=${URL_PREFIX}
+        - DOCS_URL=${DOCS_URL}
     command: celery -A ${CELERY_APP} flower --persistent=${FLOWER_PERSISTENT} --url_prefix=${FLOWER_URL_PREFIX}
     environment:
       - PER_CONF_DIR=${PER_CONF_DIR}
