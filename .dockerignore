@@ -24,6 +24,11 @@ web/static/CACHE
 stats
 Dockerfile
 node_modules
+bublik-ui/dist
+bublik-release/node_modules
+bublik-release/build
+**/.nx
+**/node_modules
 npm-debug.log
 Dockerfile*
 docker-compose*
