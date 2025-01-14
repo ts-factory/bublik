@@ -1,4 +1,4 @@
-FROM node:20.3.1 AS frontend-builder
+FROM node:22.13-alpine AS frontend-builder
 
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PNPM_HOME="/pnpm"
@@ -18,7 +18,7 @@ COPY ./bublik-ui ./
 
 RUN BASE_URL="$URL_PREFIX/v2" nx run bublik:build --base="$URL_PREFIX/v2" --sourcemap="true"
 
-FROM nginx:1.21-alpine
+FROM nginx:1.27-alpine
 
 COPY --from=frontend-builder /app/dist/apps/bublik /app/bublik-ui
 
