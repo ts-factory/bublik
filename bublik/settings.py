@@ -309,15 +309,15 @@ def get_module(name, location):
         msg = f'unable to get {location}'
         raise FileNotFoundError(msg)
     spec = importlib.util.spec_from_file_location(name, location)
-    module = importlib.util.module_from_spec(spec) # type: ignore  # noqa: PGH003
-    spec.loader.exec_module(module) # type: ignore  # noqa: PGH003
+    module = importlib.util.module_from_spec(spec)  # type: ignore  # noqa: PGH003
+    spec.loader.exec_module(module)  # type: ignore  # noqa: PGH003
     sys.modules[name] = module
 
 
 get_module('per_conf', f'{PER_CONF_DIR}/per_conf.py')
 get_module('references', f'{PER_CONF_DIR}/references.py')
 
-import per_conf # type: ignore  # noqa: PGH003
+import per_conf  # type: ignore  # noqa: PGH003
 
 URL_PREFIX_BY_UI_VERSION = {
     1: 'v1',
@@ -358,7 +358,8 @@ TIMESTAMP_DELIMITER = 's'
 # Email settings
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'mailpit')
 EMAIL_PORT = os.getenv('EMAIL_PORT', '1025')
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes')
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() in ('1', 'true', 'yes')
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_TIMEOUT = 60
 EMAIL_FROM = os.getenv('EMAIL_FROM')
