@@ -166,7 +166,7 @@ LOGGING = {
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME', 'bublik'),
         'USER': os.getenv('DB_USER', 'bublik'),
         'PASSWORD': os.getenv('DB_PASSWORD', 'bublik'),
