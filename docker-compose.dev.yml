@@ -66,8 +66,7 @@ services:
           target: /app/bublik
           ignore:
             - .venv
-            - bublik-conf
-            - bublik-bublik-ui
+            - bublik-ui
         - path: ./requirements.txt
           action: rebuild
   db:
@@ -147,8 +146,7 @@ services:
           target: /app/bublik
           ignore:
             - .venv
-            - bublik-conf
-            - bublik-bublik-ui
+            - bublik-ui
         - path: ./requirements.txt
           action: rebuild
   flower:
@@ -211,8 +209,7 @@ services:
           target: /app/bublik
           ignore:
             - .venv
-            - bublik-conf
-            - bublik-bublik-ui
+            - bublik-ui
         - path: ./requirements.txt
           action: rebuild
   nginx:
