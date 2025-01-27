@@ -6,6 +6,7 @@ import logging
 import traceback
 
 from bublik.core.config.reformatting.piplines import (
+    MetaConfigReformatPipeline,
     PerConfConfigReformatPipeline,
     ReferencesConfigReformatPipeline,
     ReportConfigReformatPipeline,
@@ -57,6 +58,8 @@ class ConfigReformatDispatcher:
             ConfigTypes.REPORT: ReportConfigReformatPipeline(),
             GlobalConfigNames.PER_CONF: PerConfConfigReformatPipeline(),
             GlobalConfigNames.REFERENCES: ReferencesConfigReformatPipeline(),
+            GlobalConfigNames.META: MetaConfigReformatPipeline(),
+            GlobalConfigNames.TAGS: MetaConfigReformatPipeline(),
         }
 
     def reformat_config(self, config):
