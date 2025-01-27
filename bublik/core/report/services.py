@@ -6,13 +6,6 @@ from django.db.models import Count, Q
 from bublik.data.models import MeasurementResult, TestArgument
 
 
-def type_conversion(arg_value):
-    try:
-        return int(arg_value)
-    except ValueError:
-        return arg_value
-
-
 def get_common_args(mmrs_test):
     '''
     Collect arguments that have the same values for all iterations of the test
