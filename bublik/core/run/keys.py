@@ -16,7 +16,7 @@ def prepare_expected_key(key_str):
         ref_type = re.search(r'ref://(.*)/', ref).group(1)
         if ref_type not in ConfigServices.getattr_from_global(
             GlobalConfigNames.REFERENCES,
-            'LOGS',
+            'ISSUES',
         ):
             logger.warning(f"{key_str}: '{ref_type}' doesn`t match the project references")
 

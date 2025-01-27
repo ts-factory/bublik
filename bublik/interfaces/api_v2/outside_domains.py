@@ -25,7 +25,11 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
             {
                 'logs': ConfigServices.getattr_from_global(
                     GlobalConfigNames.REFERENCES,
-                    'LOGS',
+                    'LOGS_BASES',
+                ),
+                'issues': ConfigServices.getattr_from_global(
+                    GlobalConfigNames.REFERENCES,
+                    'ISSUES',
                 ),
                 'revisions': ConfigServices.getattr_from_global(
                     GlobalConfigNames.REFERENCES,
@@ -40,7 +44,18 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
             {
                 'logs': ConfigServices.getattr_from_global(
                     GlobalConfigNames.REFERENCES,
-                    'LOGS',
+                    'LOGS_BASES',
+                ),
+            },
+        )
+
+    @action(detail=False, methods=['get'])
+    def issues(self, request):
+        return Response(
+            {
+                'issues': ConfigServices.getattr_from_global(
+                    GlobalConfigNames.REFERENCES,
+                    'ISSUES',
                 ),
             },
         )
