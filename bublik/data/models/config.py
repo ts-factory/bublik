@@ -36,6 +36,8 @@ class GlobalConfigNames(str, Enum):
 
     PER_CONF = 'per_conf'
     REFERENCES = 'references'
+    META = 'meta'
+    TAGS = 'tags'
 
     def __str__(self):
         return self.value
