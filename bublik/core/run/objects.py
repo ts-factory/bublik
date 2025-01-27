@@ -186,16 +186,11 @@ def clear_meta_result(m_data, mr_data):
     MetaResult.objects.filter(meta=meta, **mr_data).delete()
 
 
-def add_references(reference_map):
-    references = {}
-    for reference_key, reference_data in reference_map.items():
-        for uri in reference_data['uri']:
-            reference, _ = Reference.objects.get_or_create(uri=uri, name=reference_data['name'])
-            references[reference_key] = reference
-    return references
-
-
-def add_run_log(run, source_suffix, reference):
+def add_run_log(run, source_suffix, logs_base):
+    reference, _ = Reference.objects.get_or_create(
+        uri=logs_base['uri'][-1],
+        name=logs_base['name'],
+    )
     add_meta_result(
         m_data={'type': 'log', 'value': source_suffix},
         mr_data={'result': run, 'reference': reference},

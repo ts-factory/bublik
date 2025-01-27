@@ -21,16 +21,15 @@ class ImportMode:
 
 
 def extract_logs_base(run_url):
-    logs_base_uris = ConfigServices.getattr_from_global(
+    logs_bases = ConfigServices.getattr_from_global(
         GlobalConfigNames.REFERENCES,
-        'LOGS',
-    )[
-        'LOGS_BASE'
-    ]['uri']
-    for uri in logs_base_uris:
-        if run_url.startswith(uri):
-            return run_url.replace(uri, '')
-    return None
+        'LOGS_BASES',
+    )
+    for logs_base in logs_bases:
+        for uri in logs_base['uri']:
+            if run_url.startswith(uri):
+                return logs_base, run_url.replace(uri, '')
+    return None, None
 
 
 def identify_run(key_metas):

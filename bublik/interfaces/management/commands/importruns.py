@@ -22,7 +22,7 @@ from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
-from bublik.core.run.objects import add_import_id, add_references, add_run_log
+from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import fetch_url, save_url_to_dir
 from bublik.core.utils import Counter, create_event
 from bublik.data.models import EventLog, GlobalConfigNames
@@ -155,7 +155,7 @@ class Command(BaseCommand):
 
         logger.info('downloading run logs: %s', run_url)
 
-        suffix_url = extract_logs_base(run_url)
+        logs_base, suffix_url = extract_logs_base(run_url)
         if not suffix_url:
             logger.error(f"run url doesn't matched project references, ignoring: {run_url}")
             create_event(
@@ -253,22 +253,9 @@ class Command(BaseCommand):
                     f'{datetime.now() - start_time}]',
                 )
 
-                logger.info('the process of adding references is started')
-                start_time = datetime.now()
-                log_references = add_references(
-                    ConfigServices.getattr_from_global(
-                        GlobalConfigNames.REFERENCES,
-                        'LOGS',
-                    ),
-                )
-                logger.info(
-                    f'the process of adding references is completed in ['
-                    f'{datetime.now() - start_time}]',
-                )
-
                 logger.info('the process of adding run log is started')
                 start_time = datetime.now()
-                add_run_log(run, suffix_url, log_references['LOGS_BASE'])
+                add_run_log(run, suffix_url, logs_base)
                 logger.info(
                     f'the process of adding run log is completed in ['
                     f'{datetime.now() - start_time}]',

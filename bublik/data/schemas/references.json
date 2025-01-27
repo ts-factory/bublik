@@ -3,59 +3,10 @@
     "type": "object",
     "description": "Project references",
     "properties": {
-        "LOGS": {
-            "description": "Logs base and issue tracker URIs",
-            "type": "object",
-            "properties": {
-                "LOGS_BASE": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string"
-                        },
-                        "uri": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "uniqueItems": true
-                        }
-                    },
-                    "required": [
-                       "name",
-                       "uri"
-                    ],
-                    "additionalProperties": false
-                },
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string"
-                        },
-                        "uri": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "uniqueItems": true
-                        }
-                    },
-                    "required": [
-                       "name",
-                       "uri"
-                    ],
-                    "additionalProperties": false
-                }
-            },
-            "required": [
-                "LOGS_BASE"
-            ]
-        },
-        "REVISIONS": {
-            "description": "Revision URIs",
-            "type": "object",
-            "additionalProperties": {
+        "LOGS_BASES": {
+            "description": "Logs base URIs",
+            "type": "array",
+            "items": {
                 "type": "object",
                 "properties": {
                     "name": {
@@ -67,12 +18,51 @@
                             "type": "string"
                         },
                         "uniqueItems": true
+                    }
+                },
+                "required": [
+                    "name",
+                    "uri"
+                ],
+                "additionalProperties": false
+            },
+            "uniqueItems": true
+        },
+        "ISSUES": {
+            "description": "Issue tracker URIs",
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
                     },
-                    "reference_subpath": {
+                    "uri": {
                         "type": "string"
                     }
                 },
                 "required": [
+                    "name",
+                    "uri"
+                ],
+                "additionalProperties": false
+            }
+        },
+        "REVISIONS": {
+            "description": "Revision URIs",
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "uri": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
                     "uri"
                 ],
                 "additionalProperties": false
@@ -80,7 +70,7 @@
         }
     },
     "required": [
-        "LOGS",
+        "LOGS_BASES",
         "REVISIONS"
     ],
     "additionalProperties": false
