@@ -15,6 +15,8 @@ class ConfigServices:
                 return load_schema('per_conf')
             if config_name == GlobalConfigNames.REFERENCES:
                 return load_schema('references')
+            if config_name in [GlobalConfigNames.META, GlobalConfigNames.TAGS]:
+                return load_schema('meta')
         return None
 
     @staticmethod
