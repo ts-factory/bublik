@@ -152,3 +152,31 @@ class RemoveUnsupportedAttributes(BaseReformatStep):
         # leave only valid attributes
         valid_attributes = schema.get('properties', {}).keys()
         return {k: v for k, v in content.items() if k in valid_attributes}
+
+
+class UpdateLogsFormat(BaseReformatStep):
+    '''
+    Reformat passed global references configs content:
+    {"LOGS": {"LOGS_BASE": {"uri": ["uri1", "uri2"], "name": "Logs Base"},
+    "BUG_KEY": {"uri": ["uri3", "uri4"], "name": "Bugs Base"}},...} ->
+    {"LOGS_BASES": [{"uri": ["uri1", "uri2"], "name": "Logs Base"}],
+    "ISSUES": {"BUG_KEY": {"uri": ["uri3", "uri4"], "name": "Bugs Base"}}},...}
+    '''
+
+    def applied(self, content, **kwargs):
+        return 'LOGS' not in content
+
+    def reformat(self, content, **kwargs):
+        logs_base = content['LOGS'].pop('LOGS_BASE')
+        content['LOGS_BASES'] = [logs_base]
+        issues = {
+            issue_key: {'name': issue_data['name'], 'uri': issue_data['uri'][0]}
+            for issue_key, issue_data in content.pop('LOGS').items()
+        }
+        if issues:
+            content['ISSUES'] = issues
+        content['REVISIONS'] = {
+            issue_key: {'name': issue_data['name'], 'uri': issue_data['uri'][0]}
+            for issue_key, issue_data in content.get('REVISIONS').items()
+        }
+        return content
