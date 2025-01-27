@@ -2,8 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from bublik.core.measurement.representation import ReportRecordBuilder
-from bublik.core.report.services import type_conversion
-from bublik.core.utils import unordered_group_by
+from bublik.core.utils import convert_to_int_if_digit, unordered_group_by
 
 
 '''
@@ -52,12 +51,12 @@ class ReportPoint:
         # collect test argument values, value of sequence argument and the point
         for arg in mmr.result.iteration.test_arguments.all():
             if arg.name == self.axis_x_arg:
-                axis_x_value = type_conversion(arg.value)
+                axis_x_value = convert_to_int_if_digit(arg.value)
                 value = mmr.value
             elif arg.name == sequence_group_arg:
-                self.sequence_group_arg_val = type_conversion(arg.value)
+                self.sequence_group_arg_val = convert_to_int_if_digit(arg.value)
             elif arg.name not in common_args[self.test_name]:
-                self.args_vals[arg.name] = type_conversion(arg.value)
+                self.args_vals[arg.name] = convert_to_int_if_digit(arg.value)
 
         # check iteration
         warnings = []
