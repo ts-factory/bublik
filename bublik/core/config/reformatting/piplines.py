@@ -9,6 +9,7 @@ from bublik.core.config.reformatting.steps import (
     UpdateAxisXStructure,
     UpdateCSRFTrustedOrigins,
     UpdateDashboardHeaderStructure,
+    UpdateLogsFormat,
     UpdateSeqSettingsStructure,
 )
 
@@ -48,3 +49,9 @@ class PerConfConfigReformatPipeline(ReformatPipeline):
         super().__init__()
         self.add_step(UpdateDashboardHeaderStructure())
         self.add_step(UpdateCSRFTrustedOrigins())
+
+
+class ReferencesConfigReformatPipeline(ReformatPipeline):
+    def __init__(self):
+        super().__init__()
+        self.add_step(UpdateLogsFormat())

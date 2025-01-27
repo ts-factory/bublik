@@ -7,6 +7,7 @@ import traceback
 
 from bublik.core.config.reformatting.piplines import (
     PerConfConfigReformatPipeline,
+    ReferencesConfigReformatPipeline,
     ReportConfigReformatPipeline,
 )
 from bublik.core.config.services import ConfigServices
@@ -55,6 +56,7 @@ class ConfigReformatDispatcher:
         self.pipelines = {
             ConfigTypes.REPORT: ReportConfigReformatPipeline(),
             GlobalConfigNames.PER_CONF: PerConfConfigReformatPipeline(),
+            GlobalConfigNames.REFERENCES: ReferencesConfigReformatPipeline(),
         }
 
     def reformat_config(self, config):
