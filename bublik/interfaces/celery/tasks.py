@@ -13,7 +13,7 @@ from django.core.management import call_command
 from pythonjsonlogger import jsonlogger
 
 from bublik import settings
-from bublik.core.checks import check_files_for_categorization
+from bublik.core.checks import check_configs_for_categorization
 from bublik.core.logging import parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
@@ -123,7 +123,7 @@ def importruns(
 
     task_id = self.request.id
     logger, logpath = get_or_create_task_logger(task_id)
-    check_files_for_categorization(logger, param_url)
+    check_configs_for_categorization()
 
     cmd_import = ['./manage.py', 'importruns']
 
@@ -192,7 +192,7 @@ def meta_categorization(self):
     logger.info('meta categorization task started:')
     logger.info(f'[RUN]:  {query_url}')
 
-    check_files_for_categorization(logger)
+    check_configs_for_categorization()
 
     with open(logpath, 'a') as f:
         call_command('meta_categorization', stdout=f, stderr=f)
