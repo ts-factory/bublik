@@ -2,17 +2,21 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import configparser
-
 from datetime import datetime
+from itertools import chain
 import logging
-import os
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from bublik.core.cache import set_tags_categories_cache
-from bublik.data.models import Meta, MetaCategory, MetaPattern
+from bublik.data.models import (
+    Config,
+    GlobalConfigNames,
+    Meta,
+    MetaCategory,
+    MetaPattern,
+)
 
 
 logger = logging.getLogger('bublik.server')
@@ -52,28 +56,28 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'map_files',
-            metavar='path_map',
+            'config_names',
             nargs='?',
             default=[
-                os.path.join(settings.PER_CONF_DIR, 'tags.conf'),
-                os.path.join(settings.PER_CONF_DIR, 'meta.conf'),
+                GlobalConfigNames.META,
+                GlobalConfigNames.TAGS,
             ],
-            help='Path to a map file, ignored if unexistent',
+            help='Names of the map configs',
         )
 
-    def __resolve_mapping(self, h):
+    def __resolve_mapping(self, configs_content):
         mapping = {'categories': {}, 'patterns': []}
-        for section in h.sections():  # why if h.sections() is empty
-            logger.debug(f'section: {section}')
 
-            type = h.get(section, 'type', raw=True, fallback=None)
-            category = h.get(section, 'category', raw=True, fallback=None)
-            name = h.get(section, 'name', raw=True, fallback=None)
-            set_priority = h.getint(section, 'set-priority', raw=True, fallback=None)
-            set_comment = h.get(section, 'set-comment', raw=True, fallback=None)
-            set_category = h.get(section, 'set-category', raw=True, fallback=None)
-            set_pattern = h.get(section, 'set-pattern', raw=True, fallback=None)
+        for item in configs_content:
+            logger.debug(f'item: {item}')
+
+            type = item.get('type', None)
+            category = item.get('category', None)
+            name = item.get('name', None)
+            set_priority = item.get('set-priority', None)
+            set_comment = item.get('set-comment', None)
+            set_category = item.get('set-category', None)
+            set_pattern = item.get('set-pattern', None)
 
             logger.debug(f'type: {type}')
             logger.debug(f'category: {category}')
@@ -84,9 +88,6 @@ class Command(BaseCommand):
             logger.debug(f'set_pattern: {set_pattern}')
 
             pattern = None
-
-            min_priority = 1
-            max_priority = 10
 
             if set_pattern is not None:
                 pattern = f'{set_pattern}'
@@ -100,46 +101,10 @@ class Command(BaseCommand):
             if category and not set_priority:
                 set_priority = self.DEFAULT_TAG_PRIORITY
                 logger.info(
-                    f'no priority is specified for {section}, '
+                    f'no priority is specified for {item}, '
                     f'defaulting to {self.DEFAULT_TAG_PRIORITY}',
                 )
 
-            if set_priority and (set_priority < min_priority or set_priority > max_priority):
-                msg = f'priority in invalid [1-10] range: {set_priority}'
-                raise configparser.Error(msg)
-
-            if name and category:
-                msg = (
-                    'name and category will not filter tags together, skipping '
-                    '(use one or the other)'
-                )
-                raise configparser.Error(
-                    msg,
-                )
-            if set_pattern and name:
-                msg = 'set-pattern cannot be used in a pattern block'
-                raise configparser.Error(msg)
-            if set_pattern and set_category:
-                msg = 'set-pattern cannot be used in a pattern block'
-                raise configparser.Error(msg)
-            if category and set_category:
-                msg = 'category and set-category cannot be used together'
-                raise configparser.Error(msg)
-            if not name and not category:
-                msg = 'neither name nor category where specified, skipping entry'
-                raise configparser.Error(
-                    msg,
-                )
-            if name and not set_category:
-                msg = "a pattern was set on a tag, but it wasn't assigned to a category"
-                raise configparser.Error(
-                    msg,
-                )
-            if not name and set_category:
-                msg = "a category was set on a tag, but it wasn't assigned a name pattern"
-                raise configparser.Error(
-                    msg,
-                )
             if category and type:
                 if category in mapping['categories']:
                     msg = f'the category has already been declared: {category}'
@@ -186,27 +151,21 @@ class Command(BaseCommand):
         MetaCategory.objects.all().delete()
         MetaPattern.objects.all().delete()
 
-        h = configparser.ConfigParser()
-
         mapping = None
         try:
-            map_files = options['map_files']
-            logger.debug(f'reading files: {map_files}')
-            files = map_files
-            parsed_files = h.read(files)
-            ignored_files = set(files) ^ set(parsed_files)
-            if ignored_files:
-                # If a file named in files cannot be opened, that file will be ignored.
-                # This is designed so that you can specify potential
-                # configuration file locations
-                #
-                msg = f'Failed to open/find specified file(s): {options["map_files"]}'
-                raise configparser.Error(
-                    msg,
-                )
-            mapping = self.__resolve_mapping(h)
+            config_names = options['config_names']
+            logger.debug(f'reading configs: {config_names}')
+            configs_content = list(
+                chain(
+                    *[
+                        Config.objects.get_global(config_name).content
+                        for config_name in config_names
+                    ],
+                ),
+            )
+            mapping = self.__resolve_mapping(configs_content)
         except configparser.ParsingError as e:
-            logger.critical(f'unable to parse file: {e}')
+            logger.critical(f'unable to parse config content: {e}')
         else:
             self.__apply_mapping(mapping)
             set_tags_categories_cache()

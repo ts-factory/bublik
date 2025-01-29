@@ -4,6 +4,7 @@
 import os.path
 
 from bublik.core.url import get_url
+from bublik.data.models import Config, GlobalConfigNames
 
 
 # Basic functions:
@@ -13,30 +14,6 @@ def modify_msg(msg, run_url=None):
     if run_url:
         msg += f', ignoring {run_url}'
     return msg
-
-
-def check_attr(what, where, msg=None, logger=None):
-    if not hasattr(where, what):
-        if logger:
-            logger.error(msg)
-        return False
-    return True
-
-
-def check_file(what, msg=None, logger=None):
-    if not os.path.isfile(what):
-        if logger:
-            logger.error(msg)
-        return False
-    return True
-
-
-def check_dir(what, msg=None, logger=None):
-    if not os.path.isdir(what):
-        if logger:
-            logger.error(msg)
-        return False
-    return True
 
 
 def check_url(what, required=False, msg=None, logger=None):
@@ -55,21 +32,6 @@ def check_url(what, required=False, msg=None, logger=None):
 # Special functions:
 
 
-def check_settings(what, logger=None, url=None):
-    from bublik import settings
-
-    msg = modify_msg(f'{what} wasn\'t find in bublik/settings.py', url)
-    return check_attr(what, settings, msg, logger)
-
-
-def check_conf_file(file, logger=None, url=None):
-    from bublik import settings
-
-    msg = modify_msg(f'{file} wasn\'t find among project conf files', url)
-    what = os.path.join(settings.PER_CONF_DIR, file)
-    return check_file(what, msg, logger)
-
-
 def check_run_file(file, run, logger=None, required=False):
     return check_url(
         what=os.path.join(run, file),
@@ -79,15 +41,9 @@ def check_run_file(file, run, logger=None, required=False):
     )
 
 
-def check_files_for_categorization(logger=None, url=None, conf_files=None):
-
-    if conf_files is None:
-        conf_files = ['tags.conf', 'meta.conf']
-    if not check_settings('PER_CONF_DIR', url, logger):
-        msg = 'unable to get PER_CONF_DIR'
-        raise AttributeError(msg)
-
-    for file in conf_files:
-        if not check_conf_file(file, logger, url):
-            msg = f'unable to get {file}'
-            raise FileNotFoundError(msg)
+def check_configs_for_categorization(config_names=None):
+    if config_names is None:
+        config_names = [GlobalConfigNames.META, GlobalConfigNames.TAGS]
+    # check that active versions of the provided configurations exist
+    for config_name in config_names:
+        Config.objects.get_global(config_name)
