@@ -43,12 +43,6 @@ class ConfigViewSet(ModelViewSet):
     def filter_queryset(self, queryset):
         return ConfigFilter(queryset=self.queryset).qs
 
-    def get_or_create(self, data):
-        serializer = self.get_serializer(data=data)
-        serializer.update_data()
-        serializer.is_valid(raise_exception=True)
-        return serializer.get_or_create(serializer.validated_data)
-
     @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def create_by_per_conf(self, request, *args, **kwargs):
@@ -127,7 +121,10 @@ class ConfigViewSet(ModelViewSet):
             for k, v in request.data.items()
             if k in ['type', 'name', 'is_active', 'description', 'content']
         }
-        config, created = self.get_or_create(data)
+        config, created = self.serializer_class.validate_and_get_or_create(
+            config_data=data,
+            access_token=request.COOKIES.get('access_token'),
+        )
         config_data = self.get_serializer(config).data
         if not created:
             return Response(config_data, status=status.HTTP_400_BAD_REQUEST)
@@ -184,7 +181,10 @@ class ConfigViewSet(ModelViewSet):
 
         if 'content' in request.data:
             # create new object version
-            new_config, created = self.get_or_create(updated_data)
+            new_config, created = self.serializer_class.validate_and_get_or_create(
+                config_data=updated_data,
+                access_token=request.COOKIES.get('access_token'),
+            )
             new_config_data = self.get_serializer(new_config).data
             if not created:
                 return Response(new_config_data, status=status.HTTP_400_BAD_REQUEST)

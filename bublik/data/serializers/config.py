@@ -49,12 +49,9 @@ class ConfigSerializer(ModelSerializer):
         '''
         Update initial data with created time, version and user ID.
         '''
-        request = self.context['request']
-        access_token = request.COOKIES.get('access_token')
-
         self.initial_data['created'] = prepare_date(datetime.now())
         self.initial_data['version'] = self.new_version()
-        self.initial_data['user'] = get_user_by_access_token(access_token).id
+        self.initial_data['user'] = get_user_by_access_token(self.context['access_token']).id
 
     def get_data(self):
         '''
@@ -114,6 +111,18 @@ class ConfigSerializer(ModelSerializer):
                 msg = f'Invalid format: {jeve_msg}'
                 raise serializers.ValidationError(msg) from jeve
         return content
+
+    @classmethod
+    def validate_and_get_or_create(cls, config_data, access_token):
+        '''
+        Used for creating new configurations.
+        Adds a timestamp, user, version to the provided config data,
+        validates it, and calls get_or_create().
+        '''
+        serializer = cls(data=config_data, context={'access_token': access_token})
+        serializer.update_data()
+        serializer.is_valid(raise_exception=True)
+        return serializer.get_or_create(serializer.validated_data)
 
     def get_or_create(self, config_data):
         config = get_or_none(
