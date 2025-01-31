@@ -83,16 +83,14 @@ class ConfigViewSet(ModelViewSet):
             )
 
         # create a configuration object, skipping content validation
-        data = {
-            'type': ConfigTypes.GLOBAL,
-            'name': GlobalConfigNames.PER_CONF,
-            'description': 'The main project config',
-            'is_active': True,
-            'content': per_conf_dict,
-        }
-        serializer = self.get_serializer(data=data)
-        serializer.update_data()
-        config, created = serializer.get_or_create(serializer.initial_data)
+        config = ConfigSerializer.initialize(
+            {
+                'type': ConfigTypes.GLOBAL,
+                'name': GlobalConfigNames.PER_CONF,
+                'description': 'The main project config',
+                'content': per_conf_dict,
+            },
+        )
 
         # reformat the content according to the current JSON schema, validate
         call_command(
@@ -104,8 +102,6 @@ class ConfigViewSet(ModelViewSet):
         )
 
         config_data = self.get_serializer(config).data
-        if not created:
-            return Response(config_data, status=status.HTTP_400_BAD_REQUEST)
         return Response(config_data, status=status.HTTP_201_CREATED)
 
     @auth_required(as_admin=True)

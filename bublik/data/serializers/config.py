@@ -4,6 +4,7 @@
 from datetime import datetime
 import json
 
+from django.contrib.auth import get_user_model
 import jsonschema
 from jsonschema import validate
 from rest_framework import serializers
@@ -45,13 +46,18 @@ class ConfigSerializer(ModelSerializer):
             return config.version + 1
         return 0
 
-    def update_data(self):
+    def update_data(self, is_system_action=False):
         '''
         Update initial data with created time, version and user ID.
         '''
         self.initial_data['created'] = prepare_date(datetime.now())
         self.initial_data['version'] = self.new_version()
-        self.initial_data['user'] = get_user_by_access_token(self.context['access_token']).id
+        if is_system_action:
+            self.initial_data['user'] = get_user_model().get_or_create_system_user().id
+        else:
+            self.initial_data['user'] = get_user_by_access_token(
+                self.context['access_token'],
+            ).id
 
     def get_data(self):
         '''
@@ -123,6 +129,18 @@ class ConfigSerializer(ModelSerializer):
         serializer.update_data()
         serializer.is_valid(raise_exception=True)
         return serializer.get_or_create(serializer.validated_data)
+
+    @classmethod
+    def initialize(cls, config_data):
+        '''
+        Used for initializing configurations.
+        Sets is_active=True, adds a timestamp, user, version to the provided
+        config data and calls create().
+        '''
+        config_data['is_active'] = True
+        serializer = cls(data=config_data)
+        serializer.update_data(is_system_action=True)
+        return serializer.create(serializer.initial_data)
 
     def get_or_create(self, config_data):
         config = get_or_none(
