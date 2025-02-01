@@ -81,6 +81,7 @@ class ReportPoint:
                 'metadata': {
                     'iteration_id': mmr.result.iteration.id,
                     'result_id': mmr.result.id,
+                    'result_type': mmr.result.meta_results.get(meta__type='result').meta.value,
                 },
             },
         }
