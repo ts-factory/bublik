@@ -87,7 +87,7 @@ class Command(BaseCommand):
         # preprocess the config file content and create the corresponding config object
         for config_file_name, content in configs_data.items():
             if config_file_name == 'per_conf.py':
-                name, description = GlobalConfigNames.PER_CONF, 'The main project configuration'
+                name, description = GlobalConfigNames.PER_CONF, None
                 content = {
                     key: value
                     for key, value in vars(content).items()

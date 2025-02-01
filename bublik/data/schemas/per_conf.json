@@ -1,6 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
+    "description": "The main project configuration",
     "properties": {
         "PROJECT": {
             "description": "Identifies project matching PROJECT meta in metadata.json",
