@@ -43,6 +43,41 @@ class GlobalConfigNames(str, Enum):
         return [value.value for name, value in vars(cls).items() if name.isupper()]
 
 
+class ConfigManager(models.Manager):
+    def get_latest_version(self, config_type, config_name):
+        return (
+            self.get_queryset()
+            .filter(
+                type=config_type,
+                name=config_name,
+            )
+            .order_by('version')
+            .last()
+        )
+
+    def get_active_version(self, config_type, config_name):
+        return (
+            self.get_queryset()
+            .filter(
+                type=config_type,
+                name=config_name,
+                is_active=True,
+            )
+            .first()
+        )
+
+    def get_all_versions(self, config_type, config_name):
+        return (
+            self.get_queryset()
+            .filter(
+                type=config_type,
+                name=config_name,
+            )
+            .order_by('-is_active', '-created')
+            .values('id', 'version', 'is_active', 'description', 'created')
+        )
+
+
 class Config(models.Model):
     '''
     Configurations.
@@ -69,37 +104,14 @@ class Config(models.Model):
     )
     content = models.JSONField(help_text='Configuration data.')
 
+    objects = ConfigManager()
+
     class Meta:
         db_table = 'bublik_config'
         unique_together = ('type', 'name', 'version')
 
-    @classmethod
-    def get_latest_version(cls, config_type, config_name):
-        return (
-            Config.objects.filter(type=config_type, name=config_name).order_by('version').last()
-        )
-
-    @classmethod
-    def get_active_version(cls, config_type, config_name):
-        return Config.objects.filter(
-            type=config_type,
-            name=config_name,
-            is_active=True,
-        ).first()
-
-    @classmethod
-    def get_all_versions(cls, config_type, config_name):
-        return (
-            Config.objects.filter(
-                type=config_type,
-                name=config_name,
-            )
-            .order_by('-is_active', '-created')
-            .values('id', 'version', 'is_active', 'description', 'created')
-        )
-
     def activate(self):
-        active = self.__class__.get_active_version(self.type, self.name)
+        active = Config.objects.get_active_version(self.type, self.name)
         if active:
             active.is_active = False
             active.save()
@@ -112,7 +124,7 @@ class Config(models.Model):
         config_active = self.is_active
         super().delete(*args, **kwargs)
         if config_active:
-            latest = self.get_latest_version(config_type, config_name)
+            latest = Config.objects.get_latest_version(config_type, config_name)
             if latest:
                 latest.activate()
 

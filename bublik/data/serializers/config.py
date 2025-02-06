@@ -37,7 +37,10 @@ class ConfigSerializer(ModelSerializer):
         )
 
     def new_version(self):
-        config = Config.get_latest_version(self.initial_data['type'], self.initial_data['name'])
+        config = Config.objects.get_latest_version(
+            self.initial_data['type'],
+            self.initial_data['name'],
+        )
         if config:
             return config.version + 1
         return 0
@@ -137,7 +140,7 @@ class ConfigSerializer(ModelSerializer):
         if is_active:
             config_type = config_data['type']
             config_name = config_data['name']
-            active = Config.get_active_version(config_type, config_name)
+            active = Config.objects.get_active_version(config_type, config_name)
             if active:
                 active.is_active = False
                 active.save()
