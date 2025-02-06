@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-import re
 import typing
 
 from django.contrib.postgres.fields import JSONField
-from django.core.management import call_command
 from django_filters import rest_framework as filters
-import per_conf
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -16,8 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
-from bublik.core.queries import get_or_none
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
+from bublik.data.models import Config
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -42,67 +38,6 @@ class ConfigViewSet(ModelViewSet):
 
     def filter_queryset(self, queryset):
         return ConfigFilter(queryset=self.queryset).qs
-
-    @auth_required(as_admin=True)
-    @action(detail=False, methods=['post'])
-    def create_by_per_conf(self, request, *args, **kwargs):
-        '''
-        Create global config object by per_conf.py (if it does not exist).
-        Return a created object or an existing per_conf global config object.
-        Request: GET api/v2/config/create_by_per_conf.
-        '''
-        global_config = get_or_none(
-            Config.objects,
-            type=ConfigTypes.GLOBAL,
-            name=GlobalConfigNames.PER_CONF,
-        )
-        if global_config:
-            return Response(
-                self.get_serializer(global_config).data,
-                status=status.HTTP_200_OK,
-            )
-
-        # convert per_conf.py into dict
-        per_conf_dict = {}
-        args = dir(per_conf)
-        args = [arg for arg in args if not re.fullmatch(r'__.+?__', arg)]
-        per_conf_dict = {arg: getattr(per_conf, arg, None) for arg in args}
-
-        # leave only valid attributes
-        schema = ConfigServices.get_schema(
-            ConfigTypes.GLOBAL,
-            GlobalConfigNames.PER_CONF,
-        )
-        valid_attributes = schema.get('properties', {}).keys()
-        per_conf_dict = {k: v for k, v in per_conf_dict.items() if k in valid_attributes}
-
-        # convert tuple into list
-        if 'RUN_STATUS_BY_NOK_BORDERS' in per_conf_dict:
-            per_conf_dict['RUN_STATUS_BY_NOK_BORDERS'] = list(
-                per_conf_dict['RUN_STATUS_BY_NOK_BORDERS'],
-            )
-
-        # create a configuration object, skipping content validation
-        config = ConfigSerializer.initialize(
-            {
-                'type': ConfigTypes.GLOBAL,
-                'name': GlobalConfigNames.PER_CONF,
-                'description': 'The main project config',
-                'content': per_conf_dict,
-            },
-        )
-
-        # reformat the content according to the current JSON schema, validate
-        call_command(
-            'reformat_configs',
-            '-t',
-            ConfigTypes.GLOBAL,
-            '-n',
-            GlobalConfigNames.PER_CONF,
-        )
-
-        config_data = self.get_serializer(config).data
-        return Response(config_data, status=status.HTTP_201_CREATED)
 
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
