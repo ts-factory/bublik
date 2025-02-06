@@ -10,10 +10,10 @@ from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
 from bublik.core.auth import get_user_by_access_token
+from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.utils import prepare_date
 from bublik.data.models import Config, ConfigTypes, GlobalConfigNames, User
-from bublik.data.schemas.services import load_schema
 
 
 __all__ = [
@@ -80,14 +80,6 @@ class ConfigSerializer(ModelSerializer):
             msg = 'Invalid format: JSON is expected'
             raise serializers.ValidationError(msg) from e
 
-    @classmethod
-    def get_json_schema(cls, config_type, config_name):
-        if config_type == ConfigTypes.REPORT:
-            return load_schema('report')
-        if config_type == ConfigTypes.GLOBAL and config_name == GlobalConfigNames.PER_CONF:
-            return load_schema('per_conf')
-        return None
-
     def validate_type(self, config_type):
         possible_config_types = ConfigTypes.all()
         if config_type not in possible_config_types:
@@ -113,7 +105,7 @@ class ConfigSerializer(ModelSerializer):
         '''
         content = self.ensure_json(content)
         data = self.get_data()
-        json_schema = self.__class__.get_json_schema(data['type'], data['name'])
+        json_schema = ConfigServices.get_schema(data['type'], data['name'])
         if json_schema:
             try:
                 validate(instance=content, schema=json_schema)

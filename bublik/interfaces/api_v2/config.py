@@ -15,6 +15,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.auth import auth_required
 from bublik.core.config.filters import ConfigFilter
+from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
 from bublik.data.serializers import ConfigSerializer
@@ -74,7 +75,7 @@ class ConfigViewSet(ModelViewSet):
         per_conf_dict = {arg: getattr(per_conf, arg, None) for arg in args}
 
         # leave only valid attributes
-        schema = self.serializer_class.get_json_schema(
+        schema = ConfigServices.get_schema(
             ConfigTypes.GLOBAL,
             GlobalConfigNames.PER_CONF,
         )
@@ -215,7 +216,7 @@ class ConfigViewSet(ModelViewSet):
         serializer = self.get_serializer(data={'type': config_type, 'name': config_name})
         config_type = serializer.validate_type(config_type)
         config_name = serializer.validate_name(config_name)
-        json_schema = self.serializer_class.get_json_schema(config_type, config_name)
+        json_schema = ConfigServices.get_schema(config_type, config_name)
         if json_schema:
             return Response(data=json_schema, status=status.HTTP_200_OK)
         msg = 'There is no JSON schema corresponding to the passed configuration type and name'

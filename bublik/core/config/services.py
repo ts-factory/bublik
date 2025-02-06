@@ -1,27 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-import logging
-
-from django.core.exceptions import ObjectDoesNotExist
-
-from bublik.data.models import Config, GlobalConfigNames
+from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
+from bublik.data.schemas.services import load_schema
 
 
-logger = logging.getLogger('bublik.server')
+class ConfigServices:
+    @staticmethod
+    def get_schema(config_type, config_name):
+        if config_type == ConfigTypes.REPORT:
+            return load_schema('report')
+        if config_type == ConfigTypes.GLOBAL and config_name == GlobalConfigNames.PER_CONF:
+            return load_schema('per_conf')
+        return None
 
-
-def getattr_from_per_conf(data_key, default=None, required=False):
-    per_conf_obj = Config.objects.get_global(GlobalConfigNames.PER_CONF)
-    if not per_conf_obj:
-        msg = (
-            'There is no active global per_conf configuration object. '
-            'Create one or activate one of the existing ones'
-        )
-        raise ObjectDoesNotExist(msg)
-    if data_key in per_conf_obj.content:
-        return per_conf_obj.content[data_key]
-    if required:
-        msg = f"'{data_key}' wasn't found in per_conf global configuration object"
-        raise KeyError(msg)
-    return default
+    @staticmethod
+    def getattr_from_global(config_name, data_key, **kwargs):
+        config_content = Config.objects.get_global(config_name).content
+        json_schema = ConfigServices.get_schema(ConfigTypes.GLOBAL, config_name)
+        if data_key in json_schema.get('required', []) or data_key in config_content:
+            return config_content[data_key]
+        if 'default' in kwargs:
+            return kwargs['default']
+        return None
