@@ -17,7 +17,7 @@ from references import References
 
 from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url
 from bublik.core.checks import check_run_file, modify_msg
-from bublik.core.config.services import getattr_from_per_conf
+from bublik.core.config.services import ConfigServices
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
@@ -26,7 +26,7 @@ from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_references, add_run_log
 from bublik.core.url import fetch_url, save_url_to_dir
 from bublik.core.utils import Counter, create_event
-from bublik.data.models import EventLog
+from bublik.data.models import EventLog, GlobalConfigNames
 
 
 logger = logging.getLogger('bublik.server')
@@ -96,7 +96,10 @@ class HTTPDirectoryTraverser:
 
     def find_runs(self):
         try:
-            getattr_from_per_conf('RUN_COMPLETE_FILE', required=True)
+            ConfigServices.getattr_from_global(
+                GlobalConfigNames.PER_CONF,
+                'RUN_COMPLETE_FILE',
+            )
         except (ObjectDoesNotExist, KeyError) as e:
             msg = modify_msg(
                 str(e),
@@ -190,7 +193,8 @@ class Command(BaseCommand):
                 meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'))
             else:
                 # Save to process dir available files for generating metadata
-                files_to_try = getattr_from_per_conf(
+                files_to_try = ConfigServices.getattr_from_global(
+                    GlobalConfigNames.PER_CONF,
                     'FILES_TO_GENERATE_METADATA',
                     default=['meta_data.txt'],
                 )
@@ -221,7 +225,10 @@ class Command(BaseCommand):
 
             if meta_data_saved:
                 run_completed = check_run_file(
-                    getattr_from_per_conf('RUN_COMPLETE_FILE', required=True),
+                    ConfigServices.getattr_from_global(
+                        GlobalConfigNames.PER_CONF,
+                        'RUN_COMPLETE_FILE',
+                    ),
                     run_url,
                     logger,
                 )

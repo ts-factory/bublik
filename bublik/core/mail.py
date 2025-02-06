@@ -9,8 +9,9 @@ from django.core.mail import send_mail
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
-from bublik.core.config.services import getattr_from_per_conf
+from bublik.core.config.services import ConfigServices
 from bublik.core.shortcuts import build_absolute_uri
+from bublik.data.models import GlobalConfigNames
 
 
 def send_importruns_failed_mail(
@@ -29,7 +30,11 @@ def send_importruns_failed_mail(
     '''
 
     email_from = getattr(settings, 'EMAIL_FROM', None)
-    recipients = getattr_from_per_conf('EMAIL_PROJECT_WATCHERS', default=[]) + getattr(
+    recipients = ConfigServices.getattr_from_global(
+        GlobalConfigNames.PER_CONF,
+        'EMAIL_PROJECT_WATCHERS',
+        default=[],
+    ) + getattr(
         settings,
         'EMAIL_ADMINS',
         [],

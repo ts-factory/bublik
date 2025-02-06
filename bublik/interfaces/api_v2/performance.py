@@ -9,8 +9,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bublik.core.config.services import getattr_from_per_conf
+from bublik.core.config.services import ConfigServices
 from bublik.core.shortcuts import build_absolute_uri
+from bublik.data.models import GlobalConfigNames
 
 
 logger = logging.getLogger()
@@ -44,10 +45,12 @@ class PerformanceCheckView(APIView):
         hist_args_common = urlencode(hist_args_common)
 
         try:
-            hist_args_per_conf = getattr_from_per_conf(
+            hist_args_per_conf = ConfigServices.getattr_from_global(
+                GlobalConfigNames.PER_CONF,
                 'HISTORY_SEARCH_EXAMPLE',
-                required=True,
             )
+            if not hist_args_per_conf:
+                raise KeyError
             hist_args_intense = urlencode(hist_args_per_conf) + f'&{hist_args_common}'
 
             hist_args_base = {

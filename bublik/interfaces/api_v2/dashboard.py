@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.cache import RunCache
-from bublik.core.config.services import getattr_from_per_conf
+from bublik.core.config.services import ConfigServices
 from bublik.core.importruns.live.check import livelog_check_run_timeout
 from bublik.core.run.external_links import get_sources
 from bublik.core.run.stats import (
@@ -26,7 +26,7 @@ from bublik.core.run.stats import (
     get_run_status_by_nok,
 )
 from bublik.core.utils import dicts_groupby, get_difference
-from bublik.data.models import Meta, TestIterationResult
+from bublik.data.models import GlobalConfigNames, Meta, TestIterationResult
 
 
 __all__ = [
@@ -135,7 +135,11 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return self.check_and_apply_settings()
 
     def apply_if_match_header(self, setting, default=None, ignore=None, keys=False):
-        data = getattr_from_per_conf(setting, default=default).copy()
+        data = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            setting,
+            default=default,
+        ).copy()
 
         comparable = data.keys() if keys else data
 
@@ -148,12 +152,22 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
     def check_and_apply_settings(self):
         # Mandatory settings (must be defined in per_conf global config object):
         for setting in self.required_settings:
-            getattr_from_per_conf(setting, required=True)
+            ConfigServices.getattr_from_global(
+                GlobalConfigNames.PER_CONF,
+                setting,
+            )
 
-        header = getattr_from_per_conf('DASHBOARD_HEADER', required=True)
+        header = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'DASHBOARD_HEADER',
+        )
         self.header = {item['key']: item['label'] for item in header}
-        self.date_meta = getattr_from_per_conf('DASHBOARD_DATE')
-        self.default_mode = getattr_from_per_conf(
+        self.date_meta = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'DASHBOARD_DATE',
+        )
+        self.default_mode = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
             'DASHBOARD_DEFAULT_MODE',
             default='two_days_two_columns',
         )

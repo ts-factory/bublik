@@ -5,14 +5,14 @@ from collections import OrderedDict, defaultdict
 
 from django.core.cache import caches
 
-from bublik.core.config.services import getattr_from_per_conf
+from bublik.core.config.services import ConfigServices
 from bublik.core.meta.categorization import (
     get_metas_by_category,
     group_by_runs,
     group_by_runs_and_category,
 )
 from bublik.core.utils import key_value_list_transforming
-from bublik.data.models import Meta, MetaResult, TestArgument
+from bublik.data.models import GlobalConfigNames, Meta, MetaResult, TestArgument
 
 
 def get_metadata_by_runs(runs, categorize=False):
@@ -26,7 +26,11 @@ def get_metadata_by_runs(runs, categorize=False):
         'meta__id',
     )
 
-    metadata_categories = getattr_from_per_conf('METADATA_ON_PAGES', default=[])
+    metadata_categories = ConfigServices.getattr_from_global(
+        GlobalConfigNames.PER_CONF,
+        'METADATA_ON_PAGES',
+        default=[],
+    )
 
     groupping_kwargs = {
         'meta_results': metadata_results,

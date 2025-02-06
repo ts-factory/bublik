@@ -11,13 +11,13 @@ from django.conf import settings
 from django.db.models import F, Q
 import pendulum
 
-from bublik.core.config.services import getattr_from_per_conf
+from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
 from bublik.core.utils import find_dict_in_list, get_difference
-from bublik.data.models import Meta, MetaResult
+from bublik.data.models import GlobalConfigNames, Meta, MetaResult
 from bublik.data.serializers import (
     MetaResultSerializer,
     MetaSerializer,
@@ -74,7 +74,10 @@ class MetaData:
                 MetaData.FMT_META_DATA_GENERATE.format(
                     path_meta_data_script=path_meta_data_script,
                     process_dir=process_dir,
-                    project=getattr_from_per_conf('PROJECT', required=True),
+                    project=ConfigServices.getattr_from_global(
+                        GlobalConfigNames.PER_CONF,
+                        'PROJECT',
+                    ),
                 ),
             )
             logger.info(f'running command: {cmd}')
@@ -107,19 +110,28 @@ class MetaData:
             logger.error('meta_data.json parser expected a PROJECT meta.')
             raise ValueError
 
-        project = getattr_from_per_conf('PROJECT', required=True)
+        project = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'PROJECT',
+        )
         if project_meta['value'] != project:
             logger.error(f'this isn\'t a run of {project} project')
             raise ValueError
 
         # Check status meta
-        run_status_meta = getattr_from_per_conf('RUN_STATUS_META', required=True)
+        run_status_meta = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'RUN_STATUS_META',
+        )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
             logger.error('There is no status meta in meta_data.json. It is a required meta.')
             raise ValueError
 
         key_metas_fields = set()
-        key_metas_names = getattr_from_per_conf('RUN_KEY_METAS', required=True)
+        key_metas_names = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'RUN_KEY_METAS',
+        )
 
         # Check names duplicates in RUN_KEY_METAS
         if len(key_metas_names) != len(set(key_metas_names)):
@@ -188,7 +200,10 @@ class MetaData:
         )
 
     def __preprocess_meta(self, m_data, to_data=False):
-        dashboard_date_meta = getattr_from_per_conf('DASHBOARD_DATE')
+        dashboard_date_meta = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'DASHBOARD_DATE',
+        )
         name = m_data.get('name')
         value = m_data.get('value')
 
@@ -213,7 +228,10 @@ class MetaData:
         return reference
 
     def get_or_create_metas(self, run):
-        status_meta = getattr_from_per_conf('RUN_STATUS_META')
+        status_meta = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'RUN_STATUS_META',
+        )
 
         for m_data in self.metas:
             name = m_data.get('name')
@@ -310,7 +328,10 @@ class MetaData:
         return True
 
     def is_essential_metas_changed(self, run):
-        run_key_metas = getattr_from_per_conf('RUN_KEY_METAS', required=True)
+        run_key_metas = ConfigServices.getattr_from_global(
+            GlobalConfigNames.PER_CONF,
+            'RUN_KEY_METAS',
+        )
         essential_meta_names = [*run_key_metas, 'PROJECT']
 
         essential_metas = MetaResult.objects.filter(
