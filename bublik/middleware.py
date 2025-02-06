@@ -24,11 +24,7 @@ def get_config_from_cache(default=None):
     config = caches['config'].get('content')
     if config is None:
         try:
-            config = Config.objects.get(
-                type=ConfigTypes.GLOBAL,
-                name=GlobalConfigNames.PER_CONF,
-                is_active=True,
-            ).content
+            config = Config.objects.get_global(GlobalConfigNames.PER_CONF).content
             caches['config'].set('content', config, timeout=86400)
         except ObjectDoesNotExist:
             config = default

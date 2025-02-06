@@ -3,6 +3,7 @@
 
 from enum import Enum
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 
 from bublik.data.models.user import User
@@ -76,6 +77,16 @@ class ConfigManager(models.Manager):
             .order_by('-is_active', '-created')
             .values('id', 'version', 'is_active', 'description', 'created')
         )
+
+    def get_global(self, config_name):
+        config = self.get_active(ConfigTypes.GLOBAL, config_name)
+        if not config:
+            msg = (
+                f'There is no active {config_name} global configuration object. '
+                'Create one or activate one of the existing ones'
+            )
+            raise ObjectDoesNotExist(msg)
+        return config
 
 
 class Config(models.Model):
