@@ -174,7 +174,10 @@ class ConfigViewSet(ModelViewSet):
                 # rename all config versions
                 serializer = self.get_serializer(config, data=updated_data, partial=True)
                 serializer.validate_name(updated_data['name'])
-                Config.get_all_versions(config_data['type'], config_data['name']).update(
+                Config.objects.get_all_versions(
+                    config_data['type'],
+                    config_data['name'],
+                ).update(
                     name=updated_data['name'],
                 )
 
@@ -230,7 +233,10 @@ class ConfigViewSet(ModelViewSet):
         '''
         config = self.get_object()
         config_data = self.get_serializer(config).data
-        all_config_versions = Config.get_all_versions(config_data['type'], config_data['name'])
+        all_config_versions = Config.objects.get_all_versions(
+            config_data['type'],
+            config_data['name'],
+        )
 
         data = {
             'type': config_data['type'],
