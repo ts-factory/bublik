@@ -44,7 +44,7 @@ class GlobalConfigNames(str, Enum):
 
 
 class ConfigManager(models.Manager):
-    def get_latest_version(self, config_type, config_name):
+    def get_latest(self, config_type, config_name):
         return (
             self.get_queryset()
             .filter(
@@ -55,7 +55,7 @@ class ConfigManager(models.Manager):
             .last()
         )
 
-    def get_active_version(self, config_type, config_name):
+    def get_active(self, config_type, config_name):
         return (
             self.get_queryset()
             .filter(
@@ -111,7 +111,7 @@ class Config(models.Model):
         unique_together = ('type', 'name', 'version')
 
     def activate(self):
-        active = Config.objects.get_active_version(self.type, self.name)
+        active = Config.objects.get_active(self.type, self.name)
         if active:
             active.is_active = False
             active.save()
@@ -124,7 +124,7 @@ class Config(models.Model):
         config_active = self.is_active
         super().delete(*args, **kwargs)
         if config_active:
-            latest = Config.objects.get_latest_version(config_type, config_name)
+            latest = Config.objects.get_latest(config_type, config_name)
             if latest:
                 latest.activate()
 
