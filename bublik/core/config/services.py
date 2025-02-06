@@ -5,14 +5,14 @@ import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 
-from bublik.data.models import Config
+from bublik.data.models import Config, GlobalConfigNames
 
 
 logger = logging.getLogger('bublik.server')
 
 
 def getattr_from_per_conf(data_key, default=None, required=False):
-    per_conf_obj = Config.get_active('global', 'per_conf')
+    per_conf_obj = Config.objects.get_global(GlobalConfigNames.PER_CONF)
     if not per_conf_obj:
         msg = (
             'There is no active global per_conf configuration object. '
