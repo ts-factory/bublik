@@ -42,6 +42,7 @@ api_v2_router.register(
     basename='tests_comments',
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
+api_v2_router.register(r'project', api_v2.ProjectViewSet, 'project')
 
 ### URL patterns mounting ###
 urlpatterns = [
