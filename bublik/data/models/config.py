@@ -65,45 +65,67 @@ class GlobalConfigs(Enum):
 
 
 class ConfigManager(models.Manager):
-    def get_latest(self, config_type, config_name):
+    def get_latest(self, config_type, config_name, project_id):
         return (
             self.get_queryset()
             .filter(
                 type=config_type,
                 name=config_name,
+                project=project_id,
             )
             .order_by('version')
             .last()
         )
 
-    def get_active_or_none(self, config_type, config_name):
+    def get_active_or_none(self, config_type, config_name, project_id=...):
+        active_configs = self.get_queryset().filter(
+            type=config_type,
+            name=config_name,
+            is_active=True,
+        )
         try:
-            return self.get_queryset().get(
-                type=config_type,
-                name=config_name,
-                is_active=True,
+            if project_id is ...:
+                return active_configs.get()
+            return active_configs.get(
+                project=project_id,
             )
         except self.model.DoesNotExist:
             return None
 
-    def get_all_versions(self, config_type, config_name):
+    def get_all_versions(self, config_type, config_name, project_id):
         return (
             self.get_queryset()
             .filter(
                 type=config_type,
                 name=config_name,
+                project=project_id,
             )
             .order_by('-is_active', '-created')
             .values('id', 'version', 'is_active', 'description', 'created')
         )
 
-    def get_global(self, config_name):
-        config = self.get_active_or_none(ConfigTypes.GLOBAL, config_name)
+    def get_global(self, config_name, project_id=...):
+        config = self.get_active_or_none(ConfigTypes.GLOBAL, config_name, project_id)
         if not config:
-            msg = (
-                f'There is no active {config_name} global configuration object. '
-                'Create one or activate one of the existing ones'
-            )
+            if project_id is ...:
+                msg = (
+                    f'there is no active {config_name} global configuration object. '
+                    'Create one or activate one of the existing ones'
+                )
+            elif project_id is None:
+                msg = (
+                    f'there is no active default {config_name} global configuration object. '
+                    'Create one or activate one of the existing ones'
+                )
+            else:
+                project_name = Project.objects.get(
+                    id=project_id,
+                ).name
+                msg = (
+                    f'there is no active {config_name} global configuration object '
+                    f'for {project_name} project. Create one or activate one '
+                    f'of the existing ones'
+                )
             raise ObjectDoesNotExist(msg)
         return config
 
@@ -147,7 +169,7 @@ class Config(models.Model):
         unique_together = ('type', 'name', 'project', 'version')
 
     def activate(self):
-        active = Config.objects.get_active_or_none(self.type, self.name)
+        active = Config.objects.get_active_or_none(self.type, self.name, self.project)
         if active:
             active.is_active = False
             active.save()
@@ -157,10 +179,11 @@ class Config(models.Model):
     def delete(self, *args, **kwargs):
         config_type = self.type
         config_name = self.name
+        config_project = self.project
         config_active = self.is_active
         super().delete(*args, **kwargs)
         if config_active:
-            latest = Config.objects.get_latest(config_type, config_name)
+            latest = Config.objects.get_latest(config_type, config_name, config_project)
             if latest:
                 latest.activate()
 

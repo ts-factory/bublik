@@ -42,6 +42,7 @@ class ConfigSerializer(ModelSerializer):
         config = Config.objects.get_latest(
             self.initial_data['type'],
             self.initial_data['name'],
+            self.initial_data['project'],
         )
         if config:
             return config.version + 1
