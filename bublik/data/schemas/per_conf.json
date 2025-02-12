@@ -223,32 +223,38 @@
             "uniqueItems": true
         },
         "EMAIL_PORT": {
-            "description": "Defines the port to be used for the email server connection (25 by default)",
-            "type": "number"
+            "description": "Defines the port to be used for the email server connection",
+            "type": "number",
+            "default": 25
         },
         "EMAIL_HOST": {
-            "description": "The SMTP server to be used for sending emails (localhost by default)",
-            "type": "string"
+            "description": "The SMTP server to be used for sending emails",
+            "type": "string",
+            "default": "localhost"
         },
         "EMAIL_USE_TLS": {
-            "description": "A boolean setting that specifies whether to use TLS for email communication (True by default)",
-            "type": "boolean"
+            "description": "A boolean setting that specifies whether to use TLS for email communication",
+            "type": "boolean",
+            "default": true
         },
         "EMAIL_TIMEOUT": {
-            "description": "Sets the timeout (in seconds) for email sending operations (60 by default)",
-            "type": "number"
+            "description": "Sets the timeout (in seconds) for email sending operations",
+            "type": "number",
+            "default": 60
         },
         "EMAIL_FROM": {
-            "description": "The default \"from\" address for sending emails (noreply@ts-factory.io by default)",
-            "type": "string"
+            "description": "The default \"from\" address for sending emails",
+            "type": "string",
+            "default": "noreply@ts-factory.io"
         },
         "EMAIL_ADMINS": {
-            "description": "A list of email addresses to which error notifications should be sent ([\"bublik@ts-factory.io\"] by default)",
+            "description": "A list of email addresses to which error notifications should be sent",
             "type": "array",
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": ["bublik@ts-factory.io"]
         }
     },
     "required": [

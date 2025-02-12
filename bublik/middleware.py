@@ -7,6 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from bublik.core.config.services import ConfigServices
 from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
 
 
@@ -37,13 +38,20 @@ class DynamicSettingsMiddleware:
 
     def __call__(self, request):
         config = get_config_from_cache()
+        config_schema = ConfigServices.get_schema(
+            ConfigTypes.GLOBAL,
+            GlobalConfigNames.PER_CONF,
+        )
+
+        def get_setting(attr):
+            default = config_schema['properties'][attr]['default']
+            return config.get(attr, default) if config else default
 
         # set CSRF_TRUSTED_ORIGINS
-        csrf_trusted_origins = config.get('CSRF_TRUSTED_ORIGINS', []) if config else []
-        settings.CSRF_TRUSTED_ORIGINS = csrf_trusted_origins
+        settings.CSRF_TRUSTED_ORIGINS = get_setting('CSRF_TRUSTED_ORIGINS')
 
         # set UI_PREFIX
-        ui_version = config.get('UI_VERSION', 2) if config else 2
+        ui_version = get_setting('UI_VERSION')
         ui_prefix_by_ui_version = {
             2: 'v2',
         }
@@ -51,11 +59,11 @@ class DynamicSettingsMiddleware:
         settings.UI_PREFIX = ui_prefix
 
         # set email settings
-        settings.EMAIL_PORT = config.get('EMAIL_PORT', 25)
-        settings.EMAIL_HOST = config.get('EMAIL_HOST', 'localhost')
-        settings.EMAIL_USE_TLS = config.get('EMAIL_USE_TLS', True)
-        settings.EMAIL_TIMEOUT = config.get('EMAIL_TIMEOUT', 60)
-        settings.EMAIL_FROM = config.get('EMAIL_FROM', 'noreply@ts-factory.io')
-        settings.EMAIL_ADMINS = config.get('EMAIL_ADMINS', ['bublik@ts-factory.io'])
+        settings.EMAIL_PORT = get_setting('EMAIL_PORT')
+        settings.EMAIL_HOST = get_setting('EMAIL_HOST')
+        settings.EMAIL_USE_TLS = get_setting('EMAIL_USE_TLS')
+        settings.EMAIL_TIMEOUT = get_setting('EMAIL_TIMEOUT')
+        settings.EMAIL_FROM = get_setting('EMAIL_FROM')
+        settings.EMAIL_ADMINS = get_setting('EMAIL_ADMINS')
 
         return self.get_response(request)
