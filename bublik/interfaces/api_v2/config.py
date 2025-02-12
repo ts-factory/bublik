@@ -13,7 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required, check_action_permission
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -42,15 +42,14 @@ class ConfigViewSet(ModelViewSet):
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
         '''
-        Create config with passed type, name, description and content
-        (if object with the same content does not exist).
+        Create config with passed data (if object with the same content does not exist).
         Return a created object or an existing object with the passed content.
         Request: POST api/v2/config.
         '''
         data = {
             k: v
             for k, v in request.data.items()
-            if k in ['type', 'name', 'is_active', 'description', 'content']
+            if k in ['type', 'name', 'project', 'is_active', 'description', 'content']
         }
         config, created = self.serializer_class.validate_and_get_or_create(
             config_data=data,
@@ -73,8 +72,9 @@ class ConfigViewSet(ModelViewSet):
         config_data = self.get_serializer(config).data
         updated_data = {
             'type': config_data['type'],
+            'project': config_data['project'],
         }
-        for attr in ['name', 'description', 'is_active', 'content']:
+        for attr in ['name', 'description', 'is_active', 'content', 'project']:
             updated_data[attr] = (
                 request.data[attr] if attr in request.data else config_data[attr]
             )
@@ -84,12 +84,25 @@ class ConfigViewSet(ModelViewSet):
             same_name_configs = Config.objects.filter(
                 type=updated_data['type'],
                 name=updated_data['name'],
+                project=updated_data['project'],
             )
             if same_name_configs:
-                msg = f'A {updated_data["type"]} configuration with the same name already exist'
+                if updated_data['project']:
+                    project_name = Project.objects.get(
+                        id=updated_data['project'],
+                    ).name
+                    msg = (
+                        f'A {updated_data["type"]} configuration with the same name '
+                        f'already exist for the {project_name} project'
+                    )
+                else:
+                    msg = (
+                        f'A {updated_data["type"]} default configuration with the same name '
+                        'already exist'
+                    )
                 data = {
                     attr: updated_data[attr]
-                    for attr in ['type', 'name', 'description', 'content']
+                    for attr in ['type', 'name', 'project', 'description', 'content']
                 }
                 return Response(
                     status=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -106,6 +119,7 @@ class ConfigViewSet(ModelViewSet):
                 Config.objects.get_all_versions(
                     config_data['type'],
                     config_data['name'],
+                    config_data['project'],
                 ).update(
                     name=updated_data['name'],
                 )
@@ -168,11 +182,13 @@ class ConfigViewSet(ModelViewSet):
         all_config_versions = Config.objects.get_all_versions(
             config_data['type'],
             config_data['name'],
+            config_data['project'],
         )
 
         data = {
             'type': config_data['type'],
             'name': config_data['name'],
+            'project': config_data['project'],
             'all_config_versions': all_config_versions,
         }
         return Response(data, status=status.HTTP_200_OK)
@@ -208,12 +224,12 @@ class ConfigViewSet(ModelViewSet):
     @check_action_permission('read_configs')
     def list(self, request):
         '''
-        Of all configurations having the same type and name, if there are active ones,
+        Of all configurations having the same project, type and name, if there are active ones,
         returns active ones, if there are none, returns the latest ones.
         '''
         configs_to_display = (
-            Config.objects.order_by('type', 'name', '-is_active', '-created')
-            .distinct('type', 'name')
+            Config.objects.order_by('project', 'type', 'name', '-is_active', '-created')
+            .distinct('project', 'type', 'name')
             .values(
                 'id',
                 'version',
@@ -221,6 +237,7 @@ class ConfigViewSet(ModelViewSet):
                 'type',
                 'name',
                 'description',
+                'project',
                 'created',
             )
         )
