@@ -73,6 +73,7 @@ if not DEBUG:
     INSTALLED_APPS.append('cachalot')
 
 MIDDLEWARE = [
+    'bublik.middleware.ProjectMiddleware',
     'bublik.middleware.DynamicSettingsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
