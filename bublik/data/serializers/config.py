@@ -15,7 +15,7 @@ from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.utils import prepare_date
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, User
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, User
 
 
 __all__ = [
@@ -31,6 +31,7 @@ class ConfigSerializer(ModelSerializer):
             'created',
             'type',
             'name',
+            'project',
             'version',
             'is_active',
             'description',
@@ -161,6 +162,7 @@ class ConfigSerializer(ModelSerializer):
     def get_or_create(self, config_data):
         config = get_or_none(
             Config.objects,
+            project=config_data['project'],
             content=config_data['content'],
         )
         if config:
@@ -171,11 +173,14 @@ class ConfigSerializer(ModelSerializer):
     def create(self, config_data):
         if not isinstance(config_data['user'], User):
             config_data['user'] = User.objects.get(id=config_data['user'])
+        if config_data['project'] and not isinstance(config_data['project'], Project):
+            config_data['project'] = Project.objects.get(id=config_data['project'])
         is_active = config_data['is_active']
         if is_active:
             config_type = config_data['type']
             config_name = config_data['name']
-            active = Config.objects.get_active_or_none(config_type, config_name)
+            config_project = config_data['project']
+            active = Config.objects.get_active_or_none(config_type, config_name, config_project)
             if active:
                 active.is_active = False
                 active.save()
