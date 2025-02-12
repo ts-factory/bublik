@@ -6,6 +6,7 @@ from enum import Enum
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 
+from bublik.data.models.meta import Meta
 from bublik.data.models.user import User
 
 
@@ -133,12 +134,21 @@ class Config(models.Model):
         help_text='The user who created the configuration object.',
     )
     content = models.JSONField(help_text='Configuration data.')
+    project = models.ForeignKey(
+        Meta,
+        on_delete=models.CASCADE,
+        related_name='config',
+        default=None,
+        blank=True,
+        null=True,
+        limit_choices_to={'name': 'PROJECT', 'type': 'label'},
+    )
 
     objects = ConfigManager()
 
     class Meta:
         db_table = 'bublik_config'
-        unique_together = ('type', 'name', 'version')
+        unique_together = ('type', 'name', 'project', 'version')
 
     def activate(self):
         active = Config.objects.get_active_or_none(self.type, self.name)
@@ -160,7 +170,7 @@ class Config(models.Model):
 
     def __repr__(self):
         return (
-            f'Config(created={self.created!r}, type={self.type!r}, name={self.name!r}, '
-            f'version={self.version!r}, is_active={self.is_active!r}, '
+            f'Config(created={self.created!r}, project={self.project!r}, type={self.type!r}, '
+            f'name={self.name!r}, version={self.version!r}, is_active={self.is_active!r}, '
             f'description={self.description!r}, user={self.user!r})'
         )
