@@ -217,7 +217,7 @@ function install_db_packages() {
 # we have a root access, but when we set up DB on localhost we need sudo.
 #
   local packages=(
-    postgresql-13
+    postgresql
     systemd
     net-tools
     mlocate
