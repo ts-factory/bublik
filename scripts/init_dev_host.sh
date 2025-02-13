@@ -28,7 +28,7 @@ function usage () {
 	  Usage:
 	    $(basename $0) [-h help] [-q quite] [-y no-ask] [-u user] [-d home] [-i ssh-key]
 	    [-b bublik-git-url] [-B bublik-ui-git-url] [-C bublik-conf-git-url] [-T te-git-url]
-	    [deploy options] host config
+	    [deploy options] host
 
 	  Initialise Bublik development environment on the host using the configuration.
 	  See help for all options description and deploy help for deploy options description.
@@ -75,7 +75,7 @@ function step() {
 	return $result
 }
 
-while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
+while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:" OPTION; do
 	case $OPTION in
 		h) print_help ; exit ;;
 		q)
@@ -107,7 +107,7 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
 			;;
 		k) LOGS_KEYTAB=${OPTARG} ;;
 		W) DB_PASSWORD="${OPTARG}" ;;
-		a | p | s | F | N | U | H | P)
+		a | p | s | F | N | U | H | P | c)
 			OPTS+=(-${OPTION} "${OPTARG}")
 			;;
 		?) usage ; exit 1 ;;
@@ -129,11 +129,6 @@ fi
 
 BUBLIK_HOST=$1
 test -n "${BUBLIK_HOST}" || usage "Host is unspecified"
-shift
-
-CONFIG_TO_USE=$1
-test -n "${CONFIG_TO_USE}" || usage "Config to use is unspecified"
-OPTS+=(-c "${CONFIG_TO_USE}")
 shift
 
 test -z "$1" || usage "Extra options specified: $*"

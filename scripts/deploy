@@ -315,7 +315,9 @@ function create_general_conf() {
 function set_vars_dependent_on_options() {
   # This variables cannot be set at the top of the file as they depend on
   # the server options, which should be processed first.
-  export PER_CONF_DIR="${BUBLIK_CONF}/${CONFIG_TO_USE}"
+  if test -n "${BUBLIK_CONF}" -o -n "${CONFIG_TO_USE}" ; then
+    export PER_CONF_DIR="${BUBLIK_CONF}${BUBLIK_CONF:+/}${CONFIG_TO_USE}"
+  fi
   export BUBLIK_WEB_STATIC="${BUBLIK_WEB_STATIC_ROOT}/bublik"
 
   # XDG_RUNTIME_DIR is a path to a user private writable directory that is bound
@@ -662,7 +664,6 @@ if "${SERVER_OPTIONS_PROVIDED}" ; then
   test -n "${BUBLIK_HOME}" || usage "Home is unspecified"
   test -n "${DB_HOST}" || usage "Host of DB is unspecified"
   test -n "${DB_NAME}" || usage "Name of DB is unspecified"
-  test -n "${CONFIG_TO_USE}" || usage "Config to use is unspecified"
   test -n "${KEYTAB}" || message "NB! You forget to specify the keytab file"
 fi
 
