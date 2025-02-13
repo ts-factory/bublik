@@ -5,11 +5,13 @@
     "properties": {
         "PROJECT": {
             "description": "Identifies project matching PROJECT meta in metadata.json",
-            "type": "string"
+            "type": "string",
+            "default": "Test"
         },
         "UI_VERSION": {
             "description": "Default UI version",
-            "type": "number"
+            "type": "number",
+            "default": 2
         },
         "EMAIL_PROJECT_WATCHERS": {
             "description": "List of emails to notify about importruns failures",
@@ -17,7 +19,8 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": []
         },
         "DASHBOARD_HEADER": {
             "description": "Sets columns on dashboard",
@@ -33,7 +36,29 @@
                     }
                 },
                 "additionalProperties": false
-            }
+            },
+            "default": [
+                {
+                    "key": "status",
+                    "label": "Status"
+                },
+                {
+                    "key": "total",
+                    "label": "Total"
+                },
+                {
+                    "key": "unexpected",
+                    "label": "NOK"
+                },
+                {
+                    "key": "progress",
+                    "label": "Progress"
+                },
+                {
+                    "key": "notes",
+                    "label": "Notes"
+                }
+            ]
         },
         "DASHBOARD_PAYLOAD": {
             "description": "Sets link available by click on column values",
@@ -47,7 +72,8 @@
         },
         "DASHBOARD_DATE": {
             "description": "Represents the name of the meta pointing to which date the run is related to",
-            "type": "string"
+            "type": "string",
+            "default": "CAMPAIGN_DATE"
         },
         "DASHBOARD_RUNS_SORT": {
             "description": "Represents a list of DASHBOARD_HEADER keys and extra 'start' key which defines run start",
@@ -55,11 +81,13 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": ["start"]
         },
         "DASHBOARD_DEFAULT_MODE": {
             "description": "Sets the mode (one_day_one_column/one_day_two_columns/two_days_two_columns) which dashboard follows when opens",
-            "type": "string"
+            "type": "string",
+            "default": "two_days_two_columns"
         },
         "METADATA_ON_PAGES": {
             "description": "Represents a list of meta category names that manages columns in the history and runs page",
@@ -67,7 +95,8 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": ["Configuration"]
         },
         "SPECIAL_CATEGORIES": {
             "description": "Represents a list of meta category names that defines extra data to show in Info block on run and log pages",
@@ -75,11 +104,13 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": ["Configuration"]
         },
         "RUN_STATUS_META": {
             "description": "Represents meta name in meta_data.json that defines run status",
-            "type": "string"
+            "type": "string",
+            "default": "RUN_STATUS"
         },
         "RUN_STATUS_BY_NOK_BORDERS": {
             "description": "Represents 2 float numbers (left and right borders) that sets borders for defining run status by rate of unexpected results",
@@ -89,11 +120,13 @@
             },
             "uniqueItems": true,
             "minItems": 2,
-            "maxItems": 2
+            "maxItems": 2,
+            "default": [20.0, 80.0]
         },
         "RUN_COMPLETE_FILE": {
             "description": "Represents file available via run source link that indicates that run testing was completed",
-            "type": "string"
+            "type": "string",
+            "default": ".done"
         },
         "RUN_KEY_METAS": {
             "description": "Represents meta name in meta_data.json that allows Bublik to distinguish one run from another",
@@ -101,7 +134,8 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": ["START_TIMESTAMP", "Configuration"]
         },
         "FILES_TO_GENERATE_METADATA": {
             "description": "Represents a list of files available via run source link and allows Bublik to generate meta_data.json based on them",
@@ -109,7 +143,8 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": ["meta_data.txt"]
         },
         "CSRF_TRUSTED_ORIGINS": {
             "description": "Domens which Bublik server trusts accepting requests coming from",
@@ -117,7 +152,8 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "default": []
         },
         "HISTORY_SEARCH_EXAMPLE": {
             "description": "An example of history search for performance checking",
