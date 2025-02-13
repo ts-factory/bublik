@@ -4,7 +4,6 @@
 import os.path
 
 from bublik.core.url import get_url
-from bublik.data.models import Config, GlobalConfigNames
 
 
 # Basic functions:
@@ -39,11 +38,3 @@ def check_run_file(file, run, logger=None, required=False):
         logger=logger,
         required=required,
     )
-
-
-def check_configs_for_categorization(config_names=None):
-    if config_names is None:
-        config_names = [GlobalConfigNames.META, GlobalConfigNames.TAGS]
-    # check that active versions of the provided configurations exist
-    for config_name in config_names:
-        Config.objects.get_global(config_name)

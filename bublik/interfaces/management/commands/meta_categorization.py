@@ -6,6 +6,7 @@ from datetime import datetime
 from itertools import chain
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -151,24 +152,34 @@ class Command(BaseCommand):
         MetaCategory.objects.all().delete()
         MetaPattern.objects.all().delete()
 
-        mapping = None
-        try:
-            config_names = options['config_names']
-            logger.debug(f'reading configs: {config_names}')
-            configs_content = list(
-                chain(
-                    *[
-                        Config.objects.get_global(config_name).content
-                        for config_name in config_names
-                    ],
-                ),
+        config_names = options['config_names']
+        logger.debug(
+            f'retrieving configs: {[config_name.value for config_name in config_names]}',
+        )
+        configs_content = []
+        for config_name in config_names:
+            try:
+                config = Config.objects.get_global(config_name)
+                configs_content.append(config.content)
+            except ObjectDoesNotExist:
+                logger.warning(f'{config_name} global configuration object doesn\'t exist')
+        configs_content = list(chain(*configs_content))
+        if not configs_content:
+            logger.warning(
+                'meta categorization skipped due to empty configuration content',
             )
-            mapping = self.__resolve_mapping(configs_content)
-        except configparser.ParsingError as e:
-            logger.critical(f'unable to parse config content: {e}')
         else:
-            self.__apply_mapping(mapping)
-            set_tags_categories_cache()
-            logger.debug('tags categories cache was updated')
-        finally:
-            logger.debug(f'completed in [{datetime.now() - start_time}]')
+            mapping = None
+            try:
+                logger.debug(
+                    f'reading configs: {[config_name.value for config_name in config_names]}',
+                )
+                mapping = self.__resolve_mapping(configs_content)
+            except configparser.ParsingError as e:
+                logger.critical(f'unable to parse config content: {e}')
+            else:
+                self.__apply_mapping(mapping)
+                set_tags_categories_cache()
+                logger.debug('tags categories cache was updated')
+
+        logger.debug(f'completed in [{datetime.now() - start_time}]')

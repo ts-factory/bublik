@@ -46,6 +46,10 @@ class GlobalConfigNames(str, Enum):
     def all(cls):
         return [value.value for name, value in vars(cls).items() if name.isupper()]
 
+    @classmethod
+    def required(cls):
+        return [cls.PER_CONF, cls.REFERENCES]
+
 
 class ConfigManager(models.Manager):
     def get_latest(self, config_type, config_name):
