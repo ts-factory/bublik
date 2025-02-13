@@ -13,7 +13,7 @@ BUBLIK_USER=bublik
 BUBLIK_HOME_PREFIX=/opt
 BUBLIK_GIT="https://github.com/ts-factory/bublik.git"
 BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-frontend.git"
-BUBLIK_CONF_GIT="https://github.com/ts-factory/ts-rigs-sample.git"
+BUBLIK_CONF_GIT_DEFAULT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT_DEFAULT="https://github.com/ts-factory/test-environment.git"
 DB_PASSWORD="EujUmUk3Ot"
 SSH_SETUP=false
@@ -52,6 +52,7 @@ function print_help () {
 	    -b bublik-git-url   bublik Git repository URL
 	    -B bublik-ui-url    bublik UI Git repository URL
 	    -C bublik-conf-url  bublik configuration Git repository URL
+	                        (if you want to use default configurations, use -C default)
 	    -T te-git-url       OKTET Labs Test Environment Git repo URL
 	                        (if you want to use default TE, use -T default)
 	END_OF_HELP
@@ -90,7 +91,13 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:" OPTION; do
 		i) SSH_PUB=${OPTARG} ;;
 		b) BUBLIK_GIT=${OPTARG} ;;
 		B) BUBLIK_UI_GIT=${OPTARG} ;;
-		C) BUBLIK_CONF_GIT=${OPTARG} ;;
+		C)
+			if [ "${OPTARG}" = "default" ] ; then
+				BUBLIK_CONF_GIT="${BUBLIK_CONF_GIT_DEFAULT}"
+			else
+				BUBLIK_CONF_GIT=${OPTARG}
+			fi
+			;;
 		T)
 			if [ "${OPTARG}" = "default" ] ; then
 				TE_GIT="${TE_GIT_DEFAULT}"

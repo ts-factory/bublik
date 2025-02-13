@@ -29,7 +29,7 @@ export BUBLIK_HOST="$(uname -n)"
 export URL_PREFIX="/bublik"
 export BUBLIK_HOME="$(readlink -f $(dirname "$0")/../../)"
 export BUBLIK_SRC="$(readlink -f $(dirname "$0")/../)"
-export BUBLIK_CONF="${BUBLIK_HOME}/bublik-conf"
+test -d "${BUBLIK_HOME}/bublik-conf" && export BUBLIK_CONF="${BUBLIK_HOME}/bublik-conf"
 export BUBLIK_UI_DIR="${BUBLIK_HOME}/bublik-ui"
 
 export DOLLAR="\$"
