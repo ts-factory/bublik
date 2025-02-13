@@ -92,7 +92,6 @@ define_step general_conf             "Release server options to general.conf"
 define_step create_db                "Create database"
 define_step pip_requirements         "Install requirements"
 define_step secret_key               "Generate django secret key"
-define_step per_project_conf         "Create per-project configs"
 define_step django_settings          "Create django settings"
 define_step enable_linger            "Enable user service management (requires root)"
 define_step kerberos_service         "Create kerberos service"
@@ -102,6 +101,7 @@ define_step setup_gunicorn           "Setup gunicorn"
 define_step nginx_conf               "Create nginx configs (requires root)"
 define_step bootstrap_db             "Bootstrap bublik database"
 define_step migrate_db               "Migrate bublik database"
+define_step per_project_conf         "Create per-project configs"
 define_step static_files             "Copy bublik static files"
 define_step run_side_servers         "Run redis, rabbitmq, nginx servers (requires root)"
 define_step run_services             "Run bublik services"
@@ -285,36 +285,6 @@ function handle_user_services() {
   fi
 }
 
-function manage_per_project_configs() {
-  local PER_CONF_PATH="$1"
-  local expected_files=(
-    per_conf.py
-    references.py
-    tags.conf
-    meta.conf
-  )
-  local mandatory_files=(
-    per_conf.py
-    references.py
-  )
-  if [ ! -d "${PER_CONF_PATH}" ] ; then
-    message "per-project directory ${PER_CONF_PATH} wasn't found - created"
-    mkdir -p "${PER_CONF_PATH}"
-  fi
-  for file in ${expected_files[*]} ; do
-    if [ ! -e "${PER_CONF_PATH}/${file}" ] ; then
-      if [[ " ${mandatory_files[*]} " =~ " ${file} " ]] ; then
-        message "mandatory file ${file} wasn't found - default created"
-        expand_env_mv "${TEMPLATES_DIR}/${file}.template" \
-                      "${PER_CONF_PATH}/${file}"
-      else
-        message "expected file ${file} wasn't found - empty created"
-        touch "${PER_CONF_PATH}/${file}"
-      fi
-    fi
-  done
-}
-
 function create_bublik_dir() {
   local PARENT_DIR_PATH="$1"
   if [ -z "$2" ]; then
@@ -492,7 +462,8 @@ function kerberos_service_handler() {
 
 function per_project_conf_handler() {
   step "Create per-project configs" &&
-  manage_per_project_configs "${PER_CONF_DIR}"
+  source "${ENV_DIR}/bin/activate" &&
+  ${BUBLIK_SRC}/manage.py initialize_configs
 }
 
 function celery_service_handler() {
