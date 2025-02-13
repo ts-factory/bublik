@@ -311,27 +311,7 @@ CELERY_TASK_SERIALIZER = '${CELERY_TASK_SERIALIZER}'
 CELERY_RESULT_SERIALIZER = '${CELERY_RESULT_SERIALIZER}'
 CELERY_CREATE_DIRS = '${CELERY_CREATE_DIRS}'
 
-
-# Identify a project holding Bublik:
-# - to use per-project variables just doing 'import per_conf'
-# - to get per-project conf files
-#
 PER_CONF_DIR = '${PER_CONF_DIR}'
-
-
-def get_module(name, location):
-    if not os.path.isfile(location):
-        msg = f'unable to get {location}'
-        raise FileNotFoundError(msg)
-    spec = importlib.util.spec_from_file_location(name, location)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    sys.modules[name] = module
-
-
-get_module('per_conf', '${PER_CONF_DIR}/per_conf.py')
-get_module('references', '${PER_CONF_DIR}/references.py')
-
 
 ITEMS_PER_PAGE = 25
 
