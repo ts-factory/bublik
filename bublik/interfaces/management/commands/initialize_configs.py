@@ -18,14 +18,14 @@ from bublik.data.serializers import ConfigSerializer
 class Command(BaseCommand):
     def handle(self, *args, **options):
         '''
-        Initialize global configurations according to JSON schemas.
+        Initialize required global configurations according to JSON schemas.
         '''
         call_command(
             'migrate_configs',
         )
 
-        self.stdout.write('\nInitialize configurations if they are not exist:')
-        for config_name in GlobalConfigNames.all():
+        self.stdout.write('\nInitialize required configurations if they are not exist:')
+        for config_name in GlobalConfigNames.required():
             try:
                 Config.objects.get_global(config_name)
                 self.stdout.write(f'{config_name}: already exist!')
