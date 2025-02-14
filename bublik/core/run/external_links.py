@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.data import models
+from bublik.data.models import Config, GlobalConfigNames
 
 
 def get_sources(result, source=None):
@@ -36,7 +37,17 @@ def get_sources(result, source=None):
                 log = main_package.meta_results.filter(meta__type='log').first()
 
         if log and log.reference:
-            log_base = log.reference.uri
+            references_logs_bases = Config.objects.get_global(
+                GlobalConfigNames.REFERENCES,
+            ).content['LOGS_BASES']
+            log_base = next(
+                (
+                    ref_lb['uri'][-1]
+                    for ref_lb in references_logs_bases
+                    if ref_lb['name'] == log.reference.name and ref_lb['uri']
+                ),
+                log.reference.uri,
+            )
             source_tail = log.meta.value
             if log_base.endswith('/') or source_tail.startswith('/'):
                 return f'{log_base.rstrip("/")}/{source_tail.lstrip("/")}'
