@@ -32,20 +32,28 @@ def get_config_from_cache(default=None):
     return config
 
 
+def get_schema_from_cache():
+    config_schema = caches['config'].get('schema')
+    if config_schema is None:
+        config_schema = ConfigServices.get_schema(
+            ConfigTypes.GLOBAL,
+            GlobalConfigNames.PER_CONF,
+        )
+        caches['config'].set('schema', config_schema, timeout=86400)
+    return config_schema
+
+
 class DynamicSettingsMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         config = get_config_from_cache()
-        config_schema = ConfigServices.get_schema(
-            ConfigTypes.GLOBAL,
-            GlobalConfigNames.PER_CONF,
-        )
 
         def get_setting(attr):
-            default = config_schema['properties'][attr]['default']
-            return config.get(attr, default) if config else default
+            if config and attr in config:
+                return config.get(attr)
+            return get_schema_from_cache()['properties'][attr]['default']
 
         # set CSRF_TRUSTED_ORIGINS
         settings.CSRF_TRUSTED_ORIGINS = get_setting('CSRF_TRUSTED_ORIGINS')
