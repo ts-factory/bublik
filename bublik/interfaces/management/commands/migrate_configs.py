@@ -18,7 +18,7 @@ from bublik.data.models import (
 from bublik.data.serializers import ConfigSerializer
 
 
-def any_non_empty_config_exists(config_file_names):
+def any_config_file_exists(config_file_names):
     '''
     Check the existence of the PER_CONF_DIR directory and the presence of passed files in it.
     '''
@@ -97,7 +97,7 @@ class Command(BaseCommand):
 
         # check the existence of the PER_CONF_DIR directory and the presence
         # of configurations in it
-        if not any_non_empty_config_exists(config_file_names):
+        if not any_config_file_exists(config_file_names):
             self.stdout.write('Nothing to migrate')
             return
 
