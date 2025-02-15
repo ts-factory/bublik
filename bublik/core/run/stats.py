@@ -525,6 +525,7 @@ def get_expected_results(result):
                 logs = ConfigServices.getattr_from_global(
                     GlobalConfigNames.REFERENCES,
                     'ISSUES',
+                    default={},
                 )
                 if ref_type in logs and ref_tail:
                     ref_uri = logs[ref_type]['uri'][0]
