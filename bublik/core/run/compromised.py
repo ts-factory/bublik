@@ -54,6 +54,7 @@ def validate_compromised_request(run_id, comment, bug, reference):
     if reference and reference not in ConfigServices.getattr_from_global(
         GlobalConfigNames.REFERENCES,
         'ISSUES',
+        default={},
     ):
         return f'Unknown reference key: {reference}.'
 
@@ -71,6 +72,7 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
         ref_source = ConfigServices.getattr_from_global(
             GlobalConfigNames.REFERENCES,
             'ISSUES',
+            default={},
         )[reference_key]
         reference_data = {'name': ref_source['name'], 'uri': ref_source['uri'][0]}
 
