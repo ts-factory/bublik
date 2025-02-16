@@ -24,7 +24,7 @@ class Command(BaseCommand):
             'migrate_configs',
         )
 
-        self.stdout.write('\nInitialize required configurations if they are not exist:')
+        self.stdout.write('Initialize required configurations if they are not exist:')
         for config_name in GlobalConfigNames.required():
             try:
                 Config.objects.get_global(config_name)
