@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import functools
+from typing import ClassVar
 
 from django.core.cache import caches
 from django.core.exceptions import ObjectDoesNotExist
@@ -29,15 +30,15 @@ class RunCache:
             cache.data = produce_stats()
     """
 
-    KEY_DATA_CHOICES = {
+    KEY_DATA_CHOICES: ClassVar[set] = {
         'stats',
         'stats_sum',
         'dashboard-v2',
         'livelog',
         'tree',
     }
-    KEYS_EARLY_CACHE = {'livelog'}
-    KEYS_TMP_CACHE = {'tree'}
+    KEYS_EARLY_CACHE: ClassVar[set] = {'livelog'}
+    KEYS_TMP_CACHE: ClassVar[set] = {'tree'}
 
     def __init__(self, run, data_key):
         self.run = run
