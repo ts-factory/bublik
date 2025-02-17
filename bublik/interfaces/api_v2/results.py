@@ -270,8 +270,10 @@ class ResultViewSet(ModelViewSet):
         )
 
     def list(self, request):
-        results = self.paginate_queryset(self.get_queryset())
-        return self.get_paginated_response(generate_results_details(results))
+        return Response(
+            data={'results': generate_results_details(self.get_queryset())},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['get'])
     def artifacts_and_verdicts(self, request, pk=None):
