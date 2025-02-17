@@ -139,8 +139,9 @@ class RunViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def stats(self, request, pk=None):
+        requirements = self.request.query_params.get('requirements')
         run = self.get_object()
-        return Response({'results': get_run_stats_detailed_with_comments(run.id)})
+        return Response({'results': get_run_stats_detailed_with_comments(run.id, requirements)})
 
     @action(detail=True, methods=['get'])
     def source(self, request, pk=None):
@@ -202,6 +203,7 @@ class ResultViewSet(ModelViewSet):
         test_name = self.request.query_params.get('test_name')
         results = self.request.query_params.get('results')
         result_properties = self.request.query_params.get('result_properties')
+        requirements = self.request.query_params.get('requirements')
 
         if parent_id:
             if not get_or_none(models.TestIterationResult.objects, id=parent_id):
@@ -233,6 +235,19 @@ class ResultViewSet(ModelViewSet):
             queryset = queryset.filter_by_result_classification(
                 result_properties.split(query_delimiter),
             )
+
+        if requirements:
+            requirements = requirements.split(query_delimiter)
+            available_req_metas = []
+            for requirement in requirements:
+                try:
+                    available_req_metas.append(
+                        models.Meta.objects.get(type='requirement', value=requirement),
+                    )
+                except models.Meta.DoesNotExist:
+                    return models.TestIterationResult.objects.none()
+            for req_meta in available_req_metas:
+                queryset = queryset.filter(meta_results__meta=req_meta)
 
         return (
             queryset.order_by('-start', 'id')
