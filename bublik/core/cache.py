@@ -33,6 +33,7 @@ class RunCache:
     KEY_DATA_CHOICES: ClassVar[set] = {
         'stats',
         'stats_sum',
+        'stats_reqs',
         'dashboard-v2',
         'livelog',
         'tree',
