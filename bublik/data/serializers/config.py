@@ -134,17 +134,9 @@ class ConfigSerializer(ModelSerializer):
     def initialize(cls, config_data):
         '''
         Used for initializing configurations.
-        Adds a description from the JSON schema (if not provided), sets is_active=True,
-        adds a timestamp, user, version to the provided config data and calls create().
+        Sets is_active=True, adds a timestamp, user, version to the provided config data and
+        calls create().
         '''
-        config_data['description'] = (
-            config_data['description']
-            if config_data.get('description', '')
-            else ConfigServices.get_schema(config_data['type'], config_data['name']).get(
-                'description',
-                '',
-            )
-        )
         config_data['is_active'] = True
         serializer = cls(data=config_data)
         serializer.update_data(is_system_action=True)
