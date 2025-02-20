@@ -2,14 +2,14 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 
 
 def build_revision_references(revisions):
     revision_groups_list = []
     for revision in revisions:
         reference = ConfigServices.getattr_from_global(
-            GlobalConfigNames.REFERENCES,
+            GlobalConfigs.REFERENCES.name,
             'REVISIONS',
         ).get(revision['name'])
         revision_url = ''

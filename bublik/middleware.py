@@ -8,14 +8,14 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 
 
 @receiver(post_save, sender=Config)
 def invalidate_config_cache(sender, instance, **kwargs):
     if (
         instance.type == ConfigTypes.GLOBAL
-        and instance.name == GlobalConfigNames.PER_CONF
+        and instance.name == GlobalConfigs.PER_CONF.name
         and instance.is_active
     ):
         caches['config'].delete('content')
@@ -25,7 +25,7 @@ def get_config_from_cache(default=None):
     config = caches['config'].get('content')
     if config is None:
         try:
-            config = Config.objects.get_global(GlobalConfigNames.PER_CONF).content
+            config = Config.objects.get_global(GlobalConfigs.PER_CONF.name).content
             caches['config'].set('content', config, timeout=86400)
         except ObjectDoesNotExist:
             config = default
@@ -37,7 +37,7 @@ def get_schema_from_cache():
     if config_schema is None:
         config_schema = ConfigServices.get_schema(
             ConfigTypes.GLOBAL,
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
         )
         caches['config'].set('schema', config_schema, timeout=86400)
     return config_schema

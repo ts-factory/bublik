@@ -12,7 +12,7 @@ from bublik.core.meta.categorization import (
     group_by_runs_and_category,
 )
 from bublik.core.utils import key_value_list_transforming
-from bublik.data.models import GlobalConfigNames, Meta, MetaResult, TestArgument
+from bublik.data.models import GlobalConfigs, Meta, MetaResult, TestArgument
 
 
 def get_metadata_by_runs(runs, categorize=False):
@@ -27,7 +27,7 @@ def get_metadata_by_runs(runs, categorize=False):
     )
 
     metadata_categories = ConfigServices.getattr_from_global(
-        GlobalConfigNames.PER_CONF,
+        GlobalConfigs.PER_CONF.name,
         'METADATA_ON_PAGES',
         default=[],
     )

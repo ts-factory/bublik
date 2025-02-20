@@ -12,7 +12,7 @@ from bublik.data.models.user import User
 __all__ = [
     'Config',
     'ConfigTypes',
-    'GlobalConfigNames',
+    'GlobalConfigs',
 ]
 
 
@@ -29,22 +29,34 @@ class ConfigTypes(models.TextChoices):
         return [value.value for name, value in vars(cls).items() if name.isupper()]
 
 
-class GlobalConfigNames(str, Enum):
+class GlobalConfigs(Enum):
     '''
-    All available global configuration names.
+    All available global configuration names and descriptions.
     '''
 
-    PER_CONF = 'per_conf'
-    REFERENCES = 'references'
-    META = 'meta'
-    TAGS = 'tags'
+    PER_CONF = ('per_conf', 'The main project configuration')
+    REFERENCES = ('references', 'Project references')
+    META = ('meta', 'Meta categorization configuration')
+    TAGS = ('tags', 'Configuration to tweak tags displaying in the WEB interface')
+
+    def __init__(self, name, description):
+        self._name = name
+        self._description = description
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def description(self):
+        return self._description
 
     def __str__(self):
-        return self.value
+        return self.name
 
     @classmethod
     def all(cls):
-        return [value.value for name, value in vars(cls).items() if name.isupper()]
+        return [config.name for config in cls]
 
     @classmethod
     def required(cls):

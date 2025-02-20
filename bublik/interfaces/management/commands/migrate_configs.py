@@ -13,7 +13,7 @@ from bublik.core.utils import convert_to_int_if_digit
 from bublik.data.models import (
     Config,
     ConfigTypes,
-    GlobalConfigNames,
+    GlobalConfigs,
 )
 from bublik.data.serializers import ConfigSerializer
 
@@ -115,7 +115,7 @@ class Command(BaseCommand):
         # preprocess the config file content and create the corresponding config object
         for config_file_name, content in configs_data.items():
             if config_file_name == 'per_conf.py':
-                name, description = GlobalConfigNames.PER_CONF, None
+                name, description = GlobalConfigs.PER_CONF.name, None
                 content = {
                     key: value
                     for key, value in vars(content).items()
@@ -127,17 +127,17 @@ class Command(BaseCommand):
                         content['RUN_STATUS_BY_NOK_BORDERS'],
                     )
             elif config_file_name == 'references.py':
-                name, description = GlobalConfigNames.REFERENCES, None
+                name, description = GlobalConfigs.REFERENCES.name, None
                 content = {
                     key.upper(): value
                     for key, value in vars(vars(content).get('References')).items()
                     if not key.startswith('__')
                 }
             elif config_file_name == 'meta.conf':
-                name, description = GlobalConfigNames.META, 'Meta categorization configuration'
+                name, description = GlobalConfigs.META.name, 'Meta categorization configuration'
             elif config_file_name == 'tags.conf':
                 name, description = (
-                    GlobalConfigNames.TAGS,
+                    GlobalConfigs.TAGS.name,
                     'Configuration to tweak tags displaying in the WEB interface',
                 )
             else:

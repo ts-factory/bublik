@@ -33,7 +33,7 @@ from bublik.core.run.data import (
 from bublik.core.run.filter_expression import filter_by_expression
 from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
 from bublik.data.models import (
-    GlobalConfigNames,
+    GlobalConfigs,
     Meta,
     MetaResult,
     MetaTest,
@@ -569,7 +569,7 @@ def get_expected_results(result):
 
                 # Form the link address, if possible
                 logs = ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'ISSUES',
                     default={},
                 )
@@ -807,7 +807,7 @@ def generate_result_details(test_result):
 
 def get_run_status(run):
     status_meta_name = ConfigServices.getattr_from_global(
-        GlobalConfigNames.PER_CONF,
+        GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
     )
     status_meta = MetaResult.objects.filter(result=run, meta__name=status_meta_name).first()
@@ -847,7 +847,7 @@ def generate_all_run_details(run):
     conclusion, conclusion_reason = get_run_conclusion(run)
     important_tags, relevant_tags = get_tags_by_runs([run_id])
     category_names = ConfigServices.getattr_from_global(
-        GlobalConfigNames.PER_CONF,
+        GlobalConfigs.PER_CONF.name,
         'SPECIAL_CATEGORIES',
         default=[],
     )

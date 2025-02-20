@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.schemas.services import load_schema
 
 
@@ -11,11 +11,11 @@ class ConfigServices:
         if config_type == ConfigTypes.REPORT:
             return load_schema('report')
         if config_type == ConfigTypes.GLOBAL:
-            if config_name == GlobalConfigNames.PER_CONF:
+            if config_name == GlobalConfigs.PER_CONF.name:
                 return load_schema('per_conf')
-            if config_name == GlobalConfigNames.REFERENCES:
+            if config_name == GlobalConfigs.REFERENCES.name:
                 return load_schema('references')
-            if config_name in [GlobalConfigNames.META, GlobalConfigNames.TAGS]:
+            if config_name in [GlobalConfigs.META.name, GlobalConfigs.TAGS.name]:
                 return load_schema('meta')
         return None
 
