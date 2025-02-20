@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 
 
 logger = logging.getLogger()
@@ -46,7 +46,7 @@ class PerformanceCheckView(APIView):
 
         try:
             hist_args_per_conf = ConfigServices.getattr_from_global(
-                GlobalConfigNames.PER_CONF,
+                GlobalConfigs.PER_CONF.name,
                 'HISTORY_SEARCH_EXAMPLE',
             )
             if not hist_args_per_conf:

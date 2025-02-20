@@ -13,7 +13,7 @@ from django.db import transaction
 from bublik.core.cache import set_tags_categories_cache
 from bublik.data.models import (
     Config,
-    GlobalConfigNames,
+    GlobalConfigs,
     Meta,
     MetaCategory,
     MetaPattern,
@@ -60,8 +60,8 @@ class Command(BaseCommand):
             'config_names',
             nargs='?',
             default=[
-                GlobalConfigNames.META,
-                GlobalConfigNames.TAGS,
+                GlobalConfigs.META.name,
+                GlobalConfigs.TAGS.name,
             ],
             help='Names of the map configs',
         )
@@ -154,7 +154,7 @@ class Command(BaseCommand):
 
         config_names = options['config_names']
         logger.debug(
-            f'retrieving configs: {[config_name.value for config_name in config_names]}',
+            f'retrieving configs: {config_names}',
         )
         configs_content = []
         for config_name in config_names:
@@ -172,7 +172,7 @@ class Command(BaseCommand):
             mapping = None
             try:
                 logger.debug(
-                    f'reading configs: {[config_name.value for config_name in config_names]}',
+                    f'reading configs: {config_names}',
                 )
                 mapping = self.__resolve_mapping(configs_content)
             except configparser.ParsingError as e:

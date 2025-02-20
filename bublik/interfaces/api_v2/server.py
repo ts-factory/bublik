@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 
 
 __all__ = [
@@ -27,7 +27,7 @@ class ServerViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(
             {
                 'project': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.PER_CONF,
+                    GlobalConfigs.PER_CONF.name,
                     'PROJECT',
                 ),
             },

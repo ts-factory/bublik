@@ -12,7 +12,7 @@ from bublik.core.config.reformatting.piplines import (
     ReportConfigReformatPipeline,
 )
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import ConfigTypes, GlobalConfigNames
+from bublik.data.models import ConfigTypes, GlobalConfigs
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -56,10 +56,10 @@ class ConfigReformatDispatcher:
     def __init__(self):
         self.pipelines = {
             ConfigTypes.REPORT: ReportConfigReformatPipeline(),
-            GlobalConfigNames.PER_CONF: PerConfConfigReformatPipeline(),
-            GlobalConfigNames.REFERENCES: ReferencesConfigReformatPipeline(),
-            GlobalConfigNames.META: MetaConfigReformatPipeline(),
-            GlobalConfigNames.TAGS: MetaConfigReformatPipeline(),
+            GlobalConfigs.PER_CONF.name: PerConfConfigReformatPipeline(),
+            GlobalConfigs.REFERENCES.name: ReferencesConfigReformatPipeline(),
+            GlobalConfigs.META.name: MetaConfigReformatPipeline(),
+            GlobalConfigs.TAGS.name: MetaConfigReformatPipeline(),
         }
 
     def reformat_config(self, config):

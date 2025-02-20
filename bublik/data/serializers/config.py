@@ -14,7 +14,7 @@ from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.utils import prepare_date
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames, User
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, User
 
 
 __all__ = [
@@ -91,7 +91,7 @@ class ConfigSerializer(ModelSerializer):
         return config_type
 
     def validate_name(self, name):
-        possible_global_config_names = GlobalConfigNames.all()
+        possible_global_config_names = GlobalConfigs.all()
         if (
             self.initial_data['type'] == ConfigTypes.GLOBAL
             and name not in possible_global_config_names

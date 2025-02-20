@@ -13,7 +13,7 @@ from bublik.core.run.keys import prepare_expected_key
 from bublik.core.run.utils import prepare_date
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
-    GlobalConfigNames,
+    GlobalConfigs,
     MetaResult,
     Reference,
     ResultType,
@@ -254,11 +254,11 @@ def run_status_default(status_key):
 
 def set_run_status(run, status_key):
     status_meta_name = ConfigServices.getattr_from_global(
-        GlobalConfigNames.PER_CONF,
+        GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
     )
     status_value = ConfigServices.getattr_from_global(
-        GlobalConfigNames.PER_CONF,
+        GlobalConfigs.PER_CONF.name,
         status_key,
         default=run_status_default(status_key),
     )

@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 
 
 __all__ = [
@@ -24,16 +24,16 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(
             {
                 'logs': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'LOGS_BASES',
                 ),
                 'issues': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'ISSUES',
                     default={},
                 ),
                 'revisions': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'REVISIONS',
                 ),
             },
@@ -44,7 +44,7 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(
             {
                 'logs': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'LOGS_BASES',
                 ),
             },
@@ -55,7 +55,7 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(
             {
                 'issues': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'ISSUES',
                     default={},
                 ),
@@ -67,7 +67,7 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(
             {
                 'revisions': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.REFERENCES,
+                    GlobalConfigs.REFERENCES.name,
                     'REVISIONS',
                 ),
             },
