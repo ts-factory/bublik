@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
-from bublik.data.models import GlobalConfigNames, MetaResult, TestIterationResult
+from bublik.data.models import GlobalConfigs, MetaResult, TestIterationResult
 from bublik.data.serializers import MetaResultSerializer
 from bublik.interfaces.celery.tasks import meta_categorization
 
@@ -52,7 +52,7 @@ def validate_compromised_request(run_id, comment, bug, reference):
         return 'Bug ID and Reference are required together.'
 
     if reference and reference not in ConfigServices.getattr_from_global(
-        GlobalConfigNames.REFERENCES,
+        GlobalConfigs.REFERENCES.name,
         'ISSUES',
         default={},
     ):
@@ -70,7 +70,7 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
     reference_data = None
     if reference_key:
         ref_source = ConfigServices.getattr_from_global(
-            GlobalConfigNames.REFERENCES,
+            GlobalConfigs.REFERENCES.name,
             'ISSUES',
             default={},
         )[reference_key]

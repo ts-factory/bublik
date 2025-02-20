@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
 
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames, User, UserRoles
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, User, UserRoles
 from bublik.settings import SIMPLE_JWT
 
 
@@ -85,7 +85,7 @@ def check_action_permission(action):
         def inner(*args, **kwargs):
             per_conf = Config.objects.get(
                 type=ConfigTypes.GLOBAL,
-                name=GlobalConfigNames.PER_CONF,
+                name=GlobalConfigs.PER_CONF.name,
                 is_active=True,
             )
             not_permission_required_actions = per_conf.content.get(

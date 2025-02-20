@@ -9,7 +9,7 @@ from bublik.core.config.services import ConfigServices
 from bublik.data.models import (
     Config,
     ConfigTypes,
-    GlobalConfigNames,
+    GlobalConfigs,
 )
 from bublik.data.schemas.services import generate_content
 from bublik.data.serializers import ConfigSerializer
@@ -25,22 +25,22 @@ class Command(BaseCommand):
         )
 
         self.stdout.write('Initialize required configurations if they are not exist:')
-        for config_name in GlobalConfigNames.required():
+        for config in GlobalConfigs.required():
             try:
-                Config.objects.get_global(config_name)
-                self.stdout.write(f'{config_name}: already exist!')
+                Config.objects.get_global(config.name)
+                self.stdout.write(f'{config}: already exist!')
             except ObjectDoesNotExist:
                 json_schema = ConfigServices.get_schema(
                     ConfigTypes.GLOBAL,
-                    config_name,
+                    config.name,
                 )
                 ConfigSerializer.initialize(
                     {
                         'type': ConfigTypes.GLOBAL,
-                        'name': config_name,
+                        'name': config.name,
                         'content': generate_content(json_schema),
                     },
                 )
                 self.stdout.write(
-                    self.style.SUCCESS(f'{config_name}: succesfully initialized!'),
+                    self.style.SUCCESS(f'{config}: succesfully initialized!'),
                 )
