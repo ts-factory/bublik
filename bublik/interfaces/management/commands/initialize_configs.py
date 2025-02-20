@@ -38,6 +38,7 @@ class Command(BaseCommand):
                     {
                         'type': ConfigTypes.GLOBAL,
                         'name': config.name,
+                        'description': config.description,
                         'content': generate_content(json_schema),
                     },
                 )
