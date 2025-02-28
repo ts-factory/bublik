@@ -10,7 +10,7 @@ import sys
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models
-from django.db.models import Exists, F, OuterRef, Q, Value
+from django.db.models import Count, Exists, F, OuterRef, Q, Value
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
@@ -183,8 +183,8 @@ def generate_result(test_iter_res, parent, period, path, info, objectives, run_r
     return info
 
 
-def get_run_stats_detailed_with_comments(run_id):
-    run_stats = get_run_stats_detailed(run_id)
+def get_run_stats_detailed_with_comments(run_id, requirements):
+    run_stats = get_run_stats_detailed(run_id, requirements)
     tests_comments = get_tests_comments(run_id)
     add_comments(run_stats, tests_comments)
     return run_stats
@@ -212,11 +212,17 @@ def add_comments(node, tests_comments):
             add_comments(child, tests_comments)
 
 
-def get_run_stats_detailed(run_id):
-    cache = RunCache.by_id(run_id, 'stats')
-    run_stats = cache.data
-    # Recalculating statistics if it is not stored in the cache
-    if not run_stats:
+def get_run_stats_detailed(run_id, requirements=None):
+    if requirements:
+        requirements = set(requirements.split(settings.QUERY_DELIMITER)) if requirements else {}
+        stats_cache = RunCache.by_id(run_id, 'stats_reqs')
+        run_stats = stats_cache.data.get('stats') if stats_cache.data else None
+        requirements_cached = stats_cache.data.get('reqs') if stats_cache.data else None
+    else:
+        stats_cache = RunCache.by_id(run_id, 'stats')
+        run_stats = stats_cache.data
+    # Recalculate statistics if they are not cached or do not match the given requirements
+    if not run_stats or (requirements and requirements != requirements_cached):
         run_results = (
             TestIterationResult.objects.filter(test_run=run_id)
             .order_by('start')
@@ -225,6 +231,41 @@ def get_run_stats_detailed(run_id):
         main_package = run_results.filter(parent_package__isnull=True).first()
         if not main_package:
             return None
+
+        # filter run results by requirements
+        if requirements:
+            test_qs = (
+                run_results.filter(
+                    iteration__test__result_type=ResultType.conv(ResultType.TEST),
+                )
+                .annotate(
+                    matching_meta_count=Count(
+                        'meta_results',
+                        filter=Q(
+                            meta_results__meta__type='requirement',
+                            meta_results__meta__value__in=requirements,
+                        ),
+                        distinct=True,
+                    ),
+                )
+                .filter(matching_meta_count=len(requirements))
+            )
+            non_test_qs = run_results.exclude(
+                iteration__test__result_type=ResultType.conv(ResultType.TEST),
+            )
+            run_results = (test_qs | non_test_qs).distinct()
+
+            # drop packages and sessions that have no descendants tests
+            # after filtering by requirements
+            while True:
+                nodes_num = run_results.count()
+                run_results = run_results.filter(
+                    Q(iteration__test__result_type=ResultType.conv(ResultType.TEST))
+                    | Q(id__in=run_results.values_list('parent_package', flat=True)),
+                )
+                if run_results.count() == nodes_num:
+                    break
+
         # get objectives for all run iterations at once
         objectives = dict(
             Meta.objects.filter(
@@ -241,7 +282,11 @@ def get_run_stats_detailed(run_id):
             objectives=objectives,
             run_results=run_results,
         )
-        cache.data = run_stats
+
+        stats_cache.data = (
+            run_stats if not requirements else {'reqs': requirements, 'stats': run_stats}
+        )
+
     return run_stats
 
 
