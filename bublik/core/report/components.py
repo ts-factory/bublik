@@ -2,6 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from bublik.core.measurement.representation import ReportRecordBuilder
+from bublik.core.run.data import is_result_unexpected
 from bublik.core.utils import convert_to_int_if_digit, unordered_group_by
 
 
@@ -80,7 +81,7 @@ class ReportPoint:
                 'metadata': {
                     'iteration_id': mmr.result.iteration.id,
                     'result_id': mmr.result.id,
-                    'result_type': mmr.result.meta_results.get(meta__type='result').meta.value,
+                    'has_error': is_result_unexpected(mmr.result),
                 },
             },
         }
