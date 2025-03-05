@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.data import models
-from bublik.data.models import Config, GlobalConfigNames
+from bublik.data.models import Config, GlobalConfigs
 
 
 def get_sources(result, source=None):
@@ -38,7 +38,7 @@ def get_sources(result, source=None):
 
         if log and log.reference:
             references_logs_bases = Config.objects.get_global(
-                GlobalConfigNames.REFERENCES,
+                GlobalConfigs.REFERENCES.name,
             ).content['LOGS_BASES']
             log_base = next(
                 (

@@ -11,7 +11,7 @@ from bublik.core.config.services import ConfigServices
 from bublik.core.queries import MetaResultsQuery, get_or_none
 from bublik.core.utils import get_difference
 from bublik.data.managers import TestIterationResultManager
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 from bublik.data.models.meta import Meta
 from bublik.data.models.reference import Reference
 
@@ -68,7 +68,7 @@ class RunStatusByUnexpected:
         unexpected = run_stats['unexpected']
         unexpected_percent = round(unexpected / total * 100) if total else 0
         left_border, right_border = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_BY_NOK_BORDERS',
             default=(20.0, 80.0),
         )
@@ -120,7 +120,7 @@ class RunConclusion:
             RunStatus.BUSY: cls.BUSY,
         }
         run_status_meta = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
         )
         if run_status in conclusions_by_statuses:

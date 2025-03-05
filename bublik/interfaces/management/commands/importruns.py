@@ -25,7 +25,7 @@ from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import fetch_url, save_url_to_dir
 from bublik.core.utils import Counter, create_event
-from bublik.data.models import EventLog, GlobalConfigNames
+from bublik.data.models import EventLog, GlobalConfigs
 
 
 logger = logging.getLogger('bublik.server')
@@ -96,7 +96,7 @@ class HTTPDirectoryTraverser:
     def find_runs(self):
         try:
             ConfigServices.getattr_from_global(
-                GlobalConfigNames.PER_CONF,
+                GlobalConfigs.PER_CONF.name,
                 'RUN_COMPLETE_FILE',
             )
         except (ObjectDoesNotExist, KeyError) as e:
@@ -193,7 +193,7 @@ class Command(BaseCommand):
             else:
                 # Save to process dir available files for generating metadata
                 files_to_try = ConfigServices.getattr_from_global(
-                    GlobalConfigNames.PER_CONF,
+                    GlobalConfigs.PER_CONF.name,
                     'FILES_TO_GENERATE_METADATA',
                     default=['meta_data.txt'],
                 )
@@ -225,7 +225,7 @@ class Command(BaseCommand):
             if meta_data_saved:
                 run_completed = check_run_file(
                     ConfigServices.getattr_from_global(
-                        GlobalConfigNames.PER_CONF,
+                        GlobalConfigs.PER_CONF.name,
                         'RUN_COMPLETE_FILE',
                     ),
                     run_url,

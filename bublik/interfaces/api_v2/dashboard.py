@@ -26,7 +26,7 @@ from bublik.core.run.stats import (
     get_run_status_by_nok,
 )
 from bublik.core.utils import dicts_groupby, get_difference
-from bublik.data.models import GlobalConfigNames, Meta, TestIterationResult
+from bublik.data.models import GlobalConfigs, Meta, TestIterationResult
 
 
 __all__ = [
@@ -136,7 +136,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
     def apply_if_match_header(self, setting, default=None, ignore=None, keys=False):
         data = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             setting,
             default=default,
         ).copy()
@@ -153,21 +153,21 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         # Mandatory settings (must be defined in per_conf global config object):
         for setting in self.required_settings:
             ConfigServices.getattr_from_global(
-                GlobalConfigNames.PER_CONF,
+                GlobalConfigs.PER_CONF.name,
                 setting,
             )
 
         header = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'DASHBOARD_HEADER',
         )
         self.header = {item['key']: item['label'] for item in header}
         self.date_meta = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
         )
         self.default_mode = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DEFAULT_MODE',
             default='two_days_two_columns',
         )

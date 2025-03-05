@@ -21,7 +21,7 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 '''
 
-from .config import Config, ConfigTypes, GlobalConfigNames
+from .config import Config, ConfigTypes, GlobalConfigs
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta
@@ -57,36 +57,36 @@ from .user import User, UserManager, UserRoles
 
 
 __all__ = [
+    'ChartView',
+    'ChartViewType',
+    'Config',
+    'ConfigTypes',
+    'EndpointURL',
     'EventLog',
-    'Expectation',
     'ExpectMeta',
+    'Expectation',
+    'GlobalConfigs',
     'Measurement',
     'MeasurementResult',
-    'View',
-    'ChartViewType',
-    'ChartView',
+    'MeasurementResultList',
     'Meta',
     'MetaCategory',
     'MetaPattern',
+    'MetaResult',
+    'MetaTest',
     'Reference',
-    'RunStatus',
-    'RunStatusByUnexpected',
-    'RunConclusion',
     'ResultStatus',
     'ResultType',
+    'RunConclusion',
+    'RunStatus',
+    'RunStatusByUnexpected',
     'Test',
     'TestArgument',
     'TestIteration',
     'TestIterationRelation',
     'TestIterationResult',
-    'MetaResult',
     'User',
     'UserManager',
     'UserRoles',
-    'EndpointURL',
-    'MetaTest',
-    'ConfigTypes',
-    'GlobalConfigNames',
-    'Config',
-    'MeasurementResultList',
+    'View',
 ]

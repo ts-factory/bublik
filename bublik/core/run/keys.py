@@ -5,7 +5,7 @@ import logging
 import re
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 
 
 logger = logging.getLogger('bublik.server')
@@ -15,7 +15,7 @@ def prepare_expected_key(key_str):
     for ref in re.findall(r'ref://[^, ]+', key_str):
         ref_type = re.search(r'ref://(.*)/', ref).group(1)
         if ref_type not in ConfigServices.getattr_from_global(
-            GlobalConfigNames.REFERENCES,
+            GlobalConfigs.REFERENCES.name,
             'ISSUES',
             default={},
         ):
