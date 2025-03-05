@@ -139,8 +139,9 @@ class RunViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def stats(self, request, pk=None):
+        requirements = self.request.query_params.get('requirements')
         run = self.get_object()
-        return Response({'results': get_run_stats_detailed_with_comments(run.id)})
+        return Response({'results': get_run_stats_detailed_with_comments(run.id, requirements)})
 
     @action(detail=True, methods=['get'])
     def source(self, request, pk=None):
@@ -202,6 +203,7 @@ class ResultViewSet(ModelViewSet):
         test_name = self.request.query_params.get('test_name')
         results = self.request.query_params.get('results')
         result_properties = self.request.query_params.get('result_properties')
+        requirements = self.request.query_params.get('requirements')
 
         if parent_id:
             if not get_or_none(models.TestIterationResult.objects, id=parent_id):
@@ -234,6 +236,19 @@ class ResultViewSet(ModelViewSet):
                 result_properties.split(query_delimiter),
             )
 
+        if requirements:
+            requirements = requirements.split(query_delimiter)
+            requirements_filter = []
+            requirement_query = Q()
+            for requirement in requirements:
+                requirement_query |= Q(type='requirement', value=requirement)
+
+            requirements_filter = list(models.Meta.objects.filter(requirement_query))
+
+            if requirements_filter:
+                for req in requirements_filter:
+                    queryset = queryset.filter(meta_results__meta=req)
+
         return (
             queryset.order_by('-start', 'id')
             .select_related('iteration')
@@ -255,8 +270,10 @@ class ResultViewSet(ModelViewSet):
         )
 
     def list(self, request):
-        results = self.paginate_queryset(self.get_queryset())
-        return self.get_paginated_response(generate_results_details(results))
+        return Response(
+            data={'results': generate_results_details(self.get_queryset())},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['get'])
     def artifacts_and_verdicts(self, request, pk=None):
