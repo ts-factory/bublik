@@ -9,6 +9,7 @@ import copy
 import typing
 from typing import TYPE_CHECKING
 
+from bublik.core.run.data import is_result_unexpected
 from bublik.core.utils import get_metric_prefix_units, key_value_transforming
 
 
@@ -105,7 +106,10 @@ class ChartViewBuilder:
             point_data = mmr.representation()
             point_data.pop('sequence_number')
             point_data.update(
-                {'comments': mmr.measurement.representation()['comments']},
+                {
+                    'comments': mmr.measurement.representation()['comments'],
+                    'has_error': is_result_unexpected(mmr.result),
+                },
             )
             self.dataset.append(point_data)
         self.dataset = sorted(self.dataset, key=lambda x: x['start'])
