@@ -108,4 +108,6 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
                     },
                 )
 
+        import_statuses = sorted(import_statuses, key=lambda item: item['timestamp'])
+
         return Response(import_statuses)
