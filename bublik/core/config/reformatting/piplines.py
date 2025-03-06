@@ -28,13 +28,13 @@ class ReformatPipeline:
         # the RemoveUnsupportedAttributes step should be executed last
         self.steps.insert(-1, step)
 
-    def run(self, content, schema):
+    def run(self, config):
         reformatted = False
         for step in self.steps:
-            content, applied = step.apply(content, schema=schema)
+            config, applied = step.apply(config)
             if applied:
                 reformatted = True
-        return content, reformatted
+        return config, reformatted
 
 
 class ReportConfigReformatPipeline(ReformatPipeline):

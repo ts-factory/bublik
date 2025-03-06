@@ -11,7 +11,6 @@ from bublik.core.config.reformatting.piplines import (
     ReferencesConfigReformatPipeline,
     ReportConfigReformatPipeline,
 )
-from bublik.core.config.services import ConfigServices
 from bublik.data.models import ConfigTypes, GlobalConfigs
 from bublik.data.serializers import ConfigSerializer
 
@@ -28,15 +27,14 @@ def get_config_data_type(config):
     raise ValueError(msg)
 
 
-def update_config_content(config, new_content):
+def update_config(reformatted_config):
     serializer = ConfigSerializer(
-        instance=config,
-        data={'content': new_content},
+        instance=reformatted_config,
+        data={'content': reformatted_config.content},
         partial=True,
     )
     serializer.is_valid(raise_exception=True)
-    config.content = serializer.validated_data['content']
-    config.save()
+    reformatted_config.save()
 
 
 class ConfigReformatStatuses(str, Enum):
@@ -71,15 +69,9 @@ class ConfigReformatDispatcher:
         pipeline = self.pipelines[config_data_type]
 
         try:
-            reformatted_content, reformatted = pipeline.run(
-                config.content,
-                ConfigServices.get_schema(
-                    config.type,
-                    config.name,
-                ),
-            )
+            reformatted_config, reformatted = pipeline.run(config)
             if reformatted:
-                update_config_content(config, reformatted_content)
+                update_config(reformatted_config)
                 return ConfigReformatStatuses.SUCCESS
             return ConfigReformatStatuses.SKIPPED
         except Exception:
