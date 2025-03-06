@@ -3,35 +3,37 @@
 
 import logging
 
+from bublik.core.config.services import ConfigServices
+
 
 logger = logging.getLogger('')
 
 
 class BaseReformatStep:
-    def apply(self, content, **kwargs):
+    def apply(self, config, **kwargs):
         '''
         Reformats the provided content if it has not been reformatted yet,
         and outputs the execution status. Returns the content.
         '''
         try:
-            if not self.applied(content, **kwargs):
-                content = self.reformat(content, **kwargs)
+            if not self.applied(config, **kwargs):
+                config = self.reformat(config, **kwargs)
                 logger.info(f'\tSTEP: {self.__class__.__name__} - OK')
-                return content, True
+                return config, True
             logger.info(f'\tSTEP: {self.__class__.__name__} - SKIPPED')
-            return content, False
+            return config, False
         except Exception as err:
             logger.info(f'\tSTEP: {self.__class__.__name__} - FAILED:')
             raise err
 
-    def applied(self, content, **kwargs):
+    def applied(self, config, **kwargs):
         '''
         Checks whether the step has already been applied.
         '''
         msg = 'Subclasses must implement `applied`.'
         raise NotImplementedError(msg)
 
-    def reformat(self, content, **kwargs):
+    def reformat(self, config, **kwargs):
         '''
         Reformats the provided content.
         '''
@@ -45,20 +47,23 @@ class UpdateAxisXStructure(BaseReformatStep):
     "axis_x": <str> -> "axis_x": {"arg": <str>}
     '''
 
-    def applied(self, content, **kwargs):
+    def applied(self, config, **kwargs):
+        content = config.content
         for _test_name, test_config_data in content['tests'].items():
             if isinstance(test_config_data['axis_x'], str):
                 return False
         return True
 
-    def reformat(self, content, **kwargs):
+    def reformat(self, config, **kwargs):
+        content = config.content
         for test_name, test_config_data in content['tests'].items():
             if isinstance(test_config_data['axis_x'], str):
                 test_config_data['axis_x'] = {
                     'arg': test_config_data['axis_x'],
                 }
                 content['tests'][test_name] = test_config_data
-        return content
+        config.content = content
+        return config
 
 
 class UpdateSeqSettingsStructure(BaseReformatStep):
@@ -69,13 +74,15 @@ class UpdateSeqSettingsStructure(BaseReformatStep):
     Rename 'sequence_name_conversion' to 'arg_vals_labels'.
     '''
 
-    def applied(self, content, **kwargs):
+    def applied(self, config, **kwargs):
+        content = config.content
         for _test_name, test_config_data in content['tests'].items():
             if 'sequences' not in test_config_data:
                 return False
         return True
 
-    def reformat(self, content, **kwargs):
+    def reformat(self, config, **kwargs):
+        content = config.content
         for test_name, test_config_data in content['tests'].items():
             if 'sequences' not in test_config_data:
                 if test_config_data['sequence_group_arg'] is not None:
@@ -96,7 +103,8 @@ class UpdateSeqSettingsStructure(BaseReformatStep):
                 test_config_data.pop('sequence_name_conversion')
 
                 content['tests'][test_name] = test_config_data
-        return content
+        config.content = content
+        return config
 
 
 class UpdateDashboardHeaderStructure(BaseReformatStep):
@@ -106,14 +114,15 @@ class UpdateDashboardHeaderStructure(BaseReformatStep):
     DASHBOARD_HEADER: [{"key": <key>, "label": <label>}]
     '''
 
-    def applied(self, content, **kwargs):
-        return not isinstance(content['DASHBOARD_HEADER'], dict)
+    def applied(self, config, **kwargs):
+        return not isinstance(config.content['DASHBOARD_HEADER'], dict)
 
-    def reformat(self, content, **kwargs):
-        content['DASHBOARD_HEADER'] = [
-            {'key': key, 'label': label} for key, label in content['DASHBOARD_HEADER'].items()
+    def reformat(self, config, **kwargs):
+        config.content['DASHBOARD_HEADER'] = [
+            {'key': key, 'label': label}
+            for key, label in config.content['DASHBOARD_HEADER'].items()
         ]
-        return content
+        return config
 
 
 class UpdateCSRFTrustedOrigins(BaseReformatStep):
@@ -123,35 +132,44 @@ class UpdateCSRFTrustedOrigins(BaseReformatStep):
     CSRF_TRUSTED_ORIGINS: ["http://origin1", "https://origin2", "https://origin3"]
     '''
 
-    def applied(self, content, **kwargs):
+    def applied(self, config, **kwargs):
+        content = config.content
         for origin in content.get('CSRF_TRUSTED_ORIGINS', []):
             if not origin.startswith(('http://', 'https://')):
                 return False
         return True
 
-    def reformat(self, content, **kwargs):
-        content['CSRF_TRUSTED_ORIGINS'] = [
+    def reformat(self, config, **kwargs):
+        config.content['CSRF_TRUSTED_ORIGINS'] = [
             (origin if origin.startswith(('http://', 'https://')) else f'https://{origin}')
-            for origin in content.get('CSRF_TRUSTED_ORIGINS', [])
+            for origin in config.content.get('CSRF_TRUSTED_ORIGINS', [])
         ]
-        return content
+        return config
 
 
 class RemoveUnsupportedAttributes(BaseReformatStep):
-    def applied(self, content, **kwargs):
-        schema = kwargs.get('schema')
+    def applied(self, config, **kwargs):
+        schema = ConfigServices.get_schema(
+            config.type,
+            config.name,
+        )
         valid_attributes = schema.get('properties', {}).keys()
+        content = config.content
         return not (
             isinstance(content, dict)
             and not schema.get('additionalProperties', True)
             and not set(content.keys()).issubset(set(valid_attributes))
         )
 
-    def reformat(self, content, **kwargs):
-        schema = kwargs.get('schema')
+    def reformat(self, config, **kwargs):
+        schema = ConfigServices.get_schema(
+            config.type,
+            config.name,
+        )
         # leave only valid attributes
         valid_attributes = schema.get('properties', {}).keys()
-        return {k: v for k, v in content.items() if k in valid_attributes}
+        config.content = {k: v for k, v in config.content.items() if k in valid_attributes}
+        return config
 
 
 class UpdateLogsFormat(BaseReformatStep):
@@ -163,10 +181,11 @@ class UpdateLogsFormat(BaseReformatStep):
     "ISSUES": {"BUG_KEY": {"uri": ["uri3", "uri4"], "name": "Bugs Base"}}},...}
     '''
 
-    def applied(self, content, **kwargs):
-        return 'LOGS' not in content
+    def applied(self, config, **kwargs):
+        return 'LOGS' not in config.content
 
-    def reformat(self, content, **kwargs):
+    def reformat(self, config, **kwargs):
+        content = config.content
         logs_base = content['LOGS'].pop('LOGS_BASE')
         content['LOGS_BASES'] = [logs_base]
         issues = {
@@ -179,4 +198,5 @@ class UpdateLogsFormat(BaseReformatStep):
             issue_key: {'name': issue_data['name'], 'uri': issue_data['uri'][0]}
             for issue_key, issue_data in content.get('REVISIONS').items()
         }
-        return content
+        config.content = content
+        return config
