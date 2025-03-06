@@ -23,21 +23,21 @@ def render_docs(request):
     path = request.path[docs_index + len(docs_subpath) :].rstrip('/')
 
     if not path:
-        return serve(request, 'index.html', document_root=settings.BUBLIK_UI_DOCS_DIR)
+        return serve(request, 'index.html', document_root=settings.BUBLIK_DOCS_STATIC)
 
-    base_file_path = os.path.join(settings.BUBLIK_UI_DOCS_DIR, path)
+    base_file_path = os.path.join(settings.BUBLIK_DOCS_STATIC, path)
     html_file_path = base_file_path + '.html'
 
     if os.path.isdir(base_file_path):
         index_path = os.path.join(base_file_path, 'index.html')
         if os.path.exists(index_path):
             relative_path = os.path.join(path, 'index.html')
-            return serve(request, relative_path, document_root=settings.BUBLIK_UI_DOCS_DIR)
+            return serve(request, relative_path, document_root=settings.BUBLIK_DOCS_STATIC)
 
     if os.path.exists(html_file_path):
-        return serve(request, path + '.html', document_root=settings.BUBLIK_UI_DOCS_DIR)
+        return serve(request, path + '.html', document_root=settings.BUBLIK_DOCS_STATIC)
 
     if os.path.exists(base_file_path):
-        return serve(request, path, document_root=settings.BUBLIK_UI_DOCS_DIR)
+        return serve(request, path, document_root=settings.BUBLIK_DOCS_STATIC)
 
     raise Http404

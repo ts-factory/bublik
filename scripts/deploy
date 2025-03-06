@@ -11,6 +11,7 @@ source "$(dirname $0)/lib"
 SERVER_OPTIONS=(
   CONFIG_TO_USE
   BUBLIK_UI_APP
+  BUBLIK_DOCS_DIST
   KEYTAB
   URL_PREFIX
   BUBLIK_WEB_STATIC_ROOT
@@ -31,11 +32,13 @@ export BUBLIK_HOME="$(readlink -f $(dirname "$0")/../../)"
 export BUBLIK_SRC="$(readlink -f $(dirname "$0")/../)"
 test -d "${BUBLIK_HOME}/bublik-conf" && export BUBLIK_CONF="${BUBLIK_HOME}/bublik-conf"
 export BUBLIK_UI_DIR="${BUBLIK_HOME}/bublik-ui"
+export BUBLIK_DOCS_DIR="${BUBLIK_HOME}/bublik-docs"
 
 export DOLLAR="\$"
 export TMPDIR="/tmp"
 export BUBLIK_WEB_STATIC_ROOT="${BUBLIK_HOME}/nginx"
 export BUBLIK_UI_APP="bublik-v2"
+export BUBLIK_DOCS_DIST="ts-factory"
 export TE_BASE="${BUBLIK_HOME}/te/build/inst/default/bin"
 export TEMPLATES_DIR="${BUBLIK_SRC}/templates"
 export ENV_DIR="${BUBLIK_SRC}/.env"
@@ -605,11 +608,12 @@ while [[ $# -gt 0 ]] ; do
       ;;
 
     # Apply server options. It is a separate block to check subcommand combinatons
-    -c | -a | -k | -p | -s | -u | -F | -N | -U | -W | -H | -P)
+    -c | -a | -k | -p | -s | -u | -F | -N | -U | -W | -H | -P | -D)
       SERVER_OPTIONS_PROVIDED=true
       case $1 in
         -c) export CONFIG_TO_USE="$2" ;;
         -a) export BUBLIK_UI_APP="$2" ;;
+        -D) export BUBLIK_DOCS_DIST="$2" ;;
         -k) export KEYTAB="$(realpath ${2})" ;;
         -p) export URL_PREFIX="$(echo "/$2" | tr -s /)" ;;
         -s) export BUBLIK_WEB_STATIC_ROOT="$(realpath $2)" ;;
