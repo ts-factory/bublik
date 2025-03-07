@@ -3,11 +3,6 @@
     "type": "object",
     "description": "The main project configuration",
     "properties": {
-        "PROJECT": {
-            "description": "Identifies project matching PROJECT meta in metadata.json",
-            "type": "string",
-            "default": "Test"
-        },
         "UI_VERSION": {
             "description": "Default UI version",
             "type": "number",
