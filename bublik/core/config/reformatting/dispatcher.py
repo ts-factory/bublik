@@ -31,9 +31,10 @@ def get_config_data_type(config):
 
 
 def update_config(reformatted_config):
+    reformated_data = ConfigSerializer(instance=reformatted_config).data
     serializer = ConfigSerializer(
         instance=reformatted_config,
-        data={'content': reformatted_config.content},
+        data=reformated_data,
         partial=True,
     )
     serializer.is_valid(raise_exception=True)
