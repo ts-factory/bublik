@@ -91,15 +91,6 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(self.style.SUCCESS(f'{config_name}: succesfully migrated!'))
 
-            # bring the configuration object content to the current format
-            call_command(
-                'reformat_configs',
-                '-t',
-                ConfigTypes.GLOBAL,
-                '-n',
-                config_name,
-            )
-
     def handle(self, *args, **options):
         self.stdout.write('Migrate configurations from the directory to the database:')
 
@@ -158,3 +149,10 @@ class Command(BaseCommand):
 
             if content:
                 self.migrate_config(name, description, content)
+
+        # bring configuration objects to the current format
+        call_command(
+            'reformat_configs',
+            '-t',
+            ConfigTypes.GLOBAL,
+        )
