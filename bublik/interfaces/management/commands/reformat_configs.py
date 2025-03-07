@@ -74,6 +74,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        self.stdout.write('Reformat configurations:')
         # get configs
         configs = (
             self.get_configs(options)
@@ -104,7 +105,7 @@ class Command(BaseCommand):
                 reformatting_summary[config_label] = reformatting_status
 
             # show the reformatting summary
-            self.stdout.write('\n=========================================================')
+            self.stdout.write('=========================================================')
             self.stdout.write('Configurations reformatting summary status:')
             for config_label, reformatting_status in reformatting_summary.items():
                 if reformatting_status == ConfigReformatStatuses.SUCCESS:
