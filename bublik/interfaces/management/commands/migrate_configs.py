@@ -62,7 +62,12 @@ def read_conf_file(file_path):
 
 
 class Command(BaseCommand):
-    def migrate_config(self, config_name, config_content, config_description=None):
+    def migrate_config(
+        self,
+        config_name,
+        config_content,
+        config_description=None,
+    ):
         '''
         Create global config object with passed name, description and content.
         '''
