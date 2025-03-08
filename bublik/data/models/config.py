@@ -75,16 +75,15 @@ class ConfigManager(models.Manager):
             .last()
         )
 
-    def get_active(self, config_type, config_name):
-        return (
-            self.get_queryset()
-            .filter(
+    def get_active_or_none(self, config_type, config_name):
+        try:
+            return self.get_queryset().get(
                 type=config_type,
                 name=config_name,
                 is_active=True,
             )
-            .first()
-        )
+        except self.model.DoesNotExist:
+            return None
 
     def get_all_versions(self, config_type, config_name):
         return (
@@ -98,7 +97,7 @@ class ConfigManager(models.Manager):
         )
 
     def get_global(self, config_name):
-        config = self.get_active(ConfigTypes.GLOBAL, config_name)
+        config = self.get_active_or_none(ConfigTypes.GLOBAL, config_name)
         if not config:
             msg = (
                 f'There is no active {config_name} global configuration object. '
@@ -141,7 +140,7 @@ class Config(models.Model):
         unique_together = ('type', 'name', 'version')
 
     def activate(self):
-        active = Config.objects.get_active(self.type, self.name)
+        active = Config.objects.get_active_or_none(self.type, self.name)
         if active:
             active.is_active = False
             active.save()
