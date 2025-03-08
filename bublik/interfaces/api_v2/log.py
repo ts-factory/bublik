@@ -26,7 +26,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
     @action(detail=True, methods=['get'])
     def json(self, request, pk=None):
         r'''
-        Return the URL to the corresponding JSON log file.
+        Return the URLs of the corresponding JSON log file and artifacts file.
         Route: /api/v2/logs/<ID>/json/?page=<page\>.
         '''
 
@@ -53,18 +53,20 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
         if not result.test_run:
             # The file `node_1_0.json` contains TE startup log in JSON
-            json_tail = 'json/node_1_0.json'
+            node = 'node_1_0'
         else:
-            json_tail = f'json/node_id{result.exec_seqno}'
+            node = f'node_id{result.exec_seqno}'
             if page == '0':
-                json_tail += '_all.json'
+                node += '_all'
             elif page:
-                json_tail += f'_p{page}.json'
-            else:
-                json_tail += '.json'
+                node += f'_p{page}'
 
-        url = os.path.join(run_source_link, json_tail)
-        return Response(data={'url': url}, status=status.HTTP_200_OK)
+        url = os.path.join(run_source_link, 'json', node + '.json')
+        artifacts_url = os.path.join(run_source_link, 'artifacts', node, 'artifacts.json')
+        return Response(
+            data={'url': url, 'artifacts_url': artifacts_url},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['get'])
     def html(self, request, pk=None):
