@@ -8,12 +8,14 @@ import shlex
 import subprocess
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, Q
 import pendulum
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.meta.categorization import categorize_meta
+from bublik.core.project import set_current_project
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
 from bublik.core.utils import find_dict_in_list, get_difference
@@ -110,13 +112,16 @@ class MetaData:
             logger.error('meta_data.json parser expected a PROJECT meta.')
             raise ValueError
 
-        project = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'PROJECT',
-        )
-        if project_meta['value'] != project:
-            logger.error(f'this isn\'t a run of {project} project')
-            raise ValueError
+        try:
+            set_current_project(
+                Meta.projects.get(value=project_meta['value']).id,
+            )
+        except Meta.DoesNotExist as mdne:
+            logger.error(
+                f'The project does not exist: {project_meta['value']}. '
+                'Create it to import logs.',
+            )
+            raise ObjectDoesNotExist from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
