@@ -159,7 +159,7 @@ class ConfigSerializer(ModelSerializer):
         if is_active:
             config_type = config_data['type']
             config_name = config_data['name']
-            active = Config.objects.get_active(config_type, config_name)
+            active = Config.objects.get_active_or_none(config_type, config_name)
             if active:
                 active.is_active = False
                 active.save()
