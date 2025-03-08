@@ -144,6 +144,16 @@ class RunViewSet(ModelViewSet):
         return Response({'results': get_run_stats_detailed_with_comments(run.id, requirements)})
 
     @action(detail=True, methods=['get'])
+    def requirements(self, request, pk=None):
+        run = self.get_object()
+        run_requirements = sorted(
+            models.Meta.objects.filter(type='requirement', metaresult__result__test_run=run)
+            .values_list('value', flat=True)
+            .distinct(),
+        )
+        return Response({'requirements': run_requirements})
+
+    @action(detail=True, methods=['get'])
     def source(self, request, pk=None):
         run = self.get_object()
         return Response({'url': get_sources(run)})
