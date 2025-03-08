@@ -24,6 +24,7 @@ from .measurement import (
     ViewSerializer,
 )
 from .meta import MetaSerializer
+from .project import ProjectSerializer
 from .reference import ReferenceSerializer
 from .result import (
     MetaResultSerializer,
@@ -50,6 +51,7 @@ __all__ = [
     'MetaSerializer',
     'MetaTestSerializer',
     'PasswordResetSerializer',
+    'ProjectSerializer',
     'ReferenceSerializer',
     'RegisterSerializer',
     'TestArgumentSerializer',
