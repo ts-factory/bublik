@@ -17,14 +17,14 @@ from bublik.data.serializers import ConfigSerializer
 class Command(BaseCommand):
     def handle(self, *args, **options):
         '''
-        Initialize required global configurations according to JSON schemas.
+        Initialize default required configurations from JSON schemas.
         '''
 
-        self.stdout.write('Initialize required configurations if they are not exist:')
+        self.stdout.write('Initialize default required configurations if they do not exist:')
         for config in GlobalConfigs.required():
             try:
-                Config.objects.get_global(config.name)
-                self.stdout.write(f'{config}: already exist!')
+                Config.objects.get_global(config.name, None)
+                self.stdout.write(f'Default {config}: already exist!')
             except ObjectDoesNotExist:
                 json_schema = ConfigServices.get_schema(
                     ConfigTypes.GLOBAL,
@@ -34,10 +34,11 @@ class Command(BaseCommand):
                     {
                         'type': ConfigTypes.GLOBAL,
                         'name': config.name,
+                        'project': None,
                         'description': config.description,
                         'content': generate_content(json_schema),
                     },
                 )
                 self.stdout.write(
-                    self.style.SUCCESS(f'{config}: succesfully initialized!'),
+                    self.style.SUCCESS(f'Default {config}: succesfully initialized!'),
                 )
