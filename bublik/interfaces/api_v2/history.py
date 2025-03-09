@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from itertools import chain
+import typing
 
 from django.conf import settings
 from django.core.cache import cache
@@ -46,7 +47,7 @@ __all__ = [
 
 
 class HistoryViewSet(ListModelMixin, GenericViewSet):
-    filter_backends = []
+    filter_backends: typing.ClassVar[list] = []
 
     def get_queryset(self):
         query_delimiter = settings.QUERY_DELIMITER
@@ -124,10 +125,10 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         for meta_expr in [branch_expr, rev_expr, label_expr, tag_expr]:
             if meta_expr['expr']:
                 runs_results = filter_by_expression(
-                filtered_qs=runs_results,
-                expr_str=meta_expr['expr'],
-                expr_type=meta_expr['type'],
-            )
+                    filtered_qs=runs_results,
+                    expr_str=meta_expr['expr'],
+                    expr_type=meta_expr['type'],
+                )
 
         # Filter by run property: compromised / not compromised sessions
         if run_properties:
@@ -229,7 +230,9 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             )
 
         # Finish annotation
-        test_results = test_results.select_related('test_run', 'iteration').annotate(
+        return (
+            test_results.select_related('test_run', 'iteration')
+            .annotate(
                 run_id=F('test_run__id'),
                 iteration_hash=F('iteration__hash'),
                 has_error=Exists(
@@ -238,7 +241,10 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
                 is_measurements=Exists(
                     MeasurementResult.objects.filter(result__id=OuterRef('id')),
                 ),
-            ).order_by('-start', 'id').distinct('start', 'id').values(
+            )
+            .order_by('-start', 'id')
+            .distinct('start', 'id')
+            .values(
                 'id',
                 'start',
                 'finish',
@@ -248,8 +254,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
                 'has_error',
                 'is_measurements',
             )
-
-        return test_results
+        )
 
     def prepare_results_data(self, test_results, grouped=False):
         '''This is a hand-help method to prepare results data available as instance fields.'''
