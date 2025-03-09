@@ -50,7 +50,11 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             ),
         )
 
-        active_report_configs = Config.objects.filter(type='report', is_active=True)
+        active_report_configs = Config.objects.filter(
+            type='report',
+            project_id=run.project.id,
+            is_active=True,
+        )
 
         run_report_configs = []
         for report_config in active_report_configs:
