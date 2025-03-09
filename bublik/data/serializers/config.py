@@ -148,6 +148,7 @@ class ConfigSerializer(ModelSerializer):
             )
         )
         config_data['is_active'] = True
+        config_data['project'] = None
         serializer = cls(data=config_data)
         serializer.update_data(is_system_action=True)
         return serializer.create(serializer.initial_data)
