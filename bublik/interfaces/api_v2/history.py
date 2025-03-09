@@ -21,6 +21,7 @@ from bublik.core.history.v2.utils import (
     group_results_by_iteration,
     prepare_list_results,
 )
+from bublik.core.project import get_current_project
 from bublik.core.run.data import (
     get_metadata_by_runs,
     get_parameters_by_iterations,
@@ -110,6 +111,11 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             start__date__gte=self.from_date,
             start__date__lte=self.to_date,
         )
+
+        # Filter by project
+        project = get_current_project()
+        if project:
+            runs_results = runs_results.filter(meta_results__meta=project)
 
         # Combine branches, revisions, labels, tags to the one set of metas
         run_metas = []
