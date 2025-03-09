@@ -25,6 +25,7 @@ from bublik.core.measurement.services import (
     get_x_chart_view,
     get_y_chart_views,
 )
+from bublik.core.project import get_current_project
 from bublik.core.queries import get_or_none
 from bublik.core.run.compromised import (
     is_run_compromised,
@@ -61,6 +62,10 @@ class RunViewSet(ModelViewSet):
 
     def get_queryset(self):
         queryset = models.TestIterationResult.objects.filter(test_run__isnull=True)
+        project = get_current_project()
+        if project:
+            queryset = queryset.filter(meta_results__meta=project)
+
         meta_types = ['tag', 'label', 'revision', 'branch']
 
         start_date = self.request.query_params.get('start_date')
