@@ -231,3 +231,35 @@ class UpdateProject(BaseReformatStep):
         ).get_or_create()
         config.project = project_meta
         return config
+
+
+class RemoveProjectFromPerConf(BaseReformatStep):
+    '''
+    Reformat passed global per_conf configs content:
+    "PROJECT": "project name" -> None
+    '''
+
+    def applied(self, config, **kwargs):
+        return 'PROJECT' not in config.content
+
+    def reformat(self, config, **kwargs):
+        if not config.is_active:
+            config.content.pop('PROJECT', None)
+            return config
+        # verify whether the PROJECT key from the active main config
+        # matches the project field in all other configurations
+        project = config.content.get('PROJECT') or None
+        config_projects = (
+            Config.objects.exclude(id=config.id)
+            .values_list('project__value', flat=True)
+            .distinct()
+        )
+        if len(config_projects) != 1 or next(iter(config_projects)) != project:
+            msg = (
+                'Not all configurations are associated with the project '
+                'specified in the main configuration',
+            )
+            raise Exception(msg)
+        # drop PROJECT from content
+        config.content.pop('PROJECT')
+        return config
