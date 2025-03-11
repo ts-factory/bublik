@@ -528,7 +528,7 @@ def get_expected_results(result):
                     default={},
                 )
                 if ref_type in logs and ref_tail:
-                    ref_uri = logs[ref_type]['uri'][0]
+                    ref_uri = logs[ref_type]['uri']
                     ref_url = f'{ref_uri}{ref_tail}'
                     key_part['url'] = ref_url
 
