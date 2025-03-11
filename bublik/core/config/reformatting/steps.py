@@ -3,7 +3,11 @@
 
 import logging
 
+from django.core.exceptions import MultipleObjectsReturned
+
 from bublik.core.config.services import ConfigServices
+from bublik.data.models import Config, GlobalConfigs
+from bublik.data.serializers import ProjectMetaSerializer
 
 
 logger = logging.getLogger('')
@@ -199,4 +203,31 @@ class UpdateLogsFormat(BaseReformatStep):
             for issue_key, issue_data in content.get('REVISIONS').items()
         }
         config.content = content
+        return config
+
+
+class UpdateProject(BaseReformatStep):
+    '''
+    Update the project value for all configurations
+    according to the PROJECT value in the active main configuration.
+    '''
+
+    def applied(self, config, **kwargs):
+        if config.project:
+            return True
+        try:
+            per_conf = Config.objects.get_global(GlobalConfigs.PER_CONF.name)
+            return not per_conf.content.get('PROJECT')
+        except MultipleObjectsReturned:
+            return True
+
+    def reformat(self, config, **kwargs):
+        per_conf = Config.objects.get_global(GlobalConfigs.PER_CONF.name)
+        if not per_conf.content['PROJECT']:
+            config.project = None
+            return config
+        project_meta, _ = ProjectMetaSerializer(
+            data={'project_name': per_conf.content['PROJECT']},
+        ).get_or_create()
+        config.project = project_meta
         return config
