@@ -18,8 +18,8 @@ class URLShortenerView(APIView):
     def get(self, request, *args, **kwargs):
         '''
         Return a short URL corresponding to the passed URL.
-        Short URL format is 'http://<host name>/bublik/eh/<hash>'.
-        Route: /url_shortener.
+        Short URL format is 'http://<host name>/bublik/short/<view>/<hash>'.
+        Route: /url_shortener/?url=<url\>.
         '''
         # Get URL to be shortened
         url = self.request.query_params.get('url', '')
