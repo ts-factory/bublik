@@ -32,7 +32,7 @@ class URLShortenerView(APIView):
 
         # Get view and endpoint
         url_tail = url.replace(url_head + '/', '', 1)
-        view = re.split(r'/|\?', url_tail, 1)[0]
+        view = re.split(r'/|\?', url_tail, maxsplit=1)[0]
         endpoint = url_tail.replace(view, '', 1)
 
         # Get or create EndpointURL object
