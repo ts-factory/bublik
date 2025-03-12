@@ -7,7 +7,7 @@ from django.db.models import Manager, Q, QuerySet
 
 from bublik.core.config.services import ConfigServices
 from bublik.data.managers.utils import create_metas_query
-from bublik.data.models import GlobalConfigNames
+from bublik.data.models import GlobalConfigs
 from bublik.data.models.meta import Meta
 
 
@@ -29,7 +29,7 @@ It doesn`t have to return a QuerySet.
 class TestIterationResultQuerySet(QuerySet):
     def filter_by_run_status(self, run_status):
         status_meta_name = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
         )
         return self.filter(

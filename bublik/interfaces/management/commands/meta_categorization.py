@@ -13,7 +13,7 @@ from django.db import transaction
 from bublik.core.cache import set_tags_categories_cache
 from bublik.data.models import (
     Config,
-    GlobalConfigNames,
+    GlobalConfigs,
     Meta,
     MetaCategory,
     MetaPattern,
@@ -60,8 +60,8 @@ class Command(BaseCommand):
             'config_names',
             nargs='?',
             default=[
-                GlobalConfigNames.META,
-                GlobalConfigNames.TAGS,
+                GlobalConfigs.META.name,
+                GlobalConfigs.TAGS.name,
             ],
             help='Names of the map configs',
         )

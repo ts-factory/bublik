@@ -17,7 +17,7 @@ from bublik.core.meta.categorization import categorize_meta
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
 from bublik.core.utils import find_dict_in_list, get_difference
-from bublik.data.models import GlobalConfigNames, Meta, MetaResult
+from bublik.data.models import GlobalConfigs, Meta, MetaResult
 from bublik.data.serializers import (
     MetaResultSerializer,
     MetaSerializer,
@@ -75,7 +75,7 @@ class MetaData:
                     path_meta_data_script=path_meta_data_script,
                     process_dir=process_dir,
                     project=ConfigServices.getattr_from_global(
-                        GlobalConfigNames.PER_CONF,
+                        GlobalConfigs.PER_CONF.name,
                         'PROJECT',
                     ),
                 ),
@@ -111,7 +111,7 @@ class MetaData:
             raise ValueError
 
         project = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'PROJECT',
         )
         if project_meta['value'] != project:
@@ -120,7 +120,7 @@ class MetaData:
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
@@ -129,7 +129,7 @@ class MetaData:
 
         key_metas_fields = set()
         key_metas_names = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
         )
 
@@ -201,7 +201,7 @@ class MetaData:
 
     def __preprocess_meta(self, m_data, to_data=False):
         dashboard_date_meta = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
         )
         name = m_data.get('name')
@@ -229,7 +229,7 @@ class MetaData:
 
     def get_or_create_metas(self, run):
         status_meta = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
         )
 
@@ -329,7 +329,7 @@ class MetaData:
 
     def is_essential_metas_changed(self, run):
         run_key_metas = ConfigServices.getattr_from_global(
-            GlobalConfigNames.PER_CONF,
+            GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
         )
         essential_meta_names = [*run_key_metas, 'PROJECT']

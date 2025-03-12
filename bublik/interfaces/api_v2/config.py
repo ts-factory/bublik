@@ -13,7 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import Config
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -176,6 +176,29 @@ class ConfigViewSet(ModelViewSet):
             'all_config_versions': all_config_versions,
         }
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def available_types_names(self, request):
+        '''
+        Returns a list of available configuration types and names.
+        '''
+        config_type_names = [
+            {
+                'type': ConfigTypes.REPORT,
+                'required': False,
+                'description': 'Configuration for report generation',
+            },
+        ]
+        for global_config in GlobalConfigs:
+            config_type_names.append(
+                {
+                    'type': ConfigTypes.GLOBAL,
+                    'name': global_config.name,
+                    'required': global_config in GlobalConfigs.required(),
+                    'description': global_config.description,
+                },
+            )
+        return Response({'config_types_names': config_type_names}, status=status.HTTP_200_OK)
 
     @auth_required(as_admin=True)
     def list(self, request):

@@ -14,7 +14,7 @@ from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.utils import prepare_date
-from bublik.data.models import Config, ConfigTypes, GlobalConfigNames, User
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, User
 
 
 __all__ = [
@@ -91,7 +91,7 @@ class ConfigSerializer(ModelSerializer):
         return config_type
 
     def validate_name(self, name):
-        possible_global_config_names = GlobalConfigNames.all()
+        possible_global_config_names = GlobalConfigs.all()
         if (
             self.initial_data['type'] == ConfigTypes.GLOBAL
             and name not in possible_global_config_names
@@ -134,17 +134,9 @@ class ConfigSerializer(ModelSerializer):
     def initialize(cls, config_data):
         '''
         Used for initializing configurations.
-        Adds a description from the JSON schema (if not provided), sets is_active=True,
-        adds a timestamp, user, version to the provided config data and calls create().
+        Sets is_active=True, adds a timestamp, user, version to the provided config data and
+        calls create().
         '''
-        config_data['description'] = (
-            config_data['description']
-            if config_data.get('description', '')
-            else ConfigServices.get_schema(config_data['type'], config_data['name']).get(
-                'description',
-                '',
-            )
-        )
         config_data['is_active'] = True
         serializer = cls(data=config_data)
         serializer.update_data(is_system_action=True)

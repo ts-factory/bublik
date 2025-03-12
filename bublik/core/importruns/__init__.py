@@ -9,7 +9,7 @@ from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.core.utils import get_local_log
-from bublik.data.models import GlobalConfigNames, Meta, MetaResult
+from bublik.data.models import GlobalConfigs, Meta, MetaResult
 
 
 logger = logging.getLogger('bublik.server')
@@ -22,7 +22,7 @@ class ImportMode:
 
 def extract_logs_base(run_url):
     logs_bases = ConfigServices.getattr_from_global(
-        GlobalConfigNames.REFERENCES,
+        GlobalConfigs.REFERENCES.name,
         'LOGS_BASES',
     )
     for logs_base in logs_bases:
