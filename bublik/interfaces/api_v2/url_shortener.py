@@ -14,12 +14,12 @@ from bublik.core.shortcuts import build_absolute_uri, serialize
 from bublik.data.serializers import EndpointURLSerializer
 
 
-class URLShortnerView(APIView):
+class URLShortenerView(APIView):
     def get(self, request, *args, **kwargs):
         '''
         Return a short URL corresponding to the passed URL.
         Short URL format is 'http://<host name>/bublik/eh/<hash>'.
-        Route: /url_shortner.
+        Route: /url_shortener.
         '''
         # Get URL to be shortened
         url = self.request.query_params.get('url', '')
