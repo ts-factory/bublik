@@ -1,0 +1,117 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "description": "Schedule of the runs to be made",
+    "properties": {
+        "version": {
+            "type": "string",
+            "description": "Version of the schedule"
+        }
+    },
+    "entries": {
+        "type": "array",
+        "description": "List of schedule entries returned based on request",
+        "items": {
+            "type": "object",
+            "description": "Schedule entry",
+            "properties": {
+                "tools": {
+                    "type": "array",
+                    "description": "List of tools to be used in the run, might be empty",
+                    "items": {
+                        "type": "object",
+                        "description": "Description of a single tool to be used in the run",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the tool"
+                            },
+                            "revision": {
+                                "type": "string",
+                                "description": "Revision of the tool or branch name or commit hash"
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "URL of the tool"
+                            },
+                            "access": {
+                                "type": "string",
+                                "description": "How to get the tool: git, pip, wget, etc."
+                            }
+                        }
+                    }
+                },
+                "testbench": {
+                    "type": "object",
+                    "description": "Parameters of the testbench to be used in the run",
+                    "properties": {
+                        "parameters": {
+                            "type": "array",
+                            "description": "Parameters of the testbench, they are key-value pairs",
+                            "items": {
+                                "type": "object",
+                                "description": "Parameter of the testbench",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Name of the parameter"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "description": "Type of the parameter"
+                                    },
+                                    "value": {
+                                        "type": "string",
+                                        "description": "Value of the parameter"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "execution": {
+                    "type": "object",
+                    "description": "Parameters of the execution of the tests",
+                    "properties": {
+                        "tool": {
+                            "type": "array",
+                            "description": "List of tools with parameters to be passed",
+                            "items": {
+                                "type": "object",
+                                "description": "Tool with parameters to be passed",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Name of the tool"
+                                    },
+                                    "parameters": {
+                                        "type": "array",
+                                        "description": "Parameters of the tool",
+                                        "items": {
+                                            "type": "object",
+                                            "description": "Parameter of the tool",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string",
+                                                    "description": "Name of the parameter"
+                                                },
+                                                "type": {
+                                                    "type": "string",
+                                                    "description": "Type of the parameter: option, option_flag, env"
+                                                },
+                                                "value": {
+                                                    "type": "string",
+                                                    "description": "Value of the parameter"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

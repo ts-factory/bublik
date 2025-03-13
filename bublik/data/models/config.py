@@ -23,6 +23,7 @@ class ConfigTypes(models.TextChoices):
 
     GLOBAL = 'global'
     REPORT = 'report'
+    SCHEDULE = 'schedule'
 
     @classmethod
     def all(cls):

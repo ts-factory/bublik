@@ -188,6 +188,11 @@ class ConfigViewSet(ModelViewSet):
                 'required': False,
                 'description': 'Configuration for report generation',
             },
+            {
+                'type': ConfigTypes.SCHEDULE,
+                'required': False,
+                'description': 'Schedule of the runs to be made',
+            },
         ]
         for global_config in GlobalConfigs:
             config_type_names.append(

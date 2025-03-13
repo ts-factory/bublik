@@ -10,6 +10,8 @@ class ConfigServices:
     def get_schema(config_type, config_name):
         if config_type == ConfigTypes.REPORT:
             return load_schema('report')
+        if config_type == ConfigTypes.SCHEDULE:
+            return load_schema('schedule')
         if config_type == ConfigTypes.GLOBAL:
             if config_name == GlobalConfigs.PER_CONF.name:
                 return load_schema('per_conf')
