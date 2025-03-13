@@ -218,8 +218,6 @@ function install_db_packages() {
 #
   local packages=(
     postgresql
-    systemd
-    net-tools
     mlocate
 )
   apt update
