@@ -168,6 +168,9 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
 
             test_args_filter = list(TestArgument.objects.filter(test_arg_query))
 
+            if not test_args_filter:
+                return test_results.none()
+
         # Apply filter by test arguments
         if test_args_filter:
             for arg in test_args_filter:
