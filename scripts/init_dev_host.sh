@@ -180,7 +180,7 @@ You can continue if you have TE access rights" &&
 	set -e
 	sudo apt -y install build-essential automake autoconf libtool \
 		libpopt-dev libxml2-dev flex bison libssl-dev libglib2.0-dev \
-		libjansson-dev libyaml-dev libcurl4-openssl-dev meson
+		libjansson-dev libyaml-dev libcurl4-openssl-dev meson pixz
 	git clone ${TE_GIT} te
 	cd te
 	./dispatcher.sh -q --conf-builder=builder.conf.tools --no-run
