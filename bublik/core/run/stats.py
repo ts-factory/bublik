@@ -71,7 +71,16 @@ def abnormal(results):
     return results.filter(meta_results__meta__in=Meta.abnormal)
 
 
-def generate_result(test_iter_res, parent, period, path, info, objectives, run_results):
+def generate_result(
+    test_iter_res,
+    parent,
+    period,
+    path,
+    info,
+    objectives,
+    run_results,
+    available_req_metas,
+):
     test = test_iter_res.iteration.test
     test_name = test.name
     path = [*path, test_name]
@@ -111,24 +120,31 @@ def generate_result(test_iter_res, parent, period, path, info, objectives, run_r
             **finish_filter,
         )
 
-        all_passed = passed(test_iterations).count()
-        all_failed = failed(test_iterations).count()
-        all_skipped = skipped(test_iterations).count()
-        all_abnormal = abnormal(test_iterations).count()
+        # filter tests by requirements
+        for req_meta in available_req_metas:
+            test_iterations = test_iterations.filter(meta_results__meta=req_meta)
 
-        unexpected = test_iterations.filter(meta_results__meta__type='err')
+        if not test_iterations:
+            test_iter_res_info = None
+        else:
+            all_passed = passed(test_iterations).count()
+            all_failed = failed(test_iterations).count()
+            all_skipped = skipped(test_iterations).count()
+            all_abnormal = abnormal(test_iterations).count()
 
-        passed_unexpected = passed(unexpected).distinct().count()
-        failed_unexpected = failed(unexpected).distinct().count()
-        skipped_unexpected = skipped(unexpected).distinct().count()
+            unexpected = test_iterations.filter(meta_results__meta__type='err')
 
-        test_iter_res_info['stats']['passed'] = all_passed - passed_unexpected
-        test_iter_res_info['stats']['failed'] = all_failed - failed_unexpected
-        test_iter_res_info['stats']['passed_unexpected'] = passed_unexpected
-        test_iter_res_info['stats']['failed_unexpected'] = failed_unexpected
-        test_iter_res_info['stats']['skipped'] = all_skipped - skipped_unexpected
-        test_iter_res_info['stats']['skipped_unexpected'] = skipped_unexpected
-        test_iter_res_info['stats']['abnormal'] = all_abnormal
+            passed_unexpected = passed(unexpected).distinct().count()
+            failed_unexpected = failed(unexpected).distinct().count()
+            skipped_unexpected = skipped(unexpected).distinct().count()
+
+            test_iter_res_info['stats']['passed'] = all_passed - passed_unexpected
+            test_iter_res_info['stats']['failed'] = all_failed - failed_unexpected
+            test_iter_res_info['stats']['passed_unexpected'] = passed_unexpected
+            test_iter_res_info['stats']['failed_unexpected'] = failed_unexpected
+            test_iter_res_info['stats']['skipped'] = all_skipped - skipped_unexpected
+            test_iter_res_info['stats']['skipped_unexpected'] = skipped_unexpected
+            test_iter_res_info['stats']['abnormal'] = all_abnormal
 
     else:
         children = run_results.filter(parent_package=test_iter_res)
@@ -153,6 +169,7 @@ def generate_result(test_iter_res, parent, period, path, info, objectives, run_r
                     prev_child['info'],
                     objectives,
                     run_results,
+                    available_req_metas,
                 )
 
             prev_child = {
@@ -171,20 +188,25 @@ def generate_result(test_iter_res, parent, period, path, info, objectives, run_r
                 prev_child['info'],
                 objectives,
                 run_results,
+                available_req_metas,
             )
 
+        if sum(test_iter_res_info['stats'].values()) == 0:
+            test_iter_res_info = None
+
     if info:
-        info['children'].append(test_iter_res_info)
-        for result in info['stats']:
-            info['stats'][result] += test_iter_res_info['stats'][result]
+        if test_iter_res_info:
+            info['children'].append(test_iter_res_info)
+            for result in info['stats']:
+                info['stats'][result] += test_iter_res_info['stats'][result]
     else:
         info = test_iter_res_info
 
     return info
 
 
-def get_run_stats_detailed_with_comments(run_id):
-    run_stats = get_run_stats_detailed(run_id)
+def get_run_stats_detailed_with_comments(run_id, requirements):
+    run_stats = get_run_stats_detailed(run_id, requirements)
     tests_comments = get_tests_comments(run_id)
     add_comments(run_stats, tests_comments)
     return run_stats
@@ -212,11 +234,18 @@ def add_comments(node, tests_comments):
             add_comments(child, tests_comments)
 
 
-def get_run_stats_detailed(run_id):
-    cache = RunCache.by_id(run_id, 'stats')
-    run_stats = cache.data
-    # Recalculating statistics if it is not stored in the cache
-    if not run_stats:
+def get_run_stats_detailed(run_id, requirements=None):
+    requirements = requirements or {}
+    if requirements:
+        requirements = set(requirements.split(settings.QUERY_DELIMITER))
+        stats_cache = RunCache.by_id(run_id, 'stats_reqs')
+        run_stats = stats_cache.data.get('stats') if stats_cache.data else None
+        requirements_cached = stats_cache.data.get('reqs') if stats_cache.data else None
+    else:
+        stats_cache = RunCache.by_id(run_id, 'stats')
+        run_stats = stats_cache.data
+    # Recalculate statistics if they are not cached or do not match the given requirements
+    if not run_stats or (requirements and requirements != requirements_cached):
         run_results = (
             TestIterationResult.objects.filter(test_run=run_id)
             .order_by('start')
@@ -225,6 +254,7 @@ def get_run_stats_detailed(run_id):
         main_package = run_results.filter(parent_package__isnull=True).first()
         if not main_package:
             return None
+
         # get objectives for all run iterations at once
         objectives = dict(
             Meta.objects.filter(
@@ -232,6 +262,17 @@ def get_run_stats_detailed(run_id):
                 type='objective',
             ).values_list('metaresult__result__id', 'value'),
         )
+
+        # get metadata matching passed requirements for further test filtering
+        available_req_metas = []
+        for requirement in requirements:
+            try:
+                available_req_metas.append(
+                    Meta.objects.get(type='requirement', value=requirement),
+                )
+            except Meta.DoesNotExist:
+                return None
+
         run_stats = generate_result(
             test_iter_res=main_package,
             parent=None,
@@ -240,8 +281,13 @@ def get_run_stats_detailed(run_id):
             info=None,
             objectives=objectives,
             run_results=run_results,
+            available_req_metas=available_req_metas,
         )
-        cache.data = run_stats
+
+        stats_cache.data = (
+            run_stats if not requirements else {'reqs': requirements, 'stats': run_stats}
+        )
+
     return run_stats
 
 
