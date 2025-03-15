@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from datetime import datetime
 import re
 import uuid
 
@@ -108,6 +109,43 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
                     },
                 )
 
-        import_statuses = sorted(import_statuses, key=lambda item: item['timestamp'])
+        sort_params = request.query_params.getlist('sort')
+
+        if not sort_params:
+            import_statuses = sorted(import_statuses, key=lambda item: item['timestamp'])
+            return self.get_paginated_response(self.paginate_queryset(import_statuses))
+
+        sort_fields = [
+            (field, order == 'desc')
+            for param in sort_params
+            for field, order in [param.split(':')]
+        ]
+
+        def safe_sort_key(value, reverse):
+            '''
+            Generates a sorting key (priority, transformed value) based on the type of 'value'
+            and the specified sorting order.
+            '''
+            if value is None:
+                return (-1,) if reverse else (1,)
+            if isinstance(value, datetime):
+                timestamp = value.timestamp()
+                return (0, -timestamp) if reverse else (0, timestamp)
+            if isinstance(value, (int, float)):
+                return (0, -value) if reverse else (0, value)
+            if isinstance(value, str):
+                return (
+                    (0, value.lower())
+                    if not reverse
+                    else (0, ''.join(chr(255 - ord(c)) for c in value.lower()))
+                )
+            return (2, str(value))
+
+        import_statuses = sorted(
+            import_statuses,
+            key=lambda item: tuple(
+                safe_sort_key(item.get(field), reverse) for field, reverse in sort_fields
+            ),
+        )
 
         return self.get_paginated_response(self.paginate_queryset(import_statuses))
