@@ -112,7 +112,11 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
         sort_params = request.query_params.getlist('sort')
 
         if not sort_params:
-            import_statuses = sorted(import_statuses, key=lambda item: item['timestamp'])
+            import_statuses = sorted(
+                import_statuses,
+                key=lambda item: item['timestamp'],
+                reverse=True,
+            )
             return self.get_paginated_response(self.paginate_queryset(import_statuses))
 
         sort_fields = [
