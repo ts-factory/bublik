@@ -13,12 +13,12 @@ from drf_spectacular.views import (
 from rest_framework.routers import DefaultRouter
 
 from bublik.core.routers import ActionsOnlyRouter
-from bublik.interfaces import api_v1, api_v2, main_api
+from bublik.interfaces import api_v2, main_api
 
 
 ### URL patterns for API-V1 ###
 importruns_router = ActionsOnlyRouter()
-importruns_router.register(r'', api_v1.ImportrunsViewSet, basename='importruns')
+importruns_router.register(r'', api_v2.ImportrunsViewSet, basename='importruns')
 
 ### URL patterns for API-V2 ###
 api_v2_router = DefaultRouter()
