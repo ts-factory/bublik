@@ -37,8 +37,8 @@ class ImportrunsViewSet(ViewSet):
         '''
 
         param_url = request.query_params.get('url')
-        param_from = request.query_params.get('from', '')
-        param_to = request.query_params.get('to', '')
+        param_from = request.query_params.get('from', '').replace('-', '.')
+        param_to = request.query_params.get('to', '').replace('-', '.')
         param_force = request.query_params.get('force', 'false')
 
         try:
