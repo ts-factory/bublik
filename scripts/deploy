@@ -196,6 +196,7 @@ function install_server_packages() {
     libxml-parser-perl
     redis-server
     libffi-dev
+    libkrb5-dev
 )
   if test -n "${KEYTAB}" ; then
     packages+=("kstart krb5-user")
