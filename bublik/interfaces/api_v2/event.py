@@ -57,13 +57,13 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
 
     def list(self, request, *args, **kwargs):
         try:
-            importrun_events = self.get_queryset()
+            events = self.get_queryset()
         except (ValueError, ValidationError) as e:
             return Response({'error': str(e)})
 
-        import_statuses = []
+        import_events = []
 
-        for event in importrun_events:
+        for event in events:
             event_msg = event.get('msg')
             event_facility = event.get('facility')
             event_id = event.get('id')
@@ -81,7 +81,7 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
             if 'failed import' in event_msg:
                 event_error = re.search(r'-- Error: (.*)', event_msg)
                 error_msg = event_error.group(1) if event_error else None
-                import_statuses.append(
+                import_events.append(
                     {
                         'event_id': event_id,
                         'facility': event_facility,
@@ -95,7 +95,7 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
                     },
                 )
             elif 'successful import' in event_msg:
-                import_statuses.append(
+                import_events.append(
                     {
                         'event_id': event_id,
                         'facility': event_facility,
@@ -112,12 +112,12 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
         sort_params = request.query_params.getlist('sort')
 
         if not sort_params:
-            import_statuses = sorted(
-                import_statuses,
+            import_events = sorted(
+                import_events,
                 key=lambda item: item['timestamp'],
                 reverse=True,
             )
-            return self.get_paginated_response(self.paginate_queryset(import_statuses))
+            return self.get_paginated_response(self.paginate_queryset(import_events))
 
         sort_fields = [
             (field, order == 'desc')
@@ -145,11 +145,11 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
                 )
             return (2, str(value))
 
-        import_statuses = sorted(
-            import_statuses,
+        import_events = sorted(
+            import_events,
             key=lambda item: tuple(
                 safe_sort_key(item.get(field), reverse) for field, reverse in sort_fields
             ),
         )
 
-        return self.get_paginated_response(self.paginate_queryset(import_statuses))
+        return self.get_paginated_response(self.paginate_queryset(import_events))
