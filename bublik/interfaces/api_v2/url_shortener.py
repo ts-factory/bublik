@@ -16,7 +16,7 @@ from bublik.data.serializers import EndpointURLSerializer
 
 class URLShortenerView(APIView):
     def get(self, request, *args, **kwargs):
-        '''
+        r'''
         Return a short URL corresponding to the passed URL.
         Short URL format is 'http://<host name>/bublik/short/<view>/<hash>'.
         Route: /url_shortener/?url=<url\>.
