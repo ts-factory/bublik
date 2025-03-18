@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import os.path
-
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -10,7 +8,10 @@ from rest_framework.serializers import ValidationError
 
 
 def get_current_scheme_host_prefix(request):
-    return os.path.join(f'{request.scheme}://{request.get_host()}', f'{settings.URL_PREFIX}/')
+    return (
+        urljoin(f'{request.scheme}://{request.get_host()}', settings.URL_PREFIX).rstrip('/')
+        + '/'
+    )
 
 
 def build_absolute_uri(request, endpoint):
