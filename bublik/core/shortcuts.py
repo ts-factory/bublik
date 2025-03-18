@@ -17,12 +17,8 @@ def build_absolute_uri(request, endpoint):
     '''
     This is a wrapper for basic request.build_absolute_uri()
     that respects URL_PREFIX.
-
-    NB! The endpoint must be passed without the leading slash.
-    https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin
     '''
-
-    return urljoin(get_current_scheme_host_prefix(request), endpoint)
+    return urljoin(get_current_scheme_host_prefix(request), endpoint.lstrip('/'))
 
 
 def serialize(serializer_class, data, logger=None, **kwargs):
