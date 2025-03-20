@@ -23,7 +23,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUBLIK_UI_DIR = '${BUBLIK_UI_DIR}'
 
 # Bublik UI static location
-BUBLIK_UI_STATIC = '${BUBLIK_UI_DIR}/dist/apps/${BUBLIK_UI_APP}'
+BUBLIK_UI_STATIC = '${BUBLIK_UI_DIR}/dist/${BUBLIK_UI_APP}'
 
 # Bublik documentation repo location
 BUBLIK_DOCS_DIR = '${BUBLIK_DOCS_DIR}'

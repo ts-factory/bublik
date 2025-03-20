@@ -166,7 +166,7 @@ function print_help () {
 	    -q                     be quiet and do all steps without asking
 	    -y                     do all steps without asking
 	    -c  project-config     configuration variant to use
-	    -a  react-app          react app in dist/apps/ defining UI-V2 static files
+	    -a  react-app          react app in dist/ defining UI-V2 static files
 	    -k  keytab             keytab file for Kerberos auth to get external data
 	    -p  url-prefix         URL prefix for django server
 	    -s  static-dir         where to put static files
