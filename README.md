@@ -26,7 +26,7 @@ Full documentation for the project is available at <>.
 5. Check to NGINX settings in /etc/nginx/sites-available/bublik:
     ```
     location /v2/ {
-        alias /opt/bublik/bublik-ui/dist/apps/bublik/;
+        alias /opt/bublik/bublik-ui/dist/bublik/;
         index index.html;
         try_files $uri /v2/index.html;
     }
