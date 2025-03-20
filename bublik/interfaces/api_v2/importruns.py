@@ -63,7 +63,7 @@ class ImportrunsViewSet(ViewSet):
             data = {
                 'celery_task_id': str(task_id),
                 'flower': build_absolute_uri(request, f'flower/task/{task_id}'),
-                'import log': build_absolute_uri(request, f'importlog/{task_id}'),
+                'import_log': build_absolute_uri(request, f'importlog/{task_id}'),
             }
             return Response(data=data)
 
