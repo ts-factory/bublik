@@ -13,6 +13,7 @@ BUBLIK_USER=bublik
 BUBLIK_HOME_PREFIX=/opt
 BUBLIK_GIT="https://github.com/ts-factory/bublik.git"
 BUBLIK_UI_GIT="https://github.com/ts-factory/bublik-frontend.git"
+BUBLIK_DOCS_GIT="https://github.com/ts-factory/bublik-docs.git"
 BUBLIK_CONF_GIT_DEFAULT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT_DEFAULT="https://github.com/ts-factory/test-environment.git"
 DB_PASSWORD="EujUmUk3Ot"
@@ -75,7 +76,7 @@ function step() {
 	return $result
 }
 
-while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:" OPTION; do
+while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
 	case $OPTION in
 		h) print_help ; exit ;;
 		q)
@@ -91,6 +92,7 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:" OPTION; do
 		i) SSH_PUB=${OPTARG} ;;
 		b) BUBLIK_GIT=${OPTARG} ;;
 		B) BUBLIK_UI_GIT=${OPTARG} ;;
+		I) BUBLIK_DOCS_GIT=${OPTARG} ;;
 		C)
 			if [ "${OPTARG}" = "default" ] ; then
 				BUBLIK_CONF_GIT="${BUBLIK_CONF_GIT_DEFAULT}"
@@ -107,7 +109,7 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:" OPTION; do
 			;;
 		k) LOGS_KEYTAB=${OPTARG} ;;
 		W) DB_PASSWORD="${OPTARG}" ;;
-		a | p | s | F | N | U | H | P | c)
+		a | p | s | F | N | U | H | P | c | D)
 			OPTS+=(-${OPTION} "${OPTARG}")
 			;;
 		?) usage ; exit 1 ;;
@@ -195,6 +197,11 @@ fi
 if test -n "${BUBLIK_UI_GIT}" ; then
 	step "Clone Bublik UI Git repo ${BUBLIK_UI_GIT}" &&
 	ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" "git clone ${BUBLIK_UI_GIT} bublik-ui"
+fi
+
+if test -n "${BUBLIK_DOCS_GIT}" ; then
+	step "Clone Bublik docs Git repo ${BUBLIK_DOCS_GIT}" &&
+	ssh -t "${BUBLIK_USER}@${BUBLIK_HOST}" "git clone ${BUBLIK_DOCS_GIT} bublik-docs"
 fi
 
 if test -n "${BUBLIK_CONF_GIT}" ; then
