@@ -5,10 +5,11 @@ import os.path
 
 from django.shortcuts import get_object_or_404
 
+from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.data import models
-from bublik.data.models import Config, GlobalConfigs
+from bublik.data.models import GlobalConfigs
 
 
 def get_sources(result, source=None):
@@ -37,9 +38,12 @@ def get_sources(result, source=None):
                 log = main_package.meta_results.filter(meta__type='log').first()
 
         if log and log.reference:
-            references_logs_bases = Config.objects.get_global(
+            project_id = run.project.id
+            references_logs_bases = ConfigServices.getattr_from_global(
                 GlobalConfigs.REFERENCES.name,
-            ).content['LOGS_BASES']
+                'LOGS_BASES',
+                project_id,
+            )
             log_base = next(
                 (
                     ref_lb['uri'][-1]
