@@ -28,7 +28,11 @@ class ConfigServices:
 
     @staticmethod
     def getattr_from_global(config_name, data_key, **kwargs):
-        config_content = Config.objects.get_global(config_name, get_current_project()).content
+        config_content = (
+            Config.objects.get_global(config_name, kwargs['project']).content
+            if 'project' in kwargs
+            else Config.objects.get_global(config_name, get_current_project()).content
+        )
         json_schema = ConfigServices.get_schema(ConfigTypes.GLOBAL, config_name)
         if data_key in json_schema.get('required', []) or data_key in config_content:
             return config_content[data_key]
