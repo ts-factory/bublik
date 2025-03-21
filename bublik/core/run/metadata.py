@@ -83,8 +83,8 @@ class MetaData:
             logger.info(f'running command: {cmd}')
             subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
 
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            msg = 'Per-project generate_metadata.py has returned an error {e}'
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            msg = f'Per-project generate_metadata.py has returned an error {e}'
             raise RuntimeError(
                 msg,
             ) from RuntimeError
