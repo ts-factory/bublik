@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
+from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.measurement.services import (
     get_measurement_charts,
     get_measurement_results,
@@ -48,10 +49,13 @@ all = [
 
 class RunViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
-    filter_backends: ClassVar[list] = []
+    filter_backends: ClassVar[list] = [ProjectFilterBackend]
 
     def get_queryset(self):
-        queryset = models.TestIterationResult.objects.filter(test_run__isnull=True)
+        queryset = self.filter_queryset(
+            models.TestIterationResult.objects.filter(test_run__isnull=True),
+        )
+
         meta_types = ['tag', 'label', 'revision', 'branch']
 
         start_date = self.request.query_params.get('start_date')
