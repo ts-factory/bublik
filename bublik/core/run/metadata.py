@@ -68,7 +68,7 @@ class MetaData:
             return MetaData(meta_data_file.read())
 
     @staticmethod
-    def generate(process_dir):
+    def generate(process_dir, fallback_project):
         logger.info(f'Generate meta_data.json at {process_dir}')
         try:
             path_meta_data_script = os.path.join(settings.PER_CONF_DIR, 'generate_metadata.py')
@@ -76,10 +76,7 @@ class MetaData:
                 MetaData.FMT_META_DATA_GENERATE.format(
                     path_meta_data_script=path_meta_data_script,
                     process_dir=process_dir,
-                    project=ConfigServices.getattr_from_global(
-                        GlobalConfigs.PER_CONF.name,
-                        'PROJECT',
-                    ),
+                    project=fallback_project,
                 ),
             )
             logger.info(f'running command: {cmd}')
