@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.datetime_formatting import display_to_date_in_numbers
+from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.history.v2.utils import (
     generate_hashkey,
     group_results,
@@ -47,7 +48,7 @@ __all__ = [
 
 
 class HistoryViewSet(ListModelMixin, GenericViewSet):
-    filter_backends: typing.ClassVar[list] = []
+    filter_backends: typing.ClassVar[list] = [ProjectFilterBackend]
 
     def get_queryset(self):
         query_delimiter = settings.QUERY_DELIMITER
@@ -103,12 +104,14 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
 
         ### Apply run filters ###
 
-        # Filter by dates
+        # Filter by project and dates
         self.from_date, self.to_date, _ = prepare_dates_period(from_date, to_date, 30)
-        runs_results = TestIterationResult.objects.filter(
-            test_run__isnull=True,
-            start__date__gte=self.from_date,
-            start__date__lte=self.to_date,
+        runs_results = self.filter_queryset(
+            TestIterationResult.objects.filter(
+                test_run__isnull=True,
+                start__date__gte=self.from_date,
+                start__date__lte=self.to_date,
+            ),
         )
 
         # Combine branches, revisions, labels, tags to the one set of metas

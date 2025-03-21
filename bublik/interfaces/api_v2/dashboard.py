@@ -17,6 +17,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
+from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.importruns.live.check import livelog_check_run_timeout
 from bublik.core.run.external_links import get_sources
 from bublik.core.run.stats import (
@@ -45,15 +46,17 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         'one_day_two_columns': {'days': 1, 'columns': 2},
         'two_days_two_columns': {'days': 2, 'columns': 2},
     }
+    filter_backends: typing.ClassVar[list] = [ProjectFilterBackend]
 
     def get_queryset(self):
         self.payload = DashboardPayload()
         self.check_and_apply_settings()
 
+        queryset = self.filter_queryset(TestIterationResult.objects.filter(test_run=None))
+
         if self.date_meta:
             return (
-                TestIterationResult.objects.filter(
-                    test_run=None,
+                queryset.filter(
                     meta_results__meta__name=self.date_meta,
                     meta_results__meta__value=self.date,
                 )
@@ -61,9 +64,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                 .distinct()
             )
         return (
-            TestIterationResult.objects.filter(test_run=None, start__date=self.date)
-            .prefetch_related('meta_results')
-            .distinct()
+            queryset.filter(start__date=self.date).prefetch_related('meta_results').distinct()
         )
 
     @method_decorator(never_cache)
@@ -213,7 +214,9 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             if date:
                 return date
         else:
-            all_runs = TestIterationResult.objects.filter(test_run=None).order_by('-start')
+            all_runs = self.filter_queryset(
+                TestIterationResult.objects.filter(test_run=None).order_by('-start'),
+            )
             latest_run = all_runs.first()
             if latest_run:
                 return latest_run.start.date()

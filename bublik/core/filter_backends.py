@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import BaseFilterBackend
 
 
 class AllDjangoFilterBackend(DjangoFilterBackend):
@@ -25,3 +26,11 @@ class AllDjangoFilterBackend(DjangoFilterBackend):
                 exclude = ''
 
         return AutoFilterSet
+
+
+class ProjectFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        project = request.query_params.get('project')
+        if project:
+            return queryset.filter(project=project)
+        return queryset
