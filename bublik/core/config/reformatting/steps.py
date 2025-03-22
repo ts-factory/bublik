@@ -115,7 +115,7 @@ class UpdateDashboardHeaderStructure(BaseReformatStep):
     '''
 
     def applied(self, config, **kwargs):
-        return not isinstance(config.content['DASHBOARD_HEADER'], dict)
+        return not isinstance(config.content.get('DASHBOARD_HEADER'), dict)
 
     def reformat(self, config, **kwargs):
         config.content['DASHBOARD_HEADER'] = [
