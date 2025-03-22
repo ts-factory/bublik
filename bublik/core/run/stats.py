@@ -806,9 +806,11 @@ def generate_result_details(test_result):
 
 
 def get_run_status(run):
+    project_id = Meta.projects.get(metaresult__result=run).id
     status_meta_name = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
+        project_id,
     )
     status_meta = MetaResult.objects.filter(result=run, meta__name=status_meta_name).first()
     if status_meta:
@@ -818,7 +820,8 @@ def get_run_status(run):
 
 def get_run_status_by_nok(run):
     stats = get_run_stats(run.id)
-    return RunStatusByUnexpected.identify(stats)
+    project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
+    return RunStatusByUnexpected.identify(stats, project_id)
 
 
 def get_driver_unload(run):
@@ -828,6 +831,7 @@ def get_driver_unload(run):
 
 def get_run_conclusion(run):
     run_id = run.id
+    project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
     status = get_run_status(run_id)
     compromised = is_run_compromised(run)
     status_by_nok, unexpected_percent = get_run_status_by_nok(run)
@@ -838,6 +842,7 @@ def get_run_conclusion(run):
         unexpected_percent,
         compromised,
         driver_unload,
+        project_id,
     )
 
 
