@@ -74,7 +74,7 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
             'ISSUES',
             default={},
         )[reference_key]
-        reference_data = {'name': ref_source['name'], 'uri': ref_source['uri'][0]}
+        reference_data = {'name': ref_source['name'], 'uri': ref_source['uri']}
 
     mr_serialize = serialize(
         MetaResultSerializer,
