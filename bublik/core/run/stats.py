@@ -894,10 +894,13 @@ def generate_runs_details(runs):
     runs_data = []
     for run in runs:
         run_id = run.id
+        project = run.meta_results.get(meta__name='PROJECT').meta
         conclusion, conclusion_reason = get_run_conclusion(run)
         runs_data.append(
             {
                 'id': run_id,
+                'project_id': project.id,
+                'project_name': project.value,
                 'start': run.start,
                 'finish': run.finish,
                 'duration': run.duration,
