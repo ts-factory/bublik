@@ -253,12 +253,5 @@
             "default": ["bublik@ts-factory.io"]
         }
     },
-    "required": [
-        "PROJECT",
-        "RUN_STATUS_META",
-        "RUN_KEY_METAS",
-        "DASHBOARD_HEADER",
-        "RUN_COMPLETE_FILE"
-    ],
     "additionalProperties": false
 }
