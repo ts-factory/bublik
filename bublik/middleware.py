@@ -6,18 +6,25 @@ from django.core.cache import caches
 from django.core.exceptions import ObjectDoesNotExist
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.utils import convert_to_int_if_digit
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 
 
-def get_config_from_cache(default=None):
-    config = caches['config'].get('content')
-    if config is None:
+def get_config_from_cache(project_id, default=None):
+    config_content = caches['config'].get('content')
+    config_project = caches['config'].get('project')
+    if config_project != convert_to_int_if_digit(project_id) or config_content is None:
         try:
-            config = Config.objects.get_global(GlobalConfigs.PER_CONF.name).content
-            caches['config'].set('content', config, timeout=86400)
+            config = Config.objects.get_global(GlobalConfigs.PER_CONF.name, project_id)
+            caches['config'].set('content', config.content, timeout=86400)
+            caches['config'].set(
+                'project',
+                project_id,
+                timeout=86400,
+            )
         except ObjectDoesNotExist:
-            config = default
-    return config
+            config_content = default
+    return config_content
 
 
 def get_schema_from_cache():
@@ -36,7 +43,8 @@ class DynamicSettingsMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        config = get_config_from_cache()
+        project_id = request.GET.get('project', None)
+        config = get_config_from_cache(project_id)
 
         def get_setting(attr):
             if config and attr in config:
