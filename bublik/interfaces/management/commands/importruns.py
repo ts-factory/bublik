@@ -218,6 +218,7 @@ class Command(BaseCommand):
 
             # Get project meta ID
             project_id = meta_data.project_id
+            logger.info(f'project ID is {project_id}')
 
             try:
                 ConfigServices.getattr_from_global(
