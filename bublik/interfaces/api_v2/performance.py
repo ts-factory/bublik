@@ -31,6 +31,8 @@ class PerformanceCheckView(APIView):
             'history_list_intense',
         ]
 
+        project_id = request.query_params.get('project')
+
         # Check settings timeouts
         if set(settings.VIEWS_TIMEOUTS.keys()) != set(views_to_check):
             msg = f'Incorrect views timeouts list! Expected "{views_to_check}". Check settings.'
@@ -48,6 +50,7 @@ class PerformanceCheckView(APIView):
             hist_args_per_conf = ConfigServices.getattr_from_global(
                 GlobalConfigs.PER_CONF.name,
                 'HISTORY_SEARCH_EXAMPLE',
+                project_id,
             )
             if not hist_args_per_conf:
                 raise KeyError
