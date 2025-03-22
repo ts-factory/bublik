@@ -217,6 +217,7 @@ class Command(BaseCommand):
 
             # Get project name
             project_meta_name = find_dict_in_list({'name': 'PROJECT'}, meta_data.metas)['value']
+            logger.info(f'the project name is {project_meta_name}')
 
             # Check project
             if fallback_project and fallback_project != project_meta_name:

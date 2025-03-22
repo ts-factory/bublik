@@ -6,21 +6,25 @@ import re
 import subprocess
 
 
-def parse_log(regex, logpath, maxlen=5):
+def parse_log(error_regex, project_regex, logpath, maxlen=5):
     if not os.path.exists(logpath):
         msg = f'Log file {logpath} does not exist'
         raise FileNotFoundError(msg)
 
     with open(logpath) as f:
         matched = []
+        project_name = None
 
         lines = f.readlines()
         for index, line in enumerate(lines):
-            if re.search(regex, line):
+            if re.search(error_regex, line):
                 preceding_lines = lines[max(0, index - maxlen) : index]
                 matched.append('...\n' + ''.join(preceding_lines) + line)
+            project_match = re.search(project_regex, line)
+            if project_match:
+                project_name = project_match.group(1)
 
-        return '\n'.join(matched)
+        return '\n'.join(matched), project_name
 
 
 def log_disk_space_usage(logger, msg, options):

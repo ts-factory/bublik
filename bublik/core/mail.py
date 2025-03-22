@@ -16,6 +16,7 @@ from bublik.data.models import GlobalConfigs
 
 def send_importruns_failed_mail(
     requesting_host,
+    project_id,
     item_id=None,
     source=None,
     add_to_message=None,
@@ -33,6 +34,7 @@ def send_importruns_failed_mail(
     recipients = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'EMAIL_PROJECT_WATCHERS',
+        project_id=project_id,
         default=[],
     ) + getattr(
         settings,

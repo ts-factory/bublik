@@ -16,7 +16,7 @@ from bublik import settings
 from bublik.core.logging import parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
-from bublik.data.models import EventLog, TestIterationResult
+from bublik.data.models import EventLog, Project, TestIterationResult
 from bublik.interfaces.celery import app
 
 
@@ -174,10 +174,27 @@ def importruns(
         add_to_message = None
 
         try:
-            errors = parse_log(r'"ERROR"', logpath)
+            errors, project_name = parse_log(
+                r'"ERROR"',
+                r'the project name is ([^"]+)',
+                logpath,
+            )
+            project_name = project_name or param_project
+            project_id = (
+                Project.objects.filter(name=project_name).values_list('id', flat=True).first()
+                if project_name
+                else None
+            )
+
             if errors:
                 add_to_message = f'Preview:\n{errors}'
-                send_importruns_failed_mail(requesting_host, task_id, param_url, add_to_message)
+                send_importruns_failed_mail(
+                    requesting_host,
+                    project_id,
+                    task_id,
+                    param_url,
+                    add_to_message,
+                )
 
         except Exception as e:
             logger.warning(e)
