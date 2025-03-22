@@ -16,7 +16,7 @@ def build_revision_references(revisions):
 
         if reference:
             revision_url_subpath = reference.get('reference_subpath', '/commit/')
-            revision_url = str(reference['uri'][0]) + revision_url_subpath + revision['value']
+            revision_url = reference['uri'] + revision_url_subpath + revision['value']
 
         revision_groups_list.append(
             {
