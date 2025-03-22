@@ -26,7 +26,7 @@ class ConfigServices:
         return None
 
     @staticmethod
-    def getattr_from_global(config_name, data_key, project_id=None, **kwargs):
+    def getattr_from_global(config_name, data_key, project_id, **kwargs):
         with contextlib.suppress(ObjectDoesNotExist, KeyError):
             return Config.objects.get_global(config_name, project_id).content[data_key]
         with contextlib.suppress(ObjectDoesNotExist, KeyError):
