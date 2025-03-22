@@ -85,7 +85,8 @@ class RunViewSet(ModelViewSet):
             queryset = queryset.filter(finish__date__lte=finish_date)
 
         if run_status:
-            queryset = queryset.filter_by_run_status(run_status)
+            project_id = self.request.query_params.get('project', None)
+            queryset = queryset.filter_by_run_status(run_status, project_id)
 
         # Filter by tags, metadata passed as multiple values
         if run_data:
