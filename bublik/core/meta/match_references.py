@@ -5,12 +5,13 @@ from bublik.core.config.services import ConfigServices
 from bublik.data.models import GlobalConfigs
 
 
-def build_revision_references(revisions):
+def build_revision_references(revisions, project_id):
     revision_groups_list = []
     for revision in revisions:
         reference = ConfigServices.getattr_from_global(
             GlobalConfigs.REFERENCES.name,
             'REVISIONS',
+            project_id,
         ).get(revision['name'])
         revision_url = ''
 
