@@ -90,11 +90,14 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         for run in runs:
             conclusion, conclusion_reason = get_run_conclusion(run)
             row_data = self.prepare_row_data(run)
+            project = run.meta_results.get(meta__in=Meta.projects).meta
             rows_data.append(
                 {
                     'row_cells': row_data,
                     'context': {
                         'run_id': run.id,
+                        'project_id': project.id,
+                        'project_name': project.value,
                         'start': run.start.timestamp(),
                         'status': get_run_status(run),
                         'status_by_nok': get_run_status_by_nok(run)[0],
@@ -134,10 +137,11 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         self.formatting = DashboardFormatting()
         return self.check_and_apply_settings()
 
-    def apply_if_match_header(self, setting, default=None, ignore=None, keys=False):
+    def apply_if_match_header(self, setting, project_id, default=None, ignore=None, keys=False):
         data = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             setting,
+            project_id,
             default=default,
         ).copy()
 
@@ -150,25 +154,31 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return data
 
     def check_and_apply_settings(self):
+        project_id = self.request.query_params.get('project')
+
         # Mandatory settings (must be defined in per_conf global config object):
         for setting in self.required_settings:
             ConfigServices.getattr_from_global(
                 GlobalConfigs.PER_CONF.name,
                 setting,
+                project_id,
             )
 
         header = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_HEADER',
+            project_id,
         )
         self.header = {item['key']: item['label'] for item in header}
         self.date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
+            project_id,
         )
         self.default_mode = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DEFAULT_MODE',
+            project_id,
             default='two_days_two_columns',
         )
 
@@ -177,6 +187,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             # Default settings (can be changed in per_conf global config object):
             self.sort = self.apply_if_match_header(
                 'DASHBOARD_RUNS_SORT',
+                project_id,
                 default=['start'],
                 ignore=['start'],
             )
@@ -184,12 +195,14 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             # Optional settings (can be defined in per_conf global config object):
             self.payload_settings = self.apply_if_match_header(
                 'DASHBOARD_PAYLOAD',
+                project_id,
                 default={},
                 keys=True,
             )
 
             self.formatting_settings = self.apply_if_match_header(
                 'DASHBOARD_FORMATTING',
+                project_id,
                 default={'progress': 'percent'},
                 keys=True,
                 ignore=['progress'],
@@ -203,13 +216,17 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return bool(not self.errors)
 
     def get_latest_run_date(self):
+        project_id = self.request.query_params.get('project')
         if self.date_meta:
+            dates = Meta.objects.filter(name=self.date_meta)
+            if project_id:
+                dates = dates.filter(metaresult__result__meta_results__meta__id=project_id)
             date = (
-                Meta.objects.filter(name=self.date_meta)
-                .annotate(date=Cast(F('value'), DateField()))
+                dates.annotate(date=Cast(F('value'), DateField()))
                 .order_by('-date')
                 .values_list(F('date'), flat=True)
-            ).first()
+                .first()
+            )
             if date:
                 return date
         else:
