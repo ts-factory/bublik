@@ -26,7 +26,7 @@ class ConfigServices:
         return None
 
     @staticmethod
-    def getattr_from_global(config_name, data_key, project_id=None, **kwargs):
+    def getattr_from_global(config_name, data_key, project_id, **kwargs):
         config_content = Config.objects.get_global(config_name, project_id).content
         json_schema = ConfigServices.get_schema(ConfigTypes.GLOBAL, config_name)
         if data_key in json_schema.get('required', []) or data_key in config_content:
