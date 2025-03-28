@@ -9,8 +9,7 @@ from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigNames
+from bublik.core.project import get_current_project
 
 
 __all__ = [
@@ -23,13 +22,9 @@ class ServerViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=False, methods=['get'])
     def project(self, request):
-        # TODO: The existence of PROJECT in per_conf should be checked when the server starts
         return Response(
             {
-                'project': ConfigServices.getattr_from_global(
-                    GlobalConfigNames.PER_CONF,
-                    'PROJECT',
-                ),
+                'project': get_current_project(),
             },
         )
 

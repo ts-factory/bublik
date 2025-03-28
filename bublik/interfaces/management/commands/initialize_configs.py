@@ -24,11 +24,11 @@ class Command(BaseCommand):
             'migrate_configs',
         )
 
-        self.stdout.write('Initialize required configurations if they are not exist:')
+        self.stdout.write('Initialize default required configurations if they do not exist:')
         for config_name in GlobalConfigNames.required():
             try:
-                Config.objects.get_global(config_name)
-                self.stdout.write(f'{config_name}: already exist!')
+                Config.objects.get_global(config_name, None)
+                self.stdout.write(f'Default {config_name}: already exist!')
             except ObjectDoesNotExist:
                 json_schema = ConfigServices.get_schema(
                     ConfigTypes.GLOBAL,
@@ -42,5 +42,5 @@ class Command(BaseCommand):
                     },
                 )
                 self.stdout.write(
-                    self.style.SUCCESS(f'{config_name}: succesfully initialized!'),
+                    self.style.SUCCESS(f'Default {config_name}: succesfully initialized!'),
                 )

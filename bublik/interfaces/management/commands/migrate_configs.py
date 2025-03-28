@@ -62,7 +62,12 @@ def read_conf_file(file_path):
 
 
 class Command(BaseCommand):
-    def migrate_config(self, config_name, config_content, config_description=None):
+    def migrate_config(
+        self,
+        config_name,
+        config_content,
+        config_description=None,
+    ):
         '''
         Create global config object with passed name, description and content.
         '''
@@ -80,15 +85,6 @@ class Command(BaseCommand):
                 },
             )
             self.stdout.write(self.style.SUCCESS(f'{config_name}: succesfully migrated!'))
-
-            # bring the configuration object content to the current format
-            call_command(
-                'reformat_configs',
-                '-t',
-                ConfigTypes.GLOBAL,
-                '-n',
-                config_name,
-            )
 
     def handle(self, *args, **options):
         self.stdout.write('Migrate configurations from the directory to the database:')
@@ -145,3 +141,10 @@ class Command(BaseCommand):
 
             if content:
                 self.migrate_config(name, content, description)
+
+        # bring configuration objects to the current format
+        call_command(
+            'reformat_configs',
+            '-t',
+            ConfigTypes.GLOBAL,
+        )
