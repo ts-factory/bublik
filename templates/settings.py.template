@@ -46,6 +46,16 @@ with open(PATH_SECRET_KEY) as f:
 
 DEBUG = False
 
+# Configuration settings for Docker deployments
+
+# Enable JSON logs proxy when logs are stored on remote storage
+# Set to True to enable proxying logs from remote storage
+ENABLE_JSON_LOGS_PROXY = False
+
+# HTTPS configuration
+# Set to True when the deployment requires secure HTTP access
+SECURE_HTTP = False
+
 ALLOWED_HOSTS = ['*']
 
 # For debug panel. Note, that you might need

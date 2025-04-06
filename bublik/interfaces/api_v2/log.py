@@ -2,7 +2,11 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import os.path
+from urllib.parse import urlparse
 
+from django.conf import settings
+from django.http import HttpResponse
+import requests
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
@@ -77,3 +81,31 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
         result = self.get_object()
         return Response(data={'url': get_result_log(result)}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def proxy(self, request):
+        r'''
+        Forward the request to the given URL and return the response data.
+        Route: /api/v2/logs/proxy/?url=<forwarding_url>
+        '''
+        forward_url = request.query_params.get('url')
+        if not forward_url:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data={'message': 'URL parameter is missing.'},
+            )
+
+        try:
+            response = requests.get(forward_url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            return Response(
+                status=status.HTTP_502_BAD_GATEWAY,
+                data={'message': f'Error forwarding request: {e!s}'},
+            )
+
+        return HttpResponse(
+            content=response.content,
+            status=response.status_code,
+            content_type=response.headers.get('Content-Type', 'application/octet-stream'),
+        )
