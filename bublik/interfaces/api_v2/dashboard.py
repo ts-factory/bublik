@@ -18,6 +18,7 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
 from bublik.core.importruns.live.check import livelog_check_run_timeout
+from bublik.core.project import get_current_project
 from bublik.core.run.external_links import get_sources
 from bublik.core.run.stats import (
     get_run_conclusion,
@@ -50,10 +51,14 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         self.payload = DashboardPayload()
         self.check_and_apply_settings()
 
+        queryset = TestIterationResult.objects.filter(test_run=None)
+        project = get_current_project()
+        if project:
+            queryset = queryset.filter(meta_results__meta=project)
+
         if self.date_meta:
             return (
-                TestIterationResult.objects.filter(
-                    test_run=None,
+                queryset.filter(
                     meta_results__meta__name=self.date_meta,
                     meta_results__meta__value=self.date,
                 )
@@ -61,9 +66,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                 .distinct()
             )
         return (
-            TestIterationResult.objects.filter(test_run=None, start__date=self.date)
-            .prefetch_related('meta_results')
-            .distinct()
+            queryset.filter(start__date=self.date).prefetch_related('meta_results').distinct()
         )
 
     @method_decorator(never_cache)

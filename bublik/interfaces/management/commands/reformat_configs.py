@@ -2,7 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from django.core.management.base import BaseCommand
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, When
 from rest_framework import serializers
 
 from bublik.core.config.reformatting.dispatcher import (
@@ -74,8 +74,20 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        self.stdout.write('Reformat configurations:')
         # get configs
-        configs = self.get_configs(options)
+        configs = (
+            self.get_configs(options)
+            .annotate(
+                sort_order=Case(
+                    When(type='global', name='per_conf', is_active=True, then=3),
+                    When(type='global', name='per_conf', then=2),
+                    default=1,
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by('sort_order')
+        )
         if not configs:
             self.stdout.write(
                 self.style.WARNING(
@@ -87,13 +99,17 @@ class Command(BaseCommand):
             dispatcher = ConfigReformatDispatcher()
             reformatting_summary = {}
             for config in configs:
-                config_label = f'{config.name} ({config.type}, v{config.version})'
+                config_label = (
+                    f'{config.name} ({config.type}, '
+                    f'{config.project.value if config.project else 'default'}, '
+                    f'v{config.version})'
+                )
                 self.stdout.write(f'{config_label} reformatting:')
                 reformatting_status = dispatcher.reformat_config(config)
                 reformatting_summary[config_label] = reformatting_status
 
             # show the reformatting summary
-            self.stdout.write('\n=========================================================')
+            self.stdout.write('=========================================================')
             self.stdout.write('Configurations reformatting summary status:')
             for config_label, reformatting_status in reformatting_summary.items():
                 if reformatting_status == ConfigReformatStatuses.SUCCESS:

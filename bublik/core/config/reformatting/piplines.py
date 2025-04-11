@@ -5,11 +5,13 @@ import logging
 
 from bublik.core.config.reformatting.steps import (
     BaseReformatStep,
+    RemoveProjectFromPerConf,
     RemoveUnsupportedAttributes,
     UpdateAxisXStructure,
     UpdateCSRFTrustedOrigins,
     UpdateDashboardHeaderStructure,
     UpdateLogsFormat,
+    UpdateProject,
     UpdateSeqSettingsStructure,
 )
 
@@ -28,13 +30,13 @@ class ReformatPipeline:
         # the RemoveUnsupportedAttributes step should be executed last
         self.steps.insert(-1, step)
 
-    def run(self, content, schema):
+    def run(self, config):
         reformatted = False
         for step in self.steps:
-            content, applied = step.apply(content, schema=schema)
+            config, applied = step.apply(config)
             if applied:
                 reformatted = True
-        return content, reformatted
+        return config, reformatted
 
 
 class ReportConfigReformatPipeline(ReformatPipeline):
@@ -42,6 +44,7 @@ class ReportConfigReformatPipeline(ReformatPipeline):
         super().__init__()
         self.add_step(UpdateAxisXStructure())
         self.add_step(UpdateSeqSettingsStructure())
+        self.add_step(UpdateProject())
 
 
 class PerConfConfigReformatPipeline(ReformatPipeline):
@@ -49,14 +52,18 @@ class PerConfConfigReformatPipeline(ReformatPipeline):
         super().__init__()
         self.add_step(UpdateDashboardHeaderStructure())
         self.add_step(UpdateCSRFTrustedOrigins())
+        self.add_step(UpdateProject())
+        self.add_step(RemoveProjectFromPerConf())
 
 
 class ReferencesConfigReformatPipeline(ReformatPipeline):
     def __init__(self):
         super().__init__()
         self.add_step(UpdateLogsFormat())
+        self.add_step(UpdateProject())
 
 
 class MetaConfigReformatPipeline(ReformatPipeline):
     def __init__(self):
         super().__init__()
+        self.add_step(UpdateProject())
