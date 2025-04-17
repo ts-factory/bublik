@@ -26,7 +26,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
     @action(detail=True, methods=['get'])
     def json(self, request, pk=None):
         r'''
-        Return the URLs of the corresponding JSON log file and artifacts file.
+        Return the URLs of the corresponding JSON log file and attachments file.
         Route: /api/v2/logs/<ID>/json/?page=<page\>.
         '''
 
@@ -62,9 +62,9 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
                 node += f'_p{page}'
 
         url = os.path.join(run_source_link, 'json', node + '.json')
-        artifacts_url = os.path.join(run_source_link, 'artifacts', node, 'artifacts.json')
+        attachments_url = os.path.join(run_source_link, 'attachments', node, 'attachments.json')
         return Response(
-            data={'url': url, 'artifacts_url': artifacts_url},
+            data={'url': url, 'attachments_url': attachments_url},
             status=status.HTTP_200_OK,
         )
 
