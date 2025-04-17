@@ -67,6 +67,20 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
         url = os.path.join(run_source_link, 'json', node + '.json')
         attachments_url = os.path.join(run_source_link, 'attachments', node, 'attachments.json')
+
+        if settings.ENABLE_JSON_LOGS_PROXY:
+            parsed_url = urlparse(request.build_absolute_uri())
+            origin = f"{'https' if settings.SECURE_HTTP else 'http'}://{parsed_url.netloc}"
+            forwarding_url = f'{origin}{settings.PREFIX}/api/v2/logs/proxy/?url={url}'
+            attachments_url = (
+                f'{origin}{settings.PREFIX}/api/v2/logs/proxy/?url={attachments_url}'
+            )
+
+            return Response(
+                data={'url': forwarding_url, 'attachments_url': attachments_url},
+                status=status.HTTP_200_OK,
+            )
+
         return Response(
             data={'url': url, 'attachments_url': attachments_url},
             status=status.HTTP_200_OK,
