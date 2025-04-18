@@ -23,7 +23,7 @@ from .measurement import (
     MeasurementSerializer,
     ViewSerializer,
 )
-from .meta import MetaSerializer
+from .meta import MetaSerializer, ProjectMetaSerializer
 from .reference import ReferenceSerializer
 from .result import (
     MetaResultSerializer,
@@ -37,29 +37,30 @@ from .result import (
 
 
 __all__ = [
+    'ConfigSerializer',
+    'EndpointURLSerializer',
     'EventLogSerializer',
     'ExpectMetaReadSerializer',
     'ExpectMetaWriteSerializer',
     'ExpectationSerializer',
-    'MeasurementSerializer',
+    'MeasurementResultListSerializer',
     'MeasurementResultSerializer',
-    'ViewSerializer',
+    'MeasurementSerializer',
+    'MetaResultSerializer',
     'MetaSerializer',
+    'MetaTestSerializer',
+    'PasswordResetSerializer',
+    'ProjectMetaSerializer',
     'ReferenceSerializer',
-    'TestSerializer',
+    'RegisterSerializer',
     'TestArgumentSerializer',
-    'TestIterationSerializer',
     'TestIterationRelationSerializer',
     'TestIterationResultSerializer',
-    'MetaResultSerializer',
-    'RegisterSerializer',
+    'TestIterationSerializer',
+    'TestSerializer',
     'TokenPairSerializer',
-    'UserSerializer',
-    'UserEmailSerializer',
-    'PasswordResetSerializer',
     'UpdateUserSerializer',
-    'EndpointURLSerializer',
-    'MetaTestSerializer',
-    'ConfigSerializer',
-    'MeasurementResultListSerializer',
+    'UserEmailSerializer',
+    'UserSerializer',
+    'ViewSerializer',
 ]

@@ -6,8 +6,11 @@ from django.core.cache import caches
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils.deprecation import MiddlewareMixin
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.project import get_current_project, set_current_project
+from bublik.core.utils import convert_to_int_if_digit
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 
 
@@ -22,14 +25,21 @@ def invalidate_config_cache(sender, instance, **kwargs):
 
 
 def get_config_from_cache(default=None):
-    config = caches['config'].get('content')
-    if config is None:
+    config_content = caches['config'].get('content')
+    config_project = caches['config'].get('project')
+    project = get_current_project()
+    if config_project != convert_to_int_if_digit(project) or config_content is None:
         try:
-            config = Config.objects.get_global(GlobalConfigs.PER_CONF.name).content
-            caches['config'].set('content', config, timeout=86400)
+            config = Config.objects.get_global(GlobalConfigs.PER_CONF.name, project)
+            caches['config'].set('content', config.content, timeout=86400)
+            caches['config'].set(
+                'project',
+                config.project.id if config.project else None,
+                timeout=86400,
+            )
         except ObjectDoesNotExist:
-            config = default
-    return config
+            config_content = default
+    return config_content
 
 
 def get_schema_from_cache():
@@ -75,3 +85,10 @@ class DynamicSettingsMiddleware:
         settings.EMAIL_ADMINS = get_setting('EMAIL_ADMINS')
 
         return self.get_response(request)
+
+
+class ProjectMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        project = request.GET.get('project', ...)
+        if project is not ...:
+            set_current_project(project)

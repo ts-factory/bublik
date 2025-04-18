@@ -94,18 +94,6 @@ class HTTPDirectoryTraverser:
             yield from self.__find_runs(url_next)
 
     def find_runs(self):
-        try:
-            ConfigServices.getattr_from_global(
-                GlobalConfigs.PER_CONF.name,
-                'RUN_COMPLETE_FILE',
-            )
-        except (ObjectDoesNotExist, KeyError) as e:
-            msg = modify_msg(
-                str(e),
-                self.url,
-            )
-            logger.error(msg)
-            return
         yield from self.__find_runs(self.url)
 
 
@@ -153,21 +141,6 @@ class Command(BaseCommand):
             msg=f'started import {run_url} -- {task_msg}',
         )
 
-        logger.info('downloading run logs: %s', run_url)
-
-        logs_base, suffix_url = extract_logs_base(run_url)
-        if not suffix_url:
-            logger.error(f"run url doesn't matched project references, ignoring: {run_url}")
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
-                msg=f'failed import {run_url} '
-                f'-- {task_msg} '
-                f'-- Error: URL doesn\'t match project references '
-                f'-- runtime: {runtime(import_run_start_time)} sec',
-            )
-            return
-
         process_dir = None
         try:
             # Create temp dir for logs processing
@@ -204,6 +177,36 @@ class Command(BaseCommand):
 
                 # Generate meta_data.json from available data
                 meta_data = MetaData.generate(process_dir)
+
+            try:
+                ConfigServices.getattr_from_global(
+                    GlobalConfigs.PER_CONF.name,
+                    'RUN_COMPLETE_FILE',
+                )
+            except (ObjectDoesNotExist, KeyError) as e:
+                msg = modify_msg(
+                    str(e),
+                    run_url,
+                )
+                logger.error(msg)
+                return
+
+            # Extract logs base
+            logger.info('downloading run logs: %s', run_url)
+            logs_base, suffix_url = extract_logs_base(run_url)
+            if not suffix_url:
+                logger.error(
+                    f'run url doesn\'t matched project references, ignoring: {run_url}',
+                )
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=EventLog.SeverityChoices.ERR,
+                    msg=f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: URL doesn\'t match project references '
+                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                )
+                return
 
             # Filter out runs that don't fit the specified interval
             if not meta_data.check_run_period(date_from, date_to):
