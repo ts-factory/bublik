@@ -1,6 +1,8 @@
 [tool.ruff]
-
 line-length = 96
+target-version = 'py38'
+
+[tool.ruff.lint]
 select = [
     # pyflakes
     'F',
@@ -89,11 +91,10 @@ exclude = [
     'tests',
     'migrations',
 ]
-target-version = 'py38'
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 'bublik/settings.py' = [
-    # there is an import of per_conf that can't be moved to the top of the file
+    # There is an import of per_conf that can't be moved to the top of the file
     'E402',
     'I001',
 ]
@@ -102,15 +103,15 @@ target-version = 'py38'
     'C901',
 ]
 'bublik/data/*' = [
-    # in order to keep the structure of DB the same
+    # In order to keep the structure of DB the same
     'A003',
-    # keep the null=True for string-based fields
+    # Keep the null=True for string-based fields
     'DJ001',
-    # use __repr__ instead of __str__
+    # Use __repr__ instead of __str__
     'DJ008',
 ]
 'bublik/interfaces/*' = [
-    # in order to keep the structure of UI the same
+    # In order to keep the structure of UI the same
     'A',
 ]
 'bublik/interfaces/api_v2/history.py' = [
@@ -130,31 +131,27 @@ target-version = 'py38'
     'C901',
 ]
 
-[tool.ruff.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 avoid-escape = false
 inline-quotes = 'single'
 docstring-quotes = 'single'
 multiline-quotes = 'single'
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 16
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 force-sort-within-sections = true
 split-on-trailing-comma = true
 lines-after-imports = 2
-lines-between-types = 1
 
-[tool.black]
-line-length = 96
-target-version = ['py38']
-avoid-escape = false
-inline-quotes = 'single'
-docstring-quotes = 'single'
-multiline-quotes = 'single'
-
-[tool.ruff.pylint]
+[tool.ruff.lint.pylint]
 max-args = 8
 max-branches = 30
 max-statements = 100
 max-returns = 7
+
+[tool.black]
+line-length = 96
+target-version = ['py38']
+skip-string-normalization = true
