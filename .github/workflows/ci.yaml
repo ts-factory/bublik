@@ -1,0 +1,93 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    name: Detect Changed Python Files
+    runs-on: ubuntu-latest
+    outputs:
+      python_files: ${{ steps.changed.outputs.all_changed_files }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed Python files
+        id: changed
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
+        with:
+          files: |
+            **/*.py
+
+  format-check:
+    name: Check Code Formatting
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect-changes.outputs.python_files != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Black
+        run: pip install black
+
+      - name: Run Black in check mode
+        run: |
+          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs black --check --diff
+
+  lint-check:
+    name: Check Code Quality
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect-changes.outputs.python_files != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff
+        run: |
+          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs ruff check
+
+  f-string-check:
+    name: Check F-String Usage
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect-changes.outputs.python_files != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Flynt
+        run: pip install flynt
+
+      - name: Run Flynt in check mode
+        run: |
+          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs flynt -f
+
+  quote-style-check:
+    name: Check Quote Style Consistency
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect-changes.outputs.python_files != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Unify
+        run: pip install unify
+
+      - name: Run Unify in check mode
+        run: |
+          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs unify -c --quote "'"
