@@ -316,7 +316,7 @@ def add_expected_result(
     result,
     verdicts=None,
     tag_expression=None,
-    key=None,
+    keys=None,
     notes=None,
 ):
     expect_metas = []
@@ -333,15 +333,13 @@ def add_expected_result(
     if tag_expression is not None:
         expect_metas.append({'meta': {'type': 'tag_expression', 'value': tag_expression}})
 
-    if key is not None:
-        expect_metas.extend(prepare_expected_key(key))
+    if keys:
+        for key in keys:
+            expect_metas.extend(prepare_expected_key(key))
 
-    if notes is not None:
-        if isinstance(notes, (list, tuple, set)):
-            for index, note in enumerate(notes):
-                expect_metas.append({'meta': {'type': 'note', 'value': note}, 'serial': index})
-        else:
-            expect_metas.append({'meta': {'type': 'note', 'value': notes}})
+    if notes:
+        for index, note in enumerate(notes):
+            expect_metas.append({'meta': {'type': 'note', 'value': note}, 'serial': index})
 
     expectation_serializer = serialize(
         ExpectationSerializer,
