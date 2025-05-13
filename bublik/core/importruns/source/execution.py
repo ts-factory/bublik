@@ -77,26 +77,60 @@ def handle_iteration(
         data['reqs'],
     )
 
-    plan_id = int(data['plan_id'])
-    if plan_id in tests_nums_prologues and data['result'] not in ['PASSED', 'FAKED']:
+    obtained = data['obtained']
+
+    plan_id = data['plan_id']
+    if plan_id in tests_nums_prologues and obtained['result']['status'] not in [
+        'PASSED',
+        'FAKED',
+    ]:
         set_prologues_counts(
             iteration_result,
             'expected_items_prologue',
             tests_nums_prologues[plan_id],
         )
 
-    add_obtained_result(iteration_result, data['result'], data['verdicts'], data['err'])
-
-    add_expected_result(
+    add_obtained_result(
         iteration_result,
-        data['result_expected'],
-        data['verdicts_expected'],
-        data.get('tag_expression'),
-        data.get('keys'),
-        data.get('notes'),
+        obtained['result']['status'],
+        obtained['result'].get('verdicts'),
+        data['err'],
     )
 
-    HandlerArtifacts(iteration_result).handle(data['artifacts'])
+    expected = data.get('expected')
+    if expected:
+        keys = [expected['key']] if 'key' in expected else []
+        notes = [expected['notes']] if 'notes' in expected else []
+        for expected_result in expected['results']:
+            if 'key' in expected_result:
+                keys.append(expected_result['key'])
+            if 'notes' in expected_result:
+                notes.append(expected_result['notes'])
+            add_expected_result(
+                iteration_result,
+                expected_result['status'],
+                expected_result.get('verdicts'),
+                obtained.get('tag_expression'),
+                keys,
+                notes,
+            )
+    else:
+        add_expected_result(
+            iteration_result,
+            obtained['result']['status'],
+            obtained['result'].get('verdicts'),
+            obtained.get('tag_expression'),
+            obtained['result'].get('key'),
+            obtained['result'].get('notes'),
+        )
+
+    artifacts = obtained['result'].get('artifacts')
+    if artifacts:
+        HandlerArtifacts(iteration_result).handle_artifacts(artifacts)
+
+    measurements = data.get('measurements')
+    if measurements:
+        HandlerArtifacts(iteration_result).handle_mi_artifacts(measurements)
 
     if not data['iters']:
         return
