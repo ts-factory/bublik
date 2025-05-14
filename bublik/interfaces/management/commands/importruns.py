@@ -179,10 +179,19 @@ class Command(BaseCommand):
             meta_data_saved = save_url_to_dir(run_url, process_dir, 'meta_data.json')
 
             # Fetch available logs, convert and load JSON log
-            log_files = ['bublik.xml', 'log.json.xz', 'log.xml.xz', 'raw_log_bundle.tpxz']
+            log_files = [
+                'bublik.json',
+                'bublik.xml',
+                'log.json.xz',
+                'log.xml.xz',
+                'raw_log_bundle.tpxz',
+            ]
             for log_file in log_files:
                 if save_url_to_dir(run_url, process_dir, log_file):
-                    json_data = JSONLog().convert_from_dir(process_dir)
+                    if log_file == 'bublik.json':
+                        json_data = JSONLog().convert_from_dir(process_dir, log_file)
+                    else:
+                        json_data = JSONLog().convert_from_dir(process_dir)
                     url_str = os.path.join(run_url, log_file)
                     logger.info(f'run logs were downloaded from {url_str}')
                     break
