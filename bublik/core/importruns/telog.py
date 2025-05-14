@@ -246,7 +246,10 @@ class JSONLog:
         return self.load()
 
     def convert_from_bublik_xml(self, from_filename):
-        XMLLog(path_in=os.path.join(self.process_dir, from_filename), path_out=self.path_json_log).convert()
+        XMLLog(
+            path_in=os.path.join(self.process_dir, from_filename),
+            path_out=self.path_json_log,
+        ).convert()
 
         return self.load()
 
