@@ -183,6 +183,8 @@ class Command(BaseCommand):
             for log_file in log_files:
                 if save_url_to_dir(run_url, process_dir, log_file):
                     json_data = JSONLog().convert_from_dir(process_dir)
+                    url_str = os.path.join(run_url, log_file)
+                    logger.info(f'run logs were downloaded from {url_str}')
                     break
 
             if meta_data_saved:
