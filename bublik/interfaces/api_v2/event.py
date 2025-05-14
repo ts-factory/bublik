@@ -53,7 +53,7 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
             URLValidator()(url)
             events = events.filter(msg__contains=url)
 
-        return events.values()
+        return events
 
     def list(self, request, *args, **kwargs):
         try:
@@ -64,11 +64,11 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
         import_events = []
 
         for event in events:
-            event_msg = event.get('msg')
-            event_facility = event.get('facility')
-            event_id = event.get('id')
-            event_severity = event.get('severity')
-            event_timestamp = event.get('timestamp')
+            event_id = event.id
+            event_msg = event.msg
+            event_facility = event.facility
+            event_severity = event.severity
+            event_timestamp = event.timestamp
 
             msg_uri = re.search(r'(?P<url>https?://[^\s]+)', event_msg)
             found_task_id = re.search(r'-- Celery task ID (\S*)', event_msg)
