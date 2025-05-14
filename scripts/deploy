@@ -512,7 +512,6 @@ function bootstrap_db_handler() {
 function migrate_db_handler() {
   step "Migrate Bublik database" && {
     source "${ENV_DIR}/bin/activate"
-    ${BUBLIK_SRC}/manage.py makemigrations
     ${BUBLIK_SRC}/manage.py migrate
   }
 }

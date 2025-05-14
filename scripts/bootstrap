@@ -19,6 +19,5 @@ echo "Remove all data from DB and redis cache"
 ./manage.py flush --no-input
 redis-cli flushall
 
-./manage.py makemigrations
 ./manage.py migrate
 popd
