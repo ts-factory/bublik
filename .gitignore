@@ -16,10 +16,6 @@ __pycache__/
 *.log
 *.pid
 
-bublik/data/migrations/*
-!bublik/data/migrations
-!bublik/data/migrations/__init__.py
-
 logs/
 secret.txt
 flower.db
