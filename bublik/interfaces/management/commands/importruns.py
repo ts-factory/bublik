@@ -178,14 +178,12 @@ class Command(BaseCommand):
             # Fetch meta_data.json if available
             meta_data_saved = save_url_to_dir(run_url, process_dir, 'meta_data.json')
 
-            # Fetch available logs
-            if not save_url_to_dir(run_url, process_dir, 'bublik.xml'):
-                if not save_url_to_dir(run_url, process_dir, 'log.json.xz'):
-                    if not save_url_to_dir(run_url, process_dir, 'log.xml.xz'):
-                        save_url_to_dir(run_url, process_dir, 'raw_log_bundle.tpxz')
-
-            # Convert and load JSON log
-            json_data = JSONLog().convert_from_dir(process_dir)
+            # Fetch available logs, convert and load JSON log
+            log_files = ['bublik.xml', 'log.json.xz', 'log.xml.xz', 'raw_log_bundle.tpxz']
+            for log_file in log_files:
+                if save_url_to_dir(run_url, process_dir, log_file):
+                    json_data = JSONLog().convert_from_dir(process_dir)
+                    break
 
             if meta_data_saved:
                 # Load meta_data.json
