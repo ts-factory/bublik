@@ -218,7 +218,8 @@
             "description": "Actions that should not require administrator rights in this project",
             "type": "array",
             "items": {
-                "type": "string"
+                "type": "string",
+                "enum": ["manage_test_comments", "read_configs"]
             },
             "uniqueItems": true
         },
