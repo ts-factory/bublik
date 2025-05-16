@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import auth_required
+from bublik.core.auth import auth_required, check_action_permission
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs
@@ -135,7 +135,7 @@ class ConfigViewSet(ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-    @auth_required(as_admin=True)
+    @check_action_permission('read_configs')
     @action(detail=False, methods=['get'], url_path='schema')
     def get_schema(self, request, *args, **kwargs):
         '''
@@ -156,7 +156,7 @@ class ConfigViewSet(ModelViewSet):
             data={'type': 'ValueError', 'message': msg},
         )
 
-    @auth_required(as_admin=True)
+    @check_action_permission('read_configs')
     @action(detail=True, methods=['get'])
     def all_versions(self, request, *args, **kwargs):
         '''
@@ -205,7 +205,7 @@ class ConfigViewSet(ModelViewSet):
             )
         return Response({'config_types_names': config_type_names}, status=status.HTTP_200_OK)
 
-    @auth_required(as_admin=True)
+    @check_action_permission('read_configs')
     def list(self, request):
         '''
         Of all configurations having the same type and name, if there are active ones,
@@ -226,6 +226,6 @@ class ConfigViewSet(ModelViewSet):
         )
         return Response(configs_to_display, status=status.HTTP_200_OK)
 
-    @auth_required(as_admin=True)
+    @check_action_permission('read_configs')
     def retrieve(self, request, pk=None):
         return super().retrieve(request)
