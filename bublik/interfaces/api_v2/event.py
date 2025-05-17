@@ -62,6 +62,8 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
             return Response({'error': str(e)})
 
         import_statuses = {
+            'received import': 'RECEIVED',
+            'started import': 'STARTED',
             'successful import': 'SUCCESS',
             'failed import': 'FAILURE',
         }
