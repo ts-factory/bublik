@@ -61,11 +61,28 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
         except (ValueError, ValidationError) as e:
             return Response({'error': str(e)})
 
+        import_statuses = {
+            'successful import': 'SUCCESS',
+            'failed import': 'FAILURE',
+        }
         import_events = []
 
         for event in events:
-            event_id = event.id
             event_msg = event.msg
+
+            # check if this is an import event
+            import_status = next(
+                (
+                    import_statuses[import_msg]
+                    for import_msg in import_statuses
+                    if import_msg in event_msg
+                ),
+                None,
+            )
+            if not import_status:
+                continue
+
+            event_id = event.id
             event_facility = event.facility
             event_severity = event.severity
             event_timestamp = event.timestamp
@@ -73,41 +90,26 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
             msg_uri = re.search(r'(?P<url>https?://[^\s]+)', event_msg)
             found_task_id = re.search(r'-- Celery task ID (\S*)', event_msg)
             event_runtime = re.search(r'-- runtime: (\d.*) sec', event_msg)
+            event_error = re.search(r'-- Error: (.*)', event_msg)
 
             task_id = found_task_id.group(1) if found_task_id else None
             event_uri = msg_uri.group('url') if msg_uri else 'No URI'
             runtime = event_runtime.group(1) if event_runtime else None
+            error_msg = event_error.group(1) if event_error else None
 
-            if 'failed import' in event_msg:
-                event_error = re.search(r'-- Error: (.*)', event_msg)
-                error_msg = event_error.group(1) if event_error else None
-                import_events.append(
-                    {
-                        'event_id': event_id,
-                        'facility': event_facility,
-                        'severity': event_severity,
-                        'uri': event_uri,
-                        'celery_task': task_id,
-                        'status': 'FAILURE',
-                        'timestamp': event_timestamp,
-                        'error_msg': error_msg,
-                        'runtime': runtime,
-                    },
-                )
-            elif 'successful import' in event_msg:
-                import_events.append(
-                    {
-                        'event_id': event_id,
-                        'facility': event_facility,
-                        'severity': event_severity,
-                        'uri': event_uri,
-                        'celery_task': task_id,
-                        'status': 'SUCCESS',
-                        'timestamp': event_timestamp,
-                        'error_msg': None,
-                        'runtime': runtime,
-                    },
-                )
+            import_events.append(
+                {
+                    'event_id': event_id,
+                    'facility': event_facility,
+                    'severity': event_severity,
+                    'uri': event_uri,
+                    'celery_task': task_id,
+                    'status': import_status,
+                    'timestamp': event_timestamp,
+                    'error_msg': error_msg,
+                    'runtime': runtime,
+                },
+            )
 
         sort_params = request.query_params.getlist('sort')
 
