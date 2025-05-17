@@ -90,7 +90,7 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
             msg_uri = re.search(r'(?P<url>https?://[^\s]+)', event_msg)
             found_task_id = re.search(r'-- Celery task ID (\S*)', event_msg)
             event_runtime = re.search(r'-- runtime: (\d.*) sec', event_msg)
-            event_error = re.search(r'-- Error: (.*)', event_msg)
+            event_error = re.search(r'--\s*Error:\s*(.*?)(?:\s*--|$)', event_msg)
 
             task_id = found_task_id.group(1) if found_task_id else None
             event_uri = msg_uri.group('url') if msg_uri else 'No URI'
