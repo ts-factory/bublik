@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from itertools import groupby
 from typing import ClassVar
 
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
@@ -14,16 +12,9 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
-from bublik.core.measurement.representation import ChartViewBuilder
 from bublik.core.measurement.services import (
-    get_chart_views,
-    get_line_graph_views,
-    get_measurement_result_lists,
+    get_measurement_charts,
     get_measurement_results,
-    get_point_views,
-    get_views,
-    get_x_chart_view,
-    get_y_chart_views,
 )
 from bublik.core.queries import get_or_none
 from bublik.core.run.compromised import (
@@ -296,67 +287,6 @@ class ResultViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def measurements(self, request, pk=None):
-        # get charts
-        views = get_views(pk)
-        try:
-            # check if there are any views
-            if not views:
-                raise ObjectDoesNotExist
-            # get line-graph charts
-            charts_from_lines = []
-            line_graph_views = get_line_graph_views(views)
-            if line_graph_views:
-                for view in line_graph_views:
-                    line_chart_views = get_chart_views(pk, view)
-                    x_chart_view = get_x_chart_view(line_chart_views)
-                    y_chart_views = get_y_chart_views(line_chart_views)
-
-                    axis_x = get_measurement_result_lists(
-                        x_chart_view.result.id,
-                        x_chart_view.measurement,
-                    )
-
-                    for y_chart_view in y_chart_views:
-                        axis_y = get_measurement_result_lists(
-                            y_chart_view.result.id,
-                            y_chart_view.measurement,
-                        )
-                        charts_from_lines.append(
-                            ChartViewBuilder(axis_y.measurement, y_chart_view.view)
-                            .by_lines(
-                                axis_y,
-                                axis_x,
-                            )
-                            .representation(),
-                        )
-            # get point charts
-            charts_from_points = []
-            point_views = get_point_views(views)
-            if point_views:
-
-                def grouper_by_measurement(cv):
-                    return cv.measurement.id
-
-                for view in point_views:
-                    point_chart_views = get_chart_views(pk, view)
-                    point_chart_views = sorted(point_chart_views, key=grouper_by_measurement)
-                    for _measurement_id, points in groupby(
-                        point_chart_views,
-                        key=grouper_by_measurement,
-                    ):
-                        charts_from_points.append(ChartViewBuilder.by_points(points))
-                        # Make ChartViewBuilder process point chart view as well:
-                        # - init by CV line object | list of CV point objects ->
-                        # -> ChartViewBuilder.by_points(cvs)
-            # get all views charts
-            charts = charts_from_lines + charts_from_points
-        except ObjectDoesNotExist:
-            mmr_lists = get_measurement_result_lists(pk)
-            charts = [
-                ChartViewBuilder(mmr_list.measurement).by_lines(mmr_list).representation()
-                for mmr_list in mmr_lists
-            ]
-
         # get tables
         mmrs = get_measurement_results([pk])
         tables = [mmr.representation(additional='measurement') for mmr in mmrs]
@@ -365,7 +295,7 @@ class ResultViewSet(ModelViewSet):
         data = {
             'run_id': test_iter_res.test_run_id,
             'iteration_id': test_iter_res.iteration_id,
-            'charts': charts,
+            'charts': get_measurement_charts(pk),
             'tables': tables,
         }
 
