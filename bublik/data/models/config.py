@@ -6,6 +6,7 @@ from enum import Enum
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 
+from bublik.data.models.meta import Meta
 from bublik.data.models.user import User
 
 
@@ -65,46 +66,67 @@ class GlobalConfigs(Enum):
 
 
 class ConfigManager(models.Manager):
-    def get_latest(self, config_type, config_name):
+    def get_latest(self, config_type, config_name, project_id):
         return (
             self.get_queryset()
             .filter(
                 type=config_type,
                 name=config_name,
+                project=project_id,
             )
             .order_by('version')
             .last()
         )
 
-    def get_active(self, config_type, config_name):
-        return (
-            self.get_queryset()
-            .filter(
-                type=config_type,
-                name=config_name,
-                is_active=True,
-            )
-            .first()
+    def get_active_or_none(self, config_type, config_name, project_id=...):
+        active_configs = self.get_queryset().filter(
+            type=config_type,
+            name=config_name,
+            is_active=True,
         )
+        try:
+            if project_id is ...:
+                return active_configs.get()
+            return active_configs.get(
+                project=project_id,
+            )
+        except self.model.DoesNotExist:
+            return None
 
-    def get_all_versions(self, config_type, config_name):
+    def get_all_versions(self, config_type, config_name, project_id):
         return (
             self.get_queryset()
             .filter(
                 type=config_type,
                 name=config_name,
+                project=project_id,
             )
             .order_by('-is_active', '-created')
             .values('id', 'version', 'is_active', 'description', 'created')
         )
 
-    def get_global(self, config_name):
-        config = self.get_active(ConfigTypes.GLOBAL, config_name)
+    def get_global(self, config_name, project_id=...):
+        config = self.get_active_or_none(ConfigTypes.GLOBAL, config_name, project_id)
         if not config:
-            msg = (
-                f'There is no active {config_name} global configuration object. '
-                'Create one or activate one of the existing ones'
-            )
+            if project_id is ...:
+                msg = (
+                    f'there is no active {config_name} global configuration object. '
+                    'Create one or activate one of the existing ones'
+                )
+            elif project_id is None:
+                msg = (
+                    f'there is no active default {config_name} global configuration object. '
+                    'Create one or activate one of the existing ones'
+                )
+            else:
+                project_name = Meta.projects.get(
+                    id=project_id,
+                ).value
+                msg = (
+                    f'there is no active {config_name} global configuration object '
+                    f'for {project_name} project. Create one or activate one '
+                    f'of the existing ones'
+                )
             raise ObjectDoesNotExist(msg)
         return config
 
@@ -134,15 +156,24 @@ class Config(models.Model):
         help_text='The user who created the configuration object.',
     )
     content = models.JSONField(help_text='Configuration data.')
+    project = models.ForeignKey(
+        Meta,
+        on_delete=models.CASCADE,
+        related_name='config',
+        default=None,
+        blank=True,
+        null=True,
+        limit_choices_to={'name': 'PROJECT', 'type': 'label'},
+    )
 
     objects = ConfigManager()
 
     class Meta:
         db_table = 'bublik_config'
-        unique_together = ('type', 'name', 'version')
+        unique_together = ('type', 'name', 'project', 'version')
 
     def activate(self):
-        active = Config.objects.get_active(self.type, self.name)
+        active = Config.objects.get_active_or_none(self.type, self.name, self.project)
         if active:
             active.is_active = False
             active.save()
@@ -152,16 +183,17 @@ class Config(models.Model):
     def delete(self, *args, **kwargs):
         config_type = self.type
         config_name = self.name
+        config_project = self.project
         config_active = self.is_active
         super().delete(*args, **kwargs)
         if config_active:
-            latest = Config.objects.get_latest(config_type, config_name)
+            latest = Config.objects.get_latest(config_type, config_name, config_project)
             if latest:
                 latest.activate()
 
     def __repr__(self):
         return (
-            f'Config(created={self.created!r}, type={self.type!r}, name={self.name!r}, '
-            f'version={self.version!r}, is_active={self.is_active!r}, '
+            f'Config(created={self.created!r}, project={self.project!r}, type={self.type!r}, '
+            f'name={self.name!r}, version={self.version!r}, is_active={self.is_active!r}, '
             f'description={self.description!r}, user={self.user!r})'
         )

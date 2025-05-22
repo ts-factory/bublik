@@ -14,7 +14,7 @@ from bublik.core.datetime_formatting import display_to_milliseconds, get_duratio
 from bublik.core.run.stats import get_expected_results
 from bublik.core.run.utils import prepare_dates_period
 from bublik.core.utils import key_value_dict_transforming
-from bublik.data.models import ResultStatus, TestIterationResult
+from bublik.data.models import Meta, ResultStatus, TestIterationResult
 
 
 def generate_hashkey(request):
@@ -69,6 +69,8 @@ def prepare_list_results(
         # Handle metadata
         metadata = metadata_by_runs.get(run_id, [])
 
+        project = test_result_obj.test_run.meta_results.get(meta__in=Meta.projects).meta
+
         result = {
             'start_date': display_to_milliseconds(result_start),
             'finish_date': display_to_milliseconds(result_finish),
@@ -82,6 +84,8 @@ def prepare_list_results(
             'has_error': test_result['has_error'],
             'has_measurements': test_result['is_measurements'],
             'run_id': run_id,
+            'project_id': project.id,
+            'project_name': project.value,
             'result_id': result_id,
             'iteration_id': iteration_id,
         }

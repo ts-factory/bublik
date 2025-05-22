@@ -8,6 +8,7 @@ import shlex
 import subprocess
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, Q
 import pendulum
 
@@ -46,6 +47,7 @@ class MetaData:
 
     def __init__(self, meta_data_json):
         super().__init__()
+        self.project_id = None
         self.version = None
         self.run_start = None
         self.run_finish = None
@@ -66,7 +68,7 @@ class MetaData:
             return MetaData(meta_data_file.read())
 
     @staticmethod
-    def generate(process_dir):
+    def generate(process_dir, fallback_project):
         logger.info(f'Generate meta_data.json at {process_dir}')
         try:
             path_meta_data_script = os.path.join(settings.PER_CONF_DIR, 'generate_metadata.py')
@@ -74,17 +76,14 @@ class MetaData:
                 MetaData.FMT_META_DATA_GENERATE.format(
                     path_meta_data_script=path_meta_data_script,
                     process_dir=process_dir,
-                    project=ConfigServices.getattr_from_global(
-                        GlobalConfigs.PER_CONF.name,
-                        'PROJECT',
-                    ),
+                    project=fallback_project,
                 ),
             )
             logger.info(f'running command: {cmd}')
             subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
 
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            msg = 'Per-project generate_metadata.py has returned an error {e}'
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            msg = f'Per-project generate_metadata.py has returned an error {e}'
             raise RuntimeError(
                 msg,
             ) from RuntimeError
@@ -104,24 +103,25 @@ class MetaData:
             logger.error('meta_data.json parser expected a list of metas')
             raise KeyError
 
+        # Check and safe project meta ID
         project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
-
         if not project_meta:
             logger.error('meta_data.json parser expected a PROJECT meta.')
             raise ValueError
-
-        project = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'PROJECT',
-        )
-        if project_meta['value'] != project:
-            logger.error(f'this isn\'t a run of {project} project')
-            raise ValueError
+        try:
+            self.project_id = Meta.projects.get(value=project_meta['value']).id
+        except Meta.DoesNotExist as mdne:
+            logger.error(
+                f'The project does not exist: {project_meta['value']}. '
+                'Create it to import logs.',
+            )
+            raise ObjectDoesNotExist from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
+            self.project_id,
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
             logger.error('There is no status meta in meta_data.json. It is a required meta.')
@@ -131,6 +131,7 @@ class MetaData:
         key_metas_names = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
+            self.project_id,
         )
 
         # Check names duplicates in RUN_KEY_METAS
@@ -203,6 +204,7 @@ class MetaData:
         dashboard_date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
+            self.project_id,
         )
         name = m_data.get('name')
         value = m_data.get('value')
@@ -231,6 +233,7 @@ class MetaData:
         status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
+            self.project_id,
         )
 
         for m_data in self.metas:
@@ -331,6 +334,7 @@ class MetaData:
         run_key_metas = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
+            self.project_id,
         )
         essential_meta_names = [*run_key_metas, 'PROJECT']
 
