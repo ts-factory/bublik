@@ -4,6 +4,7 @@
 from django.conf import settings
 from django.core.cache import caches
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.management import call_command
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -19,6 +20,15 @@ def invalidate_config_cache(sender, instance, **kwargs):
         and instance.is_active
     ):
         caches['config'].delete('content')
+
+
+@receiver(post_save, sender=Config)
+def categorize_metas_on_meta_tags_change(sender, instance, **kwargs):
+    if (
+        instance.name in [GlobalConfigs.META.name, GlobalConfigs.TAGS.name]
+        and instance.is_active
+    ):
+        call_command('meta_categorization')
 
 
 def get_config_from_cache(default=None):
