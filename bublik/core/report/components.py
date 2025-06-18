@@ -166,6 +166,38 @@ class ReportArgsValsLevel:
         for subtitle, records in records_by_subtitles.items():
             self.content.append(ReportMeasurementLevel(self.id, subtitle, records).__dict__)
 
+        # move the sequences argument alongside the other arguments if it has the same value
+        # across all results within the corresponding block
+        if report_config['tests'][test_name]['chart_view']:
+            series_label = self.content[0]['content'][0]['chart']['series_label']
+            series_val = self.content[0]['content'][0]['chart']['data'][0]['series']
+            if all(
+                len(rec_block['chart']['data']) == 1
+                and rec_block['chart']['data'][0]['series'] == series_val
+                for meas_block in self.content
+                for rec_block in meas_block['content']
+            ):
+                series_param = f'{series_label}: {series_val}'
+                arg_val_id = '|'.join([self.id, series_param.replace(' ', '')])
+                for meas_block in self.content:
+                    meas_id = arg_val_id + meas_block['id'][len(self.id) :]
+                    for rec_block in meas_block['content']:
+                        rec_block['id'] = meas_id + rec_block['id'][len(meas_block['id']) :]
+                        rec_block['chart'].pop('series_label')
+                        rec_block['chart']['data'][0].pop('series')
+                        if 'table' in rec_block:
+                            rec_block['table']['data'][0].pop('series')
+                            rec_block['table']['labels'].pop('series')
+                    meas_block['id'] = meas_id
+
+                self.args_vals.update(
+                    {
+                        series_label: convert_to_int_if_digit(series_val),
+                    },
+                )
+                self.id = arg_val_id
+                self.label = f'{self.label} | {series_param}'
+
 
 class ReportTestLevel:
     '''
