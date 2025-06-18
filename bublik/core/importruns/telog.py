@@ -246,7 +246,9 @@ class JSONLog:
         return self.load()
 
     def convert_from_bublik_xml(self, from_filename):
-        XMLLog(path_in=os.path.join(self.process_dir, from_filename), path_out=self.path_json_log).convert()
+        XMLLog(
+            path_in=os.path.join(self.process_dir, from_filename), path_out=self.path_json_log,
+        ).convert()
 
         return self.load()
 
@@ -257,6 +259,8 @@ class JSONLog:
             self.process_dir = process_dir
             self.path_json_log = os.path.join(self.process_dir, self.json_filename)
 
+        if os.path.exists(os.path.join(self.process_dir, 'bublik.json')):
+            return self.load()
         if os.path.exists(os.path.join(self.process_dir, 'bublik.xml')):
             return self.convert_from_bublik_xml('bublik.xml')
         if os.path.exists(os.path.join(self.process_dir, 'log.json.xz')):

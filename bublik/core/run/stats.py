@@ -739,19 +739,20 @@ def generate_results_details(test_results):
         iteration_id = iteration.id
 
         # Handle expected result
-        expected_result_data = {}
+        expected_results_data = []
         expected_results = get_expected_results(test_result)
-        if expected_results:
-            expected_result = expected_results[0]
-            expected_result_data = {
-                'result_type': expected_result['result'],
-                'verdict': expected_result['verdicts'],
-                'key': expected_result['key'],
-            }
+        for expected_result in expected_results:
+            expected_results_data.append(
+                {
+                    'result_type': expected_result['result'],
+                    'verdicts': expected_result['verdicts'],
+                    'keys': expected_result['key'],
+                },
+            )
 
         # Handle obtained result and comments
         result_type = None
-        verdict = []
+        verdicts = []
         artifacts = []
         comments = []
         requirements = []
@@ -760,7 +761,7 @@ def generate_results_details(test_results):
             if meta_result.meta.type == 'result':
                 result_type = meta_result.meta.value
             elif meta_result.meta.type == 'verdict':
-                verdict.append(meta_result.meta.value)
+                verdicts.append(meta_result.meta.value)
             elif meta_result.meta.type == 'artifact':
                 artifacts.append(meta_result.meta.value)
             elif meta_result.meta.type == 'note':
@@ -770,7 +771,7 @@ def generate_results_details(test_results):
 
         obtained_result_data = {
             'result_type': result_type,
-            'verdict': verdict,
+            'verdicts': verdicts,
         }
 
         # Handle parameters
@@ -787,7 +788,7 @@ def generate_results_details(test_results):
             'iteration_id': iteration_id,
             'start': test_result.start,
             'obtained_result': obtained_result_data,
-            'expected_result': expected_result_data,
+            'expected_results': expected_results_data,
             'artifacts': artifacts,
             'parameters': parameters_list,
             'comments': comments,
