@@ -135,10 +135,10 @@ def importruns(
             cmd_import += ['--from', param_from]
         if param_to:
             cmd_import += ['--to', param_to]
-        if param_url:
-            cmd_import += ['--id', task_id]
         if param_force:
             cmd_import += ['--force', param_force]
+        if param_url:
+            cmd_import += ['--id', task_id]
 
             logger.info('importruns task started:')
             logger.info(f'[ID]:   {task_id}')
