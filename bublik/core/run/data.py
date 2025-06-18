@@ -26,9 +26,13 @@ def get_metadata_by_runs(runs, categorize=False):
         'meta__id',
     )
 
+    projects = Meta.projects.filter(metaresult__result__in=runs).distinct()
+    project_id = projects.first().id if projects.count() == 1 else None
+
     metadata_categories = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'METADATA_ON_PAGES',
+        project_id,
         default=[],
     )
 

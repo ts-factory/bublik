@@ -14,7 +14,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 import pendulum
 
-from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url
+from bublik.core.argparse import (
+    parser_type_date,
+    parser_type_force,
+    parser_type_project,
+    parser_type_url,
+)
 from bublik.core.checks import check_run_file, modify_msg
 from bublik.core.config.services import ConfigServices
 from bublik.core.importruns import categorization, extract_logs_base
@@ -24,8 +29,8 @@ from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import fetch_url, save_url_to_dir
-from bublik.core.utils import Counter, create_event
-from bublik.data.models import EventLog, GlobalConfigs
+from bublik.core.utils import Counter, create_event, find_dict_in_list
+from bublik.data.models import EventLog, GlobalConfigs, Meta
 
 
 logger = logging.getLogger('bublik.server')
@@ -94,18 +99,6 @@ class HTTPDirectoryTraverser:
             yield from self.__find_runs(url_next)
 
     def find_runs(self):
-        try:
-            ConfigServices.getattr_from_global(
-                GlobalConfigs.PER_CONF.name,
-                'RUN_COMPLETE_FILE',
-            )
-        except (ObjectDoesNotExist, KeyError) as e:
-            msg = modify_msg(
-                str(e),
-                self.url,
-            )
-            logger.error(msg)
-            return
         yield from self.__find_runs(self.url)
 
 
@@ -143,8 +136,21 @@ class Command(BaseCommand):
             default=False,
             help='Re-import the run over the existing one',
         )
+        parser.add_argument(
+            '--project',
+            type=parser_type_project,
+            help='The name of the project',
+        )
 
-    def import_run(self, run_url, force, run_id=None, date_from=None, date_to=None):
+    def import_run(
+        self,
+        run_url,
+        force,
+        run_id=None,
+        date_from=None,
+        date_to=None,
+        fallback_project=None,
+    ):
         import_run_start_time = datetime.now()
         task_msg = f'Celery task ID {run_id}' if run_id else 'No Celery task ID'
         create_event(
@@ -152,21 +158,6 @@ class Command(BaseCommand):
             severity=EventLog.SeverityChoices.INFO,
             msg=f'started import {run_url} -- {task_msg}',
         )
-
-        logger.info('downloading run logs: %s', run_url)
-
-        logs_base, suffix_url = extract_logs_base(run_url)
-        if not suffix_url:
-            logger.error(f"run url doesn't matched project references, ignoring: {run_url}")
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
-                msg=f'failed import {run_url} '
-                f'-- {task_msg} '
-                f'-- Error: URL doesn\'t match project references '
-                f'-- runtime: {runtime(import_run_start_time)} sec',
-            )
-            return
 
         process_dir = None
         try:
@@ -191,10 +182,20 @@ class Command(BaseCommand):
                 # Load meta_data.json
                 meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'))
             else:
+                # Get project ID by passed project name
+                if not fallback_project:
+                    logger.error(
+                        'The --project import argument is required '
+                        'when meta_data.json is not available',
+                    )
+                    return
+                fallback_project_id = Meta.projects.get(value=fallback_project).id
+
                 # Save to process dir available files for generating metadata
                 files_to_try = ConfigServices.getattr_from_global(
                     GlobalConfigs.PER_CONF.name,
                     'FILES_TO_GENERATE_METADATA',
+                    project_id=fallback_project_id,
                     default=['meta_data.txt'],
                 )
                 for filename in files_to_try:
@@ -203,7 +204,52 @@ class Command(BaseCommand):
                         logger.info(f'Save {filename} for generating metadata')
 
                 # Generate meta_data.json from available data
-                meta_data = MetaData.generate(process_dir)
+                meta_data = MetaData.generate(process_dir, fallback_project)
+
+            # Check project
+            project_meta_name = find_dict_in_list({'name': 'PROJECT'}, meta_data.metas)['value']
+            if fallback_project and fallback_project != project_meta_name:
+                msg = (
+                    f'Project mismatch: expected \'{project_meta_name}\' '
+                    f'(from meta data), but received \'{fallback_project}\''
+                )
+                logger.error(msg)
+                return
+
+            # Get project meta ID
+            project_id = meta_data.project_id
+            logger.info(f'project ID is {project_id}')
+
+            try:
+                ConfigServices.getattr_from_global(
+                    GlobalConfigs.PER_CONF.name,
+                    'RUN_COMPLETE_FILE',
+                    project_id,
+                )
+            except (ObjectDoesNotExist, KeyError) as e:
+                msg = modify_msg(
+                    str(e),
+                    run_url,
+                )
+                logger.error(msg)
+                return
+
+            # Extract logs base
+            logger.info('downloading run logs: %s', run_url)
+            logs_base, suffix_url = extract_logs_base(run_url, project_id)
+            if not suffix_url:
+                logger.error(
+                    f'run url doesn\'t matched project references, ignoring: {run_url}',
+                )
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=EventLog.SeverityChoices.ERR,
+                    msg=f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: URL doesn\'t match project references '
+                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                )
+                return
 
             # Filter out runs that don't fit the specified interval
             if not meta_data.check_run_period(date_from, date_to):
@@ -227,6 +273,7 @@ class Command(BaseCommand):
                     ConfigServices.getattr_from_global(
                         GlobalConfigs.PER_CONF.name,
                         'RUN_COMPLETE_FILE',
+                        project_id,
                     ),
                     run_url,
                     logger,
@@ -343,6 +390,7 @@ class Command(BaseCommand):
                 run_id=options['id'],
                 date_from=date_from,
                 date_to=date_to,
+                fallback_project=options['project'],
             )
             counter.increment()
         create_event(
