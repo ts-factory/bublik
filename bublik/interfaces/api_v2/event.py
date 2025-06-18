@@ -53,71 +53,75 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
             URLValidator()(url)
             events = events.filter(msg__contains=url)
 
-        return events.values()
+        return events
 
     def list(self, request, *args, **kwargs):
         try:
-            importrun_events = self.get_queryset()
+            events = self.get_queryset()
         except (ValueError, ValidationError) as e:
             return Response({'error': str(e)})
 
-        import_statuses = []
+        import_statuses = {
+            'received import': 'RECEIVED',
+            'started import': 'STARTED',
+            'successful import': 'SUCCESS',
+            'failed import': 'FAILURE',
+        }
+        import_events = []
 
-        for event in importrun_events:
-            event_msg = event.get('msg')
-            event_facility = event.get('facility')
-            event_id = event.get('id')
-            event_severity = event.get('severity')
-            event_timestamp = event.get('timestamp')
+        for event in events:
+            event_msg = event.msg
+
+            # check if this is an import event
+            import_status = next(
+                (
+                    import_statuses[import_msg]
+                    for import_msg in import_statuses
+                    if import_msg in event_msg
+                ),
+                None,
+            )
+            if not import_status:
+                continue
+
+            event_id = event.id
+            event_facility = event.facility
+            event_severity = event.severity
+            event_timestamp = event.timestamp
 
             msg_uri = re.search(r'(?P<url>https?://[^\s]+)', event_msg)
             found_task_id = re.search(r'-- Celery task ID (\S*)', event_msg)
             event_runtime = re.search(r'-- runtime: (\d.*) sec', event_msg)
+            event_error = re.search(r'--\s*Error:\s*(.*?)(?:\s*--|$)', event_msg)
 
             task_id = found_task_id.group(1) if found_task_id else None
             event_uri = msg_uri.group('url') if msg_uri else 'No URI'
             runtime = event_runtime.group(1) if event_runtime else None
+            error_msg = event_error.group(1) if event_error else None
 
-            if 'failed import' in event_msg:
-                event_error = re.search(r'-- Error: (.*)', event_msg)
-                error_msg = event_error.group(1) if event_error else None
-                import_statuses.append(
-                    {
-                        'event_id': event_id,
-                        'facility': event_facility,
-                        'severity': event_severity,
-                        'uri': event_uri,
-                        'celery_task': task_id,
-                        'status': 'FAILURE',
-                        'timestamp': event_timestamp,
-                        'error_msg': error_msg,
-                        'runtime': runtime,
-                    },
-                )
-            elif 'successful import' in event_msg:
-                import_statuses.append(
-                    {
-                        'event_id': event_id,
-                        'facility': event_facility,
-                        'severity': event_severity,
-                        'uri': event_uri,
-                        'celery_task': task_id,
-                        'status': 'SUCCESS',
-                        'timestamp': event_timestamp,
-                        'error_msg': None,
-                        'runtime': runtime,
-                    },
-                )
+            import_events.append(
+                {
+                    'event_id': event_id,
+                    'facility': event_facility,
+                    'severity': event_severity,
+                    'uri': event_uri,
+                    'celery_task': task_id,
+                    'status': import_status,
+                    'timestamp': event_timestamp,
+                    'error_msg': error_msg,
+                    'runtime': runtime,
+                },
+            )
 
         sort_params = request.query_params.getlist('sort')
 
         if not sort_params:
-            import_statuses = sorted(
-                import_statuses,
+            import_events = sorted(
+                import_events,
                 key=lambda item: item['timestamp'],
                 reverse=True,
             )
-            return self.get_paginated_response(self.paginate_queryset(import_statuses))
+            return self.get_paginated_response(self.paginate_queryset(import_events))
 
         sort_fields = [
             (field, order == 'desc')
@@ -145,11 +149,11 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
                 )
             return (2, str(value))
 
-        import_statuses = sorted(
-            import_statuses,
+        import_events = sorted(
+            import_events,
             key=lambda item: tuple(
                 safe_sort_key(item.get(field), reverse) for field, reverse in sort_fields
             ),
         )
 
-        return self.get_paginated_response(self.paginate_queryset(import_statuses))
+        return self.get_paginated_response(self.paginate_queryset(import_events))
