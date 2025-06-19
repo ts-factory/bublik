@@ -215,7 +215,7 @@ function install_db_packages() {
 #
   local packages=(
     postgresql
-    mlocate
+    plocate
 )
   apt update
   apt -y install "${packages[@]}"
