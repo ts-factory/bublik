@@ -17,6 +17,7 @@ BUBLIK_DOCS_GIT="https://github.com/ts-factory/bublik-docs.git"
 BUBLIK_CONF_GIT_DEFAULT="https://github.com/ts-factory/ts-rigs-sample.git"
 TE_GIT_DEFAULT="https://github.com/ts-factory/test-environment.git"
 DB_PASSWORD="EujUmUk3Ot"
+SSH_PUB=""
 SSH_SETUP=false
 OPTS=()
 
@@ -89,7 +90,13 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
 			;;
 		u) BUBLIK_USER=${OPTARG} ;;
 		d) BUBLIK_HOME=${OPTARG} ;;
-		i) SSH_PUB=${OPTARG} ;;
+		i)
+			SSH_PUB=${OPTARG}
+			if [ ! -r "${SSH_PUB}" ]; then
+				echo "Cannot read file \"${SSH_PUB}\": it does not exist or is not readable." >&2
+				exit 1
+			fi
+			;;
 		b) BUBLIK_GIT=${OPTARG} ;;
 		B) BUBLIK_UI_GIT=${OPTARG} ;;
 		I) BUBLIK_DOCS_GIT=${OPTARG} ;;
@@ -120,7 +127,7 @@ shift $(($OPTIND - 1))
 OPTS+=(-u "${BUBLIK_USER}" -W "${DB_PASSWORD}")
 
 # Check if default SSH key exists
-if test -r "${SSH_PUB}" || ssh-add -L >/dev/null 2>&1 ; then
+if test -n "${SSH_PUB}" || ssh-add -L >/dev/null 2>&1 ; then
 	SSH_SETUP=true
 else
 	echo "You need to have SSH agent or spesify public SSH key using -i option.
