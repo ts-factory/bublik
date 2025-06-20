@@ -563,6 +563,7 @@ class MetaTest(models.Model):
     meta = models.ForeignKey(
         Meta,
         on_delete=models.CASCADE,
+        related_name='meta_metatests',
         help_text='A metadata identifier.',
     )
     serial = models.IntegerField(
