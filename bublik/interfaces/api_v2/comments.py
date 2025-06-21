@@ -20,8 +20,13 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
 
     def get_queryset(self):
         test_id = self.kwargs.get('test_id')
-        if test_id is not None:
-            return MetaTest.objects.filter(meta__type='comment', test_id=test_id)
+        project_id = self.request.query_params.get('project')
+        if test_id is not None and project_id is not None:
+            return MetaTest.objects.filter(
+                meta__type='comment',
+                test_id=test_id,
+                project_id=project_id,
+            )
         return MetaTest.objects.none()
 
     def get_object(self):
@@ -38,10 +43,12 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
         '''
         test_id = self.kwargs.get('test_id')
         comment_value = request.data.get('comment')
+        project_id = request.query_params.get('project')
         serializer = self.get_serializer(
             data={
                 'test': test_id,
                 'meta': {'type': 'comment', 'value': json.dumps(comment_value)},
+                'project': project_id,
             },
         )
         serializer.update_data()
