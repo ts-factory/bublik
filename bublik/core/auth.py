@@ -83,15 +83,17 @@ def check_action_permission(action):
 
     def wrapper(func):
         @wraps(func)
-        def inner(*args, **kwargs):
+        def inner(self, request, *args, **kwargs):
+            project = request.query_params.get('project')
             not_permission_required_actions = ConfigServices.getattr_from_global(
                 GlobalConfigs.PER_CONF.name,
                 'NOT_PERMISSION_REQUIRED_ACTIONS',
+                project_id=project,
                 default=[],
             )
             if action in not_permission_required_actions:
-                return func(*args, **kwargs)
-            return auth_required(as_admin=True)(func)(*args, **kwargs)
+                return func(self, request, *args, **kwargs)
+            return auth_required(as_admin=True)(func)(self, request, *args, **kwargs)
 
         return inner
 
