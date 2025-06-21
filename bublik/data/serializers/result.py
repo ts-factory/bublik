@@ -115,7 +115,7 @@ class MetaTestSerializer(ModelSerializer):
 
     class Meta:
         model = MetaTest
-        fields = ('id', 'updated', 'meta', 'test', 'serial')
+        fields = ('id', 'updated', 'meta', 'test', 'project', 'serial')
 
     def update_data(self):
         '''
@@ -124,7 +124,10 @@ class MetaTestSerializer(ModelSerializer):
         self.initial_data['updated'] = prepare_date(datetime.now())
         if 'serial' not in self.initial_data:
             latest_serial = (
-                MetaTest.objects.filter(test=self.initial_data['test'])
+                MetaTest.objects.filter(
+                    test=self.initial_data['test'],
+                    project=self.initial_data['project'],
+                )
                 .order_by('serial')
                 .values_list('serial', flat=True)
                 .last()
@@ -144,10 +147,13 @@ class MetaTestSerializer(ModelSerializer):
         if created:
             categorize_meta(meta)
 
+        project = self.validated_data.pop('project')
+
         updated = self.validated_data.pop('updated')
         serial = self.validated_data.pop('serial')
         return MetaTest.objects.get_or_create(
             **self.validated_data,
             meta=meta,
+            project=project,
             defaults={'updated': updated, 'serial': serial},
         )

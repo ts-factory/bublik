@@ -315,6 +315,7 @@ def get_tests_comments(run_id):
         MetaTest.objects.filter(
             meta__type='comment',
             test__id__in=test_ids,
+            project_id=Meta.projects.get(metaresult__result=run_id).id,
         )
         .values('test__id')
         .annotate(

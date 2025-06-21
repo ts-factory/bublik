@@ -575,6 +575,12 @@ class MetaTest(models.Model):
         on_delete=models.CASCADE,
         help_text='The test identifier.',
     )
+    project = models.ForeignKey(
+        Meta,
+        on_delete=models.CASCADE,
+        limit_choices_to={'name': 'PROJECT', 'type': 'label'},
+        related_name='project_metatests',
+    )
 
     class Admin:
         pass

@@ -20,8 +20,13 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
 
     def get_queryset(self):
         test_id = self.kwargs.get('test_id')
-        if test_id is not None:
-            return MetaTest.objects.filter(meta__type='comment', test_id=test_id)
+        project_id = self.request.query_params.get('project')
+        if test_id is not None and project_id is not None:
+            return MetaTest.objects.filter(
+                meta__type='comment',
+                test_id=test_id,
+                project_id=project_id,
+            )
         return MetaTest.objects.none()
 
     def get_object(self):
@@ -32,16 +37,19 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
     @check_action_permission('manage_test_comments')
     def create(self, request, *args, **kwargs):
         '''
-        Add a comment to the Test object by creating MetaTest object that relates it
-        with the received or created Meta object of the comment type.
-        Request: POST tests/<test_id>/comments.
+        Add a comment to the test by creating a MetaTest object that connects the Test object
+        with the received or created Meta object of the comment type and the Meta object
+        corresponding to the project.
+        Request: POST tests/<test_id>/comments/?project=<project_id>.
         '''
         test_id = self.kwargs.get('test_id')
         comment_value = request.data.get('comment')
+        project_id = request.query_params.get('project')
         serializer = self.get_serializer(
             data={
                 'test': test_id,
                 'meta': {'type': 'comment', 'value': json.dumps(comment_value)},
+                'project': project_id,
             },
         )
         serializer.update_data()
@@ -55,10 +63,11 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
     @check_action_permission('manage_test_comments')
     def partial_update(self, request, *args, **kwargs):
         '''
-        Update a test comment by deleting the MetaTest object relates the Test object
-        with the Meta object with the old value and creating a new MetaTest object relates
-        the Test object with the received or created Meta object with the new value.
-        Request: PATCH tests/<test_id>/comments/<meta_id>.
+        Update a test comment by deleting the MetaTest object associated with the given Test,
+        the Meta object related to the project, and the old comment value, then creating
+        a new MetaTest object linked to the same Test, the same project-related Meta,
+        and a new or existing Meta object with the new comment value.
+        Request: PATCH tests/<test_id>/comments/<meta_id>/?project=<project_id>.
         '''
         # get new MetaTest object data
         metatest = self.get_object()
@@ -82,4 +91,7 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
 
     @check_action_permission('manage_test_comments')
     def destroy(self, request, *args, **kwargs):
+        '''
+        Request: DELETE tests/<test_id>/comments/<meta_id>/?project=<project_id>.
+        '''
         return super().destroy(request, *args, **kwargs)
