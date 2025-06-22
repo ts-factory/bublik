@@ -30,7 +30,7 @@ class Command(BaseCommand):
             # name validation is possible only if there is a type
             return configs.filter(name__in=options['name'])
 
-        types_names = {t: options['name'] for t in options['type']}
+        types_names = dict.fromkeys(options['type'], options['name'])
         for config_type, config_names in types_names.items():
             valid_config_names = []
             for config_name in config_names:
