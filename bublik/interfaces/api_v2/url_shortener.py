@@ -3,14 +3,17 @@
 
 from datetime import datetime
 import re
+from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bublik.core.run.utils import prepare_date
 from bublik.core.shortcuts import build_absolute_uri, serialize
+from bublik.data.models import Project
 from bublik.data.serializers import EndpointURLSerializer
 
 
@@ -30,6 +33,20 @@ class URLShortenerView(APIView):
             msg = 'The passed URL has an incorrect prefix'
             return Response({'message': msg}, status=status.HTTP_400_BAD_REQUEST)
 
+        short_url_endpoint = ''
+
+        # Get project
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        project_id = query_params.get('project', [None])[0]
+        if project_id:
+            try:
+                project_name = Project.objects.get(id=project_id).name
+                short_url_endpoint += f'{project_name}/'
+            except ObjectDoesNotExist:
+                msg = f'No project exists with the provided ID: {project_id}'
+                return Response({'message': msg}, status=status.HTTP_400_BAD_REQUEST)
+
         # Get view and endpoint
         url_tail = url.replace(url_head + '/', '', 1)
         view = re.split(r'/|\?', url_tail, maxsplit=1)[0]
@@ -43,7 +60,7 @@ class URLShortenerView(APIView):
         short_url_obj, _ = short_url_serializer.get_or_create()
 
         # Build short URL with the hash of the endpoint of the passed URL
-        short_url_endpoint = f'short/{view}/{short_url_obj.hash}'
+        short_url_endpoint += f'short/{view}/{short_url_obj.hash}'
         short_url = build_absolute_uri(request, short_url_endpoint)
 
         return Response(data={'short_url': short_url}, status=status.HTTP_200_OK)
