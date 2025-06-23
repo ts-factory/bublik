@@ -5,7 +5,6 @@ from collections import OrderedDict
 import json
 import logging
 import re
-import sys
 
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
@@ -16,8 +15,6 @@ from django.db.models.functions import Concat
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
-    display_to_date_in_numbers,
-    display_to_seconds,
     period_to_str,
 )
 from bublik.core.measurement.services import exist_measurement_results
@@ -40,7 +37,6 @@ from bublik.data.models import (
     ResultType,
     RunConclusion,
     RunStatusByUnexpected,
-    TestIterationRelation,
     TestIterationResult,
 )
 
@@ -337,19 +333,6 @@ def get_tests_comments(run_id):
     )
 
 
-def get_packages_stats(data):
-    if data['type'] != 'pkg':
-        return
-
-    yield {
-        'path': data['path'],
-        'stats': data['stats'],
-    }
-
-    for child in data['children']:
-        yield from get_packages_stats(child)
-
-
 def get_test_runs(
     start_date=None,
     finish_date=None,
@@ -461,71 +444,6 @@ def get_run_stats_summary(run_id):
     }
 
 
-def get_runs_summary(
-    start_date,
-    finish_date,
-    filter_tags=None,
-    page_options=None,
-    runs_limit=None,
-):
-    page, max_page_items = page_options if page_options else (1, sys.maxsize)
-
-    runs = get_test_runs(start_date=start_date, finish_date=finish_date, tags=filter_tags)
-
-    tags = MetaResult.objects.filter(meta__type='tag').prefetch_related('meta')
-
-    runs_count = runs.count()
-
-    limit = runs_limit if runs_limit and runs_limit > runs_count else runs_count
-
-    border_chosen = limit if page * max_page_items > limit else page * max_page_items
-
-    runs_data = []
-
-    for run in runs.all()[(page - 1) * max_page_items : border_chosen]:
-        run_data = {}
-
-        run_tags = tags.filter(result=run).order_by('meta__name')
-
-        run_data['tags_important'] = (
-            run_tags.filter(meta__category__priority__range=(1, 3))
-            .values('meta__name', 'meta__value')
-            .annotate(name=F('meta__name'), value=F('meta__value'))
-        )
-        run_data['tags'] = (
-            run_tags.filter(
-                Q(meta__category__priority__exact=4) | Q(meta__category__isnull=True),
-            )
-            .values('meta__name', 'meta__value')
-            .annotate(name=F('meta__name'), value=F('meta__value'))
-        )
-
-        run_data['start_date'] = display_to_seconds(run.start)
-        run_data['start_date_iso'] = display_to_date_in_numbers(run.start)
-
-        run_data['finish_date'] = display_to_seconds(run.finish)
-        run_data['finish_date_iso'] = display_to_date_in_numbers(run.finish)
-
-        run_data['id'] = run.id
-
-        runs_data.append(run_data)
-
-    return runs_count, runs_data
-
-
-def get_test_path(result_id):
-    '''
-    Get path to the test with result_id.
-    '''
-    packages = (
-        TestIterationRelation.objects.filter(test_iteration__testiterationresult=result_id)
-        .order_by('-depth')
-        .values('parent_iteration__test__name')
-    )
-
-    return '/'.join(package['parent_iteration__test__name'] for package in packages)
-
-
 def get_expected_results(result):
     expected_results = []
     for expectation in result.expectations.all():
@@ -590,131 +508,6 @@ def get_expected_results(result):
 
         expected_results.append(expected_result)
     return expected_results
-
-
-def generate_stats(child_results, unexpected_result_type):
-    iterations_stats = []
-    for child_result in child_results:
-        child_id = child_result.id
-        test_name = child_result.iteration.test.name
-        test_stats = {
-            'iteration_id': child_result.iteration.id,
-            'result_id': child_id,
-            'hash': child_result.iteration.hash,
-            'name': test_name,
-            'history_params': None,
-            'has_measurements': None,
-            'obtained_results': {'result': None, 'verdicts': []},
-            'expected_results': [],
-            'comment': None,
-            'parameters': None,
-        }
-
-        meta_results = child_result.meta_results.filter(meta__type='result')
-        if meta_results.exists():
-            test_stats['obtained_results']['result'] = meta_results.first().meta.value
-
-            # If the test executed as expect,
-            # or the obtained result is different from the one passed as a filter,
-            # skip the iteration
-            if unexpected_result_type:
-                unexpected = child_result.meta_results.filter(meta__type='err').exists()
-                if (
-                    not unexpected
-                    or unexpected_result_type
-                    != test_stats['obtained_results']['result'].lower()
-                ):
-                    continue
-
-        meta_results = child_result.meta_results.filter(meta__type='verdict')
-        if meta_results.exists():
-            test_stats['obtained_results']['verdicts'] = list(
-                meta_results.all().order_by('serial').values_list('meta__value', flat=True),
-            )
-
-        test_stats['expected_results'] = get_expected_results(child_result)
-
-        meta_results = child_result.meta_results.filter(meta__type='note')
-        if meta_results.exists():
-            test_stats['comment'] = meta_results.first().meta.value
-
-        parameters = (
-            child_result.iteration.test_arguments.all()
-            .values_list('name', 'value')
-            .order_by('name')
-        )
-
-        test_stats['parameters'] = dict(parameters)
-
-        # Due to a circular import
-        from bublik.core.history.v1.utils import default_history_params
-
-        params = default_history_params(
-            start=child_result.start.date(),
-            add_params={
-                'test_name': test_name,
-                'parameters': settings.QUERY_DELIMITER.join(
-                    key_value_list_transforming(parameters, settings.KEY_VALUE_DELIMITER),
-                ),
-            },
-        )
-
-        test_stats['history_params'] = params
-
-        is_measurements = exist_measurement_results(child_result)
-        test_stats['has_measurements'] = is_measurements
-
-        iterations_stats.append(test_stats)
-    return iterations_stats
-
-
-def get_all_unexpected_results_related(result):
-    tests = get_children(
-        parent=result,
-        q=Q(iteration__hash__isnull=False, meta_results__meta__type='err'),
-    )
-    packages = get_children(parent=result, q=Q(iteration__hash__isnull=True))
-    for pkg in packages:
-        tests |= get_all_unexpected_results_related(pkg)
-    return tests.all()
-
-
-def get_iterations_stats(result_id, unexpected_result_type):
-    '''This function gives statistics of unexpected results for a given package
-    or session. Since it may not be a direct parent of unexpected test results
-    its desendants and their desendants are considering.
-    '''
-    if not unexpected_result_type:
-        return None
-    result = TestIterationResult.objects.get(id=result_id)
-    unexpected_results = get_all_unexpected_results_related(result)
-    return {'results': generate_stats(unexpected_results, unexpected_result_type)}
-
-
-def get_child_iterations_stats(parent_id, test_name, period, unexpected_result_type=None):
-    '''This function gives statistics for a given test set.'''
-    parent_test_result = get_or_none(TestIterationResult.objects, pk=parent_id)
-    if not parent_test_result:
-        return None
-
-    finish_filter = {}
-    if period[1] is not None:
-        finish_filter['finish__lte'] = period[1]
-
-    child_results = (
-        TestIterationResult.objects.filter(
-            parent_package=parent_test_result,
-            iteration__test__name=test_name,
-            iteration__hash__isnull=False,
-            start__gte=period[0],
-            **finish_filter,
-        )
-        .order_by('start')
-        .select_related('iteration__test')
-        .all()
-    )
-
-    return {'results': generate_stats(child_results, unexpected_result_type)}
 
 
 def get_nok_results_distribution(run):
