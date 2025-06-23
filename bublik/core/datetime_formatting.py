@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import pytz
-
 from datetime import datetime
 
 from django.conf import settings
 from django.utils import timezone
+import pytz
 
 
 '''
