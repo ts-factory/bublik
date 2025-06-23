@@ -531,19 +531,19 @@ def get_expected_results(result):
     for expectation in result.expectations.all():
         meta_expect = expectation.expectmeta_set.all()
         expected_result = {
-            'result': None,
-            'verdicts': [],
+            'result_type': None,
+            'verdict': [],
             'key': [],
         }
 
         meta_expect_results = meta_expect.filter(meta__type='result')
         if not meta_expect_results.exists():
             continue
-        expected_result['result'] = meta_expect_results.first().meta.value
+        expected_result['result_type'] = meta_expect_results.first().meta.value
 
         meta_expect_results = meta_expect.filter(meta__type='verdict_expected')
         if meta_expect_results.exists():
-            expected_result['verdicts'] = list(
+            expected_result['verdict'] = list(
                 meta_expect_results.all()
                 .order_by('serial')
                 .values_list('meta__value', flat=True),
@@ -739,15 +739,8 @@ def generate_results_details(test_results):
         iteration_id = iteration.id
 
         # Handle expected result
-        expected_result_data = {}
         expected_results = get_expected_results(test_result)
-        if expected_results:
-            expected_result = expected_results[0]
-            expected_result_data = {
-                'result_type': expected_result['result'],
-                'verdict': expected_result['verdicts'],
-                'key': expected_result['key'],
-            }
+        expected_result_data = expected_results[0] if expected_results else {}
 
         # Handle obtained result and comments
         result_type = None
