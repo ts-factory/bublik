@@ -450,8 +450,8 @@ def get_expected_results(result):
         meta_expect = expectation.expectmeta_set.all()
         expected_result = {
             'result_type': None,
-            'verdict': [],
-            'key': [],
+            'verdicts': [],
+            'keys': [],
         }
 
         meta_expect_results = meta_expect.filter(meta__type='result')
@@ -461,7 +461,7 @@ def get_expected_results(result):
 
         meta_expect_results = meta_expect.filter(meta__type='verdict_expected')
         if meta_expect_results.exists():
-            expected_result['verdict'] = list(
+            expected_result['verdicts'] = list(
                 meta_expect_results.all()
                 .order_by('serial')
                 .values_list('meta__value', flat=True),
@@ -476,7 +476,7 @@ def get_expected_results(result):
                 key_info_part = key_string.partition(ref)[0]
                 if key_info_part:
                     key_part = {'name': key_info_part, 'url': None}
-                    expected_result['key'].append(key_part)
+                    expected_result['keys'].append(key_part)
 
                 # Parse the ref
                 ref_type, ref_tail = re.search(r'ref://(.*)/(.*)', ref).group(1, 2)
@@ -496,7 +496,7 @@ def get_expected_results(result):
                     ref_url = f'{ref_uri}{ref_tail}'
                     key_part['url'] = ref_url
 
-                expected_result['key'].append(key_part)
+                expected_result['keys'].append(key_part)
 
                 # Trim the key string by the current ref
                 key_string = key_string.partition(ref)[2]
@@ -504,7 +504,7 @@ def get_expected_results(result):
             # Add what is left in the key string
             if key_string:
                 key_part = {'name': key_string, 'url': None}
-                expected_result['key'].append(key_part)
+                expected_result['keys'].append(key_part)
 
         expected_results.append(expected_result)
     return expected_results
@@ -536,7 +536,7 @@ def generate_results_details(test_results):
 
         # Handle obtained result and comments
         result_type = None
-        verdict = []
+        verdicts = []
         artifacts = []
         comments = []
         requirements = []
@@ -545,7 +545,7 @@ def generate_results_details(test_results):
             if meta_result.meta.type == 'result':
                 result_type = meta_result.meta.value
             elif meta_result.meta.type == 'verdict':
-                verdict.append(meta_result.meta.value)
+                verdicts.append(meta_result.meta.value)
             elif meta_result.meta.type == 'artifact':
                 artifacts.append(meta_result.meta.value)
             elif meta_result.meta.type == 'note':
@@ -555,7 +555,7 @@ def generate_results_details(test_results):
 
         obtained_result_data = {
             'result_type': result_type,
-            'verdict': verdict,
+            'verdicts': verdicts,
         }
 
         # Handle parameters
