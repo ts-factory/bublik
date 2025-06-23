@@ -47,8 +47,7 @@ def prepare_list_results(
 
         # Handle expected result
         test_result_obj = TestIterationResult.objects.get(id=result_id)
-        expected_results = get_expected_results(test_result_obj)
-        expected_result_data = expected_results[0] if expected_results else {}
+        expected_results_data = get_expected_results(test_result_obj)
 
         # Handle obtained result
         obtained_result_data = {
@@ -67,7 +66,7 @@ def prepare_list_results(
             'finish_date': display_to_milliseconds(result_finish),
             'duration': get_duration(result_start, result_finish),
             'obtained_result': obtained_result_data,
-            'expected_result': expected_result_data,
+            'expected_results': expected_results_data,
             'important_tags': important_tags.get(run_id, []),
             'relevant_tags': relevant_tags.get(run_id, []),
             'metadata': metadata,

@@ -532,8 +532,7 @@ def generate_results_details(test_results):
         iteration_id = iteration.id
 
         # Handle expected result
-        expected_results = get_expected_results(test_result)
-        expected_result_data = expected_results[0] if expected_results else {}
+        expected_results_data = get_expected_results(test_result)
 
         # Handle obtained result and comments
         result_type = None
@@ -573,7 +572,7 @@ def generate_results_details(test_results):
             'iteration_id': iteration_id,
             'start': test_result.start,
             'obtained_result': obtained_result_data,
-            'expected_result': expected_result_data,
+            'expected_results': expected_results_data,
             'artifacts': artifacts,
             'parameters': parameters_list,
             'comments': comments,
