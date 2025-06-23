@@ -53,10 +53,6 @@ def display_to_date_in_words(dt):
     return dt.strftime(DISPLAY['to_date_in_words']) if dt else None
 
 
-def display_to_seconds(dt):
-    return dt.strftime(DISPLAY['to_seconds']) if dt else None
-
-
 def display_to_milliseconds(dt):
     return dt.strftime(DISPLAY['to_microseconds'])[:-3] if dt else None
 
