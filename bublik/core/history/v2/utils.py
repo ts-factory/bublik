@@ -52,7 +52,7 @@ def prepare_list_results(
         # Handle obtained result
         obtained_result_data = {
             'result_type': results[result_id],
-            'verdict': verdicts.get(result_id, []),
+            'verdicts': verdicts.get(result_id, []),
         }
 
         # Handle parameters
