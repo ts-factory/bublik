@@ -30,7 +30,7 @@ class MeasurementViewSet(GenericViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
-    def by_result_ids(self, request):
+    def trend_charts(self, request):
         result_ids = request.data.get('result_ids', None)
         if not result_ids:
             return Response(
