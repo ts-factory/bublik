@@ -14,6 +14,7 @@ from bublik.core.run.utils import prepare_date
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
     GlobalConfigs,
+    Meta,
     MetaResult,
     Reference,
     ResultType,
@@ -253,13 +254,16 @@ def run_status_default(status_key):
 
 
 def set_run_status(run, status_key):
+    project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
     status_meta_name = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
+        project_id,
     )
     status_value = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         status_key,
+        project_id,
         default=run_status_default(status_key),
     )
     if status_meta_name:
@@ -334,7 +338,14 @@ def add_expected_result(
         expect_metas.append({'meta': {'type': 'tag_expression', 'value': tag_expression}})
 
     if key is not None:
-        expect_metas.extend(prepare_expected_key(key))
+        run = iteration_result.test_run if iteration_result.test_run else iteration_result
+        project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
+        expect_metas.extend(
+            prepare_expected_key(
+                key,
+                project_id,
+            ),
+        )
 
     if notes is not None:
         if isinstance(notes, (list, tuple, set)):

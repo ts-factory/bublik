@@ -315,6 +315,7 @@ def get_tests_comments(run_id):
         MetaTest.objects.filter(
             meta__type='comment',
             test__id__in=test_ids,
+            project_id=Meta.projects.get(metaresult__result=run_id).id,
         )
         .values('test__id')
         .annotate(
@@ -527,6 +528,8 @@ def get_test_path(result_id):
 
 
 def get_expected_results(result):
+    run = result.test_run if result.test_run else result
+    project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
     expected_results = []
     for expectation in result.expectations.all():
         meta_expect = expectation.expectmeta_set.all()
@@ -571,6 +574,7 @@ def get_expected_results(result):
                 logs = ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
+                    project_id,
                     default={},
                 )
                 if ref_type in logs and ref_tail:
@@ -734,6 +738,8 @@ def generate_results_details(test_results):
     # Gather all results details
     results_details = []
     for test_result in test_results:
+        run = test_result.root
+        project = run.meta_results.get(meta__in=Meta.projects).meta
         result_id = test_result.id
         iteration = test_result.iteration
         iteration_id = iteration.id
@@ -783,7 +789,9 @@ def generate_results_details(test_results):
         data = {
             'name': iteration.test.name,
             'result_id': result_id,
-            'run_id': test_result.root.id,
+            'run_id': run.id,
+            'project_id': project.id,
+            'project_name': project.value,
             'iteration_id': iteration_id,
             'start': test_result.start,
             'obtained_result': obtained_result_data,
@@ -806,9 +814,11 @@ def generate_result_details(test_result):
 
 
 def get_run_status(run):
+    project_id = Meta.projects.get(metaresult__result=run).id
     status_meta_name = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
+        project_id,
     )
     status_meta = MetaResult.objects.filter(result=run, meta__name=status_meta_name).first()
     if status_meta:
@@ -818,7 +828,8 @@ def get_run_status(run):
 
 def get_run_status_by_nok(run):
     stats = get_run_stats(run.id)
-    return RunStatusByUnexpected.identify(stats)
+    project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
+    return RunStatusByUnexpected.identify(stats, project_id)
 
 
 def get_driver_unload(run):
@@ -828,6 +839,7 @@ def get_driver_unload(run):
 
 def get_run_conclusion(run):
     run_id = run.id
+    project_id = run.meta_results.get(meta__in=Meta.projects).meta.id
     status = get_run_status(run_id)
     compromised = is_run_compromised(run)
     status_by_nok, unexpected_percent = get_run_status_by_nok(run)
@@ -838,24 +850,28 @@ def get_run_conclusion(run):
         unexpected_percent,
         compromised,
         driver_unload,
+        project_id,
     )
 
 
 def generate_all_run_details(run):
     logger.debug('[run_details]: enter')
     run_id = run.id
+    project = run.meta_results.get(meta__in=Meta.projects).meta
+
     conclusion, conclusion_reason = get_run_conclusion(run)
     important_tags, relevant_tags = get_tags_by_runs([run_id])
     category_names = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'SPECIAL_CATEGORIES',
+        project.id,
         default=[],
     )
     run_meta_results = run.meta_results.select_related('meta')
     q = MetaResultsQuery(run_meta_results)
 
     branches = q.metas_query('branch')
-    revisions = build_revision_references(q.metas_query('revision'))
+    revisions = build_revision_references(q.metas_query('revision'), project.id)
     labels = q.labels_query(excluding_category_names=category_names)
     categories = get_metas_by_category(run_meta_results, category_names)
     for category, category_values in categories.items():
@@ -863,6 +879,8 @@ def generate_all_run_details(run):
 
     logger.debug('[run_details]: preparing resulting dict')
     return {
+        'project_id': project.id,
+        'project_name': project.value,
         'id': run_id,
         'start': run.start,
         'finish': run.finish,
@@ -889,10 +907,13 @@ def generate_runs_details(runs):
     runs_data = []
     for run in runs:
         run_id = run.id
+        project = run.meta_results.get(meta__name='PROJECT').meta
         conclusion, conclusion_reason = get_run_conclusion(run)
         runs_data.append(
             {
                 'id': run_id,
+                'project_id': project.id,
+                'project_name': project.value,
                 'start': run.start,
                 'finish': run.finish,
                 'duration': run.duration,

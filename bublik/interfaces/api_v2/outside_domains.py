@@ -21,42 +21,50 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
     filter_backends: typing.ClassVar[list] = []
 
     def list(self, request):
+        project_id = request.query_params.get('project')
         return Response(
             {
                 'logs': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'LOGS_BASES',
+                    project_id,
                 ),
                 'issues': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
+                    project_id,
                     default={},
                 ),
                 'revisions': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'REVISIONS',
+                    project_id,
                 ),
             },
         )
 
     @action(detail=False, methods=['get'])
     def logs(self, request):
+        project_id = request.query_params.get('project')
         return Response(
             {
                 'logs': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'LOGS_BASES',
+                    project_id,
                 ),
             },
         )
 
     @action(detail=False, methods=['get'])
     def issues(self, request):
+        project_id = request.query_params.get('project')
         return Response(
             {
                 'issues': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
+                    project_id,
                     default={},
                 ),
             },
@@ -64,11 +72,13 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=False, methods=['get'])
     def revisions(self, request):
+        project_id = request.query_params.get('project')
         return Response(
             {
                 'revisions': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'REVISIONS',
+                    project_id,
                 ),
             },
         )

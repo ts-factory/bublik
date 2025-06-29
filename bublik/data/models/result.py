@@ -63,13 +63,14 @@ class RunStatusByUnexpected:
         return [value for name, value in vars(cls).items() if name.isupper()]
 
     @classmethod
-    def identify(cls, run_stats):
+    def identify(cls, run_stats, project_id):
         total = run_stats['total']
         unexpected = run_stats['unexpected']
         unexpected_percent = round(unexpected / total * 100) if total else 0
         left_border, right_border = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_BY_NOK_BORDERS',
+            project_id,
             default=(20.0, 80.0),
         )
 
@@ -105,6 +106,7 @@ class RunConclusion:
         unexpected_percent,
         run_compromised,
         driver_unload,
+        project_id,
     ):
         # conclusion by compromised meta
         if run_compromised:
@@ -122,6 +124,7 @@ class RunConclusion:
         run_status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
+            project_id,
         )
         if run_status in conclusions_by_statuses:
             reason = f'{run_status_meta} reported by TE is {run_status}'
@@ -560,6 +563,7 @@ class MetaTest(models.Model):
     meta = models.ForeignKey(
         Meta,
         on_delete=models.CASCADE,
+        related_name='meta_metatests',
         help_text='A metadata identifier.',
     )
     serial = models.IntegerField(
@@ -570,6 +574,12 @@ class MetaTest(models.Model):
         Test,
         on_delete=models.CASCADE,
         help_text='The test identifier.',
+    )
+    project = models.ForeignKey(
+        Meta,
+        on_delete=models.CASCADE,
+        limit_choices_to={'name': 'PROJECT', 'type': 'label'},
+        related_name='project_metatests',
     )
 
     class Admin:

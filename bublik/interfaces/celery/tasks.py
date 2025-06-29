@@ -16,7 +16,7 @@ from bublik import settings
 from bublik.core.logging import parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
-from bublik.data.models import EventLog, TestIterationResult
+from bublik.data.models import EventLog, Meta, TestIterationResult
 from bublik.interfaces.celery import app
 
 
@@ -118,6 +118,7 @@ def importruns(
     param_from=None,
     param_to=None,
     requesting_host=None,
+    param_project=None,
 ):
 
     task_id = self.request.id
@@ -128,7 +129,7 @@ def importruns(
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}&force={param_force}',
+            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}&force={param_force}&project={param_project}',
         )
 
         if param_from:
@@ -137,6 +138,8 @@ def importruns(
             cmd_import += ['--to', param_to]
         if param_url:
             cmd_import += ['--id', task_id]
+        if param_project:
+            cmd_import += ['--project', param_project]
         if param_force:
             cmd_import += ['--force', param_force]
 
@@ -171,10 +174,21 @@ def importruns(
         add_to_message = None
 
         try:
-            errors = parse_log(r'"ERROR"', logpath)
+            errors, project_id = parse_log(r'"ERROR"', r'project ID is (\d+)', logpath)
+            if not project_id and param_project:
+                project_meta = Meta.projects.filter(value=param_project)
+                if project_meta:
+                    project_id = project_meta.first().id
+
             if errors:
                 add_to_message = f'Preview:\n{errors}'
-                send_importruns_failed_mail(requesting_host, task_id, param_url, add_to_message)
+                send_importruns_failed_mail(
+                    requesting_host,
+                    project_id,
+                    task_id,
+                    param_url,
+                    add_to_message,
+                )
 
         except Exception as e:
             logger.warning(e)
