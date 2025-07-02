@@ -9,7 +9,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
 
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, User, UserRoles
+from bublik.core.config.services import ConfigServices
+from bublik.data.models import GlobalConfigs, User, UserRoles
 from bublik.settings import SIMPLE_JWT
 
 
@@ -82,19 +83,17 @@ def check_action_permission(action):
 
     def wrapper(func):
         @wraps(func)
-        def inner(*args, **kwargs):
-            per_conf = Config.objects.get(
-                type=ConfigTypes.GLOBAL,
-                name=GlobalConfigs.PER_CONF.name,
-                is_active=True,
-            )
-            not_permission_required_actions = per_conf.content.get(
+        def inner(self, request, *args, **kwargs):
+            project = request.query_params.get('project')
+            not_permission_required_actions = ConfigServices.getattr_from_global(
+                GlobalConfigs.PER_CONF.name,
                 'NOT_PERMISSION_REQUIRED_ACTIONS',
-                [],
+                project_id=project,
+                default=[],
             )
             if action in not_permission_required_actions:
-                return func(*args, **kwargs)
-            return auth_required(as_admin=True)(func)(*args, **kwargs)
+                return func(self, request, *args, **kwargs)
+            return auth_required(as_admin=True)(func)(self, request, *args, **kwargs)
 
         return inner
 

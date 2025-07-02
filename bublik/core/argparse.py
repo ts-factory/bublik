@@ -8,6 +8,7 @@ import json
 from urllib.parse import urlsplit
 
 from bublik.core.run.filter_expression import TestRunMeta
+from bublik.data.models import Meta
 
 
 def parser_type_date(s):
@@ -37,6 +38,15 @@ def parser_type_force(s):
         msg = f'Invalid force parameter format: {s}'
         raise ArgumentTypeError(msg)
 
+    return s
+
+
+def parser_type_project(s):
+    try:
+        Meta.projects.get(value=s)
+    except Meta.DoesNotExist as mdne:
+        msg = f'The project does not exist: {s}. Create it to import logs.'
+        raise ArgumentTypeError(msg) from mdne
     return s
 
 

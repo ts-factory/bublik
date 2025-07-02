@@ -68,6 +68,10 @@ revision, branch, repo, log, import, count, objective, comment.''',
             value__in=['KILLED', 'CORED', 'FAKED', 'INCOMPLETE'],
         )
 
+    @cachedclassproperty
+    def projects(self):
+        return Meta.objects.filter(type='label', name='PROJECT')
+
 
 class MetaCategory(models.Model):
     '''

@@ -42,6 +42,7 @@ api_v2_router.register(
     basename='tests_comments',
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
+api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
 
 ### URL patterns mounting ###
 urlpatterns = [
@@ -75,7 +76,10 @@ urlpatterns = [
     path('api/v2/', include((api_v2_router.urls, 'api-v2'), namespace='api-v2')),
     # Redirects
     path('', main_api.redirect_root),
-    re_path(r'short/(?P<view_endpoint_hash>[A-Za-z0-9+/=]+)$', main_api.redirect_short),
+    re_path(
+        r'^(?:[\w\-@.+=]+/)?short/(?P<view_endpoint_hash>[A-Za-z0-9+/=]+)$',
+        main_api.redirect_short,
+    ),
     path('dashboard/', main_api.redirect_dashboard),
     path('v1/runs_stats/', main_api.redirect_runs_stats),
     path('v1/flower/', main_api.redirect_flower, name='flower_site'),
