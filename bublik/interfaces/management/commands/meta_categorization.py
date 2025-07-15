@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import configparser
 from datetime import datetime
 from itertools import chain
 import logging
@@ -31,22 +30,19 @@ class Command(BaseCommand):
             "type": "label",
             "category": "Configuration",
             "set-comment": "Label with category Configuration",
-            "set-pattern": "CFG"
+            "set-patterns": ["CFG"]
         },
         {
             "type": "tag",
             "category": "linux",
             "set-comment": "Linux major-minor version",
+            "set-patterns": ["linux-mm$"],
             "set-priority": 3
         },
         {
             "type": "tag",
             "category": "irrelevant_tag",
             "set-priority": 10
-        },
-        {
-            "name": "linux-mm",
-            "set-category": "linux"
         }
     ]
     '''
@@ -65,93 +61,61 @@ class Command(BaseCommand):
             help='Names of the map configs',
         )
 
-    def __resolve_mapping(self, configs_content):
-        mapping = {'categories': {}, 'patterns': []}
-
+    @transaction.atomic
+    def create_and_assign_meta_categories(self, configs_content):
         for item in configs_content:
             logger.debug(f'item: {item}')
 
-            type = item.get('type', None)
-            category = item.get('category', None)
-            name = item.get('name', None)
-            set_priority = item.get('set-priority', None)
-            set_comment = item.get('set-comment', None)
-            set_category = item.get('set-category', None)
-            set_pattern = item.get('set-pattern', None)
+            category = item['category']
+            type = item['type']
+            priority = item.get('set-priority', None)
+            comment = item.get('set-comment', None)
+            patterns = item.get('set-patterns', [])
 
-            logger.debug(f'type: {type}')
             logger.debug(f'category: {category}')
-            logger.debug(f'name: {name}')
-            logger.debug(f'set_priority: {set_priority}')
-            logger.debug(f'set_category: {set_category}')
-            logger.debug(f'set_comment: {set_comment}')
-            logger.debug(f'set_pattern: {set_pattern}')
+            logger.debug(f'type: {type}')
+            logger.debug(f'set_priority: {priority}')
+            logger.debug(f'set_comment: {comment}')
+            logger.debug(f'set_patterns: {patterns}')
 
-            pattern = None
+            if comment:
+                comment = comment.strip()
 
-            if set_pattern is not None:
-                pattern = f'{set_pattern}'
-
-            if name:
-                pattern = f'{name}$'
-
-            if set_comment:
-                set_comment = set_comment.strip()
-
-            if category and not set_priority:
-                set_priority = self.DEFAULT_META_PRIORITY
+            if not priority:
+                priority = self.DEFAULT_META_PRIORITY
                 logger.info(
                     f'no priority is specified for {item}, '
                     f'defaulting to {self.DEFAULT_META_PRIORITY}',
                 )
 
-            if category and type:
-                if category in mapping['categories']:
-                    msg = f'the category has already been declared: {category}'
-                    raise configparser.Error(
-                        msg,
-                    )
-                logging.debug(f'adding as a category: {category}')
-                mapping['categories'][category] = MetaCategory.objects.create(
-                    name=category,
-                    priority=set_priority,
-                    comment=set_comment,
-                    type=type,
-                )
-                if set_pattern:
-                    logging.debug(f'adding as a pattern: {pattern}')
-                    mapping['patterns'].append((pattern, category))
-            if name:
-                logging.debug(f'adding as a pattern: {name}')
-                mapping['patterns'].append((pattern, set_category))
-
-        return mapping
-
-    @transaction.atomic
-    def __apply_mapping(self, mapping):
-        for category in mapping['categories'].values():
-            logger.debug(f'creating category: {category.name}')
-            category.save()
-
-        for pattern, set_category in mapping['patterns']:
-            MetaPattern.objects.create(
-                pattern=pattern,
-                category=mapping['categories'][set_category],
+            logger.debug(f'creating category: {category}')
+            category_obj = MetaCategory.objects.create(
+                name=category,
+                priority=priority,
+                comment=comment,
+                type=type,
             )
-            type = mapping['categories'][set_category].type
 
-            for meta in Meta.objects.filter(type=type, name__regex=pattern):
-                mapping['categories'][set_category].metas.add(meta)
+            for pattern in patterns:
+                logger.debug(f'creating category pattern: {pattern}')
+                MetaPattern.objects.create(
+                    pattern=pattern,
+                    category=category_obj,
+                )
 
-            logger.debug(f'linking pattern to its related category: {pattern} - {set_category}')
+                for meta in Meta.objects.filter(type=type, name__regex=pattern):
+                    category_obj.metas.add(meta)
 
     def handle(self, *args, **options):
         start_time = datetime.now()
-        logger.info('removing all the already existing priority mappings in the database')
+
+        logger.info(
+            'removing all meta categories',
+        )
         MetaCategory.objects.all().delete()
-        MetaPattern.objects.all().delete()
 
         config_names = options['config_names']
+
         logger.debug(
             f'retrieving configs: {config_names}',
         )
@@ -161,23 +125,24 @@ class Command(BaseCommand):
                 config = Config.objects.get_global(config_name)
                 configs_content.append(config.content)
             except ObjectDoesNotExist:
-                logger.warning(f'{config_name} global configuration object doesn\'t exist')
+                logger.warning(
+                    f'{config_name} configuration object doesn\'t exist',
+                )
         configs_content = list(chain(*configs_content))
+
         if not configs_content:
             logger.warning(
                 'meta categorization skipped due to empty configuration content',
             )
         else:
-            mapping = None
             try:
                 logger.debug(
-                    f'reading configs: {config_names}',
+                    'create and assign meta categories',
                 )
-                mapping = self.__resolve_mapping(configs_content)
-            except configparser.ParsingError as e:
-                logger.critical(f'unable to parse config content: {e}')
+                self.create_and_assign_meta_categories(configs_content)
+            except Exception as e:
+                logger.critical(f'failed to create and assign meta categories: {e}')
             else:
-                self.__apply_mapping(mapping)
                 set_tags_categories_cache()
                 logger.debug('tags categories cache was updated')
 
