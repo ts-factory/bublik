@@ -35,44 +35,23 @@
                 "type": ["string", "null"]
             }
         },
-        "anyOf": [
+        "oneOf": [
             {
-                "required": ["name"],
+                "required": ["name", "set-category"],
                 "not": {
-                    "required": ["category"]
-                },
-                "then": {
-                    "required": ["set-category"]
+                    "anyOf": [
+                        { "required": ["category"] },
+                        { "required": ["set-pattern"] }
+                    ]
                 }
             },
             {
                 "required": ["category"],
                 "not": {
-                    "required": ["name"]
-                }
-            }
-        ],
-        "allOf": [
-            {
-                "not": {
-                    "required": ["set-pattern", "name"]
-                }
-            },            {
-                "not": {
-                    "required": ["set-pattern", "set-category"]
-                }
-            },
-            {
-                "not": {
-                    "required": ["category", "set-category"]
-                }
-            },
-            {
-                "if": {
-                    "required": ["set-category"]
-                },
-                "then": {
-                    "required": ["name"]
+                    "anyOf": [
+                        { "required": ["name"] },
+                        { "required": ["set-category"] }
+                    ]
                 }
             }
         ],
