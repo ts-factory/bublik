@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+from collections import Counter
 from datetime import datetime
 import json
 
@@ -116,6 +117,20 @@ class ConfigSerializer(ModelSerializer):
                 jeve_msg = jeve.message[0].lower() + jeve.message[1:]
                 msg = f'Invalid format: {jeve_msg}'
                 raise serializers.ValidationError(msg) from jeve
+
+        if data['type'] == ConfigTypes.GLOBAL and data['name'] == GlobalConfigs.META.name:
+            category_duplicates = [
+                category
+                for category, count in Counter(
+                    item['category'] for item in content if item.get('category') is not None
+                ).items()
+                if count > 1
+            ]
+            if category_duplicates:
+                msg = (
+                    f'Invalid input: duplicate \'category\' values found: {category_duplicates}'
+                )
+                raise serializers.ValidationError(msg)
         return content
 
     @classmethod
