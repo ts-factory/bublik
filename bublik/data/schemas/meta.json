@@ -10,9 +10,6 @@
             "category": {
                 "type": ["string", "null"]
             },
-            "name": {
-                "type": ["string", "null"]
-            },
             "set-priority": {
                 "anyOf": [
                     {
@@ -28,33 +25,15 @@
             "set-comment": {
                 "type": ["string", "null"]
             },
-            "set-category": {
-                "type": ["string", "null"]
-            },
-            "set-pattern":  {
-                "type": ["string", "null"]
+            "set-patterns":  {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "uniqueItems": true
+                }
             }
         },
-        "oneOf": [
-            {
-                "required": ["name", "set-category"],
-                "not": {
-                    "anyOf": [
-                        { "required": ["category"] },
-                        { "required": ["set-pattern"] }
-                    ]
-                }
-            },
-            {
-                "required": ["category"],
-                "not": {
-                    "anyOf": [
-                        { "required": ["name"] },
-                        { "required": ["set-category"] }
-                    ]
-                }
-            }
-        ],
+        "required": ["category", "type"],
         "additionalProperties": false
     }
 }
