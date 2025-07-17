@@ -51,9 +51,9 @@ class Command(BaseCommand):
     ]
     '''
 
-    help = 'Assign a class and a priority to the tags in the database'
+    help = 'Assign a class and a priority to the metas in the database'
 
-    DEFAULT_TAG_PRIORITY = 4
+    DEFAULT_META_PRIORITY = 4
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -99,10 +99,10 @@ class Command(BaseCommand):
                 set_comment = set_comment.strip()
 
             if category and not set_priority:
-                set_priority = self.DEFAULT_TAG_PRIORITY
+                set_priority = self.DEFAULT_META_PRIORITY
                 logger.info(
                     f'no priority is specified for {item}, '
-                    f'defaulting to {self.DEFAULT_TAG_PRIORITY}',
+                    f'defaulting to {self.DEFAULT_META_PRIORITY}',
                 )
 
             if category and type:
