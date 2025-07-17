@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from contextlib import contextmanager
+
 from django.core.cache import caches
 from django.core.management import call_command
 from django.db.models.signals import post_delete, post_save, pre_delete
@@ -47,3 +49,12 @@ def categorize_metas_on_config_change(sender, instance, **kwargs):
 def delete_orphan_meta(sender, instance, **kwargs):
     if not MetaTest.objects.filter(meta_id=instance.meta_id).exists():
         Meta.objects.filter(id=instance.meta_id).delete()
+
+
+@contextmanager
+def signal_disabled(signal, receiver, sender):
+    signal.disconnect(receiver, sender=sender)
+    try:
+        yield
+    finally:
+        signal.connect(receiver, sender=sender)

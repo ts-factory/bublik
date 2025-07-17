@@ -5,6 +5,8 @@ from enum import Enum
 import logging
 import traceback
 
+from django.db.models.signals import post_save
+
 from bublik.core.config.reformatting.piplines import (
     MetaConfigReformatPipeline,
     PerConfConfigReformatPipeline,
@@ -12,8 +14,9 @@ from bublik.core.config.reformatting.piplines import (
     ReportConfigReformatPipeline,
 )
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import ConfigTypes, GlobalConfigs
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.serializers import ConfigSerializer
+from bublik.interfaces.signals import categorize_metas_on_config_change, signal_disabled
 
 
 logger = logging.getLogger('')
@@ -36,7 +39,8 @@ def update_config_content(config, new_content):
     )
     serializer.is_valid(raise_exception=True)
     config.content = serializer.validated_data['content']
-    config.save()
+    with signal_disabled(post_save, categorize_metas_on_config_change, sender=Config):
+        config.save()
 
 
 class ConfigReformatStatuses(str, Enum):
