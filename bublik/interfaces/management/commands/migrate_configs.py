@@ -8,6 +8,7 @@ import os
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.db.models.signals import post_save
 
 from bublik.core.utils import convert_to_int_if_digit
 from bublik.data.models import (
@@ -16,6 +17,7 @@ from bublik.data.models import (
     GlobalConfigs,
 )
 from bublik.data.serializers import ConfigSerializer
+from bublik.interfaces.signals import categorize_metas_on_config_change, signal_disabled
 
 
 def any_config_file_exists(config_file_names):
@@ -71,15 +73,16 @@ class Command(BaseCommand):
             self.stdout.write(f'{config_name}: already migrated!')
         else:
             # create a configuration object, skipping content validation
-            ConfigSerializer.initialize(
-                {
-                    'type': ConfigTypes.GLOBAL,
-                    'name': config_name,
-                    'description': config_description,
-                    'content': config_content,
-                },
-            )
-            self.stdout.write(self.style.SUCCESS(f'{config_name}: succesfully migrated!'))
+            with signal_disabled(post_save, categorize_metas_on_config_change, sender=Config):
+                ConfigSerializer.initialize(
+                    {
+                        'type': ConfigTypes.GLOBAL,
+                        'name': config_name,
+                        'description': config_description,
+                        'content': config_content,
+                    },
+                )
+                self.stdout.write(self.style.SUCCESS(f'{config_name}: succesfully migrated!'))
 
             # bring the configuration object content to the current format
             call_command(
