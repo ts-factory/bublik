@@ -200,3 +200,65 @@ class UpdateLogsFormat(BaseReformatStep):
         }
         config.content = content
         return config
+
+
+class SimplifyMetaStructure(BaseReformatStep):
+    '''
+    Reformat passed global meta configs content:
+    [
+        {
+            "type": "tag",
+            "category": "linux_tag",
+            "set-comment": "Linux tag",
+            "set-priority": 9,
+            "set-pattern": "LINUX"
+        },
+        {
+            "name": "linux-.+",
+            "set-category": "linux_tag"
+        }
+    ] ->
+    [
+        {
+            "type": "tag",
+            "category": "linux_tag",
+            "set-comment": "Linux tag",
+            "set-priority": 9
+            "set-patterns": ["LINUX", "linux-.+$"]
+        }
+    ]
+    '''
+
+    def applied(self, config, **kwargs):
+        return not any(
+            key in item
+            for item in config.content
+            for key in ['name', 'set-category', 'set-pattern']
+        )
+
+    def reformat(self, config, **kwargs):
+        # move patterns into the corresponding categories
+        for pattern in [item for item in config.content if 'name' in item]:
+            pattern_category = pattern['set-category']
+            for category in [
+                item for item in config.content if item.get('category') == pattern_category
+            ]:
+                set_pattern = category.get('set-pattern')
+                category['set-pattern'] = (
+                    [f'{pattern["name"]}$']
+                    if set_pattern is None
+                    else (
+                        [set_pattern, f'{pattern["name"]}$']
+                        if isinstance(set_pattern, str)
+                        else [*set_pattern, f'{pattern["name"]}$']
+                    )
+                )
+            config.content.remove(pattern)
+
+        # rename the set-pattern key to reflect that it contains multiple patterns
+        for item in config.content:
+            if 'set-pattern' in item:
+                pattern = item.pop('set-pattern')
+                item['set-patterns'] = pattern if isinstance(pattern, list) else [pattern]
+
+        return config

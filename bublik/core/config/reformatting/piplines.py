@@ -6,6 +6,7 @@ import logging
 from bublik.core.config.reformatting.steps import (
     BaseReformatStep,
     RemoveUnsupportedAttributes,
+    SimplifyMetaStructure,
     UpdateAxisXStructure,
     UpdateCSRFTrustedOrigins,
     UpdateDashboardHeaderStructure,
@@ -60,3 +61,4 @@ class ReferencesConfigReformatPipeline(ReformatPipeline):
 class MetaConfigReformatPipeline(ReformatPipeline):
     def __init__(self):
         super().__init__()
+        self.add_step(SimplifyMetaStructure())
