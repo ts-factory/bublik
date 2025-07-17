@@ -24,32 +24,32 @@ logger = logging.getLogger('bublik.server')
 
 
 class Command(BaseCommand):
-    """
-    Example of file handled by the command:
-
-    ; Tags from the "host" category have priority 3
-    [category-host]
-    category = host
-    set-priority = 3
-    set-comment =
-      A multiline
-      comment
-
-    ; The "elrond" tag belongs to the "host" category
-    [tag-elrond]
-    name = elrond
-    set-category = host
-
-    ; Tags we don't want to see on the site
-    [category-irrelevant]
-    category = irrelevant
-    set-priority = 10
-
-    ; Tags hinting that a feature was disabled aren't necessary
-    [tags-no]
-    name = no-.+
-    set-category = irrelevant
-    """
+    '''
+    Example of config content handled by the command:
+    [
+        {
+            "type": "label",
+            "category": "Configuration",
+            "set-comment": "Label with category Configuration",
+            "set-pattern": "CFG"
+        },
+        {
+            "type": "tag",
+            "category": "linux",
+            "set-comment": "Linux major-minor version",
+            "set-priority": 3
+        },
+        {
+            "type": "tag",
+            "category": "irrelevant_tag",
+            "set-priority": 10
+        },
+        {
+            "name": "linux-mm",
+            "set-category": "linux"
+        }
+    ]
+    '''
 
     help = 'Assign a class and a priority to the tags in the database'
 
