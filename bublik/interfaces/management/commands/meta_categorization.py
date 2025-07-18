@@ -61,7 +61,6 @@ class Command(BaseCommand):
             nargs='?',
             default=[
                 GlobalConfigs.META.name,
-                GlobalConfigs.TAGS.name,
             ],
             help='Names of the map configs',
         )

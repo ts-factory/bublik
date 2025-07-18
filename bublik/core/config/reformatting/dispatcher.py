@@ -63,7 +63,6 @@ class ConfigReformatDispatcher:
             GlobalConfigs.PER_CONF.name: PerConfConfigReformatPipeline(),
             GlobalConfigs.REFERENCES.name: ReferencesConfigReformatPipeline(),
             GlobalConfigs.META.name: MetaConfigReformatPipeline(),
-            GlobalConfigs.TAGS.name: MetaConfigReformatPipeline(),
         }
 
     def reformat_config(self, config):
