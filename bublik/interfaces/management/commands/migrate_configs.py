@@ -82,6 +82,13 @@ class Command(BaseCommand):
                         'content': config_content,
                     },
                 )
+            if config_name == GlobalConfigs.META.name and os.path.isfile(
+                os.path.join(settings.PER_CONF_DIR, 'tags.conf'),
+            ):
+                self.stdout.write(
+                    self.style.SUCCESS(f'{config_name}+tags: succesfully migrated!'),
+                )
+            else:
                 self.stdout.write(self.style.SUCCESS(f'{config_name}: succesfully migrated!'))
 
             # bring the configuration object content to the current format
@@ -113,7 +120,9 @@ class Command(BaseCommand):
                 if config_file_name.endswith('.py'):
                     configs_data[config_file_name] = read_py_file(config_file_path)
                 elif config_file_name.endswith('.conf'):
-                    configs_data[config_file_name] = read_conf_file(config_file_path)
+                    configs_data.setdefault('meta.conf', []).extend(
+                        read_conf_file(config_file_path),
+                    )
 
         # preprocess the config file content and create the corresponding config object
         for config_file_name, content in configs_data.items():
@@ -144,11 +153,6 @@ class Command(BaseCommand):
                 }
             elif config_file_name == 'meta.conf':
                 name, description = GlobalConfigs.META.name, GlobalConfigs.META.description
-            elif config_file_name == 'tags.conf':
-                name, description = (
-                    GlobalConfigs.TAGS.name,
-                    GlobalConfigs.TAGS.description,
-                )
             else:
                 continue
 
