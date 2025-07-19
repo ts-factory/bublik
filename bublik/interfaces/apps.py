@@ -8,4 +8,4 @@ class InterfacesConfig(AppConfig):
     name = 'bublik.interfaces'
 
     def ready(self):
-        return
+        import bublik.interfaces.signals

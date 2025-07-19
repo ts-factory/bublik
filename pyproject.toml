@@ -118,6 +118,10 @@ exclude = [
     # get_queryset() is too complex (19 > 16)
     'C901',
 ]
+'bublik/interfaces/apps.py' = [
+    'F401',
+    'PLC0415',
+]
 'bublik/interfaces/management/commands/meta_categorization.py' = [
     # __resolve_mapping() is too complex (18 > 16)
     'C901',
