@@ -113,16 +113,18 @@ def set_tags_categories_cache():
     when meta_categorization can be called for a chosen set of metas.
     """
 
-    important_tags_data = Meta.objects.filter(
-        Q(type='tag') & Q(category__priority__range=(1, 3)),
+    tags = Meta.objects.filter(type='tag')
+
+    important_tags_data = tags.filter(
+        category__priority__range=(1, 3),
     ).order_by('category__priority', 'name')
 
-    relevant_tags_data = Meta.objects.filter(
-        Q(type='tag') & (Q(category__priority__range=(4, 9)) | Q(category__isnull=True)),
+    relevant_tags_data = tags.filter(
+        Q(category__priority__range=(4, 9)) | Q(category__isnull=True),
     ).order_by('category__priority', 'name')
 
-    tags_data = Meta.objects.filter(
-        Q(type='tag') & (Q(category__priority__range=(1, 9)) | Q(category__isnull=True)),
+    tags_data = tags.filter(
+        Q(category__priority__range=(1, 9)) | Q(category__isnull=True),
     ).order_by('category__priority', 'name')
 
     def prepare_tags(tags_data):
