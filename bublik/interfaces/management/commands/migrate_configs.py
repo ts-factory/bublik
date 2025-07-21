@@ -14,6 +14,7 @@ from bublik.data.models import (
     Config,
     ConfigTypes,
     GlobalConfigs,
+    Project,
 )
 from bublik.data.serializers import ConfigSerializer
 from bublik.interfaces.signals import categorize_metas_on_config_change, signal_disabled
@@ -66,6 +67,7 @@ class Command(BaseCommand):
     def migrate_config(
         self,
         config_name,
+        project,
         config_content,
         config_description=None,
     ):
@@ -82,6 +84,7 @@ class Command(BaseCommand):
                     {
                         'type': ConfigTypes.GLOBAL,
                         'name': config_name,
+                        'project': project,
                         'description': config_description,
                         'content': config_content,
                     },
@@ -119,6 +122,11 @@ class Command(BaseCommand):
                         read_conf_file(config_file_path),
                     )
 
+        project_name = getattr(configs_data.get('per_conf.py', {}), 'PROJECT', None)
+        project = (
+            Project.objects.get_or_create(name=project_name)[0].id if project_name else None
+        )
+
         # preprocess the config file content and create the corresponding config object
         for config_file_name, content in configs_data.items():
             if config_file_name == 'per_conf.py':
@@ -152,4 +160,4 @@ class Command(BaseCommand):
                 continue
 
             if content:
-                self.migrate_config(name, content, description)
+                self.migrate_config(name, project, content, description)
