@@ -8,6 +8,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from bublik.core.queries import get_or_none
+from bublik.data.models.project import Project
 
 
 __all__ = [
@@ -76,7 +77,6 @@ class MetaCategory(models.Model):
 
     name = models.CharField(
         max_length=64,
-        unique=True,
         null=False,
         blank=False,
         help_text='Name of the category.',
@@ -98,17 +98,24 @@ class MetaCategory(models.Model):
 The meta type, enumeration: result, verdict, note, error, tag, label, \
 revision, branch, repo, log, import, count, objective.''',
     )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        null=True,
+        help_text='The project identifier.',
+    )
 
     class Admin:
         pass
 
     class Meta:
         db_table = 'bublik_metacategory'
+        unique_together = ('name', 'project')
 
     def __repr__(self):
         return (
-            f'MetaCategory(name={self.name!r}, priority={self.priority!r}, '
-            'comment={self.comment!r}, metas={self.metas!r})'
+            f'MetaCategory(name={self.name!r}, project={self.project!r}, '
+            f'priority={self.priority!r}, comment={self.comment!r}, metas={self.metas!r})'
         )
 
 
