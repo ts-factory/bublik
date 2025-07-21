@@ -38,6 +38,7 @@ from .meta import (
     MetaCategory,
     MetaPattern,
 )
+from .project import Project
 from .reference import Reference
 from .result import (
     MetaResult,
@@ -74,6 +75,7 @@ __all__ = [
     'MetaPattern',
     'MetaResult',
     'MetaTest',
+    'Project',
     'Reference',
     'ResultStatus',
     'ResultType',
