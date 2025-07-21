@@ -612,8 +612,7 @@ def get_driver_unload(run):
 
 
 def get_run_conclusion(run):
-    run_id = run.id
-    status = get_run_status(run_id)
+    status = get_run_status(run)
     compromised = is_run_compromised(run)
     status_by_nok, unexpected_percent = get_run_status_by_nok(run)
     driver_unload = get_driver_unload(run)
@@ -653,7 +652,7 @@ def generate_all_run_details(run):
         'finish': run.finish,
         'duration': run.duration,
         'main_package': run.main_package.iteration.test.name if run.main_package else None,
-        'status': get_run_status(run_id),
+        'status': get_run_status(run),
         'status_by_nok': get_run_status_by_nok(run)[0],
         'compromised': get_compromised_details(run),
         'conclusion': conclusion,
@@ -681,7 +680,7 @@ def generate_runs_details(runs):
                 'start': run.start,
                 'finish': run.finish,
                 'duration': run.duration,
-                'status': get_run_status(run_id),
+                'status': get_run_status(run),
                 'status_by_nok': get_run_status_by_nok(run)[0],
                 'compromised': is_run_compromised(run),
                 'conclusion': conclusion,
