@@ -602,7 +602,7 @@ class MetaTest(models.Model):
 
     def _calc_serial(self):
         latest_serial = (
-            MetaTest.objects.filter(test=self.test)
+            MetaTest.objects.filter(test=self.test, project=self.project)
             .order_by('serial')
             .values_list('serial', flat=True)
             .last()

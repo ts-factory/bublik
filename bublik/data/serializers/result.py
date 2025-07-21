@@ -120,14 +120,16 @@ class MetaTestSerializer(ModelSerializer):
 
     class Meta:
         model = MetaTest
-        fields = ('id', 'updated', 'test', 'comment', 'serial')
+        fields = ('id', 'updated', 'project', 'test', 'comment', 'serial')
         extra_kwargs: ClassVar[dict] = {
+            'project': {'read_only': True},
             'test': {'read_only': True},
             'serial': {'read_only': True},
         }
 
     def to_internal_value(self, data):
         internal = super().to_internal_value(data)
+        internal['project'] = self.context.get('project')
         internal['serial'] = self.context.get('serial')
         internal['test'] = self.context.get('test')
 
@@ -143,10 +145,15 @@ class MetaTestSerializer(ModelSerializer):
             msg = '\'test\' must be provided in serializer context'
             raise serializers.ValidationError(msg)
 
+        project = attrs.get('project')
+        if project is None:
+            msg = '\'project\' must be provided in serializer context'
+            raise serializers.ValidationError(msg)
+
         meta_serializer = serialize(MetaSerializer, attrs['meta'])
         meta, _ = meta_serializer.get_or_create()
 
-        if MetaTest.objects.filter(test=test, meta=meta).exists():
+        if MetaTest.objects.filter(test=test, meta=meta, project=project).exists():
             msg = 'This comment already exists for this test'
             raise serializers.ValidationError(msg)
 
