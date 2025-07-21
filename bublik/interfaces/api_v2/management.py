@@ -7,6 +7,7 @@ from django.views.decorators.cache import never_cache
 from rest_framework.decorators import api_view
 
 from bublik.core.utils import get_local_log
+from bublik.data.models import Project
 from bublik.interfaces.celery import tasks
 
 
@@ -14,7 +15,9 @@ from bublik.interfaces.celery import tasks
 @never_cache
 @api_view(['GET', 'POST'])
 def meta_categorization(request):
-    task_id = tasks.meta_categorization.delay()
+    project_id = request.query_params.get('project', None)
+    project_name = Project.objects.get(id=project_id).name if project_id else None
+    task_id = tasks.meta_categorization.delay(project_name)
     return HttpResponse(f'\nYour task id: {task_id}\n')
 
 

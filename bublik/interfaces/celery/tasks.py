@@ -201,7 +201,7 @@ def importruns(
 
 
 @app.task(bind=True)
-def meta_categorization(self):
+def meta_categorization(self, project_name):
     task_id = self.request.id
     logger, logpath = get_or_create_task_logger(task_id)
 
@@ -211,7 +211,7 @@ def meta_categorization(self):
     logger.info(f'[RUN]:  {query_url}')
 
     with open(logpath, 'a') as f:
-        call_command('meta_categorization', stdout=f, stderr=f)
+        call_command('meta_categorization', project=project_name, stdout=f, stderr=f)
 
     return task_id
 

@@ -11,13 +11,13 @@ from django.core.management import call_command
 from bublik.core.cache import set_tags_categories_cache
 from bublik.core.importruns import get_or_none
 from bublik.core.run.metadata import MetaData
-from bublik.data.models import Meta, MetaCategory, MetaPattern
+from bublik.data.models import Meta, MetaCategory, MetaPattern, Project
 
 
 logger = logging.getLogger('bublik.server')
 
 
-def categorize_metas(meta_data: MetaData) -> None:
+def categorize_metas(meta_data: MetaData, project_id) -> None:
     '''
     Checks if all of the received Meta objects have already been categorized -
     which means if each Meta object has been added in MetaCategory.metas.
@@ -27,15 +27,20 @@ def categorize_metas(meta_data: MetaData) -> None:
 
     logger.info('Checking what metas are categorized already.')
 
-    if not MetaCategory.objects.exists() or not MetaPattern.objects.exists():
+    if (
+        not MetaCategory.objects.filter(project_id=project_id).exists()
+        or not MetaPattern.objects.filter(category__project_id=project_id).exists()
+    ):
+        project_name = Project.objects.get(id=project_id).name
         logger.info(
             'Calling meta_categorization command because there are no '
-            'MetaCategory objects or MetaPattern objects.',
+            'MetaCategory objects or MetaPattern objects '
+            f'for the {project_name} project.',
         )
-        call_command('meta_categorization')
+        call_command('meta_categorization', '-prj', project_name)
         return
 
-    metapatterns = MetaPattern.objects.all()
+    metapatterns = MetaPattern.objects.filter(category__project_id=project_id)
 
     for m_data in meta_data.metas:
         meta = get_or_none(Meta.objects, **m_data)
@@ -61,5 +66,5 @@ def categorize_metas(meta_data: MetaData) -> None:
 
     # Since tags are also Meta objects but are processed differently - we need
     # to update cached tags
-    set_tags_categories_cache()
+    set_tags_categories_cache(project_id)
     logger.info('Update cached tags.')
