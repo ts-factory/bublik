@@ -98,6 +98,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                     'row_cells': row_data,
                     'context': {
                         'run_id': run.id,
+                        'project_id': run.project.id,
+                        'project_name': run.project.name,
                         'start': run.start.timestamp(),
                         'status': get_run_status(run),
                         'status_by_nok': get_run_status_by_nok(run)[0],
