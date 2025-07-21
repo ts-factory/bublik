@@ -107,6 +107,7 @@ def add_iteration(test, iteration_params, iteration_hash, parent_iteration, pare
 
 
 def add_iteration_result(
+    project_id,
     start_time,
     finish_time=None,
     iteration=None,
@@ -132,6 +133,7 @@ def add_iteration_result(
                 f'already exists to current run: {iteration_result}'
             )
             raise ValueError(msg)
+        iteration_result.project_id = project_id
         iteration_result.start = prepare_date(start_time)
         iteration_result.finish = prepare_date(finish_time) if finish_time else None
         iteration_result.tin = tin
@@ -157,6 +159,7 @@ def add_iteration_result(
             tin=tin,
             start=prepare_date(start_time),
             finish=prepare_date(finish_time) if finish_time else None,
+            project_id=project_id,
         )
 
     return iteration_result
@@ -253,13 +256,16 @@ def run_status_default(status_key):
 
 
 def set_run_status(run, status_key):
+    project_id = run.project.id
     status_meta_name = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
+        project_id,
     )
     status_value = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         status_key,
+        project_id,
         default=run_status_default(status_key),
     )
     if status_meta_name:
@@ -335,7 +341,14 @@ def add_expected_result(
 
     if keys:
         for key in keys:
-            expect_metas.extend(prepare_expected_key(key))
+            run = iteration_result.test_run if iteration_result.test_run else iteration_result
+            project_id = run.project.id
+            expect_metas.extend(
+                prepare_expected_key(
+                    key,
+                    project_id,
+                ),
+            )
 
     if notes:
         for index, note in enumerate(notes):

@@ -20,10 +20,11 @@ class ImportMode:
     LIVE = 'live'
 
 
-def extract_logs_base(run_url):
+def extract_logs_base(run_url, project_id):
     logs_bases = ConfigServices.getattr_from_global(
         GlobalConfigs.REFERENCES.name,
         'LOGS_BASES',
+        project_id,
     )
     for logs_base in logs_bases:
         for uri in logs_base['uri']:

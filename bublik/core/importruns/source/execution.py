@@ -35,6 +35,7 @@ logger = logging.getLogger('bublik.server')
 def handle_iteration(
     data,
     run,
+    project_id,
     parent_iteration,
     parent_package,
     parent_test,
@@ -58,6 +59,7 @@ def handle_iteration(
     handle_iteration.counter['created_iter_obj'] += add_iteration.counter['created']
 
     iteration_result = add_iteration_result(
+        project_id,
         data['start_ts'],
         data['end_ts'],
         iteration,
@@ -138,6 +140,7 @@ def handle_iteration(
         handle_iteration(
             child_data,
             run,
+            project_id,
             iteration,
             iteration_result,
             test,
@@ -147,7 +150,7 @@ def handle_iteration(
 
 
 @transaction.atomic
-def incremental_import(run_log, meta_data, run_completed, force):
+def incremental_import(run_log, project_id, meta_data, run_completed, force):
     handle_iteration.counter = Counter(iter_obj=0, created_iter_obj=0)
 
     run_start = meta_data.run_start
@@ -185,7 +188,7 @@ def incremental_import(run_log, meta_data, run_completed, force):
             force_update = True
             logger.info('the run will be partially added')
 
-        run = TestIterationResult.objects.create(**run_data)
+        run = TestIterationResult.objects.create(**run_data, project_id=project_id)
 
     logger.info('the process of setting run import mode is started')
     start_time = datetime.now()
@@ -234,7 +237,16 @@ def incremental_import(run_log, meta_data, run_completed, force):
         logger.info('the process of handling iterations is started')
         start_time = datetime.now()
         for iteration_data in run_log['iters']:
-            handle_iteration(iteration_data, run, None, None, None, 0, tests_nums_prologues)
+            handle_iteration(
+                iteration_data,
+                run,
+                project_id,
+                None,
+                None,
+                None,
+                0,
+                tests_nums_prologues,
+            )
         logger.info(
             f'the process of handling iterations is completed in ['
             f'{datetime.now() - start_time}]',

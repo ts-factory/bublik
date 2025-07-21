@@ -333,7 +333,8 @@ class LiveLogContext:
             test_iteration = add_iteration(test, None, '', parent_iter, len(self.test_stack))
             # Create TestIterationResult
             test_iteration_result = add_iteration_result(
-                self.last_ts,
+                project_id=None,
+                start_time=self.last_ts,
                 iteration=test_iteration,
                 run=self.run,
                 parent_package=parent_result,
@@ -467,7 +468,8 @@ class LiveLogContext:
         # Add TestIterationResult
         logger.debug('adding result')
         test_iteration_result = add_iteration_result(
-            self.last_ts,
+            project_id=None,
+            start_time=self.last_ts,
             iteration=test_iteration,
             run=self.run,
             parent_package=parent_result,
