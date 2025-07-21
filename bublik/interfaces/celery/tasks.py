@@ -118,6 +118,7 @@ def importruns(
     param_from=None,
     param_to=None,
     requesting_host=None,
+    param_project=None,
 ):
 
     task_id = self.request.id
@@ -128,13 +129,15 @@ def importruns(
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}&force={param_force}',
+            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}&force={param_force}&prj={param_project}',
         )
 
         if param_from:
             cmd_import += ['--from', param_from]
         if param_to:
             cmd_import += ['--to', param_to]
+        if param_project:
+            cmd_import += ['--prj', param_project]
         if param_force:
             cmd_import += ['--force', param_force]
         if param_url:
