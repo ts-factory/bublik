@@ -76,6 +76,8 @@ def prepare_list_results(
             'has_error': test_result['has_error'],
             'has_measurements': test_result['is_measurements'],
             'run_id': run_id,
+            'project_id': test_result_obj.project.id,
+            'project_name': test_result_obj.project.name,
             'result_id': result_id,
             'iteration_id': iteration_id,
         }
