@@ -105,7 +105,7 @@ class RunCache:
             del self.data
 
 
-def set_tags_categories_cache():
+def set_tags_categories_cache(project_id):
     """
     Tags cache represents the following dict: {'meta_id': 'tag_name=tag_value', }.
 
@@ -117,14 +117,17 @@ def set_tags_categories_cache():
 
     important_tags_data = tags.filter(
         category__priority__range=(1, 3),
+        category__project_id=project_id,
     ).order_by('category__priority', 'name')
 
     relevant_tags_data = tags.filter(
-        Q(category__priority__range=(4, 9)) | Q(category__isnull=True),
+        Q(category__priority__range=(4, 9)) & Q(category__project_id=project_id)
+        | Q(category__isnull=True),
     ).order_by('category__priority', 'name')
 
     tags_data = tags.filter(
-        Q(category__priority__range=(1, 9)) | Q(category__isnull=True),
+        Q(category__priority__range=(1, 9)) & Q(category__project_id=project_id)
+        | Q(category__isnull=True),
     ).order_by('category__priority', 'name')
 
     def prepare_tags(tags_data):

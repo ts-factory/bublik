@@ -16,6 +16,7 @@ from bublik.data.models import (
     Meta,
     MetaCategory,
     MetaPattern,
+    Project,
 )
 
 
@@ -60,77 +61,99 @@ class Command(BaseCommand):
             ],
             help='Names of the map configs',
         )
+        parser.add_argument(
+            '-prj',
+            '--project',
+            type=str,
+            default=None,
+            choices=[*Project.objects.values_list('name', flat=True), None],
+        )
 
     @transaction.atomic
-    def create_and_assign_meta_categories(self, configs_content):
-        for item in configs_content:
-            logger.debug(f'item: {item}')
+    def create_and_assign_meta_categories(self, configs_content_per_project):
+        categories = set()
+        for pid, configs_content in configs_content_per_project.items():
+            for item in configs_content:
+                logger.debug(f'item: {item}')
 
-            category = item['category']
-            type = item['type']
-            priority = item.get('set-priority', None)
-            comment = item.get('set-comment', None)
-            patterns = item.get('set-patterns', [])
+                category = item['category']
+                if category in categories:
+                    continue
+                categories.add(category)
 
-            logger.debug(f'category: {category}')
-            logger.debug(f'type: {type}')
-            logger.debug(f'set_priority: {priority}')
-            logger.debug(f'set_comment: {comment}')
-            logger.debug(f'set_patterns: {patterns}')
+                type = item['type']
+                priority = item.get('set-priority', None)
+                comment = item.get('set-comment', None)
+                patterns = item.get('set-patterns', [])
 
-            if comment:
-                comment = comment.strip()
+                logger.debug(f'category: {category}')
+                logger.debug(f'type: {type}')
+                logger.debug(f'set_priority: {priority}')
+                logger.debug(f'set_comment: {comment}')
+                logger.debug(f'set_patterns: {patterns}')
 
-            if not priority:
-                priority = self.DEFAULT_META_PRIORITY
-                logger.info(
-                    f'no priority is specified for {item}, '
-                    f'defaulting to {self.DEFAULT_META_PRIORITY}',
+                if comment:
+                    comment = comment.strip()
+
+                if not priority:
+                    priority = self.DEFAULT_META_PRIORITY
+                    logger.info(
+                        f'no priority is specified for {item}, '
+                        f'defaulting to {self.DEFAULT_META_PRIORITY}',
+                    )
+
+                logger.debug(f'creating category: {category}')
+                category_obj = MetaCategory.objects.create(
+                    name=category,
+                    priority=priority,
+                    comment=comment,
+                    type=type,
+                    project_id=pid,
                 )
 
-            logger.debug(f'creating category: {category}')
-            category_obj = MetaCategory.objects.create(
-                name=category,
-                priority=priority,
-                comment=comment,
-                type=type,
-            )
+                for pattern in patterns:
+                    logger.debug(f'creating category pattern: {pattern}')
+                    MetaPattern.objects.create(
+                        pattern=pattern,
+                        category=category_obj,
+                    )
 
-            for pattern in patterns:
-                logger.debug(f'creating category pattern: {pattern}')
-                MetaPattern.objects.create(
-                    pattern=pattern,
-                    category=category_obj,
-                )
-
-                for meta in Meta.objects.filter(type=type, name__regex=pattern):
-                    category_obj.metas.add(meta)
+                    for meta in Meta.objects.filter(type=type, name__regex=pattern):
+                        category_obj.metas.add(meta)
 
     def handle(self, *args, **options):
         start_time = datetime.now()
 
+        project_name = options['project']
+        project = Project.objects.get(name=project_name) if project_name else None
+        project_id = project.id if project else None
+
         logger.info(
-            'removing all meta categories',
+            f'removing all meta categories associated with the {project_name} project',
         )
-        MetaCategory.objects.all().delete()
+        MetaCategory.objects.filter(project_id=project_id).delete()
 
         config_names = options['config_names']
+        project_ids = [project_id, None] if project_id else [None]
 
         logger.debug(
-            f'retrieving configs: {config_names}',
+            f'retrieving {project_name} configs: {config_names}',
         )
-        configs_content = []
-        for config_name in config_names:
-            try:
-                config = Config.objects.get_global(config_name)
-                configs_content.append(config.content)
-            except ObjectDoesNotExist:
-                logger.warning(
-                    f'{config_name} configuration object doesn\'t exist',
-                )
-        configs_content = list(chain(*configs_content))
+        configs_content_per_project = {}
+        for pid in project_ids:
+            configs_content_per_project[pid] = []
+            for config_name in config_names:
+                try:
+                    config = Config.objects.get_global(config_name, pid)
+                    configs_content_per_project[pid].append(config.content)
+                except ObjectDoesNotExist:
+                    logger.warning(
+                        f'{config_name} configuration object doesn\'t exist '
+                        f'for project (ID={pid})',
+                    )
+            configs_content_per_project[pid] = list(chain(*configs_content_per_project[pid]))
 
-        if not configs_content:
+        if not any(configs_content_per_project.values()):
             logger.warning(
                 'meta categorization skipped due to empty configuration content',
             )
@@ -139,11 +162,11 @@ class Command(BaseCommand):
                 logger.debug(
                     'create and assign meta categories',
                 )
-                self.create_and_assign_meta_categories(configs_content)
+                self.create_and_assign_meta_categories(configs_content_per_project)
             except Exception as e:
                 logger.critical(f'failed to create and assign meta categories: {e}')
             else:
-                set_tags_categories_cache()
+                set_tags_categories_cache(project_id)
                 logger.debug('tags categories cache was updated')
 
         logger.debug(f'completed in [{datetime.now() - start_time}]')

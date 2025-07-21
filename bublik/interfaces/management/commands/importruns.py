@@ -320,7 +320,7 @@ class Command(BaseCommand):
                     f'{datetime.now() - start_time}]',
                 )
 
-                categorization.categorize_metas(meta_data=meta_data)
+                categorization.categorize_metas(meta_data=meta_data, project_id=project_id)
 
                 logger.info('the process of preparing cache for complited run is started')
                 start_time = datetime.now()

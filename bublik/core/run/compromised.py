@@ -92,7 +92,7 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
 
     mr, _ = mr_serialize.get_or_create()
 
-    meta_categorization.delay()
+    meta_categorization.delay(run.project.name)
 
     return mr
 
