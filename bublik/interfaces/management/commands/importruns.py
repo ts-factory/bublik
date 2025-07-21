@@ -14,7 +14,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 import pendulum
 
-from bublik.core.argparse import parser_type_date, parser_type_force, parser_type_url
+from bublik.core.argparse import (
+    parser_type_date,
+    parser_type_force,
+    parser_type_project,
+    parser_type_url,
+)
 from bublik.core.checks import check_run_file, modify_msg
 from bublik.core.config.services import ConfigServices
 from bublik.core.importruns import categorization, extract_logs_base
@@ -131,8 +136,21 @@ class Command(BaseCommand):
             default=False,
             help='Re-import the run over the existing one',
         )
+        parser.add_argument(
+            '--prj',
+            type=parser_type_project,
+            help='The name of the project',
+        )
 
-    def import_run(self, run_url, force, run_id=None, date_from=None, date_to=None):
+    def import_run(
+        self,
+        run_url,
+        force,
+        run_id=None,
+        date_from=None,
+        date_to=None,
+        fallback_project=None,
+    ):
         import_run_start_time = datetime.now()
         task_msg = f'Celery task ID {run_id}' if run_id else 'No Celery task ID'
         create_event(
@@ -173,10 +191,20 @@ class Command(BaseCommand):
                 # Load meta_data.json
                 meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'))
             else:
+                # Get project ID by passed project name
+                if not fallback_project:
+                    logger.error(
+                        'the --prj import argument is required '
+                        'when meta_data.json is not available',
+                    )
+                    return
+                fallback_project_id = Project.objects.get(name=fallback_project).id
+
                 # Save to process dir available files for generating metadata
                 files_to_try = ConfigServices.getattr_from_global(
                     GlobalConfigs.PER_CONF.name,
                     'FILES_TO_GENERATE_METADATA',
+                    project_id=fallback_project_id,
                     default=['meta_data.txt'],
                 )
                 for filename in files_to_try:
@@ -185,13 +213,22 @@ class Command(BaseCommand):
                         logger.info(f'Save {filename} for generating metadata')
 
                 # Generate meta_data.json from available data
-                meta_data = MetaData.generate(process_dir)
+                meta_data = MetaData.generate(process_dir, fallback_project)
 
             # Get project name
-            project_name = find_dict_in_list({'name': 'PROJECT'}, meta_data.metas)['value']
+            project_meta_name = find_dict_in_list({'name': 'PROJECT'}, meta_data.metas)['value']
+
+            # Check project
+            if fallback_project and fallback_project != project_meta_name:
+                msg = (
+                    f'project mismatch: expected \'{project_meta_name}\' '
+                    f'(from meta data), but received \'{fallback_project}\''
+                )
+                logger.error(msg)
+                return
 
             # Get project meta ID
-            project_id = Project.objects.get(name=project_name).id
+            project_id = meta_data.project_id
 
             # Check whether the RUN_COMPLETE_FILE attribute exists
             try:
@@ -364,6 +401,7 @@ class Command(BaseCommand):
                 run_id=options['id'],
                 date_from=date_from,
                 date_to=date_to,
+                fallback_project=options['prj'],
             )
             counter.increment()
         create_event(
