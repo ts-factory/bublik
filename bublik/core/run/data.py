@@ -12,7 +12,13 @@ from bublik.core.meta.categorization import (
     group_by_runs_and_category,
 )
 from bublik.core.utils import key_value_list_transforming
-from bublik.data.models import GlobalConfigs, Meta, MetaResult, TestArgument
+from bublik.data.models import (
+    GlobalConfigs,
+    Meta,
+    MetaResult,
+    Project,
+    TestArgument,
+)
 
 
 def get_metadata_by_runs(runs, categorize=False):
@@ -21,27 +27,38 @@ def get_metadata_by_runs(runs, categorize=False):
     Runs items can represent TestIterationResult objects or just IDs.
     """
 
-    metadata_results = MetaResult.objects.filter(result__in=runs).values_list(
-        'result__id',
-        'meta__id',
-    )
+    metadata_by_runs = {}
+    project_ids = list(Project.objects.values_list('id', flat=True))
+    for project_id in project_ids:
+        metadata_results = MetaResult.objects.filter(
+            result__in=runs,
+            result__project_id=project_id,
+        ).values_list(
+            'result__id',
+            'meta__id',
+        )
 
-    metadata_categories = ConfigServices.getattr_from_global(
-        GlobalConfigs.PER_CONF.name,
-        'METADATA_ON_PAGES',
-        default=[],
-    )
+        metadata_categories = ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'METADATA_ON_PAGES',
+            project_id,
+            default=[],
+        )
 
-    groupping_kwargs = {
-        'meta_results': metadata_results,
-        'categories': metadata_categories,
-        'groupby_fn': group_by_runs,
-        'format_fn': key_value_list_transforming,
-    }
+        groupping_kwargs = {
+            'meta_results': metadata_results,
+            'categories': metadata_categories,
+            'project_id': project_id,
+            'groupby_fn': group_by_runs,
+            'format_fn': key_value_list_transforming,
+        }
 
-    if categorize:
-        groupping_kwargs.update({'groupby_fn': group_by_runs_and_category})
-    return get_metas_by_category(**groupping_kwargs)
+        if categorize:
+            groupping_kwargs.update({'groupby_fn': group_by_runs_and_category})
+
+        metadata_by_runs.update(get_metas_by_category(**groupping_kwargs))
+
+    return metadata_by_runs
 
 
 def get_tags_by_runs(runs, not_categorize=False):

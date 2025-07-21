@@ -51,9 +51,15 @@ def validate_compromised_request(run_id, comment, bug, reference):
     if bool(bug) ^ bool(reference):
         return 'Bug ID and Reference are required together.'
 
+    project_id = (
+        TestIterationResult.objects.filter(id=run_id)
+        .values_list('project__id', flat=True)
+        .get()
+    )
     if reference and reference not in ConfigServices.getattr_from_global(
         GlobalConfigs.REFERENCES.name,
         'ISSUES',
+        project_id,
         default={},
     ):
         return f'Unknown reference key: {reference}.'
@@ -72,6 +78,7 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
         ref_source = ConfigServices.getattr_from_global(
             GlobalConfigs.REFERENCES.name,
             'ISSUES',
+            run.project.id,
             default={},
         )[reference_key]
         reference_data = {'name': ref_source['name'], 'uri': ref_source['uri']}

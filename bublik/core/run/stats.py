@@ -307,10 +307,16 @@ def get_tests_comments(run_id):
             .select_related('iteration__test')
         ).values_list('iteration__test__id', flat=True),
     )
+    project_id = (
+        TestIterationResult.objects.filter(id=run_id)
+        .values_list('project__id', flat=True)
+        .get()
+    )
     return dict(
         MetaTest.objects.filter(
             meta__type='comment',
             test__id__in=test_ids,
+            project_id=project_id,
         )
         .values('test__id')
         .annotate(
@@ -489,6 +495,7 @@ def get_expected_results(result):
                 logs = ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
+                    result.project.id,
                     default={},
                 )
                 if ref_type in logs and ref_tail:
@@ -591,9 +598,11 @@ def generate_result_details(test_result):
 
 
 def get_run_status(run):
+    project_id = run.project.id
     status_meta_name = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'RUN_STATUS_META',
+        project_id,
     )
     status_meta = MetaResult.objects.filter(result=run, meta__name=status_meta_name).first()
     if status_meta:
@@ -603,7 +612,8 @@ def get_run_status(run):
 
 def get_run_status_by_nok(run):
     stats = get_run_stats(run.id)
-    return RunStatusByUnexpected.identify(stats)
+    project_id = run.project.id
+    return RunStatusByUnexpected.identify(stats, project_id)
 
 
 def get_driver_unload(run):
@@ -612,6 +622,7 @@ def get_driver_unload(run):
 
 
 def get_run_conclusion(run):
+    project_id = run.project.id
     status = get_run_status(run)
     compromised = is_run_compromised(run)
     status_by_nok, unexpected_percent = get_run_status_by_nok(run)
@@ -622,26 +633,30 @@ def get_run_conclusion(run):
         unexpected_percent,
         compromised,
         driver_unload,
+        project_id,
     )
 
 
 def generate_all_run_details(run):
     logger.debug('[run_details]: enter')
     run_id = run.id
+    project = run.project
+
     conclusion, conclusion_reason = get_run_conclusion(run)
     important_tags, relevant_tags = get_tags_by_runs([run_id])
     category_names = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
         'SPECIAL_CATEGORIES',
+        project.id,
         default=[],
     )
     run_meta_results = run.meta_results.select_related('meta')
     q = MetaResultsQuery(run_meta_results)
 
     branches = q.metas_query('branch')
-    revisions = build_revision_references(q.metas_query('revision'))
-    labels = q.labels_query(excluding_category_names=category_names)
-    categories = get_metas_by_category(run_meta_results, category_names)
+    revisions = build_revision_references(q.metas_query('revision'), project.id)
+    labels = q.labels_query(category_names, project.id)
+    categories = get_metas_by_category(run_meta_results, category_names, project.id)
     for category, category_values in categories.items():
         categories[category] = key_value_list_transforming(category_values)
 
