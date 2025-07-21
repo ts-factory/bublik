@@ -24,9 +24,11 @@ class MetaResultsQuery:
             .order_by(*order)
         )
 
-    def labels_query(self, excluding_category_names):
+    def labels_query(self, excluding_category_names, project_id):
         return self.query_to_values(
-            Q(meta__type='label') & ~Q(meta__category__name__in=excluding_category_names),
+            Q(meta__type='label')
+            & (Q(meta__category__project_id=project_id) | Q(meta__category__isnull=True))
+            & ~Q(meta__category__name__in=excluding_category_names),
         )
 
     def special_labels_query(self, including_category_names):

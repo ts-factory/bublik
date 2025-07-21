@@ -27,10 +27,11 @@ It doesn`t have to return a QuerySet.
 
 
 class TestIterationResultQuerySet(QuerySet):
-    def filter_by_run_status(self, run_status):
+    def filter_by_run_status(self, run_status, project_id):
         status_meta_name = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
+            project_id,
         )
         return self.filter(
             meta_results__meta__name=status_meta_name,

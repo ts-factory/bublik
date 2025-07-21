@@ -46,7 +46,9 @@ def prepare_list_results(
         result_finish = test_result['finish']
 
         # Handle expected result
-        test_result_obj = TestIterationResult.objects.get(id=result_id)
+        test_result_obj = TestIterationResult.objects.select_related('project').get(
+            id=result_id,
+        )
         expected_results_data = get_expected_results(test_result_obj)
 
         # Handle obtained result

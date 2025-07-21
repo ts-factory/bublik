@@ -64,6 +64,7 @@ def group_by_runs_and_category(metas, categories, format_fn=key_value_list_trans
 def get_metas_by_category(
     meta_results,
     categories,
+    project_id,
     groupby_fn=group_by_category,
     format_fn=skip_meta_name,
 ):
@@ -72,7 +73,10 @@ def get_metas_by_category(
 
     # Get metas of the specified categories
     metas = list(
-        meta_results.filter(meta__category__name__in=categories)
+        meta_results.filter(
+            meta__category__name__in=categories,
+            meta__category__project_id=project_id,
+        )
         .annotate(
             category=F('meta__category__name'),
             name=F('meta__name'),
