@@ -11,12 +11,13 @@ from bublik.data.models import GlobalConfigs
 logger = logging.getLogger('bublik.server')
 
 
-def prepare_expected_key(key_str):
+def prepare_expected_key(key_str, project_id):
     for ref in re.findall(r'ref://[^, ]+', key_str):
         ref_type = re.search(r'ref://(.*)/', ref).group(1)
         if ref_type not in ConfigServices.getattr_from_global(
             GlobalConfigs.REFERENCES.name,
             'ISSUES',
+            project_id,
             default={},
         ):
             logger.warning(f"{key_str}: '{ref_type}' doesn`t match the project references")

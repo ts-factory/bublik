@@ -8,6 +8,7 @@ import shlex
 import subprocess
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, Q
 import pendulum
 
@@ -17,7 +18,7 @@ from bublik.core.meta.categorization import categorize_meta
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
 from bublik.core.utils import find_dict_in_list, get_difference
-from bublik.data.models import GlobalConfigs, Meta, MetaResult
+from bublik.data.models import GlobalConfigs, Meta, MetaResult, Project
 from bublik.data.serializers import (
     MetaResultSerializer,
     MetaSerializer,
@@ -46,6 +47,7 @@ class MetaData:
 
     def __init__(self, meta_data_json):
         super().__init__()
+        self.project_id = None
         self.version = None
         self.run_start = None
         self.run_finish = None
@@ -104,24 +106,25 @@ class MetaData:
             logger.error('meta_data.json parser expected a list of metas')
             raise KeyError
 
+        # Check and safe project meta ID
         project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
-
         if not project_meta:
             logger.error('meta_data.json parser expected a PROJECT meta.')
             raise ValueError
-
-        project = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'PROJECT',
-        )
-        if project_meta['value'] != project:
-            logger.error(f'this isn\'t a run of {project} project')
-            raise ValueError
+        try:
+            self.project_id = Project.objects.get(name=project_meta['value']).id
+        except Project.DoesNotExist as mdne:
+            logger.error(
+                f'The project does not exist: {project_meta["value"]}. '
+                'Create it to import logs.',
+            )
+            raise ObjectDoesNotExist from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
+            self.project_id,
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
             logger.error('There is no status meta in meta_data.json. It is a required meta.')
@@ -131,6 +134,7 @@ class MetaData:
         key_metas_names = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
+            self.project_id,
         )
 
         # Check names duplicates in RUN_KEY_METAS
@@ -203,6 +207,7 @@ class MetaData:
         dashboard_date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
+            self.project_id,
         )
         name = m_data.get('name')
         value = m_data.get('value')
@@ -231,6 +236,7 @@ class MetaData:
         status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
+            self.project_id,
         )
 
         for m_data in self.metas:
@@ -331,6 +337,7 @@ class MetaData:
         run_key_metas = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
+            self.project_id,
         )
         essential_meta_names = [*run_key_metas, 'PROJECT']
 
