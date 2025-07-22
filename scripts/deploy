@@ -460,6 +460,8 @@ function kerberos_service_handler() {
 function per_project_conf_handler() {
   step "Create per-project configs" &&
   source "${ENV_DIR}/bin/activate" &&
+  ${BUBLIK_SRC}/manage.py migrate_configs &&
+  ${BUBLIK_SRC}/manage.py reformat_configs &&
   ${BUBLIK_SRC}/manage.py initialize_configs
 }
 

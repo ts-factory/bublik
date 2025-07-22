@@ -2,7 +2,6 @@
 # Copyright (C) 2025 OKTET Labs Ltd. All rights reserved.
 
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
 from bublik.core.config.services import ConfigServices
@@ -20,9 +19,6 @@ class Command(BaseCommand):
         '''
         Initialize required global configurations according to JSON schemas.
         '''
-        call_command(
-            'migrate_configs',
-        )
 
         self.stdout.write('Initialize required configurations if they are not exist:')
         for config in GlobalConfigs.required():

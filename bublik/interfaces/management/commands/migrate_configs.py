@@ -6,7 +6,6 @@ import importlib.util
 import os
 
 from django.conf import settings
-from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db.models.signals import post_save
 
@@ -149,10 +148,3 @@ class Command(BaseCommand):
 
             if content:
                 self.migrate_config(name, description, content)
-
-        # bring configuration objects to the current format
-        call_command(
-            'reformat_configs',
-            '-t',
-            ConfigTypes.GLOBAL,
-        )
