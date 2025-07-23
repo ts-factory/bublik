@@ -3,11 +3,18 @@
 
 from django.core.cache import caches
 from django.core.management import call_command
-from django.db.models.signals import post_save, pre_delete
+from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 
 from bublik.core.cache import RunCache
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, TestIterationResult
+from bublik.data.models import (
+    Config,
+    ConfigTypes,
+    GlobalConfigs,
+    Meta,
+    MetaTest,
+    TestIterationResult,
+)
 
 
 @receiver(pre_delete)
@@ -34,3 +41,9 @@ def categorize_metas_on_config_change(sender, instance, **kwargs):
         and instance.is_active
     ):
         call_command('meta_categorization')
+
+
+@receiver(post_delete, sender=MetaTest)
+def delete_orphan_meta(sender, instance, **kwargs):
+    if not MetaTest.objects.filter(meta_id=instance.meta_id).exists():
+        Meta.objects.filter(id=instance.meta_id).delete()
