@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import collections
-
 from datetime import timedelta
 import logging
 

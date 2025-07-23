@@ -4,7 +4,6 @@
 from argparse import ArgumentTypeError
 from datetime import datetime
 import json
-
 from urllib.parse import urlsplit
 
 from bublik.core.run.filter_expression import TestRunMeta
