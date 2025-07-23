@@ -566,7 +566,6 @@ class MetaTest(models.Model):
         help_text='A metadata identifier.',
     )
     serial = models.IntegerField(
-        default=0,
         help_text='The serial number is used to determine the order of comments.',
     )
     test = models.ForeignKey(
@@ -580,6 +579,20 @@ class MetaTest(models.Model):
 
     class Meta:
         db_table = 'bublik_metatest'
+
+    def save(self, *args, **kwargs):
+        if self.serial is None:
+            self.serial = self._calc_serial()
+        super().save(*args, **kwargs)
+
+    def _calc_serial(self):
+        latest_serial = (
+            MetaTest.objects.filter(test=self.test)
+            .order_by('serial')
+            .values_list('serial', flat=True)
+            .last()
+        )
+        return latest_serial + 1 if latest_serial is not None else 0
 
     def __repr__(self):
         return f'MetaTest(test={self.test!r}, serial={self.serial!r}, meta={self.meta!r})'

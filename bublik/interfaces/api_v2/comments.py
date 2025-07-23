@@ -44,7 +44,6 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
                 'meta': {'type': 'comment', 'value': json.dumps(comment_value)},
             },
         )
-        serializer.update_data()
         serializer.is_valid(raise_exception=True)
         test_comment, created = serializer.get_or_create(serializer.validated_data)
         test_comment_data = self.get_serializer(test_comment).data
@@ -65,10 +64,10 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
         upd_comment_value = request.data.get('comment')
         upd_test_comment_data = self.get_serializer(metatest).data
         upd_test_comment_data['meta']['value'] = json.dumps(upd_comment_value)
+        serial = upd_test_comment_data.pop('serial')
 
         # validate new MetaTest object data
-        serializer = self.get_serializer(data=upd_test_comment_data)
-        serializer.update_data()
+        serializer = self.get_serializer(data=upd_test_comment_data, context={'serial': serial})
         serializer.is_valid(raise_exception=True)
 
         # create a new MetaTest object and delete the old one
