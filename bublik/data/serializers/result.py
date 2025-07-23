@@ -115,19 +115,14 @@ class MetaTestSerializer(ModelSerializer):
     class Meta:
         model = MetaTest
         fields = ('id', 'updated', 'meta', 'test', 'serial')
+        extra_kwargs: ClassVar[dict] = {
+            'serial': {'read_only': True},
+        }
 
-    def update_data(self):
-        '''
-        Add serial number field to initial data.
-        '''
-        if 'serial' not in self.initial_data:
-            latest_serial = (
-                MetaTest.objects.filter(test=self.initial_data['test'])
-                .order_by('serial')
-                .values_list('serial', flat=True)
-                .last()
-            )
-            self.initial_data['serial'] = latest_serial + 1 if latest_serial is not None else 0
+    def to_internal_value(self, data):
+        internal = super().to_internal_value(data)
+        internal['serial'] = self.context.get('serial')
+        return internal
 
     def validate_meta(self, meta):
         if not meta['value']:
