@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from datetime import datetime
 from typing import ClassVar
 
 from rest_framework import serializers
@@ -9,7 +8,6 @@ from rest_framework.serializers import ModelSerializer
 
 from bublik.core.hash_system import HashedModelSerializer
 from bublik.core.meta.categorization import categorize_meta
-from bublik.core.run.utils import prepare_date
 from bublik.core.shortcuts import serialize
 from bublik.core.utils import empty_to_none
 from bublik.data.models import (
@@ -120,9 +118,8 @@ class MetaTestSerializer(ModelSerializer):
 
     def update_data(self):
         '''
-        Update initial data with updated time and serial number.
+        Add serial number field to initial data.
         '''
-        self.initial_data['updated'] = prepare_date(datetime.now())
         if 'serial' not in self.initial_data:
             latest_serial = (
                 MetaTest.objects.filter(test=self.initial_data['test'])
@@ -145,10 +142,9 @@ class MetaTestSerializer(ModelSerializer):
         if created:
             categorize_meta(meta)
 
-        updated = self.validated_data.pop('updated')
         serial = self.validated_data.pop('serial')
         return MetaTest.objects.get_or_create(
             **self.validated_data,
             meta=meta,
-            defaults={'updated': updated, 'serial': serial},
+            defaults={'serial': serial},
         )
