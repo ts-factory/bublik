@@ -578,12 +578,5 @@ class MetaTest(models.Model):
     class Meta:
         db_table = 'bublik_metatest'
 
-    def delete(self, *args, **kwargs):
-        meta_id = self.meta_id
-        super().delete(*args, **kwargs)
-        metatests_with_meta_id = MetaTest.objects.filter(meta_id=meta_id)
-        if not metatests_with_meta_id:
-            Meta.objects.get(id=meta_id).delete()
-
     def __repr__(self):
         return f'MetaTest(test={self.test!r}, serial={self.serial!r}, meta={self.meta!r})'
