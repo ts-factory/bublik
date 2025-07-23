@@ -19,6 +19,8 @@ jobs:
         with:
           files: |
             **/*.py
+          files_ignore: |
+            bublik/data/migrations/**
 
   format-check:
     name: Check Code Formatting
