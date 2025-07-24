@@ -27,6 +27,7 @@ from bublik.data.serializers.reference import ReferenceSerializer
 
 __all__ = [
     'MetaResultSerializer',
+    'MetaTestSerializer',
     'TestArgumentSerializer',
     'TestIterationRelationSerializer',
     'TestIterationResultSerializer',
