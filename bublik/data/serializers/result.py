@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+import json
 from typing import ClassVar
 
 from rest_framework import serializers
@@ -110,36 +111,47 @@ class MetaResultSerializer(ModelSerializer):
 
 
 class MetaTestSerializer(ModelSerializer):
-    meta = MetaSerializer(required=True)
+    comment = serializers.CharField(
+        source='meta.value',
+        help_text=(
+            'This field represents the value of the meta object corresponding to the comment'
+        ),
+    )
 
     class Meta:
         model = MetaTest
-        fields = ('id', 'updated', 'meta', 'test', 'serial')
+        fields = ('id', 'updated', 'test', 'comment', 'serial')
         extra_kwargs: ClassVar[dict] = {
+            'test': {'read_only': True},
             'serial': {'read_only': True},
         }
 
     def to_internal_value(self, data):
         internal = super().to_internal_value(data)
         internal['serial'] = self.context.get('serial')
+        internal['test'] = self.context.get('test')
+
+        meta_data = internal.get('meta', {})
+        meta_data.update({'type': 'comment', 'value': json.dumps(meta_data.get('value'))})
+        internal['meta'] = meta_data
+
         return internal
 
-    def validate_meta(self, meta):
-        if not meta['value']:
-            msg = 'Empty comments are not supported'
+    def validate(self, attrs):
+        test = attrs.get('test')
+        if test is None:
+            msg = '\'test\' must be provided in serializer context'
             raise serializers.ValidationError(msg)
-        return meta
+
+        meta_serializer = serialize(MetaSerializer, attrs['meta'])
+        meta, _ = meta_serializer.get_or_create()
+
+        attrs['meta'] = meta
+        return attrs
 
     def get_or_create(self, validated_data):
-        meta_data = self.validated_data.pop('meta')
-        meta_serializer = serialize(MetaSerializer, meta_data)
-        meta, created = meta_serializer.get_or_create()
-        if created:
-            categorize_meta(meta)
-
         serial = self.validated_data.pop('serial')
         return MetaTest.objects.get_or_create(
             **self.validated_data,
-            meta=meta,
             defaults={'serial': serial},
         )

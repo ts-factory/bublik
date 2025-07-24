@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-import json
-
 from rest_framework import status
 from rest_framework.mixins import DestroyModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.auth import check_action_permission
-from bublik.data.models import MetaTest
+from bublik.core.shortcuts import serialize
+from bublik.data.models import MetaTest, Test
 from bublik.data.serializers import (
     MetaTestSerializer,
 )
@@ -36,15 +35,11 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
         to the retrieved or newly created comment-type Meta.
         Request: POST tests/<test_id>/comments.
         '''
-        test_id = self.kwargs.get('test_id')
-        comment_value = request.data.get('comment')
-        serializer = self.get_serializer(
-            data={
-                'test': test_id,
-                'meta': {'type': 'comment', 'value': json.dumps(comment_value)},
-            },
-        )
-        serializer.is_valid(raise_exception=True)
+        test = Test.objects.get(pk=self.kwargs['test_id'])
+        comment_data = {
+            'comment': request.data.get('comment'),
+        }
+        serializer = serialize(self.serializer_class, data=comment_data, context={'test': test})
         test_comment, created = serializer.get_or_create(serializer.validated_data)
         test_comment_data = self.get_serializer(test_comment).data
         if not created:
@@ -59,21 +54,18 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
         created Meta with the new value.
         Request: PATCH tests/<test_id>/comments/<meta_id>.
         '''
-        # get new MetaTest object data
         metatest = self.get_object()
-        upd_comment_value = request.data.get('comment')
-        upd_test_comment_data = self.get_serializer(metatest).data
-        upd_test_comment_data['meta']['value'] = json.dumps(upd_comment_value)
-        serial = upd_test_comment_data.pop('serial')
-
-        # validate new MetaTest object data
-        serializer = self.get_serializer(data=upd_test_comment_data, context={'serial': serial})
+        upd_test_comment_data = {
+            'comment': request.data.get('comment'),
+        }
+        serializer = serialize(
+            self.serializer_class,
+            data=upd_test_comment_data,
+            context={'test': metatest.test, 'serial': metatest.serial},
+        )
         serializer.is_valid(raise_exception=True)
-
-        # create a new MetaTest object and delete the old one
         test_comment, created = serializer.get_or_create(serializer.validated_data)
         metatest.delete()
-
         test_comment_data = self.get_serializer(test_comment).data
         if not created:
             return Response(test_comment_data, status=status.HTTP_302_FOUND)
