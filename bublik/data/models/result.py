@@ -579,6 +579,7 @@ class MetaTest(models.Model):
 
     class Meta:
         db_table = 'bublik_metatest'
+        unique_together = ('test', 'meta')
 
     def save(self, *args, **kwargs):
         if self.serial is None:
