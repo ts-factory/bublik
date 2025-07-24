@@ -146,12 +146,9 @@ class MetaTestSerializer(ModelSerializer):
         meta_serializer = serialize(MetaSerializer, attrs['meta'])
         meta, _ = meta_serializer.get_or_create()
 
+        if MetaTest.objects.filter(test=test, meta=meta).exists():
+            msg = 'This comment already exists for this test'
+            raise serializers.ValidationError(msg)
+
         attrs['meta'] = meta
         return attrs
-
-    def get_or_create(self, validated_data):
-        serial = self.validated_data.pop('serial')
-        return MetaTest.objects.get_or_create(
-            **self.validated_data,
-            defaults={'serial': serial},
-        )

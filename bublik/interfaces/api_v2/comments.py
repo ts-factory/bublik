@@ -40,11 +40,8 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
             'comment': request.data.get('comment'),
         }
         serializer = serialize(self.serializer_class, data=comment_data, context={'test': test})
-        test_comment, created = serializer.get_or_create(serializer.validated_data)
-        test_comment_data = self.get_serializer(test_comment).data
-        if not created:
-            return Response(test_comment_data, status=status.HTTP_302_FOUND)
-        return Response(test_comment_data, status=status.HTTP_201_CREATED)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @check_action_permission('manage_test_comments')
     def partial_update(self, request, *args, **kwargs):
@@ -63,13 +60,9 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
             data=upd_test_comment_data,
             context={'test': metatest.test, 'serial': metatest.serial},
         )
-        serializer.is_valid(raise_exception=True)
-        test_comment, created = serializer.get_or_create(serializer.validated_data)
+        serializer.save()
         metatest.delete()
-        test_comment_data = self.get_serializer(test_comment).data
-        if not created:
-            return Response(test_comment_data, status=status.HTTP_302_FOUND)
-        return Response(test_comment_data, status=status.HTTP_201_CREATED)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @check_action_permission('manage_test_comments')
     def destroy(self, request, *args, **kwargs):
