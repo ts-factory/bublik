@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+from django.db import transaction
 from rest_framework import status
 from rest_framework.mixins import DestroyModelMixin
 from rest_framework.response import Response
@@ -60,8 +61,9 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
             data=upd_test_comment_data,
             context={'test': metatest.test, 'serial': metatest.serial},
         )
-        serializer.save()
-        metatest.delete()
+        with transaction.atomic():
+            serializer.save()
+            metatest.delete()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @check_action_permission('manage_test_comments')
