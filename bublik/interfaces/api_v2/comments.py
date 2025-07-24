@@ -32,8 +32,8 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
     @check_action_permission('manage_test_comments')
     def create(self, request, *args, **kwargs):
         '''
-        Add a comment to the Test object by creating MetaTest object that relates it
-        with the received or created Meta object of the comment type.
+        Add a comment to the Test by creating a MetaTest linking it
+        to the retrieved or newly created comment-type Meta.
         Request: POST tests/<test_id>/comments.
         '''
         test_id = self.kwargs.get('test_id')
@@ -55,9 +55,9 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
     @check_action_permission('manage_test_comments')
     def partial_update(self, request, *args, **kwargs):
         '''
-        Update a test comment by deleting the MetaTest object relates the Test object
-        with the Meta object with the old value and creating a new MetaTest object relates
-        the Test object with the received or created Meta object with the new value.
+        Update a test comment by replacing the existing MetaTest that links the Test
+        to the old Meta with a new MetaTest linking the Test to the received or newly
+        created Meta with the new value.
         Request: PATCH tests/<test_id>/comments/<meta_id>.
         '''
         # get new MetaTest object data
