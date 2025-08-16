@@ -3,6 +3,7 @@
 
 from collections import Counter
 import json
+from typing import ClassVar
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -36,23 +37,15 @@ class ConfigSerializer(ModelSerializer):
             'user',
             'content',
         )
+        extra_kwargs: ClassVar[dict] = {
+            'version': {'read_only': True},
+        }
         validators = []
-
-    def new_version(self):
-        config = Config.objects.get_latest(
-            self.initial_data['type'],
-            self.initial_data['name'],
-            self.initial_data['project'],
-        )
-        if config:
-            return config.version + 1
-        return 0
 
     def update_data(self, is_system_action=False):
         '''
-        Update initial data with version and user ID.
+        Update initial data with user ID.
         '''
-        self.initial_data['version'] = self.new_version()
         if is_system_action:
             self.initial_data['user'] = get_user_model().get_or_create_system_user().id
         else:
@@ -137,7 +130,7 @@ class ConfigSerializer(ModelSerializer):
     def validate_and_get_or_create(cls, config_data, access_token):
         '''
         Used for creating new configurations.
-        Adds user and version to the provided config data,
+        Adds user to the provided config data,
         validates it, and calls get_or_create().
         '''
         serializer = cls(data=config_data, context={'access_token': access_token})
@@ -149,7 +142,7 @@ class ConfigSerializer(ModelSerializer):
     def initialize(cls, config_data):
         '''
         Used for initializing configurations.
-        Sets is_active=True, adds user and version to the provided config data and
+        Sets is_active=True, adds user to the provided config data and
         calls create().
         '''
         config_data['is_active'] = True
