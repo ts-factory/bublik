@@ -2,7 +2,6 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
-from datetime import datetime
 import json
 
 from django.contrib.auth import get_user_model
@@ -14,7 +13,6 @@ from rest_framework.serializers import ModelSerializer
 from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
-from bublik.core.run.utils import prepare_date
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, User
 
 
@@ -28,7 +26,6 @@ class ConfigSerializer(ModelSerializer):
         model = Config
         fields = (
             'id',
-            'created',
             'type',
             'name',
             'project',
@@ -51,9 +48,8 @@ class ConfigSerializer(ModelSerializer):
 
     def update_data(self, is_system_action=False):
         '''
-        Update initial data with created time, version and user ID.
+        Update initial data with version and user ID.
         '''
-        self.initial_data['created'] = prepare_date(datetime.now())
         self.initial_data['version'] = self.new_version()
         if is_system_action:
             self.initial_data['user'] = get_user_model().get_or_create_system_user().id
@@ -139,7 +135,7 @@ class ConfigSerializer(ModelSerializer):
     def validate_and_get_or_create(cls, config_data, access_token):
         '''
         Used for creating new configurations.
-        Adds a timestamp, user, version to the provided config data,
+        Adds user and version to the provided config data,
         validates it, and calls get_or_create().
         '''
         serializer = cls(data=config_data, context={'access_token': access_token})
@@ -151,7 +147,7 @@ class ConfigSerializer(ModelSerializer):
     def initialize(cls, config_data):
         '''
         Used for initializing configurations.
-        Sets is_active=True, adds a timestamp, user, version to the provided config data and
+        Sets is_active=True, adds user and version to the provided config data and
         calls create().
         '''
         config_data['is_active'] = True
