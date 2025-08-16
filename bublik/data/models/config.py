@@ -135,7 +135,10 @@ class Config(models.Model):
     Configurations.
     '''
 
-    created = models.DateTimeField(help_text='Timestamp of the config creation.')
+    created = models.DateTimeField(
+        auto_now_add=True,
+        help_text='Timestamp of the config creation.',
+    )
     type = models.CharField(
         choices=ConfigTypes.choices,
         max_length=16,
