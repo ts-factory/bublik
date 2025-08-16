@@ -98,7 +98,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         report_config = report_config_obj.content
 
         # check if the config content has the correct format
-        serializer = ConfigSerializer(report_config_obj)
+        serializer = ConfigSerializer(report_config_obj, {'content': report_config})
         serializer.validate_content(report_config)
 
         # get the session and the corresponding main package by ID
