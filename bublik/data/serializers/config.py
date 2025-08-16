@@ -164,13 +164,4 @@ class ConfigSerializer(ModelSerializer):
             config_data['user'] = User.objects.get(id=config_data['user'])
         if config_data['project'] and not isinstance(config_data['project'], Project):
             config_data['project'] = Project.objects.get(id=config_data['project'])
-        is_active = config_data['is_active']
-        if is_active:
-            config_type = config_data['type']
-            config_name = config_data['name']
-            config_project = config_data['project']
-            active = Config.objects.get_active_or_none(config_type, config_name, config_project)
-            if active:
-                active.is_active = False
-                active.save()
         return Config.objects.create(**config_data)

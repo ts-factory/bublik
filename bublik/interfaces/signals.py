@@ -60,6 +60,17 @@ def activate_latest_after_delete(sender, instance, **kwargs):
             latest.activate()
 
 
+@receiver(post_save, sender=Config)
+def ensure_single_active_config(sender, instance, **kwargs):
+    if instance.is_active:
+        Config.objects.filter(
+            type=instance.type,
+            name=instance.name,
+            project=instance.project,
+            is_active=True,
+        ).exclude(pk=instance.pk).update(is_active=False)
+
+
 @contextmanager
 def signal_disabled(signal, receiver, sender):
     signal.disconnect(receiver, sender=sender)
