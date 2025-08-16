@@ -4,6 +4,7 @@
 import typing
 
 from django.contrib.postgres.fields import JSONField
+from django.db import transaction
 from django_filters import rest_framework as filters
 from rest_framework import status
 from rest_framework.decorators import action
@@ -13,7 +14,8 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required, check_action_permission
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project
+from bublik.core.shortcuts import serialize
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -42,103 +44,92 @@ class ConfigViewSet(ModelViewSet):
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
         '''
-        Create config with passed data (if object with the same content does not exist).
-        Return a created object or an existing object with the passed content.
+        Create and return a config unless another with the same name exists.
         Request: POST api/v2/config.
         '''
-        data = {
-            k: v
-            for k, v in request.data.items()
-            if k in ['type', 'name', 'project', 'is_active', 'description', 'content']
-        }
-        config, created = self.serializer_class.validate_and_get_or_create(
-            config_data=data,
-            access_token=request.COOKIES.get('access_token'),
+        access_token = request.COOKIES.get('access_token')
+        serializer = serialize(
+            self.serializer_class,
+            data=request.data,
+            context={'access_token': access_token},
         )
+        config, _ = serializer.get_or_create()
         config_data = self.get_serializer(config).data
-        if not created:
-            return Response(config_data, status=status.HTTP_400_BAD_REQUEST)
         return Response(config_data, status=status.HTTP_201_CREATED)
 
     @auth_required(as_admin=True)
     def partial_update(self, request, *args, **kwargs):
         '''
-        Update or create new version of the config by changing its description or content.
+        Update a configuration or create a new version.
+
+        Rules:
+        - If name is provided, the configuration and all its versions
+          are renamed.
+        - If content is not provided and description and/or is_active are provided,
+          the configuration is updated accordingly.
+        - If content is provided:
+            - and no version with the same content exists, a new version is created.
+            - and a version with the same content exists, the existing configuration is updated.
+
         Request: PATCH api/v2/config/<ID>.
         '''
         config = self.get_object()
 
-        # prepare data for updating/creating a new version
-        config_data = self.get_serializer(config).data
-        updated_data = {
-            'type': config_data['type'],
-            'project': config_data['project'],
-        }
-        for attr in ['name', 'description', 'is_active', 'content', 'project']:
-            updated_data[attr] = (
-                request.data[attr] if attr in request.data else config_data[attr]
-            )
-
-        if 'name' in request.data:
-            # check the passed name for uniqueness
-            same_name_configs = Config.objects.filter(
-                type=updated_data['type'],
-                name=updated_data['name'],
-                project=updated_data['project'],
-            )
-            if same_name_configs:
-                if updated_data['project']:
-                    project_name = Project.objects.get(
-                        id=updated_data['project'],
-                    ).name
-                    msg = (
-                        f'A {updated_data["type"]} configuration with the same name '
-                        f'already exist for the {project_name} project'
-                    )
-                else:
-                    msg = (
-                        f'A {updated_data["type"]} default configuration with the same name '
-                        'already exist'
-                    )
-                data = {
-                    attr: updated_data[attr]
-                    for attr in ['type', 'name', 'project', 'description', 'content']
-                }
-                return Response(
-                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    data={
-                        'type': 'ValueError',
-                        'message': msg,
-                        'new_config_data': data,
-                    },
-                )
-            if 'content' not in request.data:
-                # rename all config versions
-                serializer = self.get_serializer(config, data=updated_data, partial=True)
-                serializer.validate_name(updated_data['name'])
+        with transaction.atomic():
+            # rename config and its versions if new name is provided
+            if 'name' in request.data:
+                new_name = request.data['name']
+                serializer = self.get_serializer(config, data={'name': new_name}, partial=True)
+                valid_name = serializer.validate_name(new_name)
                 Config.objects.get_all_versions(
-                    config_data['type'],
-                    config_data['name'],
-                    config_data['project'],
+                    config.type,
+                    config.name,
+                    config.project,
                 ).update(
-                    name=updated_data['name'],
+                    name=valid_name,
                 )
+                config.refresh_from_db()
 
-        if 'content' in request.data:
-            # create new object version
-            new_config, created = self.serializer_class.validate_and_get_or_create(
-                config_data=updated_data,
-                access_token=request.COOKIES.get('access_token'),
-            )
-            new_config_data = self.get_serializer(new_config).data
-            if not created:
-                return Response(new_config_data, status=status.HTTP_400_BAD_REQUEST)
-            return Response(new_config_data, status=status.HTTP_201_CREATED)
+            # collect data for update
+            update_data = {
+                k: v
+                for k, v in request.data.items()
+                if k in ['description', 'is_active', 'content']
+            }
 
-        serializer = self.get_serializer(config, data=updated_data, partial=True)
+            if not update_data:
+                serializer = self.get_serializer(config)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            # if no new content is provided, just update the current config instance
+            if 'content' not in update_data:
+                serializer = self.get_serializer(config, data=update_data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # create a new config version if the provided content differs from all existing versions
+        access_token = request.COOKIES.get('access_token')
+        serializer = self.get_serializer(
+            config,
+            data=update_data,
+            partial=True,
+            context={'access_token': access_token},
+        )
         serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        updated_config, created = serializer.get_or_create()
+        if created:
+            updated_config_data = self.get_serializer(updated_config).data
+            return Response(updated_config_data, status=status.HTTP_201_CREATED)
 
+        # update the existing config matching the provided content:
+        # set is_active and description to the provided values,
+        # or to the corresponding values from the current config if not provided
+        update_data['is_active'] = update_data.get('is_active', config.is_active)
+        update_data['description'] = update_data.get('description', config.description)
+        serializer = self.get_serializer(updated_config, data=update_data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @auth_required(as_admin=True)
@@ -154,13 +145,13 @@ class ConfigViewSet(ModelViewSet):
         '''
         config_type = request.query_params.get('type')
         config_name = request.query_params.get('name')
-        serializer = self.get_serializer(data={'type': config_type, 'name': config_name})
-        config_type = serializer.validate_type(config_type)
-        config_name = serializer.validate_name(config_name)
         json_schema = ConfigServices.get_schema(config_type, config_name)
         if json_schema:
             return Response(data=json_schema, status=status.HTTP_200_OK)
-        msg = 'There is no JSON schema corresponding to the passed configuration type and name'
+        msg = (
+            'There is no JSON schema corresponding to the passed '
+            f'configuration type-name: {config_type}-{config_name}'
+        )
         return Response(
             status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             data={'type': 'ValueError', 'message': msg},

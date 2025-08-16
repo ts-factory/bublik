@@ -15,7 +15,7 @@ from rest_framework.serializers import ModelSerializer
 from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, User
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project
 
 
 __all__ = [
@@ -39,43 +39,21 @@ class ConfigSerializer(ModelSerializer):
         )
         extra_kwargs: ClassVar[dict] = {
             'version': {'read_only': True},
+            'user': {'read_only': True},
         }
         validators = []
 
-    def update_data(self, is_system_action=False):
-        '''
-        Update initial data with user ID.
-        '''
+    def to_internal_value(self, data):
+        is_system_action = self.context.get('is_system_action', False)
         if is_system_action:
-            self.initial_data['user'] = get_user_model().get_or_create_system_user().id
+            internal = data
+            internal['user'] = get_user_model().get_or_create_system_user()
         else:
-            self.initial_data['user'] = get_user_by_access_token(
-                self.context['access_token'],
-            ).id
-
-    def get_data(self):
-        '''
-        A universal method for obtaining data that takes into account both the object
-        with which the serializer can be initialized and the data.
-        '''
-        if hasattr(self, 'initial_data') and self.instance:
-            data = self.to_representation(self.instance)
-            data.update(self.initial_data)
-            return data
-        if hasattr(self, 'initial_data'):
-            return self.initial_data
-        if self.instance:
-            return self.to_representation(self.instance)
-        return {}
-
-    def ensure_json(self, config_content):
-        if isinstance(config_content, (dict, list)):
-            return config_content
-        try:
-            return json.loads(config_content)
-        except (json.JSONDecodeError, TypeError) as e:
-            msg = 'Invalid format: JSON is expected'
-            raise serializers.ValidationError(msg) from e
+            internal = super().to_internal_value(data)
+            access_token = self.context.get('access_token', None)
+            if access_token:
+                internal['user'] = get_user_by_access_token(access_token)
+        return internal
 
     def validate_type(self, config_type):
         possible_config_types = ConfigTypes.all()
@@ -85,24 +63,59 @@ class ConfigSerializer(ModelSerializer):
         return config_type
 
     def validate_name(self, name):
+        config_type = self.initial_data.get('type', getattr(self.instance, 'type', None))
+        config_project = self.initial_data.get(
+            'project',
+            getattr(self.instance, 'project', None),
+        )
+
         possible_global_config_names = GlobalConfigs.all()
-        if (
-            self.initial_data['type'] == ConfigTypes.GLOBAL
-            and name not in possible_global_config_names
-        ):
+        if config_type == ConfigTypes.GLOBAL and name not in possible_global_config_names:
             msg = (
-                f'Unsupported global config name. Possible are: {possible_global_config_names}'
+                f'Unsupported {config_type} configuration name. '
+                f'Possible are: {possible_global_config_names}.'
             )
             raise serializers.ValidationError(msg)
+
+        same_name_configs = Config.objects.filter(
+            name=name,
+            type=config_type,
+            project=config_project,
+        )
+        if same_name_configs:
+            project_name = (
+                'default'
+                if config_project is None
+                else getattr(config_project, 'name', None)
+                or Project.objects.get(id=config_project).name
+            )
+            msg = (
+                f'{config_type.capitalize()} configuration \'{name}\' '
+                f'already exist for {project_name}'
+            )
+            raise serializers.ValidationError(msg)
+
         return name
 
     def validate_content(self, content):
         '''
         Do the preprocessing and validate config content using the appropriate JSON schema.
         '''
-        content = self.ensure_json(content)
-        data = self.get_data()
-        json_schema = ConfigServices.get_schema(data['type'], data['name'])
+
+        def ensure_json(config_content):
+            if isinstance(config_content, (dict, list)):
+                return config_content
+            try:
+                return json.loads(config_content)
+            except (json.JSONDecodeError, TypeError) as e:
+                msg = 'Invalid format: JSON is expected'
+                raise serializers.ValidationError(msg) from e
+
+        content = ensure_json(content)
+
+        config_type = self.initial_data.get('type', getattr(self.instance, 'type', None))
+        config_name = self.initial_data.get('name', getattr(self.instance, 'name', None))
+        json_schema = ConfigServices.get_schema(config_type, config_name)
         if json_schema:
             try:
                 validate(instance=content, schema=json_schema)
@@ -111,7 +124,7 @@ class ConfigSerializer(ModelSerializer):
                 msg = f'Invalid format: {jeve_msg}'
                 raise serializers.ValidationError(msg) from jeve
 
-        if data['type'] == ConfigTypes.GLOBAL and data['name'] == GlobalConfigs.META.name:
+        if config_type == ConfigTypes.GLOBAL and config_name == GlobalConfigs.META.name:
             category_duplicates = [
                 category
                 for category, count in Counter(
@@ -127,18 +140,6 @@ class ConfigSerializer(ModelSerializer):
         return content
 
     @classmethod
-    def validate_and_get_or_create(cls, config_data, access_token):
-        '''
-        Used for creating new configurations.
-        Adds user to the provided config data,
-        validates it, and calls get_or_create().
-        '''
-        serializer = cls(data=config_data, context={'access_token': access_token})
-        serializer.update_data()
-        serializer.is_valid(raise_exception=True)
-        return serializer.get_or_create(serializer.validated_data)
-
-    @classmethod
     def initialize(cls, config_data):
         '''
         Used for initializing configurations.
@@ -146,9 +147,9 @@ class ConfigSerializer(ModelSerializer):
         calls create().
         '''
         config_data['is_active'] = True
-        serializer = cls(data=config_data)
-        serializer.update_data(is_system_action=True)
-        return serializer.create(serializer.initial_data)
+        serializer = cls(data=config_data, context={'is_system_action': True})
+        internal = serializer.to_internal_value(serializer.initial_data)
+        return serializer.create(internal)
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -161,7 +162,24 @@ class ConfigSerializer(ModelSerializer):
             config.save(update_fields=['is_active'])
         return config
 
-    def get_or_create(self, config_data):
+    def get_or_create(self):
+        config_data = {
+            **self.validated_data,
+            'type': self.validated_data.get('type', getattr(self.instance, 'type', None)),
+            'name': self.validated_data.get('name', getattr(self.instance, 'name', None)),
+            'project': self.validated_data.get(
+                'project',
+                getattr(self.instance, 'project', None),
+            ),
+            'description': self.validated_data.get(
+                'description',
+                getattr(self.instance, 'description', None),
+            ),
+            'is_active': self.validated_data.get(
+                'is_active',
+                getattr(self.instance, 'is_active', None),
+            ),
+        }
         config = get_or_none(
             Config.objects,
             type=config_data['type'],
@@ -175,10 +193,6 @@ class ConfigSerializer(ModelSerializer):
         return config, True
 
     def create(self, config_data):
-        if not isinstance(config_data['user'], User):
-            config_data['user'] = User.objects.get(id=config_data['user'])
-        if config_data['project'] and not isinstance(config_data['project'], Project):
-            config_data['project'] = Project.objects.get(id=config_data['project'])
         with transaction.atomic():
             config = Config.objects.create(**{**config_data, 'is_active': False})
             if config_data.get('is_active'):

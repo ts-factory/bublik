@@ -123,9 +123,7 @@ class Command(BaseCommand):
                     )
 
         project_name = getattr(configs_data.get('per_conf.py', {}), 'PROJECT', None)
-        project = (
-            Project.objects.get_or_create(name=project_name)[0].id if project_name else None
-        )
+        project = Project.objects.get_or_create(name=project_name)[0] if project_name else None
 
         # preprocess the config file content and create the corresponding config object
         for config_file_name, content in configs_data.items():
