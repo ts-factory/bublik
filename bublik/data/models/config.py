@@ -182,17 +182,6 @@ class Config(models.Model):
         self.is_active = True
         self.save()
 
-    def delete(self, *args, **kwargs):
-        config_type = self.type
-        config_name = self.name
-        config_project = self.project
-        config_active = self.is_active
-        super().delete(*args, **kwargs)
-        if config_active:
-            latest = Config.objects.get_latest(config_type, config_name, config_project)
-            if latest:
-                latest.activate()
-
     def __repr__(self):
         return (
             f'Config(created={self.created!r}, project={self.project!r}, type={self.type!r}, '

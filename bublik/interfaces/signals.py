@@ -52,6 +52,14 @@ def delete_orphan_meta(sender, instance, **kwargs):
         Meta.objects.filter(id=instance.meta_id).delete()
 
 
+@receiver(post_delete, sender=Config)
+def activate_latest_after_delete(sender, instance, **kwargs):
+    if instance.is_active:
+        latest = Config.objects.get_latest(instance.type, instance.name, instance.project)
+        if latest:
+            latest.activate()
+
+
 @contextmanager
 def signal_disabled(signal, receiver, sender):
     signal.disconnect(receiver, sender=sender)
