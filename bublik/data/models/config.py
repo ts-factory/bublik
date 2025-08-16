@@ -145,7 +145,7 @@ class Config(models.Model):
         help_text='Configuration type.',
     )
     name = models.TextField(max_length=32, help_text='Configuration name.')
-    version = models.IntegerField(default=0, help_text='Configuration version.')
+    version = models.IntegerField(help_text='Configuration version.')
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
@@ -169,12 +169,15 @@ class Config(models.Model):
 
     class Meta:
         db_table = 'bublik_config'
-        unique_together = ('type', 'name', 'project', 'version')
         constraints = [
             models.UniqueConstraint(
                 fields=['project', 'type', 'name'],
                 condition=models.Q(is_active=True),
                 name='uniq_active_per_group',
+            ),
+            models.UniqueConstraint(
+                fields=['type', 'name', 'project', 'version'],
+                name='uniq_version_per_group',
             ),
         ]
 
@@ -189,6 +192,17 @@ class Config(models.Model):
         if not self.is_active:
             self.is_active = True
             self.save(update_fields=['is_active'])
+
+    def save(self, *args, **kwargs):
+        if self.version is None:
+            self.version = self._calc_version()
+        super().save(*args, **kwargs)
+
+    def _calc_version(self):
+        config = Config.objects.get_latest(self.type, self.name, self.project)
+        if config:
+            return config.version + 1
+        return 0
 
     def __repr__(self):
         return (
