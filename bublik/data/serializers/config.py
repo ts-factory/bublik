@@ -14,7 +14,7 @@ from rest_framework.serializers import ModelSerializer
 from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, User
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 
 
 __all__ = [
@@ -38,18 +38,19 @@ class ConfigSerializer(ModelSerializer):
         )
         extra_kwargs: ClassVar[dict] = {
             'version': {'read_only': True},
+            'user': {'read_only': True},
         }
 
-    def update_data(self, is_system_action=False):
-        '''
-        Update initial data with user ID.
-        '''
+    def to_internal_value(self, data):
+        internal = super().to_internal_value(data)
+        is_system_action = self.context.get('is_system_action', False)
         if is_system_action:
-            self.initial_data['user'] = get_user_model().get_or_create_system_user().id
+            internal['user'] = get_user_model().get_or_create_system_user()
         else:
-            self.initial_data['user'] = get_user_by_access_token(
+            internal['user'] = get_user_by_access_token(
                 self.context['access_token'],
-            ).id
+            )
+        return internal
 
     def get_data(self):
         '''
@@ -125,18 +126,6 @@ class ConfigSerializer(ModelSerializer):
         return content
 
     @classmethod
-    def validate_and_get_or_create(cls, config_data, access_token):
-        '''
-        Used for creating new configurations.
-        Adds user to the provided config data,
-        validates it, and calls get_or_create().
-        '''
-        serializer = cls(data=config_data, context={'access_token': access_token})
-        serializer.update_data()
-        serializer.is_valid(raise_exception=True)
-        return serializer.get_or_create(serializer.validated_data)
-
-    @classmethod
     def initialize(cls, config_data):
         '''
         Used for initializing configurations.
@@ -144,24 +133,16 @@ class ConfigSerializer(ModelSerializer):
         calls create().
         '''
         config_data['is_active'] = True
-        serializer = cls(data=config_data)
-        serializer.update_data(is_system_action=True)
+        serializer = cls(data=config_data, context={'is_system_action': True})
         return serializer.create(serializer.initial_data)
 
-    def get_or_create(self, config_data):
+    def get_or_create(self):
         config = get_or_none(
             Config.objects,
-            project=config_data['project'],
-            content=config_data['content'],
+            project=self.validated_data['project'],
+            content=self.validated_data['content'],
         )
         if config:
             return config, False
-        config = self.create(config_data)
+        config = self.create(self.validated_data)
         return config, True
-
-    def create(self, config_data):
-        if not isinstance(config_data['user'], User):
-            config_data['user'] = User.objects.get(id=config_data['user'])
-        if config_data['project'] and not isinstance(config_data['project'], Project):
-            config_data['project'] = Project.objects.get(id=config_data['project'])
-        return Config.objects.create(**config_data)
