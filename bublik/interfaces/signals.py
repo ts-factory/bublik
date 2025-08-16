@@ -35,6 +35,14 @@ def invalidate_config_cache(sender, instance, **kwargs):
         caches['config'].delete('content')
 
 
+@receiver(post_delete, sender=Config)
+def activate_latest_after_delete(sender, instance, **kwargs):
+    if instance.is_active:
+        latest = Config.objects.get_latest(instance.type, instance.name, instance.project_id)
+        if latest:
+            latest.activate()
+
+
 @receiver(post_save, sender=Config)
 def categorize_metas_on_config_change(sender, instance, **kwargs):
     if (
