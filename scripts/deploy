@@ -252,8 +252,10 @@ function handle_side_servers() {
     sudo systemctl "${ACTION}" $service
   done
 
-  message "sudo reload nginx configs"
-  sudo nginx -s reload
+  if [[ "$ACTION" == "start" || "$ACTION" == "restart" ]]; then
+    message "sudo reload nginx configs"
+    sudo nginx -s reload
+  fi
 }
 
 function handle_user_services() {
@@ -532,9 +534,9 @@ function create_log_dir_handler {
 function run_side_servers_handler() {
   step "Run redis, rabbitmq, nginx servers (requires root)" && {
     source "${ENV_DIR}/bin/activate"
-    read -p "Choose an action {start|restart|status}: " ACTION
+    read -p "Choose an action {start|restart|stop|status}: " ACTION
     case "${ACTION}" in
-      start|restart|status)
+      start|restart|stop|status)
         handle_side_servers "${ACTION}"
         ;;
       *)
