@@ -274,8 +274,6 @@ class Command(BaseCommand):
             self.style.SUCCESS(f'There are {runs_to_migrate.count()} runs to be migrated.'),
         )
 
-        is_initial = not Project.objects.exists()
-
         # Initialize projects and configs from meta, copy test comments, reassign runs
         metas_with_runs = Meta.objects.filter(
             name=meta_name,
@@ -314,7 +312,13 @@ class Command(BaseCommand):
             # Reassign runs to project
             self.reassign_runs_to_project(project, meta_runs_to_migrate_ids)
 
-        if is_initial:
+        # On initial run, it is necessary to delete old configs, test comments,
+        # and meta categories. Whether this is the initial run is determined
+        # by checking that there are no existing projects other than the newly created ones.
+        another_projects_exists = Project.objects.exclude(
+            name__in=metas_with_runs_values,
+        ).exists()
+        if not another_projects_exists:
             Config.objects.filter(project__isnull=True).delete()
             MetaTest.objects.filter(project__isnull=True).delete()
             call_command('meta_categorization')
