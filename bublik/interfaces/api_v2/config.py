@@ -136,7 +136,6 @@ class ConfigViewSet(ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-    @check_action_permission('read_configs')
     @action(detail=False, methods=['get'], url_path='schema')
     def get_schema(self, request, *args, **kwargs):
         '''
