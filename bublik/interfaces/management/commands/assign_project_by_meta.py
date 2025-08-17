@@ -9,6 +9,7 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count, F, OuterRef, Q, Subquery
+from django.db.models.functions import Length
 
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
@@ -38,6 +39,40 @@ class Command(BaseCommand):
             default='PROJECT',
             help='The meta name by which runs will be grouped into projects.',
         )
+
+    def is_meta_valid(self, meta_name):
+        self.stdout.write('Checking provided meta...')
+        metas = Meta.objects.filter(name=meta_name)
+        invalid_values = list(
+            metas.annotate(val_len=Length('value'))
+            .filter(Q(value__isnull=True) | Q(value='') | Q(val_len__gt=64))
+            .values_list('value', flat=True)
+            .distinct(),
+        )
+        if invalid_values:
+            msg = (
+                'Invalid meta name: not all meta values can be used as a project name '
+                f'(some are blank or too long). Invalid values: {invalid_values}'
+            )
+            return False, msg
+
+        runs_num = TestIterationResult.objects.filter(test_run__isnull=True).count()
+        runs_with_single_meta = (
+            metas.filter(metaresult__result__test_run__isnull=True)
+            .values('metaresult__result')
+            .annotate(meta_count=Count('id'))
+            .filter(meta_count=1)
+            .count()
+        )
+        if runs_with_single_meta != runs_num:
+            msg = (
+                'Invalid meta name: not all runs are linked '
+                'to exactly one meta with this name.'
+            )
+            return False, msg
+
+        msg = f'The {meta_name} meta can be used to reassign projects.'
+        return True, msg
 
     def get_runs_to_migrate(self, meta_name):
         '''
@@ -222,26 +257,13 @@ class Command(BaseCommand):
         meta_name = options['meta']
 
         # Check passed meta name
-        self.stdout.write('Checking provided meta...')
-        runs_num = TestIterationResult.objects.filter(test_run__isnull=True).count()
-        runs_with_single_meta = (
-            Meta.objects.filter(name=meta_name, metaresult__result__test_run__isnull=True)
-            .values('metaresult__result')
-            .annotate(meta_count=Count('id'))
-            .filter(meta_count=1)
-            .count()
-        )
-        if runs_with_single_meta != runs_num:
+        is_meta_valid, msg = self.is_meta_valid(meta_name)
+        if not is_meta_valid:
             self.stdout.write(
-                self.style.ERROR(
-                    'Invalid meta name: not all runs are linked '
-                    'to exactly one meta with this name.',
-                ),
+                self.style.ERROR(msg),
             )
             return
-        self.stdout.write(
-            self.style.SUCCESS(f'The {meta_name} meta can be used to reassign projects.'),
-        )
+        self.stdout.write(self.style.SUCCESS(msg))
 
         # Identify runs that need to be reassigned based on meta
         runs_to_migrate = self.get_runs_to_migrate(meta_name)
