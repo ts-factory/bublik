@@ -46,7 +46,7 @@ class ConfigSerializer(ModelSerializer):
         is_system_action = self.context.get('is_system_action', False)
         if is_system_action:
             internal['user'] = get_user_model().get_or_create_system_user()
-        else:
+        elif self.instance is None:
             internal['user'] = get_user_by_access_token(
                 self.context['access_token'],
             )
@@ -93,6 +93,25 @@ class ConfigSerializer(ModelSerializer):
                 f'Unsupported global config name. Possible are: {possible_global_config_names}'
             )
             raise serializers.ValidationError(msg)
+
+        if self.instance:
+            same_name_configs = Config.objects.filter(
+                name=name,
+                type=self.instance.type,
+                project=self.instance.project,
+            )
+            if same_name_configs:
+                scope = (
+                    f'the {self.instance.project.name} project'
+                    if self.instance.project
+                    else 'default'
+                )
+                msg = (
+                    f'A {self.instance.type} configuration with the same name '
+                    f'already exist for {scope}'
+                )
+                raise serializers.ValidationError(msg)
+
         return name
 
     def validate_content(self, content):
