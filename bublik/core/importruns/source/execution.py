@@ -170,6 +170,7 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
         if run_completed:
             run.start = run_start
             run.finish = run_finish
+            run.project_id = project_id
             run.save()
             force_update = True
             if was_online:
