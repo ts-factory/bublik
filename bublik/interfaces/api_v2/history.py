@@ -58,6 +58,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         test_name = self.request.query_params.get('test_name')
 
         ### Get run filter params ###
+        # Get run IDs
+        run_ids = self.request.query_params.get('run_ids', '')
         # Get period
         from_date = self.request.query_params.get('from_date', '')
         to_date = self.request.query_params.get('to_date', '')
@@ -113,6 +115,11 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
                 start__date__lte=self.to_date,
             ),
         )
+
+        # Filter by run IDs
+        if run_ids:
+            run_ids = run_ids.split(query_delimiter)
+            runs_results = runs_results.filter(id__in=run_ids)
 
         # Combine branches, revisions, labels, tags to the one set of metas
         run_metas = []
