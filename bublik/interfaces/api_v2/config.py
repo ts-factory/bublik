@@ -6,16 +6,18 @@ import typing
 from django.contrib.postgres.fields import JSONField
 from django.db import transaction
 from django_filters import rest_framework as filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import auth_required, check_action_permission
+from bublik.core.auth import auth_required, get_user_by_access_token
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
+from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.shortcuts import serialize
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, UserRoles
 from bublik.data.serializers import ConfigSerializer
 
 
@@ -36,10 +38,43 @@ class ConfigFilterSet(filters.FilterSet):
 class ConfigViewSet(ModelViewSet):
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
-    filterset_class = ConfigFilterSet
+    filterset_class = ConfigFilter
+    filter_backends: typing.ClassVar[list] = [ProjectFilterBackend, DjangoFilterBackend]
 
-    def filter_queryset(self, queryset):
-        return ConfigFilter(queryset=self.queryset).qs
+    def get_queryset(self):
+        configs = self.filter_queryset(super().get_queryset())
+        access_token = self.request.COOKIES.get('access_token')
+        user = get_user_by_access_token(access_token)
+
+        not_permission_required_actions_default = ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'NOT_PERMISSION_REQUIRED_ACTIONS',
+            project_id=None,
+            default=[],
+        )
+        if (
+            user and UserRoles.ADMIN in user.roles
+        ) or 'read_configs' in not_permission_required_actions_default:
+            return configs | Config.objects.filter(project__isnull=True)
+
+        project_ids = list(Project.objects.all().values_list('id', flat=True))
+        project_ids = [
+            project_id
+            for project_id in project_ids
+            if 'read_configs'
+            in ConfigServices.getattr_from_global(
+                GlobalConfigs.PER_CONF.name,
+                'NOT_PERMISSION_REQUIRED_ACTIONS',
+                project_id=project_id,
+                default=[],
+            )
+        ]
+        if project_ids:
+            configs = configs.filter(project_id__in=project_ids)
+            if configs:
+                return configs | Config.objects.filter(project__isnull=True)
+
+        return configs.none()
 
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
@@ -156,7 +191,6 @@ class ConfigViewSet(ModelViewSet):
             data={'type': 'ValueError', 'message': msg},
         )
 
-    @check_action_permission('read_configs')
     @action(detail=True, methods=['get'])
     def all_versions(self, request, *args, **kwargs):
         '''
@@ -207,14 +241,14 @@ class ConfigViewSet(ModelViewSet):
             )
         return Response({'config_types_names': config_type_names}, status=status.HTTP_200_OK)
 
-    @check_action_permission('read_configs')
     def list(self, request):
         '''
         Of all configurations having the same project, type and name, if there are active ones,
         returns active ones, if there are none, returns the latest ones.
         '''
         configs_to_display = (
-            Config.objects.order_by('project', 'type', 'name', '-is_active', '-created')
+            self.get_queryset()
+            .order_by('project', 'type', 'name', '-is_active', '-created')
             .distinct('project', 'type', 'name')
             .values(
                 'id',
@@ -228,7 +262,3 @@ class ConfigViewSet(ModelViewSet):
             )
         )
         return Response(configs_to_display, status=status.HTTP_200_OK)
-
-    @check_action_permission('read_configs')
-    def retrieve(self, request, pk=None):
-        return super().retrieve(request)
