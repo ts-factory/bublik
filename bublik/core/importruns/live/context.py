@@ -185,6 +185,7 @@ class LiveLogContext:
                 meta_data = MetaData(data['meta_data'])
                 self.run = identify_run(meta_data.key_metas)
                 self.last_ts = meta_data.run_start
+                self.project_id = meta_data.project_id
             except Exception as e:
                 err = e if isinstance(e, str) else 'error occurred while processing metadata'
                 raise LLInternalError(err) from err
@@ -194,7 +195,11 @@ class LiveLogContext:
 
         force_update = True
         if self.run is None:
-            run_data = {'test_run': None, 'start': meta_data.run_start}
+            run_data = {
+                'test_run': None,
+                'start': meta_data.run_start,
+                'project_id': self.project_id,
+            }
             self.run = TestIterationResult.objects.create(**run_data)
             force_update = False
         else:
@@ -333,7 +338,7 @@ class LiveLogContext:
             test_iteration = add_iteration(test, None, '', parent_iter, len(self.test_stack))
             # Create TestIterationResult
             test_iteration_result = add_iteration_result(
-                project_id=None,
+                project_id=self.project_id,
                 start_time=self.last_ts,
                 iteration=test_iteration,
                 run=self.run,
