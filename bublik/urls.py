@@ -77,7 +77,7 @@ urlpatterns = [
     # Redirects
     path('', main_api.redirect_root),
     re_path(
-        r'^(?:[\w\-@.+=]+/)?short/(?P<view_endpoint_hash>[A-Za-z0-9+/=]+)$',
+        r'^(?:[\w\-@.+=]+/)*short/(?P<view_endpoint_hash>[A-Za-z0-9+/=]+)$',
         main_api.redirect_short,
     ),
     path('dashboard/', main_api.redirect_dashboard),
