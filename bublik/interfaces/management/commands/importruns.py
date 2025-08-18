@@ -177,15 +177,17 @@ class Command(BaseCommand):
                 'log.xml.xz',
                 'raw_log_bundle.tpxz',
             ]
-            for log_file in log_files:
-                if save_url_to_dir(run_url, process_dir, log_file):
-                    if log_file == 'bublik.json':
-                        json_data = JSONLog().convert_from_dir(process_dir, log_file)
-                    else:
-                        json_data = JSONLog().convert_from_dir(process_dir)
-                    url_str = os.path.join(run_url, log_file)
-                    logger.info(f'run logs were downloaded from {url_str}')
-                    break
+            log_file = next(
+                (f for f in log_files if save_url_to_dir(run_url, process_dir, f)),
+                None,
+            )
+            if log_file:
+                args = (process_dir, log_file) if log_file == 'bublik.json' else (process_dir,)
+                json_data = JSONLog().convert_from_dir(*args)
+                logger.info(f'run logs were downloaded from {os.path.join(run_url, log_file)}')
+            else:
+                json_data = None
+                logger.warning('no logs were downloaded')
 
             if meta_data_saved:
                 # Load meta_data.json
