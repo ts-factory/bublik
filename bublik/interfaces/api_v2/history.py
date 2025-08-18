@@ -292,8 +292,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         if grouped:
             test_results_by_iteration = group_results_by_iteration(test_results)
             lists_test_results = []
-            for _iteration_hash, test_results in test_results_by_iteration:
-                lists_test_results.append(list(test_results))
+            for _iteration_hash, iteration_results in test_results_by_iteration:
+                lists_test_results.append(list(iteration_results))
 
             test_results_by_iteration = self.paginate_queryset(lists_test_results)
             test_results = chain(*test_results_by_iteration)
