@@ -166,7 +166,10 @@ class Config(models.Model):
 
     class Meta:
         db_table = 'bublik_config'
-        unique_together = ('type', 'name', 'project', 'version')
+        unique_together = (
+            ('type', 'name', 'project', 'version'),
+            ('project', 'content'),
+        )
 
     def activate(self):
         active = Config.objects.get_active_or_none(self.type, self.name, self.project)
