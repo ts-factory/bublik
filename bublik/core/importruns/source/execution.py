@@ -277,9 +277,10 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
 
     logger.info('the process of adding tags is started')
     start_time = datetime.now()
-    add_tags(run, run_log.get('tags'))
+    tags = run_log.get('tags', [])
+    add_tags(run, tags)
     logger.info(f'the process of adding tags is completed in [{datetime.now() - start_time}]')
-    logger.info(f"the number of added tags is {len(run_log.get('tags'))}")
+    logger.info(f'the number of added tags is {len(tags)}')
 
     call_command('run_cache', 'delete', '-i', run.id, '--logger_out', True)
 
