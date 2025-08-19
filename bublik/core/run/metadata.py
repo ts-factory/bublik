@@ -94,28 +94,28 @@ class MetaData:
         # Check metadata version
         self.version = meta_data.get('version')
         if not self.version or (self.version and self.version > 1):
-            logger.error('not valid version of meta_data.json')
-            raise ValueError
+            msg = 'not valid version of meta_data.json'
+            raise ValueError(msg)
 
         # Check format specific data
         self.metas = meta_data.get('metas')
         if not self.metas:
-            logger.error('meta_data.json parser expected a list of metas')
-            raise KeyError
+            msg = 'meta_data.json parser expected a list of metas'
+            raise KeyError(msg)
 
         # Check and safe project meta ID
         project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
         if not project_meta:
-            logger.error('meta_data.json parser expected a PROJECT meta.')
-            raise ValueError
+            msg = 'meta_data.json parser expected a PROJECT meta.'
+            raise ValueError(msg)
         try:
             self.project_id = Project.objects.get(name=project_meta['value']).id
         except Project.DoesNotExist as mdne:
-            logger.error(
+            msg = (
                 f'The project does not exist: {project_meta["value"]}. '
-                'Create it to import logs.',
+                'Create it to import logs.'
             )
-            raise ObjectDoesNotExist from mdne
+            raise ObjectDoesNotExist(msg) from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
@@ -124,8 +124,8 @@ class MetaData:
             self.project_id,
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
-            logger.error('There is no status meta in meta_data.json. It is a required meta.')
-            raise ValueError
+            msg = 'There is no status meta in meta_data.json. It is a required meta.'
+            raise ValueError(msg)
 
         key_metas_fields = set()
         key_metas_names = ConfigServices.getattr_from_global(
@@ -160,25 +160,25 @@ class MetaData:
 
             # Check key metas duplicates
             elif find_dict_in_list({'name': meta_name}, self.key_metas):
-                logger.error(
+                msg = (
                     f'the following key meta is duplicated: {meta_name}, '
-                    'that compromises metadata, ignoring the run',
+                    'that compromises metadata, ignoring the run'
                 )
-                raise ValueError
+                raise ValueError(msg)
 
         if key_metas_names:
-            logger.error(
+            msg = (
                 "can't identify the run, the following RUN_KEY_METAS are "
-                f"absent in metadata: {','.join(key_metas_names)}",
+                f"absent in metadata: {','.join(key_metas_names)}"
             )
-            raise AttributeError
+            raise AttributeError(msg)
 
         # Check if all key metas satisfy Meta model
         model_fields = [f.name for f in Meta._meta.get_fields()]
         diff = get_difference(key_metas_fields, model_fields)
         if diff:
-            logger.error(f"meta can't have the following fields: {','.join(diff)}")
-            raise ValueError
+            msg = f"meta can't have the following fields: {','.join(diff)}"
+            raise ValueError(msg)
 
     def __parse_timestamps(self):
         start_meta = find_dict_in_list({'name': 'START_TIMESTAMP'}, self.metas)
