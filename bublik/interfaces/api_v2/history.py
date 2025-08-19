@@ -172,8 +172,13 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         test_args_filter = []
         if len(test_args) != 0:
             test_arg_query = Q()
-            for test_arg in test_args.split(query_delimiter):
-                arg_key, arg_value = test_arg.split(test_arg_delimiter, 1)
+            for test_arg in filter(
+                None,
+                (arg.strip() for arg in test_args.split(query_delimiter)),
+            ):
+                arg_key, arg_value = (
+                    part.strip() for part in test_arg.split(test_arg_delimiter, 1)
+                )
                 test_arg_query |= Q(name=arg_key, value=arg_value)
 
             test_args_filter = list(TestArgument.objects.filter(test_arg_query))
