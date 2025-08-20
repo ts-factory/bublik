@@ -129,6 +129,17 @@ class Command(BaseCommand):
                     )
 
         project_name = getattr(configs_data.get('per_conf.py', {}), 'PROJECT', None)
+
+        # check that the project has not been retired
+        existing_project_names = list(Project.objects.values_list('name', flat=True))
+        if existing_project_names and project_name not in existing_project_names:
+            self.stdout.write(
+                self.style.WARNING(
+                    f'Project {project_name} is retired. Configurations are not migrated.',
+                ),
+            )
+            return
+
         project = Project.objects.get_or_create(name=project_name)[0] if project_name else None
 
         # preprocess the config file content and create the corresponding config object
