@@ -55,8 +55,11 @@ def group_by_runs_and_category(metas, categories, format_fn=key_value_list_trans
     for result_id, metas_and_categories in dicts_groupby(metas, dict_key='result_id'):
         metas_by_category[result_id] = OrderedDict.fromkeys(categories, [])
         # Group by category
-        for category, metas in dicts_groupby(metas_and_categories, dict_key='category'):
-            metas_group = list(format_fn(metas)) if format_fn else metas
+        for category, category_metas in dicts_groupby(
+            metas_and_categories,
+            dict_key='category',
+        ):
+            metas_group = list(format_fn(category_metas)) if format_fn else category_metas
             metas_by_category[result_id][category] = metas_group
     return metas_by_category
 
