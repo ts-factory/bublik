@@ -74,7 +74,7 @@ class Command(BaseCommand):
         categories = set()
         for pid, configs_content in configs_content_per_project.items():
             for item in configs_content:
-                logger.debug(f'item: {item}')
+                logger.debug(f'[project id={pid}] item: {item}')
 
                 category = item['category']
                 if category in categories:
@@ -86,11 +86,11 @@ class Command(BaseCommand):
                 comment = item.get('set-comment', None)
                 patterns = item.get('set-patterns', [])
 
-                logger.debug(f'category: {category}')
-                logger.debug(f'type: {type}')
-                logger.debug(f'set_priority: {priority}')
-                logger.debug(f'set_comment: {comment}')
-                logger.debug(f'set_patterns: {patterns}')
+                logger.debug(f'[project id={pid}] category: {category}')
+                logger.debug(f'[project id={pid}] type: {type}')
+                logger.debug(f'[project id={pid}] set_priority: {priority}')
+                logger.debug(f'[project id={pid}] set_comment: {comment}')
+                logger.debug(f'[project id={pid}] set_patterns: {patterns}')
 
                 if comment:
                     comment = comment.strip()
@@ -98,11 +98,11 @@ class Command(BaseCommand):
                 if not priority:
                     priority = self.DEFAULT_META_PRIORITY
                     logger.info(
-                        f'no priority is specified for {item}, '
+                        f'[project id={pid}] no priority is specified for {item}, '
                         f'defaulting to {self.DEFAULT_META_PRIORITY}',
                     )
 
-                logger.debug(f'creating category: {category}')
+                logger.debug(f'[project id={pid}] creating category: {category}')
                 category_obj = MetaCategory.objects.create(
                     name=category,
                     priority=priority,
@@ -112,7 +112,7 @@ class Command(BaseCommand):
                 )
 
                 for pattern in patterns:
-                    logger.debug(f'creating category pattern: {pattern}')
+                    logger.debug(f'[project id={pid}] creating category pattern: {pattern}')
                     MetaPattern.objects.create(
                         pattern=pattern,
                         category=category_obj,
@@ -129,7 +129,7 @@ class Command(BaseCommand):
         project_id = project.id if project else None
 
         logger.info(
-            f'removing all meta categories associated with the {project_name} project',
+            f'[project id={project_id}] removing all meta categories',
         )
         MetaCategory.objects.filter(project_id=project_id).delete()
 
@@ -137,7 +137,7 @@ class Command(BaseCommand):
         project_ids = [project_id, None] if project_id else [None]
 
         logger.debug(
-            f'retrieving {project_name} configs: {config_names}',
+            f'[project id={project_id}] retrieving configs: {config_names}',
         )
         configs_content_per_project = {}
         for pid in project_ids:
@@ -148,8 +148,8 @@ class Command(BaseCommand):
                     configs_content_per_project[pid].append(config.content)
                 except ObjectDoesNotExist:
                     logger.warning(
-                        f'{config_name} configuration object doesn\'t exist '
-                        f'for project (ID={pid})',
+                        f'[project id={pid}]: {config_name} configuration '
+                        'object doesn\'t exist',
                     )
             configs_content_per_project[pid] = list(chain(*configs_content_per_project[pid]))
 
