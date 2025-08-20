@@ -4,7 +4,7 @@
 from collections import OrderedDict
 import re
 
-from django.db.models import F
+from django.db.models import F, Q
 
 from bublik.core.utils import dicts_groupby, key_value_list_transforming
 from bublik.data.models.meta import MetaPattern
@@ -77,8 +77,11 @@ def get_metas_by_category(
     # Get metas of the specified categories
     metas = list(
         meta_results.filter(
-            meta__category__name__in=categories,
-            meta__category__project_id=project_id,
+            Q(meta__category__name__in=categories)
+            & (
+                Q(meta__category__project_id=project_id)
+                | Q(meta__category__project__isnull=True)
+            ),
         )
         .annotate(
             category=F('meta__category__name'),
@@ -86,7 +89,8 @@ def get_metas_by_category(
             value=F('meta__value'),
         )
         .values('result_id', 'category', 'name', 'value')
-        .order_by('category', 'name'),
+        .order_by('category', 'name')
+        .distinct(),
     )
 
     # Group by via the specified function
