@@ -101,6 +101,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Migrate configurations from the directory to the database:')
 
+        self.stdout.write(f'Source directory: {settings.PER_CONF_DIR}')
+
         config_file_names = ['per_conf.py', 'references.py', 'meta.conf', 'tags.conf']
 
         # check the existence of the PER_CONF_DIR directory and the presence
