@@ -40,5 +40,31 @@
         },
         "required": ["category", "type"],
         "additionalProperties": false
-    }
+    },
+    "default": [
+        {
+            "type": "label",
+            "category": "Test Suite",
+            "set-comment": "Category of run metas specifying the test suite name",
+            "set-patterns": ["TS_NAME"]
+        },
+        {
+            "type": "label",
+            "category": "Configuration",
+            "set-comment": "Category of run metas specifying the configuration",
+            "set-patterns": ["CFG"]
+        },
+        {
+            "type": "label",
+            "category": "User",
+            "set-comment": "Category of run metas specifying the user",
+            "set-patterns": ["USER"]
+        },
+        {
+            "type": "label",
+            "category": "Status",
+            "set-comment": "Category of run metas specifying the run status",
+            "set-patterns": ["RUN_STATUS"]
+        }
+    ]
 }
