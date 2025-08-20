@@ -88,7 +88,8 @@
             "description": "Represents a list of meta category names that manages columns in the history and runs page",
             "type": "array",
             "items": {
-                "type": "string"
+                "type": "string",
+                "examples": ["Test Suite", "Configuration", "User", "Status"]
             },
             "uniqueItems": true,
             "default": ["Configuration"]
@@ -97,7 +98,8 @@
             "description": "Represents a list of meta category names that defines extra data to show in Info block on run and log pages",
             "type": "array",
             "items": {
-                "type": "string"
+                "type": "string",
+                "examples": ["Test Suite", "Configuration", "User", "Status"]
             },
             "uniqueItems": true,
             "default": ["Configuration"]

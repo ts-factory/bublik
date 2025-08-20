@@ -10,7 +10,8 @@
             },
             "category": {
                 "type": ["string", "null"],
-                "description": "Category name"
+                "description": "Category name",
+                "examples": ["Test Suite", "Configuration", "User", "Status"]
             },
             "set-priority": {
                 "anyOf": [
