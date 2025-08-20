@@ -54,14 +54,6 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'config_names',
-            nargs='?',
-            default=[
-                GlobalConfigs.META.name,
-            ],
-            help='Names of the map configs',
-        )
-        parser.add_argument(
             '-prj',
             '--project',
             type=str,
@@ -124,6 +116,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         start_time = datetime.now()
 
+        config_name = GlobalConfigs.META.name
+
         project_name = options['project']
         project = Project.objects.get(name=project_name) if project_name else None
         project_id = project.id if project else None
@@ -133,24 +127,21 @@ class Command(BaseCommand):
         )
         MetaCategory.objects.filter(project_id=project_id).delete()
 
-        config_names = options['config_names']
         project_ids = [project_id, None] if project_id else [None]
 
         logger.debug(
-            f'[project id={project_id}] retrieving configs: {config_names}',
+            f'[project id={project_id}] retrieving config: {config_name}',
         )
         configs_content_per_project = {}
         for pid in project_ids:
             configs_content_per_project[pid] = []
-            for config_name in config_names:
-                try:
-                    config = Config.objects.get_global(config_name, pid)
-                    configs_content_per_project[pid].append(config.content)
-                except ObjectDoesNotExist:
-                    logger.warning(
-                        f'[project id={pid}]: {config_name} configuration '
-                        'object doesn\'t exist',
-                    )
+            try:
+                config = Config.objects.get_global(config_name, pid)
+                configs_content_per_project[pid].append(config.content)
+            except ObjectDoesNotExist:
+                logger.warning(
+                    f'[project id={pid}]: {config_name} configuration object doesn\'t exist',
+                )
             configs_content_per_project[pid] = list(chain(*configs_content_per_project[pid]))
 
         if not any(configs_content_per_project.values()):
