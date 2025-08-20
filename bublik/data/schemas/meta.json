@@ -5,10 +5,12 @@
         "type": "object",
         "properties": {
             "type": {
-                "type": ["string", "null"]
+                "type": ["string", "null"],
+                "description": "Type of metas belonging to this category"
             },
             "category": {
-                "type": ["string", "null"]
+                "type": ["string", "null"],
+                "description": "Category name"
             },
             "set-priority": {
                 "anyOf": [
@@ -20,17 +22,20 @@
                     {
                         "type": "null"
                     }
-                ]
+                ],
+                "description": "Category priority indicating the importance of metas"
             },
             "set-comment": {
-                "type": ["string", "null"]
+                "type": ["string", "null"],
+                "description": "Additional information about the category"
             },
             "set-patterns":  {
                 "type": "array",
                 "items": {
                     "type": "string",
                     "uniqueItems": true
-                }
+                },
+                "description": "List of patterns for assigning metas to the category"
             }
         },
         "required": ["category", "type"],
