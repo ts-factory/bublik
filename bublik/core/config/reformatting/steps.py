@@ -262,3 +262,83 @@ class SimplifyMetaStructure(BaseReformatStep):
                 item['set-patterns'] = pattern if isinstance(pattern, list) else [pattern]
 
         return config
+
+
+class ImproveMetaStructure(BaseReformatStep):
+    '''
+    Reformat global meta config content:
+     - remove empty values,
+     - split pattern strings into individual elements,
+     - drop categories without name and/or type (violates DB constraints),
+     - drop categories with duplicate names (ignored in categorization),
+     - convert into dict keyed by category names.
+
+    Example:
+    [
+        {
+            "type": "tag",
+            "category": "specs",
+            "set-comment": null,
+            "set-priority": 9,
+            "set-patterns": ["SPEC$", ""]
+        },
+        {
+            "type": "label",
+            "category": "specs",
+            "set-comment": "",
+            "set-patterns": ["specific", "speclabel"]
+        },
+        {
+            "type": "tag",
+            "category": "drivers",
+            "set-comment": "Drivers",
+            "set-patterns": ["drv|net_.*$"]
+        },
+        {
+            "category": "linux_tag",
+            "set-comment": "Linux major-minor version",
+            "set-patterns": ["LINUX"]
+        }
+    ] ->
+    {
+        "specs": {
+            "type": "tag",
+            "set-priority": 9,
+            "set-patterns": ["SPEC$"]
+        },
+        "drivers": {
+            "type": "tag",
+            "set-comment": "Drivers",
+            "set-patterns": ["drv", "net_.*$"]
+        }
+    }
+    '''
+
+    def applied(self, config, **kwargs):
+        return isinstance(config.content, dict)
+
+    def reformat(self, config, **kwargs):
+        valid_content_with_categories = []
+        for category in config.content:
+            # remove empty values and split pattern strings into individual elements
+            category['set-patterns'] = [
+                pattern
+                for pattern_str in category.get('set-patterns', [])
+                for pattern in pattern_str.split('|')
+                if pattern
+            ]
+            category = {key: val for key, val in category.items() if val}
+
+            # drop categories without name and/or type (violates DB constraints)
+            if 'category' in category and 'type' in category:
+                valid_content_with_categories.append(category)
+
+        # convert into dict keyed by category names,
+        # dropping categories with duplicate names (ignored in categorization)
+        reformatted_content = {}
+        for category_data in valid_content_with_categories:
+            category = category_data.pop('category')
+            reformatted_content.setdefault(category, category_data)
+
+        config.content = reformatted_content
+        return config
