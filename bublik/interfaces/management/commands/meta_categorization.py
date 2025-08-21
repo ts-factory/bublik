@@ -26,22 +26,19 @@ class Command(BaseCommand):
     '''
     Example of config content handled by the command:
     [
-        {
+        "Configuration": {
             "type": "label",
-            "category": "Configuration",
             "set-comment": "Label with category Configuration",
             "set-patterns": ["CFG"]
         },
-        {
+        "linux": {
             "type": "tag",
-            "category": "linux",
             "set-comment": "Linux major-minor version",
             "set-patterns": ["linux-mm$"],
             "set-priority": 3
         },
-        {
+        "irrelevant_tag": {
             "type": "tag",
-            "category": "irrelevant_tag",
             "set-priority": 10
         }
     ]
@@ -62,14 +59,13 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def create_and_assign_meta_categories(self, meta_categories, project_id):
-        for item in meta_categories:
-            logger.debug(f'[project id={project_id}] item: {item}')
+        for category, category_data in meta_categories.items():
+            logger.debug(f'[project id={project_id}] item: {{{category}: {category_data}}}')
 
-            category = item['category']
-            type = item['type']
-            priority = item.get('set-priority', None)
-            comment = item.get('set-comment', None)
-            patterns = item.get('set-patterns', [])
+            type = category_data.get('type', None)
+            priority = category_data.get('set-priority', None)
+            comment = category_data.get('set-comment', None)
+            patterns = category_data.get('set-patterns', [])
 
             logger.debug(f'[project id={project_id}] category: {category}')
             logger.debug(f'[project id={project_id}] type: {type}')
@@ -83,7 +79,7 @@ class Command(BaseCommand):
             if not priority:
                 priority = self.DEFAULT_META_PRIORITY
                 logger.info(
-                    f'[project id={project_id}] no priority is specified for {item}, '
+                    f'[project id={project_id}] no priority is specified for {category}, '
                     f'defaulting to {self.DEFAULT_META_PRIORITY}',
                 )
 
@@ -141,13 +137,13 @@ class Command(BaseCommand):
                     logger.warning(
                         f'[project id={pid}] {config_name} configuration is empty',
                     )
-                    return []
+                    return {}
                 return content
             except ObjectDoesNotExist:
                 logger.warning(
                     f'[project id={pid}] {config_name} configuration is missing',
                 )
-                return []
+                return {}
 
         meta_categories = get_meta_content(None)
 
@@ -156,12 +152,7 @@ class Command(BaseCommand):
             # Retrieve the categories for a project as a combination
             # of the default categories and the project-specific categories.
             if pid is not None:
-                meta_categories = list(
-                    {
-                        **{item['category']: item for item in meta_categories},
-                        **{item['category']: item for item in get_meta_content(pid)},
-                    }.values(),
-                )
+                meta_categories.update(get_meta_content(pid))
 
             # Create and assign meta categories for the project
             if not meta_categories:

@@ -1,39 +1,41 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "array",
-    "items": {
-        "type": "object",
-        "properties": {
-            "type": {
-                "type": ["string", "null"]
-            },
-            "category": {
-                "type": ["string", "null"]
-            },
-            "set-priority": {
-                "anyOf": [
-                    {
-                        "type": "number",
-                        "minimum": 1,
-                        "maximum": 10
-                    },
-                    {
-                        "type": "null"
-                    }
-                ]
-            },
-            "set-comment": {
-                "type": ["string", "null"]
-            },
-            "set-patterns":  {
-                "type": "array",
-                "items": {
+    "type": "object",
+    "description": "Meta categorization configuration",
+    "propertyNames": {
+        "minLength": 1
+    },
+    "patternProperties": {
+        ".*": { "$ref": "#/definitions/category" }
+    },
+    "definitions": {
+        "category": {
+            "type": "object",
+            "properties": {
+                "type": {
                     "type": "string",
+                    "minLength": 1
+                },
+                "set-priority": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 10
+                },
+                "set-comment": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "set-patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    },
                     "uniqueItems": true
                 }
-            }
-        },
-        "required": ["category", "type"],
-        "additionalProperties": false
+            },
+            "required": ["type"],
+            "additionalProperties": false
+        }
     }
 }
