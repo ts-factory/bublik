@@ -6,7 +6,7 @@ import logging
 from bublik.core.config.services import ConfigServices
 
 
-logger = logging.getLogger('')
+logger = logging.getLogger('color')
 
 
 class BaseReformatStep:
@@ -18,12 +18,12 @@ class BaseReformatStep:
         try:
             if not self.applied(config, **kwargs):
                 config = self.reformat(config, **kwargs)
-                logger.info(f'\tSTEP: {self.__class__.__name__} - OK')
+                logger.success(f'\tSTEP: {self.__class__.__name__} - OK')
                 return config, True
             logger.info(f'\tSTEP: {self.__class__.__name__} - SKIPPED')
             return config, False
         except Exception as err:
-            logger.info(f'\tSTEP: {self.__class__.__name__} - FAILED:')
+            logger.error(f'\tSTEP: {self.__class__.__name__} - FAILED:')
             raise err
 
     def applied(self, config, **kwargs):
