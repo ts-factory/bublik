@@ -13,6 +13,7 @@ from bublik.core.config.reformatting.piplines import (
     ReferencesConfigReformatPipeline,
     ReportConfigReformatPipeline,
 )
+from bublik.core.queries import get_or_none
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.serializers import ConfigSerializer
 from bublik.interfaces.signals import categorize_metas_on_config_change, signal_disabled
@@ -38,8 +39,26 @@ def update_config(reformatted_config):
         partial=True,
     )
     serializer.is_valid(raise_exception=True)
-    with signal_disabled(post_save, categorize_metas_on_config_change, sender=Config):
-        reformatted_config.save()
+
+    # delete configuration if a version with the same content already exists
+    duplicate_version = get_or_none(
+        Config.objects.exclude(id=reformatted_config.id),
+        type=reformatted_config.type,
+        name=reformatted_config.name,
+        project=reformatted_config.project,
+        content=reformatted_config.content,
+    )
+    if duplicate_version:
+        duplicate_version_label = (
+            f'{duplicate_version.name} ({duplicate_version.type}, '
+            f'{duplicate_version.project.name if duplicate_version.project else "default"}, '
+            f'v{duplicate_version.version})'
+        )
+        logger.warning(f'\tConfiguration removed: duplicate of {duplicate_version_label}')
+        reformatted_config.delete()
+    else:
+        with signal_disabled(post_save, categorize_metas_on_config_change, sender=Config):
+            reformatted_config.save()
 
 
 class ConfigReformatStatuses(str, Enum):
