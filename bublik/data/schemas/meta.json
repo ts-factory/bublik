@@ -2,6 +2,40 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "description": "Meta categorization configuration",
+    "properties": {
+        "Test Suite": {
+            "$ref": "#/definitions/category",
+            "description": "Category of run metas specifying the test suite name",
+            "default": {
+                "type": "label",
+                "set-patterns": ["TS_NAME"]
+            }
+        },
+        "Configuration": {
+            "$ref": "#/definitions/category",
+            "description": "Category of run metas specifying the configuration",
+            "default": {
+                "type": "label",
+                "set-patterns": ["CFG"]
+            }
+        },
+        "User": {
+            "$ref": "#/definitions/category",
+            "description": "Category of run metas specifying the user",
+            "default": {
+                "type": "label",
+                "set-patterns": ["USER"]
+            }
+        },
+        "Status": {
+            "$ref": "#/definitions/category",
+            "description": "Category of run metas specifying the run status",
+            "default": {
+                "type": "label",
+                "set-patterns": ["RUN_STATUS"]
+            }
+        }
+    },
     "propertyNames": {
         "minLength": 1
     },
