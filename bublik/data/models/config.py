@@ -61,7 +61,7 @@ class GlobalConfigs(Enum):
 
     @classmethod
     def required(cls):
-        return [cls.PER_CONF, cls.REFERENCES]
+        return [cls.PER_CONF, cls.REFERENCES, cls.META]
 
 
 class ConfigManager(models.Manager):
