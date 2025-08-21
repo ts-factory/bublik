@@ -8,4 +8,5 @@ class InterfacesConfig(AppConfig):
     name = 'bublik.interfaces'
 
     def ready(self):
+        import bublik.interfaces.logging_setup
         import bublik.interfaces.signals

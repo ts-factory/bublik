@@ -133,6 +133,18 @@ LOGGING = {
         'simple': {
             'format': '%(message)s',
         },
+        'colored': {
+            '()': 'colorlog.ColoredFormatter',
+            'format': '%(log_color)s%(message)s%(reset)s',
+            'log_colors': {
+                'DEBUG': 'cyan',
+                'INFO': 'blue',
+                'SUCCESS': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'bold_red',
+            },
+        },
         'json': {
             'format': '%(asctime)s %(levelname)s %(module)s %(message)s',
             'class': 'pythonjsonlogger.jsonlogger.JsonFormatter',
@@ -149,6 +161,11 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
+        'console.color': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'colored',
+        },
         'file.debug': {
             'level': 'DEBUG',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -162,6 +179,11 @@ LOGGING = {
         '': {
             'handlers': ['console'],
             'level': DJANGO_LOG_LEVEL,
+        },
+        'color': {
+            'handlers': ['console.color'],
+            'level': DJANGO_LOG_LEVEL,
+            'propagate': False,
         },
         'bublik.server': {
             'handlers': ['command.console'],
