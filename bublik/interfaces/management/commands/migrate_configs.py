@@ -74,7 +74,11 @@ class Command(BaseCommand):
         '''
         Create global config object with passed name, description and content.
         '''
-        configs = Config.objects.filter(type=ConfigTypes.GLOBAL, name=config_name)
+        configs = Config.objects.filter(
+            type=ConfigTypes.GLOBAL,
+            name=config_name,
+            project=project,
+        )
         if configs:
             self.stdout.write(f'{config_name}: already migrated!')
         else:
