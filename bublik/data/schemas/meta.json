@@ -11,22 +11,27 @@
     "definitions": {
         "category": {
             "type": "object",
+            "description": "Name of the meta category",
             "properties": {
                 "type": {
                     "type": "string",
+                    "description": "Type of metas belonging to this category",
                     "minLength": 1
                 },
                 "set-priority": {
                     "type": "number",
+                    "description": "Category priority indicating the importance of metas",
                     "minimum": 1,
                     "maximum": 10
                 },
                 "set-comment": {
                     "type": "string",
+                    "description": "Additional information about the category",
                     "minLength": 1
                 },
                 "set-patterns": {
                     "type": "array",
+                    "description": "List of patterns for assigning metas to the category",
                     "items": {
                         "type": "string",
                         "minLength": 1
