@@ -659,6 +659,13 @@ def generate_all_run_details(run):
     branches = q.metas_query('branch')
     revisions = build_revision_references(q.metas_query('revision'), project.id)
     labels = q.labels_query(category_names, project.id)
+    configurations = list(
+        key_value_list_transforming(
+            get_metas_by_category(run_meta_results, ['Configuration'], project.id)[
+                'Configuration'
+            ],
+        ),
+    )
     categories = get_metas_by_category(run_meta_results, category_names, project.id)
     for category, category_values in categories.items():
         categories[category] = key_value_list_transforming(category_values)
@@ -683,6 +690,7 @@ def generate_all_run_details(run):
         'revisions': revisions,
         'labels': key_value_list_transforming(labels),
         'special_categories': categories,
+        'configuration': configurations[0] if configurations else None,
     }
 
 
