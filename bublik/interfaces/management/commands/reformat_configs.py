@@ -2,7 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from django.core.management.base import BaseCommand
-from django.db.models import Case, IntegerField, Q, When
+from django.db.models import Q
 from rest_framework import serializers
 
 from bublik.core.config.reformatting.dispatcher import (
@@ -18,7 +18,13 @@ class Command(BaseCommand):
         '''
         Get a list of configurations filtered by the passed types and names.
         '''
-        configs = Config.objects.all().order_by('type', 'name', 'version')
+        configs = Config.objects.all().order_by(
+            'project',
+            '-is_active',
+            'type',
+            'name',
+            'version',
+        )
         if not options['type'] and not options['name']:
             return configs
 
@@ -76,18 +82,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Reformat configurations:')
         # get configs
-        configs = (
-            self.get_configs(options)
-            .annotate(
-                sort_order=Case(
-                    When(type='global', name='per_conf', is_active=True, then=3),
-                    When(type='global', name='per_conf', then=2),
-                    default=1,
-                    output_field=IntegerField(),
-                ),
-            )
-            .order_by('sort_order')
-        )
+        configs = self.get_configs(options)
         if not configs:
             self.stdout.write(
                 self.style.WARNING(
