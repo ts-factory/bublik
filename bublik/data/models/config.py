@@ -4,7 +4,7 @@
 from enum import Enum
 
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import models
+from django.db import models, transaction
 
 from bublik.data.models.project import Project
 from bublik.data.models.user import User
@@ -167,14 +167,25 @@ class Config(models.Model):
     class Meta:
         db_table = 'bublik_config'
         unique_together = ('type', 'name', 'project', 'version')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'type', 'name'],
+                condition=models.Q(is_active=True),
+                name='uniq_active_per_group',
+            ),
+        ]
 
+    @transaction.atomic
     def activate(self):
-        active = Config.objects.get_active_or_none(self.type, self.name, self.project)
-        if active:
-            active.is_active = False
-            active.save()
-        self.is_active = True
-        self.save()
+        Config.objects.filter(
+            project=self.project,
+            type=self.type,
+            name=self.name,
+            is_active=True,
+        ).exclude(pk=self.pk).update(is_active=False)
+        if not self.is_active:
+            self.is_active = True
+            self.save(update_fields=['is_active'])
 
     def __repr__(self):
         return (
