@@ -137,10 +137,6 @@ class ConfigViewSet(ModelViewSet):
 
         serializer = self.get_serializer(config, data=updated_data, partial=True)
         serializer.is_valid(raise_exception=True)
-
-        if 'is_active' in request.data and updated_data['is_active']:
-            config.activate()
-
         self.perform_update(serializer)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
