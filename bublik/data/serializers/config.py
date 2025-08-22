@@ -164,6 +164,8 @@ class ConfigSerializer(ModelSerializer):
     def get_or_create(self, config_data):
         config = get_or_none(
             Config.objects,
+            type=config_data['type'],
+            name=config_data['name'],
             project=config_data['project'],
             content=config_data['content'],
         )

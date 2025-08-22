@@ -179,6 +179,10 @@ class Config(models.Model):
                 fields=['type', 'name', 'project', 'version'],
                 name='uniq_version_per_group',
             ),
+            models.UniqueConstraint(
+                fields=['type', 'name', 'project', 'content'],
+                name='uniq_content_per_group',
+            ),
         ]
 
     @transaction.atomic
