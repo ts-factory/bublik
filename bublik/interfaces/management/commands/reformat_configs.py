@@ -102,7 +102,7 @@ class Command(BaseCommand):
                 config_label = (
                     f'{config.name} ({config.type}, '
                     f'{config.project.name if config.project else "default"}, '
-                    f'v{config.version})'
+                    f'v{config.version}{", active" if config.is_active else ""})'
                 )
                 self.stdout.write(f'{config_label} reformatting:')
                 reformatting_status = dispatcher.reformat_config(config)
