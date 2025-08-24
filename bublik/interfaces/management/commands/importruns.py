@@ -29,7 +29,7 @@ from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import fetch_url, save_url_to_dir
-from bublik.core.utils import Counter, create_event, find_dict_in_list
+from bublik.core.utils import Counter, create_event
 from bublik.data.models import EventLog, GlobalConfigs, Project
 
 
@@ -149,7 +149,7 @@ class Command(BaseCommand):
         run_id=None,
         date_from=None,
         date_to=None,
-        fallback_project=None,
+        project_name=None,
     ):
         import_run_start_time = datetime.now()
         task_msg = f'Celery task ID {run_id}' if run_id else 'No Celery task ID'
@@ -158,6 +158,8 @@ class Command(BaseCommand):
             severity=EventLog.SeverityChoices.INFO,
             msg=f'started import {run_url} -- {task_msg}',
         )
+
+        project = Project.objects.get(name=project_name) if project_name is not None else None
 
         process_dir = None
         try:
@@ -191,22 +193,20 @@ class Command(BaseCommand):
 
             if meta_data_saved:
                 # Load meta_data.json
-                meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'))
+                meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'), project)
             else:
-                # Get project ID by passed project name
-                if not fallback_project:
+                if project is None:
                     logger.error(
                         'the --prj import argument is required '
                         'when meta_data.json is not available',
                     )
                     return
-                fallback_project_id = Project.objects.get(name=fallback_project).id
 
                 # Save to process dir available files for generating metadata
                 files_to_try = ConfigServices.getattr_from_global(
                     GlobalConfigs.PER_CONF.name,
                     'FILES_TO_GENERATE_METADATA',
-                    project_id=fallback_project_id,
+                    project_id=project.id,
                     default=['meta_data.txt'],
                 )
                 for filename in files_to_try:
@@ -215,30 +215,17 @@ class Command(BaseCommand):
                         logger.info(f'Save {filename} for generating metadata')
 
                 # Generate meta_data.json from available data
-                meta_data = MetaData.generate(process_dir, fallback_project)
+                meta_data = MetaData.generate(process_dir, project.name)
 
-            # Get project name
-            project_meta_name = find_dict_in_list({'name': 'PROJECT'}, meta_data.metas)['value']
-            logger.info(f'the project name is {project_meta_name}')
-
-            # Check project
-            if fallback_project and fallback_project != project_meta_name:
-                msg = (
-                    f'project mismatch: expected \'{project_meta_name}\' '
-                    f'(from meta data), but received \'{fallback_project}\''
-                )
-                logger.error(msg)
-                return
-
-            # Get project meta ID
-            project_id = meta_data.project_id
+            project = meta_data.project if project is None else project
+            logger.info(f'the project name is {project.name}')
 
             # Check whether the RUN_COMPLETE_FILE attribute exists
             try:
                 ConfigServices.getattr_from_global(
                     GlobalConfigs.PER_CONF.name,
                     'RUN_COMPLETE_FILE',
-                    project_id,
+                    project.id,
                 )
             except (ObjectDoesNotExist, KeyError) as e:
                 msg = modify_msg(
@@ -250,7 +237,7 @@ class Command(BaseCommand):
 
             # Extract logs base
             logger.info('downloading run logs: %s', run_url)
-            logs_base, suffix_url = extract_logs_base(run_url, project_id)
+            logs_base, suffix_url = extract_logs_base(run_url, project.id)
             if not suffix_url:
                 logger.error(
                     f'run url doesn\'t matched project references, ignoring: {run_url}',
@@ -287,7 +274,7 @@ class Command(BaseCommand):
                     ConfigServices.getattr_from_global(
                         GlobalConfigs.PER_CONF.name,
                         'RUN_COMPLETE_FILE',
-                        project_id,
+                        project.id,
                     ),
                     run_url,
                     logger,
@@ -299,7 +286,7 @@ class Command(BaseCommand):
             # Import run incrementally
             logger.info('the process of incremental import of run logs is started')
             start_time = datetime.now()
-            run = incremental_import(json_data, project_id, meta_data, run_completed, force)
+            run = incremental_import(json_data, project.id, meta_data, run_completed, force)
             logger.info(
                 f'the process of incremental import of run logs is completed in ['
                 f'{datetime.now() - start_time}]',
@@ -322,7 +309,7 @@ class Command(BaseCommand):
                     f'{datetime.now() - start_time}]',
                 )
 
-                categorization.categorize_metas(meta_data=meta_data, project_id=project_id)
+                categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
 
                 logger.info('the process of preparing cache for complited run is started')
                 start_time = datetime.now()
@@ -404,7 +391,7 @@ class Command(BaseCommand):
                 run_id=options['id'],
                 date_from=date_from,
                 date_to=date_to,
-                fallback_project=options['prj'],
+                project_name=options['prj'],
             )
             counter.increment()
         create_event(
