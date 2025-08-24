@@ -45,9 +45,9 @@ class MetaData:
 
     FMT_META_DATA_GENERATE = '{path_meta_data_script} --path {process_dir} --project {project}'
 
-    def __init__(self, meta_data_json):
+    def __init__(self, meta_data_json, project):
         super().__init__()
-        self.project_id = None
+        self.project = project
         self.version = None
         self.run_start = None
         self.run_finish = None
@@ -63,12 +63,12 @@ class MetaData:
         self.__parse_timestamps()
 
     @staticmethod
-    def load(meta_data_filename):
+    def load(meta_data_filename, project):
         with open(meta_data_filename) as meta_data_file:
-            return MetaData(meta_data_file.read())
+            return MetaData(meta_data_file.read(), project)
 
     @staticmethod
-    def generate(process_dir, fallback_project):
+    def generate(process_dir, project_name):
         logger.info(f'Generate meta_data.json at {process_dir}')
         try:
             path_meta_data_script = os.path.join(settings.PER_CONF_DIR, 'generate_metadata.py')
@@ -76,7 +76,7 @@ class MetaData:
                 MetaData.FMT_META_DATA_GENERATE.format(
                     path_meta_data_script=path_meta_data_script,
                     process_dir=process_dir,
-                    project=fallback_project,
+                    project=project_name,
                 ),
             )
             logger.info(f'running command: {cmd}')
@@ -103,25 +103,26 @@ class MetaData:
             msg = 'meta_data.json parser expected a list of metas'
             raise KeyError(msg)
 
-        # Check and safe project meta ID
-        project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
-        if not project_meta:
-            msg = 'meta_data.json parser expected a PROJECT meta.'
-            raise ValueError(msg)
-        try:
-            self.project_id = Project.objects.get(name=project_meta['value']).id
-        except Project.DoesNotExist as mdne:
-            msg = (
-                f'The project does not exist: {project_meta["value"]}. '
-                'Create it to import logs.'
-            )
-            raise ObjectDoesNotExist(msg) from mdne
+        # Assign project from meta if not provided
+        if not self.project:
+            project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
+            if not project_meta:
+                msg = 'meta_data.json parser expected a PROJECT meta.'
+                raise ValueError(msg)
+            try:
+                self.project = Project.objects.get(name=project_meta['value'])
+            except Project.DoesNotExist as mdne:
+                msg = (
+                    f'the project does not exist: {project_meta["value"]}. '
+                    'Create it to import logs.'
+                )
+                raise ObjectDoesNotExist(msg) from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
-            self.project_id,
+            self.project.id,
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
             msg = 'There is no status meta in meta_data.json. It is a required meta.'
@@ -131,7 +132,7 @@ class MetaData:
         key_metas_names = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
-            self.project_id,
+            self.project.id,
         )
 
         # Check names duplicates in RUN_KEY_METAS
@@ -204,7 +205,7 @@ class MetaData:
         dashboard_date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
-            self.project_id,
+            self.project.id,
         )
         name = m_data.get('name')
         value = m_data.get('value')
@@ -233,7 +234,7 @@ class MetaData:
         status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
-            self.project_id,
+            self.project.id,
         )
 
         for m_data in self.metas:
@@ -334,7 +335,7 @@ class MetaData:
         run_key_metas = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
-            self.project_id,
+            self.project.id,
         )
         essential_meta_names = [*run_key_metas, 'PROJECT']
 
