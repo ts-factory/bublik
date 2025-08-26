@@ -19,7 +19,11 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from bublik.core.auth import auth_required, get_user_by_access_token, get_user_info_from_access_token
+from bublik.core.auth import (
+    auth_required,
+    get_user_by_access_token,
+    get_user_info_from_access_token,
+)
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User
@@ -34,14 +38,14 @@ from bublik.data.serializers import (
 
 
 __all__ = [
-    'RegisterView',
+    'AdminViewSet',
+    'ForgotPasswordResetView',
+    'ForgotPasswordView',
     'LogInView',
+    'LogOutView',
     'ProfileViewSet',
     'RefreshTokenView',
-    'LogOutView',
-    'ForgotPasswordView',
-    'ForgotPasswordResetView',
-    'AdminViewSet',
+    'RegisterView',
 ]
 
 
