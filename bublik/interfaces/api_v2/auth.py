@@ -204,11 +204,15 @@ class RefreshTokenView(TokenRefreshView):
 
     def post(self, request):
         try:
-            # get refresh token from request cookies
             refresh_token = request.COOKIES.get('refresh_token')
+            if not refresh_token:
+                return Response(
+                    {'message': 'No refresh token provided'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             refresh_token = RefreshToken(refresh_token)
 
-            # verify refresh token
             try:
                 refresh_token.verify()
             except TokenError:
@@ -216,41 +220,37 @@ class RefreshTokenView(TokenRefreshView):
                     {'message': 'Not a valid refresh token'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            access_token = refresh_token.access_token
 
-            user = get_user_by_access_token(access_token)
-            if not user:
-                return Response(
-                    {'message': 'Not Authenticated'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            user_id = refresh_token['user_id']
+            user = User.objects.get(pk=user_id)
 
-            # blacklist refresh token
             refresh_token.blacklist()
 
-            # create new refresh and access tokens for user
-            refresh_token = RefreshToken.for_user(user)
-            access_token = refresh_token.access_token
-            response = Response()
+            new_refresh = RefreshToken.for_user(user)
+            new_access = new_refresh.access_token
 
-            # invalidate old cookies and set new ones
+            response = Response(
+                {
+                    'message': 'Successfully refreshed token',
+                },
+                status=status.HTTP_200_OK,
+            )
+
             response.set_cookie(
                 key='access_token',
-                value=str(access_token),
+                value=str(new_access),
                 httponly=True,
                 samesite='Strict',
             )
             response.set_cookie(
                 key='refresh_token',
-                value=str(refresh_token),
+                value=str(new_refresh),
                 httponly=True,
                 samesite='Strict',
             )
-            response.data = {
-                'message': 'Successfully refreshed token',
-            }
-            response.status_code = status.HTTP_200_OK
+
             return response
+
         except Exception as e:
             return Response(
                 {'message': 'Refresh process failed', 'error': str(e)},
