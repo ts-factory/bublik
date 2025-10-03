@@ -200,7 +200,7 @@ function install_server_packages() {
     redis-server
     libffi-dev
     libkrb5-dev
-    2to3
+    build-essential
 )
   if test -n "${KEYTAB}" ; then
     packages+=(kstart krb5-user)
