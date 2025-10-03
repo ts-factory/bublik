@@ -203,7 +203,7 @@ function install_server_packages() {
     2to3
 )
   if test -n "${KEYTAB}" ; then
-    packages+=("kstart krb5-user")
+    packages+=(kstart krb5-user)
   fi
   sudo apt update
   sudo apt -y install "${packages[@]}"
