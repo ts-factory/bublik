@@ -148,8 +148,7 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true,
-            "default": ["meta_data.txt"]
+            "uniqueItems": true
         },
         "CSRF_TRUSTED_ORIGINS": {
             "description": "Domens which Bublik server trusts accepting requests coming from",
