@@ -9,6 +9,9 @@ from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from bublik.core.config.services import ConfigServices
+from bublik.data.models import GlobalConfigs
+
 
 __all__ = [
     'ServerViewSet',
@@ -22,3 +25,16 @@ class ServerViewSet(RetrieveModelMixin, GenericViewSet):
     def version(self, request):
         data = settings.REPO_REVISIONS
         return Response(data=data)
+
+    @action(detail=False, methods=['get'])
+    def tab_title_prefix(self, request):
+        project_id = self.request.query_params.get('project_id')
+        return Response(
+            {
+                'tab_title_prefix': ConfigServices.getattr_from_global(
+                    GlobalConfigs.PER_CONF.name,
+                    'TAB_TITLE_PREFIX',
+                    project_id,
+                ),
+            },
+        )
