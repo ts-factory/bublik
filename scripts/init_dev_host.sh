@@ -77,6 +77,8 @@ function step() {
 	return $result
 }
 
+DEFAULT_ARGS=()
+
 while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
 	case $OPTION in
 		h) print_help ; exit ;;
@@ -103,6 +105,7 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
 		C)
 			if [ "${OPTARG}" = "default" ] ; then
 				BUBLIK_CONF_GIT="${BUBLIK_CONF_GIT_DEFAULT}"
+				DEFAULT_ARGS=(-c bublik)
 			else
 				BUBLIK_CONF_GIT=${OPTARG}
 			fi
@@ -122,6 +125,9 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
 		?) usage ; exit 1 ;;
 	esac
 done
+
+OPTS=("${DEFAULT_ARGS[@]}" "${OPTS[@]}")
+
 shift $(($OPTIND - 1))
 
 OPTS+=(-u "${BUBLIK_USER}" -W "${DB_PASSWORD}")
