@@ -78,10 +78,6 @@ class HTTPDirectoryTraverser:
             logger.info(f'run compromised, ignoring: {url}')
             return
 
-        if check_run_file('meta_data.txt', url):
-            yield url
-            return
-
         if check_run_file('meta_data.json', url):
             yield url
             return
@@ -210,7 +206,6 @@ class Command(BaseCommand):
                     GlobalConfigs.PER_CONF.name,
                     'FILES_TO_GENERATE_METADATA',
                     project_id=project.id,
-                    default=['meta_data.txt'],
                 )
                 for filename in files_to_try:
                     filename_saved = save_url_to_dir(run_url, process_dir, filename)
