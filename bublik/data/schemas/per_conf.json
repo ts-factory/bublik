@@ -140,7 +140,7 @@
                 "type": "string"
             },
             "uniqueItems": true,
-            "default": ["START_TIMESTAMP", "Configuration"]
+            "default": ["START_TIMESTAMP", "CFG"]
         },
         "FILES_TO_GENERATE_METADATA": {
             "description": "Represents a list of files available via run source link and allows Bublik to generate meta_data.json based on them",
