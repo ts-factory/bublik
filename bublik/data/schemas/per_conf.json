@@ -3,6 +3,11 @@
     "type": "object",
     "description": "The main project configuration",
     "properties": {
+        "TAB_TITLE_PREFIX": {
+            "description": "Custom prefix added to browser tab titles for easier identification",
+            "type": "string",
+            "minLength": 1
+        },
         "UI_VERSION": {
             "description": "Default UI version",
             "type": "number",
