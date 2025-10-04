@@ -11,7 +11,7 @@ Full documentation for the project is available at <>.
 # Requirements
 
 - **Debian 12 or 13, or Ubuntu 22.04 or 24.04**
-- **Python 3.10 or 3.11 or 3.12**
+- **Python 3.10 or 3.11 or 3.12 or 3.13**
 
 # Installation
 1. Clone [bublik backend](https://github.com/ts-factory/bublik.git) to /opt/bublik/**bublik**.
