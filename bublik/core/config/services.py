@@ -5,6 +5,7 @@ import contextlib
 
 from django.core.exceptions import ObjectDoesNotExist
 
+from bublik.core.cache import GlobalConfigCache
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.schemas.services import load_schema
 
@@ -26,11 +27,22 @@ class ConfigServices:
         return None
 
     @staticmethod
+    def get_global_content_from_cache(config_name, project_id):
+        config_cache = GlobalConfigCache(config_name, project_id)
+        config_content = config_cache.content
+        if not config_content:
+            config_content = Config.objects.get_global(config_name, project_id).content
+            config_cache.content = config_content
+        return config_content
+
+    @staticmethod
     def getattr_from_global(config_name, data_key, project_id, **kwargs):
         with contextlib.suppress(ObjectDoesNotExist, KeyError):
-            return Config.objects.get_global(config_name, project_id).content[data_key]
+            return ConfigServices.get_global_content_from_cache(config_name, project_id)[
+                data_key
+            ]
         with contextlib.suppress(ObjectDoesNotExist, KeyError):
-            return Config.objects.get_global(config_name, None).content[data_key]
+            return ConfigServices.get_global_content_from_cache(config_name, None)[data_key]
         if 'default' in kwargs:
             return kwargs['default']
 
