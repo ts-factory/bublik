@@ -19,8 +19,7 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true,
-            "default": []
+            "uniqueItems": true
         },
         "DASHBOARD_HEADER": {
             "description": "Sets columns on dashboard",
@@ -156,8 +155,7 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true,
-            "default": []
+            "uniqueItems": true
         },
         "HISTORY_SEARCH_EXAMPLE": {
             "description": "An example of history search for performance checking",
