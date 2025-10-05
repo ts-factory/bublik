@@ -50,7 +50,6 @@ class ConfigViewSet(ModelViewSet):
             GlobalConfigs.PER_CONF.name,
             'NOT_PERMISSION_REQUIRED_ACTIONS',
             project_id=None,
-            default=[],
         )
         if (
             user and UserRoles.ADMIN in user.roles
@@ -66,7 +65,6 @@ class ConfigViewSet(ModelViewSet):
                 GlobalConfigs.PER_CONF.name,
                 'NOT_PERMISSION_REQUIRED_ACTIONS',
                 project_id=project_id,
-                default=[],
             )
         ]
         if project_ids:

@@ -18,7 +18,6 @@ def prepare_expected_key(key_str, project_id):
             GlobalConfigs.REFERENCES.name,
             'ISSUES',
             project_id,
-            default={},
         ):
             logger.warning(f"{key_str}: '{ref_type}' doesn`t match the project references")
 
