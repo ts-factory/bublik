@@ -60,7 +60,6 @@ def validate_compromised_request(run_id, comment, bug, reference):
         GlobalConfigs.REFERENCES.name,
         'ISSUES',
         project_id,
-        default={},
     ):
         return f'Unknown reference key: {reference}.'
 
@@ -79,7 +78,6 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
             GlobalConfigs.REFERENCES.name,
             'ISSUES',
             run.project.id,
-            default={},
         )[reference_key]
         reference_data = {'name': ref_source['name'], 'uri': ref_source['uri']}
 

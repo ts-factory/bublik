@@ -33,4 +33,18 @@ class ConfigServices:
             return Config.objects.get_global(config_name, None).content[data_key]
         if 'default' in kwargs:
             return kwargs['default']
-        return None
+
+        empties = {
+            'string': '',
+            'number': 0,
+            'integer': 0,
+            'boolean': False,
+            'array': [],
+            'object': {},
+            'null': None,
+        }
+        data_key_type = ConfigServices.get_schema(
+            ConfigTypes.GLOBAL,
+            config_name
+        ).get('properties', {})[data_key]['type']
+        return empties[data_key_type]
