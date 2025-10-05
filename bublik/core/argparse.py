@@ -63,3 +63,9 @@ def parser_type_tags(param_tags):
             param_tags_a.append(TestRunMeta(param_tag.strip()))
 
     return param_tags_a
+
+
+def parser_type_int_or_none(value):
+    if value.lower() == 'none':
+        return None
+    return int(value)
