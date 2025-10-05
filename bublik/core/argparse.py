@@ -59,3 +59,9 @@ def parser_type_str_or_none(s):
     if s.lower() == 'none':
         return None
     return str(s)
+
+
+def parser_type_int_or_none(s):
+    if s.lower() == 'none':
+        return None
+    return int(s)
