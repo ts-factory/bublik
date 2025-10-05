@@ -12,7 +12,7 @@ from django.utils.cache import add_never_cache_headers
 
 from bublik.core.run.tests_organization import get_run_root
 from bublik.core.utils import key_value_transforming
-from bublik.data.models import Meta, TestIterationResult
+from bublik.data import models
 
 
 class RunCache:
@@ -79,7 +79,7 @@ class RunCache:
 
     @classmethod
     def by_obj(cls, run, data_key):
-        if not isinstance(run, TestIterationResult):
+        if not isinstance(run, models.TestIterationResult):
             msg = f'Inappropriate type: {type(run)}, expected TestIterationResult'
             raise TypeError(msg)
         return cls(run, data_key)
@@ -90,7 +90,7 @@ class RunCache:
             msg = f'Inappropriate type: {type(run_id)}, expected int'
             raise TypeError(msg)
         try:
-            run = TestIterationResult.objects.get(id=run_id)
+            run = models.TestIterationResult.objects.get(id=run_id)
         except ObjectDoesNotExist:
             msg = f"TestIterationResult by id {run_id} doesn't exist, unable to cache its data"
             raise Exception(
@@ -113,7 +113,7 @@ def set_tags_categories_cache(project_id):
     when meta_categorization can be called for a chosen set of metas.
     """
 
-    tags = Meta.objects.filter(type='tag')
+    tags = models.Meta.objects.filter(type='tag')
 
     important_tags_data = tags.filter(
         category__priority__range=(1, 3),
@@ -170,3 +170,37 @@ def cache_page_if_run_done(timeout):
         return _cache_control
 
     return _cache_decorator
+
+
+class GlobalConfigCache:
+    CONFIG_NAME_CHOICES: ClassVar[set] = models.GlobalConfigs.all()
+
+    def __init__(self, config_name, project_id):
+        self.project_id = project_id
+        self.name = config_name
+        self.key = self.__generate_cache_key(config_name)
+        self._content = self.__get_cache()
+
+    def __generate_cache_key(self, config_name):
+        if config_name not in self.CONFIG_NAME_CHOICES:
+            msg = (
+                f'You try to create cache for unknown config name: {config_name}. '
+                f'Possible are: {self.CONFIG_NAME_CHOICES}.'
+            )
+            raise Exception(msg)
+        return str(self.project_id) + f'.{config_name}'
+
+    def __get_cache(self):
+        return caches['config'].get(self.key)
+
+    @property
+    def content(self):
+        return self._content
+
+    @content.setter
+    def content(self, content):
+        self._content = caches['config'].set(self.key, content, None)
+
+    @content.deleter
+    def content(self):
+        caches['config'].delete(self.key)
