@@ -181,7 +181,6 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DEFAULT_MODE',
             project_id,
-            default='two_days_two_columns',
         )
 
         self.errors = []

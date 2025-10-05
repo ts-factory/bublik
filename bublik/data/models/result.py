@@ -72,7 +72,6 @@ class RunStatusByUnexpected:
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_BY_NOK_BORDERS',
             project_id,
-            default=(20.0, 80.0),
         )
 
         if total == 0 or unexpected_percent >= right_border:

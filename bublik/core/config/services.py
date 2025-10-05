@@ -43,8 +43,8 @@ class ConfigServices:
             'object': {},
             'null': None,
         }
-        data_key_type = ConfigServices.get_schema(
-            ConfigTypes.GLOBAL,
-            config_name
-        ).get('properties', {})[data_key]['type']
-        return empties[data_key_type]
+        data_key_settings = ConfigServices.get_schema(ConfigTypes.GLOBAL, config_name).get(
+            'properties',
+            {},
+        )[data_key]
+        return data_key_settings.get('default', empties[data_key_settings['type']])
