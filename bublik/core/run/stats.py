@@ -496,7 +496,6 @@ def get_expected_results(result):
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
                     result.project.id,
-                    default={},
                 )
                 if ref_type in logs and ref_tail:
                     ref_uri = logs[ref_type]['uri']
@@ -651,7 +650,6 @@ def generate_all_run_details(run):
         GlobalConfigs.PER_CONF.name,
         'SPECIAL_CATEGORIES',
         project.id,
-        default=[],
     )
     run_meta_results = run.meta_results.select_related('meta')
     q = MetaResultsQuery(run_meta_results)
