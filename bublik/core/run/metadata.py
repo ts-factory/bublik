@@ -45,7 +45,7 @@ class MetaData:
 
     FMT_META_DATA_GENERATE = '{path_meta_data_script} --path {process_dir} --project {project}'
 
-    def __init__(self, meta_data_json, project):
+    def __init__(self, meta_data_json, project=None):
         super().__init__()
         self.project = project
         self.version = None
