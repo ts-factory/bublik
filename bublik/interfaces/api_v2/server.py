@@ -5,9 +5,8 @@ import typing
 
 from django.conf import settings
 from rest_framework.decorators import action
-from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
+from rest_framework.viewsets import ViewSet
 
 from bublik.core.config.services import ConfigServices
 from bublik.data.models import GlobalConfigs
@@ -18,7 +17,7 @@ __all__ = [
 ]
 
 
-class ServerViewSet(RetrieveModelMixin, GenericViewSet):
+class ServerViewSet(ViewSet):
     filter_backends: typing.ClassVar['list'] = []
 
     @action(detail=False, methods=['get'])
