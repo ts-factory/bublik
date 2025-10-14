@@ -50,7 +50,7 @@ importlib-metadata==4.13.0
 isort==5.8.0
 jsonschema==4.17.3
 kombu==5.5.4
-Markdown==3.0.1
+Markdown==3.9
 mccabe==0.6.1
 more-itertools==8.1.0
 networkx
