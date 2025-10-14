@@ -137,7 +137,7 @@ class Command(BaseCommand):
             help='Re-import the run over the existing one',
         )
         parser.add_argument(
-            '--prj',
+            '--project_name',
             type=parser_type_project,
             help='The name of the project',
         )
@@ -197,7 +197,7 @@ class Command(BaseCommand):
             else:
                 if project is None:
                     logger.error(
-                        'the --prj import argument is required '
+                        'the --project_name import argument is required '
                         'when meta_data.json is not available',
                     )
                     return
@@ -391,7 +391,7 @@ class Command(BaseCommand):
                 run_id=options['id'],
                 date_from=date_from,
                 date_to=date_to,
-                project_name=options['prj'],
+                project_name=options['project_name'],
             )
             counter.increment()
         create_event(
