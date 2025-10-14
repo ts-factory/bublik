@@ -37,7 +37,7 @@ def categorize_metas(meta_data: MetaData, project_id) -> None:
             'MetaCategory objects or MetaPattern objects '
             f'for the {project_name} project.',
         )
-        call_command('meta_categorization', '-prj', project_name)
+        call_command('meta_categorization', '--project_name', project_name)
         return
 
     metapatterns = MetaPattern.objects.filter(category__project_id=project_id)

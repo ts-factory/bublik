@@ -50,8 +50,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-prj',
-            '--project',
+            '--project_name',
             type=str,
             default=None,
             choices=[*Project.objects.values_list('name', flat=True), None],
@@ -107,7 +106,7 @@ class Command(BaseCommand):
 
         config_name = GlobalConfigs.META.name
 
-        project_name = options['project']
+        project_name = options['project_name']
         project = Project.objects.get(name=project_name) if project_name else None
         project_id = project.id if project else None
 
