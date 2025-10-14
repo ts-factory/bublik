@@ -8,6 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from bublik.core.argparse import parser_type_str_or_none
 from bublik.core.cache import set_tags_categories_cache
 from bublik.data.models import (
     Config,
@@ -51,9 +52,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--project_name',
-            type=str,
+            type=parser_type_str_or_none,
             default=None,
             choices=[*Project.objects.values_list('name', flat=True), None],
+            help='The name of the project or None (default)',
         )
 
     @transaction.atomic
