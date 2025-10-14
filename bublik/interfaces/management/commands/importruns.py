@@ -199,8 +199,9 @@ class Command(BaseCommand):
             else:
                 if project is None:
                     logger.error(
-                        'the --project_name import argument is required '
-                        'when meta_data.json is not available',
+                        'meta_data.json not found. To import logs, you must specify '
+                        'the project so that meta_data.json can be generated using '
+                        'the corresponding FILES_TO_GENERATE_METADATA.',
                     )
                     return
 
