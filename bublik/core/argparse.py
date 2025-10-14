@@ -7,7 +7,6 @@ import json
 from urllib.parse import urlsplit
 
 from bublik.core.run.filter_expression import TestRunMeta
-from bublik.data.models import Project
 
 
 def parser_type_date(s):
@@ -40,15 +39,6 @@ def parser_type_force(s):
     return s
 
 
-def parser_type_project(s):
-    try:
-        Project.objects.get(name=s)
-    except Project.DoesNotExist as mdne:
-        msg = f'The project does not exist: {s}. Create it to import logs.'
-        raise ArgumentTypeError(msg) from mdne
-    return s
-
-
 def parser_type_tags(param_tags):
     if not param_tags:
         return None
@@ -63,3 +53,9 @@ def parser_type_tags(param_tags):
             param_tags_a.append(TestRunMeta(param_tag.strip()))
 
     return param_tags_a
+
+
+def parser_type_str_or_none(s):
+    if s.lower() == 'none':
+        return None
+    return str(s)

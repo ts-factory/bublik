@@ -17,7 +17,7 @@ import pendulum
 from bublik.core.argparse import (
     parser_type_date,
     parser_type_force,
-    parser_type_project,
+    parser_type_str_or_none,
     parser_type_url,
 )
 from bublik.core.checks import check_run_file, modify_msg
@@ -138,8 +138,10 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             '--project_name',
-            type=parser_type_project,
-            help='The name of the project',
+            type=parser_type_str_or_none,
+            default=None,
+            choices=[*Project.objects.values_list('name', flat=True), None],
+            help='The name of the project or None (default)',
         )
 
     def import_run(
