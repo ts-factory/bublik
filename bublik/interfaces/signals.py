@@ -14,6 +14,7 @@ from bublik.data.models import (
     ConfigTypes,
     GlobalConfigs,
     Meta,
+    MetaResult,
     MetaTest,
     TestIterationResult,
 )
@@ -55,8 +56,12 @@ def categorize_metas_on_config_change(sender, instance, **kwargs):
 
 
 @receiver(post_delete, sender=MetaTest)
+@receiver(post_delete, sender=MetaResult)
 def delete_orphan_meta(sender, instance, **kwargs):
-    if not MetaTest.objects.filter(meta_id=instance.meta_id).exists():
+    if (
+        not MetaTest.objects.filter(meta_id=instance.meta_id).exists()
+        and not MetaResult.objects.filter(meta_id=instance.meta_id).exists()
+    ):
         Meta.objects.filter(id=instance.meta_id).delete()
 
 
