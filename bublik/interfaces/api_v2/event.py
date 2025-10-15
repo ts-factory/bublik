@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from itertools import groupby
 import re
 import uuid
 
@@ -110,10 +111,33 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
                 },
             )
 
-        import_events_data = sorted(
-            import_events_data,
-            key=lambda import_event_data: import_event_data['timestamp'],
+        # sort to ensure correct grouping by uri and
+        # descending order within groups by timestamp
+        import_events_data.sort(
+            key=lambda e: (e['uri'] or '', e['timestamp']),
             reverse=True,
         )
 
-        return self.get_paginated_response(self.paginate_queryset(import_events_data))
+        # group events by uri
+        events_grouped_by_uri = []
+        for uri, uri_events in groupby(
+            import_events_data,
+            key=lambda e: e['uri'],
+        ):
+            uri_events = list(uri_events)
+            # if task is None, add each event as its own group
+            if uri is None:
+                for event in uri_events:
+                    events_grouped_by_uri.append([event])
+            else:
+                events_grouped_by_uri.append(uri_events)
+
+        # sort groups by timestamp of their last event (newest first)
+        events_grouped_by_uri.sort(key=lambda g: g[-1]['timestamp'], reverse=True)
+
+        # paginate the grouped events
+        page = self.paginate_queryset(events_grouped_by_uri)
+        if page is not None:
+            return self.get_paginated_response(page)
+
+        return Response(events_grouped_by_uri)
