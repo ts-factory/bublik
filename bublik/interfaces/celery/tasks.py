@@ -118,7 +118,7 @@ def importruns(
     param_from=None,
     param_to=None,
     requesting_host=None,
-    param_project=None,
+    param_project_name=None,
 ):
 
     task_id = self.request.id
@@ -129,15 +129,16 @@ def importruns(
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}&force={param_force}&prj={param_project}',
+            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}'
+            f'&force={param_force}&project_name={param_project_name}',
         )
 
         if param_from:
             cmd_import += ['--from', param_from]
         if param_to:
             cmd_import += ['--to', param_to]
-        if param_project:
-            cmd_import += ['--prj', param_project]
+        if param_project_name:
+            cmd_import += ['--project_name', param_project_name]
         if param_force:
             cmd_import += ['--force', param_force]
         if param_url:
@@ -179,7 +180,7 @@ def importruns(
                 r'the project name is ([^"]+)',
                 logpath,
             )
-            project_name = project_name or param_project
+            project_name = project_name or param_project_name
             project_id = (
                 Project.objects.filter(name=project_name).values_list('id', flat=True).first()
                 if project_name
@@ -211,7 +212,7 @@ def meta_categorization(self, project_name):
     logger.info(f'[RUN]:  {query_url}')
 
     with open(logpath, 'a') as f:
-        call_command('meta_categorization', project=project_name, stdout=f, stderr=f)
+        call_command('meta_categorization', project_name=project_name, stdout=f, stderr=f)
 
     return task_id
 

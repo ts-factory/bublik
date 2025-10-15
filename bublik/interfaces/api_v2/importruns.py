@@ -18,6 +18,7 @@ from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
 from bublik.core.importruns.utils import indicate_collision
 from bublik.core.shortcuts import build_absolute_uri, get_current_scheme_host_prefix
 from bublik.core.utils import get_local_log
+from bublik.data.models import Project
 from bublik.interfaces.celery import tasks
 
 
@@ -40,7 +41,9 @@ class ImportrunsViewSet(ViewSet):
         param_from = request.query_params.get('from', '').replace('-', '.')
         param_to = request.query_params.get('to', '').replace('-', '.')
         param_force = request.query_params.get('force', 'false')
-        param_project = request.query_params.get('prj')
+
+        project_id = request.query_params.get('project')
+        param_project_name = Project.objects.get(id=project_id).name if project_id else None
 
         try:
             requesting_host = get_current_scheme_host_prefix(request)
@@ -51,7 +54,7 @@ class ImportrunsViewSet(ViewSet):
                 param_from,
                 param_to,
                 requesting_host,
-                param_project,
+                param_project_name,
             )
             if indicate_collision(str(task_id), param_url):
                 task_id = tasks.importruns.delay(
@@ -60,7 +63,7 @@ class ImportrunsViewSet(ViewSet):
                     param_from,
                     param_to,
                     requesting_host,
-                    param_project,
+                    param_project_name,
                 )
 
             data = {
