@@ -19,16 +19,21 @@ Full documentation is available [here](https://ts-factory.github.io/bublik-relea
 - Python 3.10 or 3.11 or 3.12 or 3.13
 
 ## Installation
-1. Clone [bublik backend](https://github.com/ts-factory/bublik.git) to /opt/bublik/**bublik**.
-2. Clone [bublik frontend](https://github.com/ts-factory/bublik-ui.git) to /opt/bublik/**bublik-ui**.
-3. Clone [site-specific configuration](https://github.com/ts-factory/ts-rigs-sample.git) to /opt/bublik/**ts-rigs**.
-4. Launch deploy script:
-
+1. Clone [Bublik backend](https://github.com/ts-factory/bublik.git):
     ```
-    cd /opt/bublik/bublik
-    ./scripts/deploy -c ol/selftest -H bublik-db -k /etc/bublik.keytab
+    git clone https://github.com/ts-factory/bublik.git
     ```
-5. Check to NGINX settings in /etc/nginx/sites-available/bublik:
+2. Launch the initial deployment script, specifying the host:
+    ```
+    ./scripts/init_deploy.sh <host name>
+    ```
+    You can also use the initial deployment and deployment options to provide additional parameters.
+    To see all available options, run:
+    ```
+    ./scripts/init_deploy.sh -h
+    ./scripts/deploy -h
+    ```
+3. Check to NGINX settings in /etc/nginx/sites-available/bublik:
 
     ```
     location /v2/ {
