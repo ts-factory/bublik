@@ -159,3 +159,40 @@ class MetaTestSerializer(ModelSerializer):
 
         attrs['meta'] = meta
         return attrs
+
+
+class RunCommentSerializer(MetaResultSerializer):
+    comment = serializers.CharField(
+        source='meta.value',
+        help_text=(
+            'This field represents the value of the meta object corresponding to the comment'
+        ),
+    )
+
+    class Meta:
+        model = MetaResult
+        fields = ('id', 'comment')
+
+    def to_internal_value(self, data):
+        internal = super().to_internal_value(data)
+
+        run = self.context.get('run')
+        internal['result'] = run
+
+        meta_data = internal.get('meta', {})
+        meta_data.update({'type': 'comment', 'value': meta_data.get('value')})
+        internal['meta'] = meta_data
+
+        return internal
+
+    def validate(self, attrs):
+        run = attrs.get('result')
+        if run is None:
+            msg = '\'run\' must be provided in serializer context'
+            raise serializers.ValidationError(msg)
+
+        if MetaResult.objects.filter(result=run, meta__type=attrs['meta']['type']).exists():
+            msg = 'Comment for this run already exists'
+            raise serializers.ValidationError(msg)
+
+        return attrs
