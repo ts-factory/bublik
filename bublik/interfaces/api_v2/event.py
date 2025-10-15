@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from itertools import groupby
 import re
 import uuid
 
@@ -110,10 +111,33 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
                 },
             )
 
-        import_events_data = sorted(
-            import_events_data,
-            key=lambda import_event_data: import_event_data['timestamp'],
+        # sort to ensure correct grouping by celery_task and
+        # descending order within groups by timestamp
+        import_events_data.sort(
+            key=lambda e: (e['celery_task'] or '', e['timestamp']),
             reverse=True,
         )
 
-        return self.get_paginated_response(self.paginate_queryset(import_events_data))
+        # group events by celery_task
+        events_grouped_by_task = []
+        for celery_task, celery_task_events in groupby(
+            import_events_data,
+            key=lambda e: e['celery_task'],
+        ):
+            celery_task_events = list(celery_task_events)
+            # if task is None, add each event as its own group
+            if celery_task is None:
+                for event in celery_task_events:
+                    events_grouped_by_task.append([event])
+            else:
+                events_grouped_by_task.append(celery_task_events)
+
+        # sort groups by timestamp of their last event (newest first)
+        events_grouped_by_task.sort(key=lambda g: g[-1]['timestamp'], reverse=True)
+
+        # paginate the grouped events
+        page = self.paginate_queryset(events_grouped_by_task)
+        if page is not None:
+            return self.get_paginated_response(page)
+
+        return Response(events_grouped_by_task)
