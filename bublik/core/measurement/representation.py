@@ -260,7 +260,16 @@ class ReportRecordDataBuilder:
     def sort_points_sequences(self):
         return {sga: dict(sorted(points.items())) for sga, points in self.sequences.items()}
 
-    def get_record_data(self):
+    def normalize_sequences(self, axis_x_data):
+        '''
+        Align all sequences to the same x-axis by filling missing points with empty values.
+        '''
+        for sequence_arg, sequence in self.sequences.items():
+            for axis_x_val in set(axis_x_data['values']) - set(sequence.keys()):
+                self.sequences[sequence_arg][axis_x_val] = {'y_value': None}
+
+    def get_record_data(self, axis_x_data):
+        self.normalize_sequences(axis_x_data)
         with contextlib.suppress(TypeError):
             self.sequences = self.sort_points_sequences()
         return [
@@ -291,12 +300,11 @@ class ReportChartBuilder:
     def __init__(self, axis_x, axis_y, series_label, sequences):
         chart_sequences = self.get_chart_sequences(sequences)
         axis_x.add_values(sorted(self.get_axis_x_values(chart_sequences)))
-        self.complete_chart_sequences(axis_x, chart_sequences)
         self.axis_x = axis_x.to_representation()
         self.axis_y = axis_y
         self.series_label = series_label
         self.warnings = self.get_warnings(sequences)
-        self.data = ReportRecordDataBuilder(chart_sequences).get_record_data()
+        self.data = ReportRecordDataBuilder(chart_sequences).get_record_data(self.axis_x)
 
     def representation(self):
         return {
@@ -315,14 +323,6 @@ class ReportChartBuilder:
             sga: {x: point_data for x, point_data in points.items() if isinstance(x, int)}
             for sga, points in sequences.items()
         }
-
-    def complete_chart_sequences(self, axis_x, chart_sequences):
-        '''
-        Align all sequences to the same x-axis by filling missing points with empty values.
-        '''
-        for sequence_arg, sequence in chart_sequences.items():
-            for axis_x_val in set(axis_x.values) - set(sequence.keys()):
-                chart_sequences[sequence_arg][axis_x_val] = {'y_value': None}
 
     def get_warnings(self, sequences):
         # points with a non-numeric value of the x-axis argument cannot be displayed on chart
@@ -358,7 +358,7 @@ class ReportTableBuilder:
         }
         self.data = ReportRecordDataBuilder(
             self.get_table_sequences(sequences, base_series_label),
-        ).get_record_data()
+        ).get_record_data(axis_x)
 
     def representation(self):
         return {
