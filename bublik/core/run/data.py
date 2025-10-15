@@ -42,7 +42,6 @@ def get_metadata_by_runs(runs, categorize=False):
             GlobalConfigs.PER_CONF.name,
             'METADATA_ON_PAGES',
             project_id,
-            default=[],
         )
 
         groupping_kwargs = {

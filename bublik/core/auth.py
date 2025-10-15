@@ -89,7 +89,6 @@ def check_action_permission(action):
                 GlobalConfigs.PER_CONF.name,
                 'NOT_PERMISSION_REQUIRED_ACTIONS',
                 project_id=project,
-                default=[],
             )
             if action in not_permission_required_actions:
                 return func(self, request, *args, **kwargs)
