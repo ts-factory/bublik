@@ -29,6 +29,7 @@ from .reference import ReferenceSerializer
 from .result import (
     MetaResultSerializer,
     MetaTestSerializer,
+    RunCommentSerializer,
     TestArgumentSerializer,
     TestIterationRelationSerializer,
     TestIterationResultSerializer,
@@ -54,6 +55,7 @@ __all__ = [
     'ProjectSerializer',
     'ReferenceSerializer',
     'RegisterSerializer',
+    'RunCommentSerializer',
     'TestArgumentSerializer',
     'TestIterationRelationSerializer',
     'TestIterationResultSerializer',

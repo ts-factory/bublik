@@ -4,6 +4,7 @@
 from typing import ClassVar
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
@@ -36,9 +37,13 @@ from bublik.core.run.stats import (
     get_run_status,
 )
 from bublik.core.run.tests_organization import get_test_ids_by_name
+from bublik.core.shortcuts import serialize
 from bublik.core.utils import get_difference
 from bublik.data import models
-from bublik.data.serializers import TestIterationResultSerializer
+from bublik.data.serializers import (
+    RunCommentSerializer,
+    TestIterationResultSerializer,
+)
 
 
 all = [
@@ -193,6 +198,61 @@ class RunViewSet(ModelViewSet):
         except Exception as e:
             raise ValidationError(e) from ValidationError
         return Response({'message': f'Run {run.id} now is not compromised'})
+
+    @action(
+        detail=True,
+        methods=['get', 'post', 'put', 'delete'],
+        serializer_class=RunCommentSerializer,
+    )
+    def comment(self, request, pk=None):
+        run = self.get_object()
+
+        def get_comment(run):
+            comments = models.MetaResult.objects.filter(meta__type='comment', result=run)
+            if not comments.exists():
+                return None
+            if comments.count() > 1:
+                msg = 'Multiple comments found for the run'
+                raise ValidationError(msg)
+            return comments.first()
+
+        if request.method == 'GET':
+            comment = get_comment(run)
+            return Response({'comment': comment.meta.value if comment else None})
+
+        if request.method == 'POST':
+            mr_serializer = serialize(
+                self.serializer_class,
+                data={'comment': request.data.get('comment')},
+                context={'run': run},
+            )
+            mr, _ = mr_serializer.get_or_create()
+            return Response(
+                self.serializer_class(mr).data,
+                status=status.HTTP_201_CREATED,
+            )
+
+        if request.method == 'PUT':
+            comment = get_comment(run)
+            with transaction.atomic():
+                comment.delete()
+                mr_serializer = serialize(
+                    self.serializer_class,
+                    data={'comment': request.data.get('comment')},
+                    context={'run': run},
+                )
+                mr, _ = mr_serializer.get_or_create()
+            return Response(
+                self.serializer_class(mr).data,
+                status=status.HTTP_200_OK,
+            )
+
+        if request.method == 'DELETE':
+            comment = get_comment(run)
+            comment.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 class ResultViewSet(ModelViewSet):
