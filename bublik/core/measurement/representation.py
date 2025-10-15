@@ -257,12 +257,12 @@ class ReportRecordDataBuilder:
     def __init__(self, sequences):
         self.sequences = sequences
 
-    def sort_points(self, sequences):
-        return {sga: dict(sorted(points.items())) for sga, points in sequences.items()}
+    def sort_points_sequences(self):
+        return {sga: dict(sorted(points.items())) for sga, points in self.sequences.items()}
 
     def get_record_data(self):
         with contextlib.suppress(TypeError):
-            self.sequences = self.sort_points(self.sequences)
+            self.sequences = self.sort_points_sequences()
         return [
             {
                 'series': series_name,
