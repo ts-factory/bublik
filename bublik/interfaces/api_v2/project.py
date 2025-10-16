@@ -20,10 +20,6 @@ class ProjectViewSet(ModelViewSet):
 
     @auth_required(as_admin=True)
     def update(self, request, *args, **kwargs):
-        project = self.get_object()
-        if project.testiterationresult_set.exists():
-            msg = 'Unable to rename: there are runs linked to this project'
-            raise ValidationError(msg)
         return super().update(request, *args, **kwargs)
 
     @auth_required(as_admin=True)
