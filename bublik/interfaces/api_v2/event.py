@@ -106,6 +106,7 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
                         r'-- runtime:\s*([\d.]+) sec',
                         cast=float,
                     ),
+                    'run_id': find(import_event_msg, r'-- run_id=(\d+)', cast=int),
                 },
             )
 
