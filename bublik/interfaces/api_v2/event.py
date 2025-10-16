@@ -6,6 +6,7 @@ import uuid
 
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
+from django.db.models import Case, CharField, Q, Value, When
 from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -16,14 +17,36 @@ from bublik.data.serializers import EventLogSerializer
 
 
 __all__ = [
-    'EventLogViewSet',
+    'ImportEventViewSet',
 ]
 
 
-class EventLogViewSet(ListModelMixin, GenericViewSet):
+class ImportEventViewSet(ListModelMixin, GenericViewSet):
     serializer_class = EventLogSerializer
 
     def get_queryset(self):
+        import_status_by_keyword = {
+            'received import': 'RECEIVED',
+            'started import': 'STARTED',
+            'successful import': 'SUCCESS',
+            'failed import': 'FAILURE',
+        }
+
+        # build OR query to match any known import status keyword
+        import_query = Q()
+        for import_keyword in import_status_by_keyword:
+            import_query |= Q(msg__icontains=import_keyword)
+
+        # build conditional annotation
+        status_cases = [
+            When(msg__icontains=import_keyword, then=Value(import_status))
+            for import_keyword, import_status in import_status_by_keyword.items()
+        ]
+
+        import_events = EventLog.objects.filter(import_query).annotate(
+            status=Case(*status_cases, output_field=CharField()),
+        )
+
         date = self.request.query_params.get('date', '')
         facility = self.request.query_params.get('facility', '')
         severity = self.request.query_params.get('severity', '')
@@ -31,91 +54,62 @@ class EventLogViewSet(ListModelMixin, GenericViewSet):
         task_id = self.request.query_params.get('task_id', '')
         url = self.request.query_params.get('url', '')
 
-        events = EventLog.objects.all()
-
         if facility:
-            events = events.filter(facility=facility)
+            import_events = import_events.filter(facility=facility)
 
         if date:
-            events = events.filter(timestamp__date=date_str_to_db(date))
+            import_events = import_events.filter(timestamp__date=date_str_to_db(date))
 
         if severity:
-            events = events.filter(severity=severity)
+            import_events = import_events.filter(severity=severity)
 
         if msg:
-            events = events.filter(msg__contains=msg)
+            import_events = import_events.filter(msg__contains=msg)
 
         if task_id and uuid.UUID(task_id):
-            events = events.filter(msg__contains=task_id)
+            import_events = import_events.filter(msg__contains=task_id)
 
         if url:
             URLValidator()(url)
-            events = events.filter(msg__contains=url)
+            import_events = import_events.filter(msg__contains=url)
 
-        return events
+        return import_events
 
     def list(self, request, *args, **kwargs):
         try:
-            events = self.get_queryset()
+            import_events = self.get_queryset()
         except (ValueError, ValidationError) as e:
             return Response({'error': str(e)})
 
-        import_statuses = {
-            'received import': 'RECEIVED',
-            'started import': 'STARTED',
-            'successful import': 'SUCCESS',
-            'failed import': 'FAILURE',
-        }
-        import_events = []
+        import_events_data = []
 
-        for event in events:
-            event_msg = event.msg
+        for import_event in import_events:
+            import_event_msg = import_event.msg
 
-            # check if this is an import event
-            import_status = next(
-                (
-                    import_statuses[import_msg]
-                    for import_msg in import_statuses
-                    if import_msg in event_msg
-                ),
-                None,
-            )
-            if not import_status:
-                continue
+            def find(import_event_msg, pattern):
+                return m.group(1) if (m := re.search(pattern, import_event_msg)) else None
 
-            event_id = event.id
-            event_facility = event.facility
-            event_severity = event.severity
-            event_timestamp = event.timestamp
-
-            msg_uri = re.search(r'(?P<url>https?://[^\s]+)', event_msg)
-            found_task_id = re.search(r'-- Celery task ID (\S*)', event_msg)
-            event_runtime = re.search(r'-- runtime: (\d.*) sec', event_msg)
-            event_error = re.search(r'--\s*Error:\s*(.*?)(?:\s*--|$)', event_msg)
-
-            task_id = found_task_id.group(1) if found_task_id else None
-            event_uri = msg_uri.group('url') if msg_uri else 'No URI'
-            runtime = event_runtime.group(1) if event_runtime else None
-            error_msg = event_error.group(1) if event_error else None
-
-            import_events.append(
+            import_events_data.append(
                 {
-                    'event_id': event_id,
-                    'facility': event_facility,
-                    'severity': event_severity,
-                    'uri': event_uri,
-                    'celery_task': task_id,
-                    'status': import_status,
-                    'timestamp': event_timestamp,
-                    'error_msg': error_msg,
-                    'runtime': runtime,
+                    'event_id': import_event.id,
+                    'timestamp': import_event.timestamp,
+                    'facility': import_event.facility,
+                    'severity': import_event.severity,
+                    'status': import_event.status,
+                    'uri': find(import_event_msg, r'(?P<url>https?://\S+)'),
+                    'celery_task': find(import_event_msg, r'-- Celery task ID (\S+)'),
+                    'error_msg': find(import_event_msg, r'--\s*Error:\s*(.*?)(?:\s*--|$)'),
+                    'runtime': find(
+                        import_event_msg,
+                        r'-- runtime:\s*([\d.]+) sec',
+                    ),
                 },
             )
 
-        import_events = sorted(
-            import_events,
-            key=lambda item: item['timestamp'],
+        import_events_data = sorted(
+            import_events_data,
+            key=lambda import_event_data: import_event_data['timestamp'],
             reverse=True,
         )
 
-        return self.get_paginated_response(self.paginate_queryset(import_events))
+        return self.get_paginated_response(self.paginate_queryset(import_events_data))
