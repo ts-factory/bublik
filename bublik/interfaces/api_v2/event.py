@@ -86,8 +86,10 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
         for import_event in import_events:
             import_event_msg = import_event.msg
 
-            def find(import_event_msg, pattern):
-                return m.group(1) if (m := re.search(pattern, import_event_msg)) else None
+            def find(event_msg, pattern, cast=None):
+                if m := re.search(pattern, event_msg):
+                    return cast(m.group(1)) if cast else m.group(1)
+                return None
 
             import_events_data.append(
                 {
@@ -102,6 +104,7 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
                     'runtime': find(
                         import_event_msg,
                         r'-- runtime:\s*([\d.]+) sec',
+                        cast=float,
                     ),
                 },
             )
