@@ -30,7 +30,7 @@ from bublik.core.run.data import (
     get_verdicts,
 )
 from bublik.core.run.filter_expression import filter_by_expression
-from bublik.core.run.tests_organization import get_tests_by_name
+from bublik.core.run.tests_organization import get_test_ids_by_name
 from bublik.core.run.utils import prepare_dates_period
 from bublik.data.models import (
     MeasurementResult,
@@ -100,8 +100,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         result_types = self.request.query_params.get('result_types', '')
 
         # Check passed test name first
-        tests = get_tests_by_name(test_name)
-        if not tests:
+        test_ids = get_test_ids_by_name(test_name)
+        if not test_ids:
             raise ValidationError(detail='Invalid test name', code=status.HTTP_404_NOT_FOUND)
 
         ### Apply run filters ###
@@ -157,7 +157,6 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         ### Apply iteration filters ###
 
         # Filter test iterations by test name
-        test_ids = list(tests.values_list('id', flat=True))
         test_iterations = TestIteration.objects.filter(test__in=test_ids)
 
         # Filter test iterations by hash
