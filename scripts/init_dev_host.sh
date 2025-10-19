@@ -176,7 +176,7 @@ ssh "root@${BUBLIK_HOST}" "
 
 if "${SSH_SETUP}" ; then
 	step "Setup SSH access to ${BUBLIK_USER}@${BUBLIK_HOST}" &&
-	test -n "${SSH_PUB}" && cat "${SSH_PUB}" || ssh-add -L \
+	(test -n "${SSH_PUB}" && cat "${SSH_PUB}" || ssh-add -L) \
 		| ssh "root@${BUBLIK_HOST}" "
 			set -e
 			export SSH_DIR=\"${BUBLIK_HOME}\"/.ssh
