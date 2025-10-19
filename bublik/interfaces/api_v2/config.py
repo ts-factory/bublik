@@ -113,13 +113,13 @@ class ConfigViewSet(ModelViewSet):
             if 'name' in request.data:
                 new_name = request.data['name']
                 serializer = self.get_serializer(config, data={'name': new_name}, partial=True)
-                valid_name = serializer.validate_name(new_name)
+                serializer.is_valid(raise_exception=True)
                 Config.objects.get_all_versions(
                     config.type,
                     config.name,
                     config.project,
                 ).update(
-                    name=valid_name,
+                    name=serializer.validated_data['name'],
                 )
                 config.refresh_from_db()
 
