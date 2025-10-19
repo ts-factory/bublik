@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import os.path
+from pathlib import Path
 
 from django.conf import settings
 from django.http import Http404
@@ -25,19 +26,26 @@ def render_docs(request):
     if not path:
         return serve(request, 'index.html', document_root=settings.BUBLIK_DOCS_STATIC)
 
-    base_file_path = os.path.join(settings.BUBLIK_DOCS_STATIC, path)
-    html_file_path = base_file_path + '.html'
+    base_dir = Path(settings.BUBLIK_DOCS_STATIC).resolve()
+    base_file_path = (base_dir / path).resolve()
 
-    if os.path.isdir(base_file_path):
-        index_path = os.path.join(base_file_path, 'index.html')
-        if os.path.exists(index_path):
-            relative_path = os.path.join(path, 'index.html')
+    if not str(base_file_path).startswith(str(base_dir) + '/'):
+        msg = f'Invalid path: {base_file_path}'
+        raise Http404(msg)
+
+    if base_file_path.is_dir():
+        index_path = base_file_path / 'index.html'
+        if index_path.exists():
+            relative_path = str(index_path.relative_to(base_dir))
             return serve(request, relative_path, document_root=settings.BUBLIK_DOCS_STATIC)
 
-    if os.path.exists(html_file_path):
-        return serve(request, path + '.html', document_root=settings.BUBLIK_DOCS_STATIC)
+    html_file_path = base_file_path.with_suffix('.html')
+    if html_file_path.exists():
+        relative_path = str(html_file_path.relative_to(base_dir))
+        return serve(request, relative_path, document_root=settings.BUBLIK_DOCS_STATIC)
 
-    if os.path.exists(base_file_path):
-        return serve(request, path, document_root=settings.BUBLIK_DOCS_STATIC)
+    if base_file_path.exists():
+        relative_path = str(base_file_path.relative_to(base_dir))
+        return serve(request, relative_path, document_root=settings.BUBLIK_DOCS_STATIC)
 
     raise Http404
