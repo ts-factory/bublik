@@ -61,7 +61,6 @@ class RegisterView(generics.CreateAPIView):
         send_verification_link_mail(request, user)
         return Response(
             {'message': 'A verification link has been sent to your email address'},
-            status=status.HTTP_200_OK,
         )
 
 
@@ -82,7 +81,6 @@ class ActivateView(APIView):
             user.save()
             return Response(
                 {'message': 'The email is verified. You are registered.'},
-                status=status.HTTP_200_OK,
             )
         return Response(
             {'message': 'Invalid email verification link'},
@@ -135,7 +133,6 @@ class LogInView(TokenObtainPairView):
         response.data = {
             'user': UserSerializer(user).data,
         }
-        response.status_code = status.HTTP_200_OK
         return response
 
 
@@ -154,7 +151,7 @@ class ProfileViewSet(GenericViewSet):
         access_token = request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
         serializer_class = self.get_serializer_class()
-        return Response(serializer_class(user).data, status=status.HTTP_200_OK)
+        return Response(serializer_class(user).data)
 
     @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
@@ -178,7 +175,6 @@ class ProfileViewSet(GenericViewSet):
 
         return Response(
             {'message': 'Password reset successfully'},
-            status=status.HTTP_200_OK,
         )
 
     @auth_required(as_admin=False)
@@ -196,7 +192,7 @@ class ProfileViewSet(GenericViewSet):
             user=user,
             data=request.data,
         )
-        return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
+        return Response(UserSerializer(updated_user).data)
 
 
 class RefreshTokenView(TokenRefreshView):
@@ -233,7 +229,6 @@ class RefreshTokenView(TokenRefreshView):
                 {
                     'message': 'Successfully refreshed token',
                 },
-                status=status.HTTP_200_OK,
             )
 
             response.set_cookie(
@@ -281,7 +276,6 @@ class LogOutView(APIView):
             response.data = {
                 'message': 'Successfully logged out',
             }
-            response.status_code = status.HTTP_200_OK
 
             return response
         except Exception as e:
@@ -326,7 +320,6 @@ class ForgotPasswordView(generics.CreateAPIView):
 
         return Response(
             {'message': 'Password reset link sent successfully'},
-            status=status.HTTP_200_OK,
         )
 
 
@@ -356,7 +349,6 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
 
             return Response(
                 {'message': 'Password reset successfully'},
-                status=status.HTTP_200_OK,
             )
         return Response(
             {'message': 'Invalid reset link'},
@@ -385,7 +377,6 @@ class AdminViewSet(GenericViewSet):
         send_verification_link_mail(request, user)
         return Response(
             {'message': 'A verification link has been sent to the user\'s email address'},
-            status=status.HTTP_200_OK,
         )
 
     @auth_required(as_admin=True)
@@ -403,7 +394,7 @@ class AdminViewSet(GenericViewSet):
             user=edit_user,
             data=request.data,
         )
-        return Response(UserSerializer(updated_user).data, status=status.HTTP_200_OK)
+        return Response(UserSerializer(updated_user).data)
 
     @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
@@ -415,7 +406,6 @@ class AdminViewSet(GenericViewSet):
         deactivate_user.save()
         return Response(
             {'message': 'The user was deactivated'},
-            status=status.HTTP_200_OK,
         )
 
     @auth_required(as_admin=True)
@@ -425,5 +415,4 @@ class AdminViewSet(GenericViewSet):
         # return all Users info
         return Response(
             serializer_class(User.objects.all(), many=True).data,
-            status=status.HTTP_200_OK,
         )

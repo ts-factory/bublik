@@ -63,4 +63,4 @@ class URLShortenerView(APIView):
         short_url_endpoint += f'short/{view}/{short_url_obj.hash}'
         short_url = build_absolute_uri(request, short_url_endpoint)
 
-        return Response(data={'short_url': short_url}, status=status.HTTP_200_OK)
+        return Response(data={'short_url': short_url})

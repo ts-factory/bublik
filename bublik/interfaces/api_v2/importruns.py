@@ -107,7 +107,7 @@ class ImportrunsViewSet(ViewSet):
                 json_line = json.loads(line)
             json_log.append(json_line)
 
-        return Response(data=json_log, status=status.HTTP_200_OK)
+        return Response(data=json_log)
 
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
@@ -123,7 +123,6 @@ class ImportrunsViewSet(ViewSet):
             cache.data = ctx
 
             return Response(
-                status=status.HTTP_200_OK,
                 data={'runid': ctx.run},
             )
         except json.decoder.JSONDecodeError:

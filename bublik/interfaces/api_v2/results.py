@@ -126,17 +126,17 @@ class RunViewSet(ModelViewSet):
         for run in runs:
             kwargs.update({'run': run})
             RunCache.delete_data_for_obj(**kwargs)
-        return Response(data={'results': runs_ids}, status=status.HTTP_200_OK)
+        return Response(data={'results': runs_ids})
 
     @action(detail=True, methods=['get'])
     def nok_distribution(self, request, pk=None):
         run = self.get_object()
-        return Response(data=get_nok_results_distribution(run), status=status.HTTP_200_OK)
+        return Response(data=get_nok_results_distribution(run))
 
     @action(detail=True, methods=['get'])
     def details(self, request, pk=None):
         run = self.get_object()
-        return Response(data=generate_all_run_details(run), status=status.HTTP_200_OK)
+        return Response(data=generate_all_run_details(run))
 
     @action(detail=True, methods=['get'])
     def stats(self, request, pk=None):
@@ -332,13 +332,11 @@ class ResultViewSet(ModelViewSet):
         result = self.get_object()
         return Response(
             data={'result': generate_result_details(result)},
-            status=status.HTTP_200_OK,
         )
 
     def list(self, request):
         return Response(
             data={'results': generate_results_details(self.get_queryset())},
-            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['get'])
@@ -348,7 +346,7 @@ class ResultViewSet(ModelViewSet):
             'artifacts': list(result_metas.filter(type='artifact').values()),
             'verdicts': list(result_metas.filter(type='verdict').values()),
         }
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(data)
 
     @action(detail=True, methods=['get'])
     def measurements(self, request, pk=None):

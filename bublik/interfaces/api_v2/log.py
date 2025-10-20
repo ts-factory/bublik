@@ -45,7 +45,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
         run_source_link = get_sources(result)
 
         if not run_source_link:
-            return Response(data={'url': None}, status=status.HTTP_200_OK)
+            return Response(data={'url': None})
 
         page = request.query_params.get('page')
         if page and not page.isdigit():
@@ -78,12 +78,10 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
             return Response(
                 data={'url': forwarding_url, 'attachments_url': attachments_url},
-                status=status.HTTP_200_OK,
             )
 
         return Response(
             data={'url': url, 'attachments_url': attachments_url},
-            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['get'])
@@ -94,7 +92,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
         '''
 
         result = self.get_object()
-        return Response(data={'url': get_result_log(result)}, status=status.HTTP_200_OK)
+        return Response(data={'url': get_result_log(result)})
 
     @action(detail=False, methods=['get'])
     def proxy(self, request):
