@@ -118,7 +118,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             'payload': self.payload.description,
         }
 
-        return Response(data=response, status=status.HTTP_200_OK)
+        return Response(data=response)
 
     @action(detail=False, methods=['get'])
     def default_mode(self, request):
@@ -132,7 +132,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                 data={'message': message},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        return Response(data={'mode': mode}, status=status.HTTP_200_OK)
+        return Response(data={'mode': mode})
 
     def prepare_settings(self):
         self.payload = DashboardPayload()

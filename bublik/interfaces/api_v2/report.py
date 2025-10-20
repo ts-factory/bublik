@@ -71,7 +71,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
                     ),
                 )
 
-        return Response({'run_report_configs': run_report_configs}, status=status.HTTP_200_OK)
+        return Response({'run_report_configs': run_report_configs})
 
     def retrieve(self, request, pk=None):
         r'''
@@ -192,4 +192,4 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
             'unprocessed_iters': unprocessed_iters,
         }
 
-        return Response(data=report, status=status.HTTP_200_OK)
+        return Response(data=report)

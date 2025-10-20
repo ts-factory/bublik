@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
@@ -44,11 +43,10 @@ class TreeViewSet(RetrieveModelMixin, GenericViewSet):
 
         return Response(
             data={'tree': tree, 'main_package': main_package},
-            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['get'])
     def path(self, request, pk=None):
         result = self.get_object()
         node_path = path_to_node(result)
-        return Response(data={'path': node_path}, status=status.HTTP_200_OK)
+        return Response(data={'path': node_path})

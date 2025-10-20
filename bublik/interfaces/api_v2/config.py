@@ -132,14 +132,14 @@ class ConfigViewSet(ModelViewSet):
 
             if not update_data:
                 serializer = self.get_serializer(config)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return Response(serializer.data)
 
             # if no new content is provided, just update the current config instance
             if 'content' not in update_data:
                 serializer = self.get_serializer(config, data=update_data, partial=True)
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return Response(serializer.data)
 
         # create a new config version if the provided content differs from all existing versions
         access_token = request.COOKIES.get('access_token')
@@ -163,7 +163,7 @@ class ConfigViewSet(ModelViewSet):
         serializer = self.get_serializer(updated_config, data=update_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data)
 
     @auth_required(as_admin=True)
     def destroy(self, request, *args, **kwargs):
@@ -179,7 +179,7 @@ class ConfigViewSet(ModelViewSet):
         config_name = request.query_params.get('name')
         json_schema = ConfigServices.get_schema(config_type, config_name)
         if json_schema:
-            return Response(data=json_schema, status=status.HTTP_200_OK)
+            return Response(data=json_schema)
         msg = (
             'There is no JSON schema corresponding to the passed '
             f'configuration type-name: {config_type}-{config_name}'
@@ -209,7 +209,7 @@ class ConfigViewSet(ModelViewSet):
             'project': config_data['project'],
             'all_config_versions': all_config_versions,
         }
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(data)
 
     @action(detail=False, methods=['get'])
     def available_types_names(self, request):
@@ -237,7 +237,7 @@ class ConfigViewSet(ModelViewSet):
                     'description': global_config.description,
                 },
             )
-        return Response({'config_types_names': config_type_names}, status=status.HTTP_200_OK)
+        return Response({'config_types_names': config_type_names})
 
     def list(self, request):
         '''
@@ -259,4 +259,4 @@ class ConfigViewSet(ModelViewSet):
                 'created',
             )
         )
-        return Response(configs_to_display, status=status.HTTP_200_OK)
+        return Response(configs_to_display)
