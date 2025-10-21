@@ -71,3 +71,8 @@ class BublikAPIError(BublikError, APIException):
         APIException.__init__(self, detail=message)
         if status_code is not None:
             self.status_code = status_code
+
+
+class BadGatewayError(BublikAPIError):
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = 'Bad gateway'
