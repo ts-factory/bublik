@@ -5,9 +5,10 @@ from itertools import groupby
 import re
 import uuid
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import URLValidator
 from django.db.models import Case, CharField, Q, Value, When
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -79,8 +80,12 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
     def list(self, request, *args, **kwargs):
         try:
             import_events = self.get_queryset()
-        except (ValueError, ValidationError) as e:
-            return Response({'error': str(e)})
+        except ValueError as ve:
+            msg = 'Invalid date or UUID format.'
+            raise DRFValidationError(msg) from ve
+        except DjangoValidationError as dve:
+            msg = 'Invalid URL or filter parameter.'
+            raise DRFValidationError(msg) from dve
 
         import_events_data = []
 
