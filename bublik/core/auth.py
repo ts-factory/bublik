@@ -3,9 +3,8 @@
 
 from functools import wraps
 
-from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
-from rest_framework.response import Response
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
 
@@ -52,23 +51,17 @@ def auth_required(as_admin=False):
             request = get_request(*args, **kwargs)
             if not request:
                 # handle regular function call without a request object
-                return Response(
-                    {'message': 'Wrong request'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                msg = 'Wrong request'
+                raise PermissionDenied(msg)
             access_token = request.COOKIES.get('access_token')
             user = get_user_by_access_token(access_token)
             if not user:
-                return Response(
-                    {'message': 'Not Authenticated'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                msg = 'Not Authenticated'
+                raise PermissionDenied(msg)
             # check if user is admin
             if as_admin and UserRoles.ADMIN not in user.roles:
-                return Response(
-                    {'message': 'You are not authorized to perform this action'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                msg = 'You are not authorized to perform this action'
+                raise PermissionDenied(msg)
             return function(*args, **kwargs)
 
         return wrapper
