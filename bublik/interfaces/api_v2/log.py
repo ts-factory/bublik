@@ -7,12 +7,13 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.http import HttpResponse
 import requests
-from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from bublik.core.exceptions import BadGatewayError
 from bublik.core.run.external_links import get_result_log, get_sources
 from bublik.data.models import TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
@@ -35,11 +36,8 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
         '''
 
         if not pk.isdigit():
-            message = f'Incorrect id: {pk}. Expecting number'
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'message': message},
-            )
+            msg = f'Incorrect id: {pk}. Expecting number'
+            raise ValidationError(msg)
 
         result = self.get_object()
         run_source_link = get_sources(result)
@@ -49,11 +47,8 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
         page = request.query_params.get('page')
         if page and not page.isdigit():
-            message = f'Incorrect value for page query parameter: {page}. Expecting number'
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'message': message},
-            )
+            msg = f'Incorrect value for page query parameter: {page}. Expecting number'
+            raise ValidationError(msg)
 
         if not result.test_run:
             # The file `node_1_0.json` contains TE startup log in JSON
@@ -102,19 +97,15 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
         '''
         forward_url = request.query_params.get('url')
         if not forward_url:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={'message': 'URL parameter is missing.'},
-            )
+            msg = 'URL parameter is missing.'
+            raise ValidationError(msg)
 
         try:
             response = requests.get(forward_url)
             response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            return Response(
-                status=status.HTTP_502_BAD_GATEWAY,
-                data={'message': f'Error forwarding request: {e!s}'},
-            )
+        except requests.exceptions.RequestException as re:
+            msg = 'Error forwarding request'
+            raise BadGatewayError(msg) from re
 
         return HttpResponse(
             content=response.content,
