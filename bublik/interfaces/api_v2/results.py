@@ -6,7 +6,6 @@ from typing import ClassVar
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
-from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -118,8 +117,8 @@ class RunViewSet(ModelViewSet):
         keys = request.data.get('keys')
         diff = get_difference(keys, RunCache.KEY_DATA_CHOICES)
         if diff:
-            error_response = {'message': f'Unknown data key(s): {diff}'}
-            return Response(data=error_response, status=status.HTTP_400_BAD_REQUEST)
+            msg = f'Unknown data key(s): {diff}'
+            raise ValidationError(msg)
         kwargs = {'data_keys': keys}
         runs = self.get_queryset()
         runs_ids = runs.values_list('id', flat=True)
@@ -196,7 +195,9 @@ class RunViewSet(ModelViewSet):
         try:
             unmark_run_compromised(run.id)
         except Exception as e:
-            raise ValidationError(e) from ValidationError
+            msg = 'Failed to unmark run due to internal error'
+            raise ValidationError(msg) from e
+
         return Response({'message': f'Run {run.id} now is not compromised'})
 
     @action(
