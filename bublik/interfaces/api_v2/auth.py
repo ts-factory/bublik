@@ -11,6 +11,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.cache import never_cache
 from rest_framework import generics, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
@@ -247,10 +248,8 @@ class RefreshTokenView(TokenRefreshView):
             return response
 
         except Exception as e:
-            return Response(
-                {'message': 'Refresh process failed', 'error': str(e)},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            msg = 'Refresh process failed'
+            raise PermissionDenied(msg) from e
 
 
 class LogOutView(APIView):
@@ -279,10 +278,8 @@ class LogOutView(APIView):
 
             return response
         except Exception as e:
-            return Response(
-                {'message': 'Logout process failed', 'error': str(e)},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            msg = 'Logout process failed'
+            raise PermissionDenied(msg) from e
 
 
 class ForgotPasswordView(generics.CreateAPIView):
