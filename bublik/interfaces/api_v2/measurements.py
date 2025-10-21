@@ -4,8 +4,8 @@
 from collections import OrderedDict
 import typing
 
-from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
@@ -34,10 +34,8 @@ class MeasurementViewSet(GenericViewSet):
     def trend_charts(self, request):
         result_ids = request.data.get('result_ids', None)
         if not result_ids:
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'type': 'ValueError', 'message': 'No result IDs specified'},
-            )
+            msg = 'No result IDs specified'
+            raise ValidationError(msg)
 
         mmrs = get_measurement_results(result_ids)
         mmrs_groups = unordered_group_by(mmrs, 'measurement_group_key')
@@ -57,10 +55,8 @@ class MeasurementViewSet(GenericViewSet):
     def by_result_ids(self, request):
         result_ids = request.data.get('result_ids', None)
         if not result_ids:
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'type': 'ValueError', 'message': 'No result IDs specified'},
-            )
+            msg = 'No result IDs specified'
+            raise ValidationError(msg)
 
         measurement_series_charts_by_result = []
         for result_id in result_ids:
