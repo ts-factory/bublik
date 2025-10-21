@@ -76,3 +76,8 @@ class BublikAPIError(BublikError, APIException):
 class BadGatewayError(BublikAPIError):
     status_code = status.HTTP_502_BAD_GATEWAY
     default_detail = 'Bad gateway'
+
+
+class UnprocessableEntityError(BublikAPIError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = 'Unprocessable entity'
