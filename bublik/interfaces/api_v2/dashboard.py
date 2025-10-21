@@ -11,6 +11,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -77,8 +78,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         Route: /api/v2/dashboard/?date=yyyy-mm-dd.
         '''
         if not self.prepare_settings():
-            message = ', '.join(self.errors)
-            return Response(data={'message': message}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(self.errors)
 
         self.date = request.GET.get('date', self.get_latest_run_date())
 
@@ -124,15 +124,11 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
     @action(detail=False, methods=['get'])
     def default_mode(self, request):
         if not self.prepare_settings():
-            message = ', '.join(self.errors)
-            return Response(data={'message': message}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(self.errors)
         mode = self.available_column_modes.get(self.default_mode)
         if not mode:
-            message = 'Error in per-project configuration'
-            return Response(
-                data={'message': message},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            msg = 'Error in per-project configuration'
+            raise APIException(msg)
         return Response(data={'mode': mode})
 
     def prepare_settings(self):
