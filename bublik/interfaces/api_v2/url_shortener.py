@@ -2,12 +2,13 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
+import logging
 import re
 from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,6 +16,9 @@ from bublik.core.run.utils import prepare_date
 from bublik.core.shortcuts import build_absolute_uri, serialize
 from bublik.data.models import Project
 from bublik.data.serializers import EndpointURLSerializer
+
+
+logger = logging.getLogger('')
 
 
 class URLShortenerView(APIView):
@@ -30,8 +34,12 @@ class URLShortenerView(APIView):
         # Check URL preffix
         url_head = build_absolute_uri(request, settings.UI_PREFIX)
         if url.find(url_head) != 0:
+            logger.error(
+                f'URL validation failed: URL \'{url}\' does not start '
+                f'with expected prefix \'{url_head}\'',
+            )
             msg = 'The passed URL has an incorrect prefix'
-            return Response({'message': msg}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError(msg)
 
         short_url_endpoint = ''
 
@@ -45,7 +53,7 @@ class URLShortenerView(APIView):
                 short_url_endpoint += f'{project_name}/'
             except ObjectDoesNotExist:
                 msg = f'No project exists with the provided ID: {project_id}'
-                return Response({'message': msg}, status=status.HTTP_400_BAD_REQUEST)
+                raise ValidationError(msg) from None
 
         # Get view and endpoint
         url_tail = url.replace(url_head + '/', '', 1)
