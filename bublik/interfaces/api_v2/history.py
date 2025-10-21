@@ -7,9 +7,8 @@ import typing
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Exists, F, OuterRef, Q
-from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound
 from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -101,7 +100,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         # Check passed test name first
         test_ids = get_test_ids_by_name(test_name)
         if not test_ids:
-            raise ValidationError(detail='Invalid test name', code=status.HTTP_404_NOT_FOUND)
+            msg = 'Test with the specified name was not found'
+            raise NotFound(msg)
 
         ### Apply run filters ###
 
@@ -162,7 +162,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         if hash:
             test_iterations = test_iterations.filter(hash=hash)
             if not test_iterations.exists():
-                raise ValidationError(detail='Invalid hash', code=status.HTTP_404_NOT_FOUND)
+                msg = 'No iterations found with the specified hash'
+                raise NotFound(msg)
         else:
             test_iterations = test_iterations.filter(hash__isnull=False)
 
