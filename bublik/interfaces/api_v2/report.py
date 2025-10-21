@@ -2,8 +2,8 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from django.forms.models import model_to_dict
-from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -52,10 +52,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         report_config_id = request.query_params.get('config')
         if not report_config_id:
             msg = 'Report config wasn\'t passed'
-            return Response(
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                data={'type': 'ValueError', 'message': msg},
-            )
+            raise ValidationError(msg)
 
         # get config data
         report_config_obj = Config.objects.get(id=report_config_id)
