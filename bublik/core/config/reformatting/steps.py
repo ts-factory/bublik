@@ -6,7 +6,7 @@ import logging
 from bublik.core.config.services import ConfigServices
 
 
-logger = logging.getLogger('color')
+logger = logging.getLogger('colored')
 
 
 class BaseReformatStep:
