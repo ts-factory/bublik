@@ -127,13 +127,10 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'detailed': {
-            'format': '[%(asctime)s][%(levelname)s](%(module)s) %(message)s',
-        },
         'simple': {
             'format': '%(message)s',
         },
-        'colored': {
+        'simple.colored': {
             '()': 'colorlog.ColoredFormatter',
             'format': '%(log_color)s%(message)s%(reset)s',
             'log_colors': {
@@ -145,26 +142,29 @@ LOGGING = {
                 'CRITICAL': 'bold_red',
             },
         },
+        'detailed': {
+            'format': '[%(asctime)s][%(levelname)s](%(module)s) %(message)s',
+        },
         'json': {
             'format': '%(asctime)s %(levelname)s %(module)s %(message)s',
             'class': 'pythonjsonlogger.jsonlogger.JsonFormatter',
         },
     },
     'handlers': {
-        'command.console': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'json',
-        },
-        'console': {
+        'console.simple': {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
-        'console.color': {
+        'console.simple.colored': {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'colored',
+            'formatter': 'simple.colored',
+        },
+        'console.json': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
         },
         'file.debug': {
             'level': 'DEBUG',
@@ -177,22 +177,12 @@ LOGGING = {
     },
     'loggers': {
         '': {
-            'handlers': ['console'],
+            'handlers': ['console.simple'],
             'level': DJANGO_LOG_LEVEL,
         },
-        'color': {
-            'handlers': ['console.color'],
+        'colored': {
+            'handlers': ['console.simple.colored'],
             'level': DJANGO_LOG_LEVEL,
-            'propagate': False,
-        },
-        'bublik.server': {
-            'handlers': ['command.console'],
-            'level': DJANGO_LOG_LEVEL,
-            'propagate': False,
-        },
-        'bublik.server.debug': {
-            'handlers': ['file.debug'],
-            'level': 'DEBUG',
             'propagate': False,
         },
         'celery.task': {
@@ -200,6 +190,16 @@ LOGGING = {
             'level': CELERY_LOG_LEVEL,
             'propagate': True,
             'colorise': True,
+        },
+        'bublik.server': {
+            'handlers': ['console.json'],
+            'level': DJANGO_LOG_LEVEL,
+            'propagate': False,
+        },
+        'bublik.server.debug': {
+            'handlers': ['file.debug'],
+            'level': 'DEBUG',
+            'propagate': False,
         },
     },
 }
