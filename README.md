@@ -5,25 +5,36 @@
 
 **Configurable Web Application to analyse TE results.**
 
-Full documentation for the project is available at <>.
+## Examples
 
-# Overview
-# Requirements
+Demo is available [here](https://ts-factory.io/bublik/).
 
-- **Debian 12 or 13, or Ubuntu 22.04 or 24.04**
-- **Python 3.10 or 3.11 or 3.12 or 3.13**
+## Documentation
 
-# Installation
-1. Clone [bublik backend](https://github.com/ts-factory/bublik.git) to /opt/bublik/**bublik**.
-2. Clone [bublik frontend](https://github.com/ts-factory/bublik-ui.git) to /opt/bublik/**bublik-ui**.
-3. Clone [site-specific configuration](https://github.com/ts-factory/ts-rigs-sample.git) to /opt/bublik/**ts-rigs**.
-4. Launch deploy script:
+Full documentation is available [here](https://ts-factory.github.io/bublik-release/).
 
+## Requirements
+
+- Debian 12 or 13, or Ubuntu 22.04 or 24.04
+- Python 3.10 or 3.11 or 3.12 or 3.13
+
+## Installation
+1. Clone [Bublik backend](https://github.com/ts-factory/bublik.git):
     ```
-    cd /opt/bublik/bublik
-    ./scripts/deploy -c ol/selftest -H bublik-db -k /etc/bublik.keytab
+    git clone https://github.com/ts-factory/bublik.git
     ```
-5. Check to NGINX settings in /etc/nginx/sites-available/bublik:
+2. Launch the initial deployment script, specifying the host:
+    ```
+    ./scripts/init_deploy.sh <host name>
+    ```
+    You can also use the initial deployment and deployment options to provide additional parameters.
+    To see all available options, run:
+    ```
+    ./scripts/init_deploy.sh -h
+    ./scripts/deploy -h
+    ```
+3. Check to NGINX settings in /etc/nginx/sites-available/bublik:
+
     ```
     location /v2/ {
         alias /opt/bublik/bublik-ui/dist/bublik/;
@@ -32,17 +43,9 @@ Full documentation for the project is available at <>.
     }
     ```
 
-# Examples
+## Development
 
-Demo is available at https://ts-factory.io/bublik/
-
-# Documentation
-
-For now some documentation can be found in **doc/wiki** here.
-
-# Development
-
-## Pre-commit checkings
+### Pre-commit checkings
 
 After initial deploy please run the:
 ```
@@ -56,7 +59,7 @@ Please note that you can always disable the pre-commit validation by running:
 pre-commit uninstall
 ```
 
-## Checking your changes
+### Checking your changes
 
 You can use pyformat script to check your changes.
 
