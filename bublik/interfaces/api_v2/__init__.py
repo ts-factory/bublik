@@ -19,7 +19,7 @@ from .dashboard import (
     DashboardPayload,
     DashboardViewSet,
 )
-from .event import EventLogViewSet
+from .event import ImportEventViewSet
 from .history import HistoryViewSet
 from .importruns import ImportrunsViewSet
 from .index import render_docs, render_react
@@ -43,10 +43,10 @@ __all__ = [
     'DashboardFormatting',
     'DashboardPayload',
     'DashboardViewSet',
-    'EventLogViewSet',
     'ForgotPasswordResetView',
     'ForgotPasswordView',
     'HistoryViewSet',
+    'ImportEventViewSet',
     'ImportrunsViewSet',
     'LogInView',
     'LogOutView',
