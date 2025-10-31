@@ -35,7 +35,6 @@ def send_importruns_failed_mail(
         GlobalConfigs.PER_CONF.name,
         'EMAIL_PROJECT_WATCHERS',
         project_id=project_id,
-        default=[],
     ) + getattr(
         settings,
         'EMAIL_ADMINS',

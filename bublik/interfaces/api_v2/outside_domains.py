@@ -33,7 +33,6 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
                     project_id,
-                    default={},
                 ),
                 'revisions': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
@@ -65,7 +64,6 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
                     GlobalConfigs.REFERENCES.name,
                     'ISSUES',
                     project_id,
-                    default={},
                 ),
             },
         )

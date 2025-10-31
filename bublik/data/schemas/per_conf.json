@@ -19,8 +19,7 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true,
-            "default": []
+            "uniqueItems": true
         },
         "DASHBOARD_HEADER": {
             "description": "Sets columns on dashboard",
@@ -140,7 +139,7 @@
                 "type": "string"
             },
             "uniqueItems": true,
-            "default": ["START_TIMESTAMP", "Configuration"]
+            "default": ["START_TIMESTAMP", "CFG"]
         },
         "FILES_TO_GENERATE_METADATA": {
             "description": "Represents a list of files available via run source link and allows Bublik to generate meta_data.json based on them",
@@ -148,8 +147,7 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true,
-            "default": ["meta_data.txt"]
+            "uniqueItems": true
         },
         "CSRF_TRUSTED_ORIGINS": {
             "description": "Domens which Bublik server trusts accepting requests coming from",
@@ -157,8 +155,7 @@
             "items": {
                 "type": "string"
             },
-            "uniqueItems": true,
-            "default": []
+            "uniqueItems": true
         },
         "HISTORY_SEARCH_EXAMPLE": {
             "description": "An example of history search for performance checking",
