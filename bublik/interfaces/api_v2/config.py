@@ -428,6 +428,16 @@ class ConfigViewSet(ModelViewSet):
             config_data['project'],
         )
 
+        page = self.paginate_queryset(all_config_versions)
+        if page is not None:
+            data = {
+                'type': config_data['type'],
+                'name': config_data['name'],
+                'project': config_data['project'],
+                'all_config_versions': page,
+            }
+            return self.get_paginated_response(data)
+    
         data = {
             'type': config_data['type'],
             'name': config_data['name'],
@@ -470,7 +480,7 @@ class ConfigViewSet(ModelViewSet):
     def list(self, request):
         queryset = self.filter_queryset(self.get_queryset())
         configs_to_display = (
-            self.get_queryset()
+            queryset
             .order_by('project', 'type', 'name', '-is_active', '-created')
             .distinct('project', 'type', 'name')
             .values(
@@ -484,4 +494,9 @@ class ConfigViewSet(ModelViewSet):
                 'created',
             )
         )
+
+        page = self.paginate_queryset(configs_to_display)
+        if page is not None:
+            return self.get_paginated_response(page)
+        
         return Response(configs_to_display, status=status.HTTP_200_OK)
