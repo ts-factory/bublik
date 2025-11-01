@@ -70,15 +70,20 @@ def get_test_by_full_path(full_test_name):
         return None
 
 
-def get_tests_by_name(test_name):
+def get_test_ids_by_name(test_name):
     if test_name.startswith('../') or '/' not in test_name:
         # In some projects ../ is a valid part of a test name.
         test_entity = models.ResultType.conv('test')
-        return models.Test.objects.filter(name=test_name, result_type=test_entity)
+        return list(
+            models.Test.objects.filter(name=test_name, result_type=test_entity).values_list(
+                'id',
+                flat=True,
+            ),
+        )
     test = get_test_by_full_path(test_name)
     if not test:
         return []
-    return [test]
+    return [test.id]
 
 
 def prepare_package_data(package, parents_str):

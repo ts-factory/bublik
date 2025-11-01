@@ -35,7 +35,7 @@ from bublik.core.run.stats import (
     get_run_stats_detailed_with_comments,
     get_run_status,
 )
-from bublik.core.run.tests_organization import get_tests_by_name
+from bublik.core.run.tests_organization import get_test_ids_by_name
 from bublik.core.utils import get_difference
 from bublik.data import models
 from bublik.data.serializers import TestIterationResultSerializer
@@ -217,10 +217,10 @@ class ResultViewSet(ModelViewSet):
             queries &= Q(parent_package=parent_id)
 
         if test_name:
-            tests = get_tests_by_name(test_name)
-            if not tests:
+            test_ids = get_test_ids_by_name(test_name)
+            if not test_ids:
                 errors.append('No tests found by the given test name')
-            queries &= Q(iteration__test__in=tests, iteration__hash__isnull=False)
+            queries &= Q(iteration__test__in=test_ids, iteration__hash__isnull=False)
 
         if results:
             results = results.split(query_delimiter)
