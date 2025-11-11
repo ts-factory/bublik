@@ -144,13 +144,13 @@ class Command(BaseCommand):
         self,
         run_url,
         force,
-        run_id=None,
+        task_id=None,
         date_from=None,
         date_to=None,
         project_name=None,
     ):
         import_run_start_time = datetime.now()
-        task_msg = f'Celery task ID {run_id}' if run_id else 'No Celery task ID'
+        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
         create_event(
             facility=EventLog.FacilityChoices.IMPORTRUNS,
             severity=EventLog.SeverityChoices.INFO,
@@ -293,7 +293,7 @@ class Command(BaseCommand):
             if run:
                 logger.info('the process of adding import id is started')
                 start_time = datetime.now()
-                add_import_id(run, run_id)
+                add_import_id(run, task_id)
                 logger.info(
                     f'the process of adding import id is completed in ['
                     f'{datetime.now() - start_time}]',
@@ -386,7 +386,7 @@ class Command(BaseCommand):
             self.import_run(
                 run_url,
                 force,
-                run_id=options['id'],
+                task_id=options['id'],
                 date_from=date_from,
                 date_to=date_to,
                 project_name=options['project_name'],
