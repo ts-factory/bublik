@@ -14,12 +14,12 @@ from bublik.data.models import User
 
 
 __all__ = [
+    'PasswordResetSerializer',
     'RegisterSerializer',
     'TokenPairSerializer',
-    'UserSerializer',
-    'UserEmailSerializer',
-    'PasswordResetSerializer',
     'UpdateUserSerializer',
+    'UserEmailSerializer',
+    'UserSerializer',
 ]
 
 

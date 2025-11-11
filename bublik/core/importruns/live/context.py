@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 import collections
 from datetime import timedelta
 import logging
+from typing import ClassVar
 
 from django.conf import settings
 from rest_framework import status
@@ -125,7 +128,7 @@ class LiveLogContext:
     # Node ID assigned to test items that were lost
     LOST_ITEM_NODE_ID = -1
 
-    REQUIRED_EVENT_DATA = {
+    REQUIRED_EVENT_DATA: ClassVar[dict[str, list[str]]] = {
         'test_start': ['id', 'parent', 'plan_id', 'ts', 'node_type', 'name'],
         'test_end': ['id', 'plan_id', 'ts'],
     }

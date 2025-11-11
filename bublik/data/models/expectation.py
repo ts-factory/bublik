@@ -9,8 +9,8 @@ from bublik.data.models.result import TestIterationResult
 
 
 __all__ = [
-    'Expectation',
     'ExpectMeta',
+    'Expectation',
 ]
 
 
@@ -74,9 +74,7 @@ Serial number of a meta result, can be used to determine verdicts order.''',
         db_table = 'bublik_expectmeta'
 
     def __repr__(self):
-        return 'ExpectMeta(meta={}, expectation={}, serial={}, reference={})'.format(
-            repr(self.meta),
-            repr(self.expectation),
-            repr(self.reference),
-            repr(self.serial),
+        return (
+            f'ExpectMeta(meta={self.meta!r}, expectation={self.expectation!r}, '
+            f'reference={self.serial!r}, serial={self.reference!r})'
         )

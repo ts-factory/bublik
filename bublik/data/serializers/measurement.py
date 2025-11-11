@@ -16,8 +16,8 @@ from bublik.data.serializers.meta import MetaSerializer
 logger = logging.getLogger('bublik.server')
 
 __all__ = [
-    'MeasurementSerializer',
     'MeasurementResultSerializer',
+    'MeasurementSerializer',
     'ViewSerializer',
 ]
 
