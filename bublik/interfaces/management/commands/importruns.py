@@ -117,7 +117,7 @@ class Command(BaseCommand):
             help='Fetch logs created at the given date or prior',
         )
         parser.add_argument(
-            '--id',
+            '--task_id',
             type=str,
             help='Log id determing the server logfile',
         )
@@ -368,7 +368,8 @@ class Command(BaseCommand):
             init_url += '/'
 
         force = options['force']
-        task_msg = f'Celery task ID {options["id"]}' if options['id'] else 'No Celery task ID'
+        task_id = options['task_id']
+        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
 
         spear = HTTPDirectoryTraverser(init_url, task_msg=task_msg, start_time=start_time)
 
@@ -386,7 +387,7 @@ class Command(BaseCommand):
             self.import_run(
                 run_url,
                 force,
-                task_id=options['id'],
+                task_id=options['task_id'],
                 date_from=date_from,
                 date_to=date_to,
                 project_name=options['project_name'],
