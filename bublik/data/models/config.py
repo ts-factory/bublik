@@ -185,6 +185,18 @@ class Config(models.Model):
             ),
         ]
 
+    def __repr__(self):
+        return (
+            f'Config(created={self.created!r}, project={self.project!r}, type={self.type!r}, '
+            f'name={self.name!r}, version={self.version!r}, is_active={self.is_active!r}, '
+            f'description={self.description!r}, user={self.user!r})'
+        )
+
+    def save(self, *args, **kwargs):
+        if self.version is None:
+            self.version = self._calc_version()
+        super().save(*args, **kwargs)
+
     @transaction.atomic
     def activate(self):
         Config.objects.filter(
@@ -197,20 +209,8 @@ class Config(models.Model):
             self.is_active = True
             self.save(update_fields=['is_active'])
 
-    def save(self, *args, **kwargs):
-        if self.version is None:
-            self.version = self._calc_version()
-        super().save(*args, **kwargs)
-
     def _calc_version(self):
         config = Config.objects.get_latest(self.type, self.name, self.project)
         if config:
             return config.version + 1
         return 0
-
-    def __repr__(self):
-        return (
-            f'Config(created={self.created!r}, project={self.project!r}, type={self.type!r}, '
-            f'name={self.name!r}, version={self.version!r}, is_active={self.is_active!r}, '
-            f'description={self.description!r}, user={self.user!r})'
-        )

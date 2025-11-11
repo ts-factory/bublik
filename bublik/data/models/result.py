@@ -260,11 +260,11 @@ class Test(models.Model):
     class Admin:
         pass
 
-    def get_descendants(self):
-        return Test.objects.filter(parent=self).order_by('name')
-
     def __repr__(self):
         return f'Test(name={self.name!r}, parent={self.parent!r})'
+
+    def get_descendants(self):
+        return Test.objects.filter(parent=self).order_by('name')
 
 
 class TestArgument(models.Model):
@@ -597,6 +597,12 @@ class MetaTest(models.Model):
         db_table = 'bublik_metatest'
         unique_together = ('test', 'meta', 'project')
 
+    def __repr__(self):
+        return (
+            f'MetaTest(test={self.test!r}, serial={self.serial!r}, '
+            f'meta={self.meta!r}, project={self.project!r})'
+        )
+
     def save(self, *args, **kwargs):
         if self.serial is None:
             self.serial = self._calc_serial()
@@ -610,9 +616,3 @@ class MetaTest(models.Model):
             .last()
         )
         return latest_serial + 1 if latest_serial is not None else 0
-
-    def __repr__(self):
-        return (
-            f'MetaTest(test={self.test!r}, serial={self.serial!r}, '
-            f'meta={self.meta!r}, project={self.project!r})'
-        )

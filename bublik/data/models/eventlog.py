@@ -50,10 +50,7 @@ class EventLog(models.Model):
         db_table = 'bublik_eventlog'
 
     def __repr__(self):
-        return 'Event(pk={}, timestamp={}, facility={}, severity={}, msg={})'.format(
-            repr(self.pk),
-            repr(self.timestamp),
-            repr(self.facility),
-            repr(self.severity),
-            repr(self.msg),
+        return (
+            f'Event(pk={self.pk!r}, timestamp={self.timestamp!r}, facility={self.facility!r}, '
+            f'severity={self.severity!r}, msg={self.msg!r})'
         )

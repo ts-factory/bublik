@@ -30,5 +30,5 @@ def parse_log(error_regex, project_regex, logpath, maxlen=5):
 def log_disk_space_usage(logger, msg, options):
     cmd = ['df', options]
     logger.info(msg)
-    process = subprocess.run(cmd, capture_output=True, text=True)
+    process = subprocess.run(cmd, check=False, capture_output=True, text=True)
     logger.info(f'{cmd} output:\n{process.stdout}')

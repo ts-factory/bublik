@@ -4,9 +4,9 @@
 import os.path
 
 from django.conf import settings
+from django.http import Http404
 from django.shortcuts import render
 from django.views.static import serve
-from django.http import Http404
 
 
 def render_react(request):

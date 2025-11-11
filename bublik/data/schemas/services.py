@@ -28,6 +28,8 @@ def generate_content(schema):
         return obj
 
     if schema_type == 'array':
-        return [generate_content(schema['items'])] if 'default' in schema.get('items', {}) else []
+        return (
+            [generate_content(schema['items'])] if 'default' in schema.get('items', {}) else []
+        )
 
     return None

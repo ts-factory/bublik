@@ -36,9 +36,7 @@ def redirect_run_stats(request, run_id):
 
 def redirect_tests_run(request, run_id):
     result_id = request.GET.get('focus', '')
-    new_endpoint = (
-        f'{settings.UI_PREFIX}/log/{run_id}/treeAndinfoAndlog?focusId={result_id}'
-    )
+    new_endpoint = f'{settings.UI_PREFIX}/log/{run_id}/treeAndinfoAndlog?focusId={result_id}'
     new_view_path = build_absolute_uri(request, new_endpoint)
     return redirect(new_view_path)
 

@@ -5,7 +5,6 @@ import logging
 import os
 
 import requests
-
 from requests_kerberos import DISABLED, HTTPKerberosAuth
 
 

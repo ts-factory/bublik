@@ -16,12 +16,12 @@ from .redirects import (
 
 __all__ = [
     'redirect_dashboard',
+    'redirect_flower',
     'redirect_next',
     'redirect_result_log',
     'redirect_root',
     'redirect_run_stats',
     'redirect_runs_stats',
-    'redirect_tests_run',
-    'redirect_flower',
     'redirect_short',
+    'redirect_tests_run',
 ]

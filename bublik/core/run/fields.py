@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
+from typing import ClassVar
+
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import ProhibitNullCharactersValidator
 from django.forms import fields
@@ -10,7 +14,7 @@ from bublik.core.run.tests_organization import get_test_by_full_path
 
 
 class TestNameField(fields.CharField):
-    default_error_messages = {
+    default_error_messages: ClassVar[dict[str, str]] = {
         'invalid': _('Enter a valid test name.'),
     }
 
@@ -24,8 +28,7 @@ class TestNameField(fields.CharField):
         '''Return a string.'''
         if value not in self.empty_values:
             try:
-                test = get_test_by_full_path(value)
-                return test
+                return get_test_by_full_path(value)
             except ObjectDoesNotExist:
                 raise ValidationError(
                     self.error_messages['invalid'],
