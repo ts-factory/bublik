@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import json
-import logging
 import os
 import shlex
 import subprocess
@@ -14,6 +13,7 @@ import pendulum
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
@@ -26,7 +26,7 @@ from bublik.data.serializers import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class MetaData:

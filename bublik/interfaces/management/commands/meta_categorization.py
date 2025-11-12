@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
-import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
@@ -10,6 +9,7 @@ from django.db import transaction
 
 from bublik.core.argparse import parser_type_str_or_none
 from bublik.core.cache import ProjectCache
+from bublik.core.logging import get_task_or_server_logger
 from bublik.data.models import (
     Config,
     GlobalConfigs,
@@ -20,7 +20,7 @@ from bublik.data.models import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class Command(BaseCommand):

@@ -3,16 +3,16 @@
 
 from argparse import ArgumentTypeError
 from datetime import datetime
-import logging
 
 from django.core.management.base import BaseCommand
 
 from bublik.core.argparse import parser_type_date, parser_type_tags
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.filter_expression import TestRunMetasGroup
 from bublik.core.testing_coverage import TestingCoverage
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class Command(BaseCommand):
