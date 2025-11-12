@@ -9,7 +9,7 @@ from celery.signals import after_task_publish, task_failure, task_received, task
 from django.core.management import call_command
 
 from bublik import settings
-from bublik.core.logging import get_or_create_task_logger, parse_log
+from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
 from bublik.data.models import EventLog, Project, TestIterationResult
@@ -96,7 +96,7 @@ def importruns(
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
 
-    logger = get_or_create_task_logger()
+    logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
 
     cmd_import = ['./manage.py', 'importruns']
@@ -181,7 +181,7 @@ def meta_categorization(self, project_name):
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
 
-    logger = get_or_create_task_logger()
+    logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
 
     query_url = f"curl 'http://{settings.BUBLIK_HOST}/meta_categorization/'"
@@ -212,7 +212,7 @@ def clear_all_runs_stats_cache(self):
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
 
-    logger = get_or_create_task_logger()
+    logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
 
     query_url = f"curl 'http://{settings.BUBLIK_HOST}/clear_all_runs_stats_cache/'"
