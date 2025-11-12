@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import logging
 import os
 
 import requests
 from requests_kerberos import DISABLED, HTTPKerberosAuth
 
+from bublik.core.logging import get_task_or_server_logger
 
-logger = logging.getLogger('bublik.server')
+
+logger = get_task_or_server_logger()
+
 
 SAVE_URL_CHUNK_SIZE = 16384
 

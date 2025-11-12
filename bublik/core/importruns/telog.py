@@ -2,14 +2,15 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import json
-import logging
 import os
 import subprocess
 
 from django.conf import settings
 
+from bublik.core.logging import get_task_or_server_logger
 
-logger = logging.getLogger('bublik.server')
+
+logger = get_task_or_server_logger()
 
 
 class ConverterError(Exception):

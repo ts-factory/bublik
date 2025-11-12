@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import json
-import logging
 import traceback
 
 from django.utils.decorators import method_decorator
@@ -16,13 +15,14 @@ from rest_framework.viewsets import ViewSet
 from bublik.core.cache import RunCache
 from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
 from bublik.core.importruns.utils import indicate_collision
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import build_absolute_uri, get_current_scheme_host_prefix
 from bublik.core.utils import get_local_log
 from bublik.data.models import Project
 from bublik.interfaces.celery import tasks
 
 
-logger = logging.getLogger()
+logger = get_task_or_server_logger()
 
 
 class ImportrunsViewSet(ViewSet):

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import logging
 
 from rest_framework.serializers import ModelSerializer
 
 from bublik.core.hash_system import HashedModelSerializer
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.measurement.representation import MeasurementRepresentation
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.shortcuts import serialize
@@ -13,7 +13,8 @@ from bublik.data.models import Measurement, MeasurementResult, MeasurementResult
 from bublik.data.serializers.meta import MetaSerializer
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
+
 
 __all__ = [
     'MeasurementResultSerializer',

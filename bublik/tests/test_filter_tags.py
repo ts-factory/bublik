@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import timedelta
-import logging
 
 from django.db import connection, reset_queries
 from django.test import TestCase
@@ -10,11 +9,12 @@ from django.test.utils import override_settings
 from django.utils import timezone
 
 from bublik.core.argparse import parser_type_date
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.stats import get_test_runs
 from bublik.data.models import Meta, MetaResult, TestIterationResult
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class TestMeta(object):

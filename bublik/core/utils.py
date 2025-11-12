@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import copy
 import itertools
-import logging
 import os
 from typing import TYPE_CHECKING
 
 from django.conf import settings
 
+from bublik.core.logging import get_task_or_server_logger
 from bublik.data.models import EventLog
 
 
@@ -18,7 +18,8 @@ if TYPE_CHECKING:
     from bublik.core.report.components import ReportPoint
     from bublik.data.models import MeasurementResult
 
-logger = logging.getLogger('bublik.server')
+
+logger = get_task_or_server_logger()
 
 
 class Counter:

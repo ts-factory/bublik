@@ -3,7 +3,6 @@
 
 from collections import Counter
 from datetime import datetime
-import logging
 
 from django.core.management import call_command
 from django.db import transaction
@@ -11,6 +10,7 @@ from django.db import transaction
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem
 from bublik.core.importruns.milog import EntryLevel, HandlerArtifacts
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.objects import (
     add_expected_result,
     add_iteration,
@@ -29,7 +29,7 @@ from bublik.core.run.objects import (
 from bublik.data.models import TestIterationResult
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def handle_iteration(

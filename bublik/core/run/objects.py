@@ -2,12 +2,12 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
-import logging
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Count
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.run.keys import prepare_expected_key
 from bublik.core.run.utils import prepare_date
@@ -30,7 +30,7 @@ from bublik.data.serializers import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def add_test(test_name, result_type, parent_test):

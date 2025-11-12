@@ -12,7 +12,6 @@ path to the log. In order to get logs - the url base of log storage is needed.
 '''
 
 from datetime import datetime, timedelta
-import logging
 import os
 import shutil
 import tempfile
@@ -24,12 +23,13 @@ import pytz
 
 from bublik.core.argparse import parser_type_date
 from bublik.core.importruns.telog import JSONLog
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.objects import add_tags
 from bublik.core.url import save_url_to_dir
 from bublik.data.models import MetaResult, TestIterationResult
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def _get_json_data(url: str) -> dict:
