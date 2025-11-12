@@ -14,28 +14,28 @@ from pythonjsonlogger import jsonlogger
 from bublik import settings
 
 
+class TaskFileHandler(logging.FileHandler):
+    def __init__(self, task_id, *args, **kwargs):
+        date_folder = os.path.join(
+            settings.MANAGEMENT_COMMANDS_LOG,
+            datetime.now().strftime('runs_%Y.%m.%d'),
+        )
+        os.makedirs(date_folder, exist_ok=True)
+        self.logpath = os.path.join(date_folder, task_id)
+        super().__init__(self.logpath, *args, **kwargs)
+
+        formatter = jsonlogger.JsonFormatter(settings.LOGGING['formatters']['json']['format'])
+        self.setFormatter(formatter)
+
+
 def get_or_create_task_logger(task_id):
     '''A helper function to create function specific logger lazily.'''
-
-    date_folder = os.path.join(
-        settings.MANAGEMENT_COMMANDS_LOG,
-        datetime.now().date().strftime('runs_%Y.%m.%d'),
-    )
-    if not os.path.exists(date_folder):
-        os.makedirs(date_folder)
-
-    logpath = os.path.join(date_folder, task_id)
-
     # Every logger in the celery package inherits from the "celery" logger,
     # and every task logger inherits from the "celery.task" logger.
     logger = get_task_logger(task_id)
-    handler = logging.FileHandler(logpath)
-
-    formatter = jsonlogger.JsonFormatter(settings.LOGGING['formatters']['json']['format'])
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    return logger, logpath
+    task_file_handler = TaskFileHandler(task_id)
+    logger.addHandler(task_file_handler)
+    return logger, task_file_handler.logpath
 
 
 def parse_log(error_regex, project_regex, logpath, maxlen=5):
