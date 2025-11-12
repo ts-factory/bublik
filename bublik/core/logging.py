@@ -28,10 +28,11 @@ class TaskFileHandler(logging.FileHandler):
         self.setFormatter(formatter)
 
 
-def get_or_create_task_logger(task_id):
+def get_or_create_task_logger():
     '''A helper function to create function specific logger lazily.'''
     # Every logger in the celery package inherits from the "celery" logger,
     # and every task logger inherits from the "celery.task" logger.
+    task_id = os.getenv('TASK_ID')
     logger = get_task_logger(task_id)
 
     if (

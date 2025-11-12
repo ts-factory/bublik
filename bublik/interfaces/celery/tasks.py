@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+import os
 import subprocess
 from urllib.parse import urljoin
 
@@ -93,7 +94,9 @@ def importruns(
 ):
 
     task_id = self.request.id
-    logger = get_or_create_task_logger(task_id)
+    os.environ['TASK_ID'] = task_id
+
+    logger = get_or_create_task_logger()
     logpath = logger.handlers[0].logpath
 
     cmd_import = ['./manage.py', 'importruns']
@@ -176,7 +179,9 @@ def importruns(
 @app.task(bind=True)
 def meta_categorization(self, project_name):
     task_id = self.request.id
-    logger = get_or_create_task_logger(task_id)
+    os.environ['TASK_ID'] = task_id
+
+    logger = get_or_create_task_logger()
     logpath = logger.handlers[0].logpath
 
     query_url = f"curl 'http://{settings.BUBLIK_HOST}/meta_categorization/'"
@@ -205,7 +210,9 @@ def update_all_hashed_objects(self):
 @app.task(bind=True)
 def clear_all_runs_stats_cache(self):
     task_id = self.request.id
-    logger = get_or_create_task_logger(task_id)
+    os.environ['TASK_ID'] = task_id
+
+    logger = get_or_create_task_logger()
     logpath = logger.handlers[0].logpath
 
     query_url = f"curl 'http://{settings.BUBLIK_HOST}/clear_all_runs_stats_cache/'"
