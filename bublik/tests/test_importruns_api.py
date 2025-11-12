@@ -10,7 +10,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from bublik.core.logging import get_or_create_task_logger
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import serialize
 from bublik.data import models
 from bublik.data.serializers import MetaSerializer
@@ -55,7 +55,7 @@ class ImportrunsTest(APITestCase):
         import_id = 'test'
         os.environ['TASK_ID'] = import_id
 
-        logger = get_or_create_task_logger()
+        logger = get_task_or_server_logger()
         logpath = logger.handlers[0].logpath
         logger.info(f'Create test log: {logpath}')
         open(logpath, 'w+').close()
