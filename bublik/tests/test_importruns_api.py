@@ -10,10 +10,10 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from bublik.core.logging import get_or_create_task_logger
 from bublik.core.shortcuts import serialize
 from bublik.data import models
 from bublik.data.serializers import MetaSerializer
-from bublik.interfaces.celery.tasks import get_or_create_task_logger
 
 
 logger = logging.getLogger()
