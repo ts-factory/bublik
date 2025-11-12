@@ -2,13 +2,13 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime, timedelta, timezone
-import logging
 
 from bublik.core.datetime_formatting import date_str_to_date, localize_date
+from bublik.core.logging import get_task_or_server_logger
 from bublik.data import models
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def prepare_date(date_str):

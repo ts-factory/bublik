@@ -3,18 +3,18 @@
 #
 # This module works with categorizing metas on the core.importruns level.
 
-import logging
 import re
 
 from django.core.management import call_command
 
 from bublik.core.cache import ProjectCache
 from bublik.core.importruns import get_or_none
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.metadata import MetaData
 from bublik.data.models import Meta, MetaCategory, MetaPattern, Project
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def categorize_metas(meta_data: MetaData, project_id) -> None:

@@ -4,15 +4,14 @@
 from collections import defaultdict
 from datetime import datetime
 from functools import reduce
-import logging
 import os
 import re
-
 from tempfile import mkstemp
 
 from django.core.management.base import BaseCommand
 
 from bublik.core.argparse import parser_type_date, parser_type_url
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.stats import get_run_stats_detailed
 from bublik.core.url import fetch_url, save_url_to_fd
 from bublik.data.models import Meta, TestIterationResult
@@ -20,7 +19,7 @@ from bublik.data.models import Meta, TestIterationResult
 from .importruns import ConverterError, ConverterLogJSON, HTTPDirectoryTraverser
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class HandlerLogGist(ConverterLogJSON):

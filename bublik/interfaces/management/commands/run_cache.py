@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import logging
 import sys
 
 from django.core.management.base import BaseCommand, CommandError
@@ -9,12 +8,13 @@ from django.db.models import Q
 
 from bublik.core.argparse import parser_type_date
 from bublik.core.cache import RunCache
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.utils import get_difference
 from bublik.data import models
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class Command(BaseCommand):
