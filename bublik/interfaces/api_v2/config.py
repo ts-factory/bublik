@@ -7,6 +7,14 @@ from django.contrib.postgres.fields import JSONField
 from django.db import transaction
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,9 +27,24 @@ from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.shortcuts import serialize
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, UserRoles
 from bublik.data.serializers import ConfigSerializer
+from bublik.data.serializers.docs import (
+    AllVersionsResponseSerializer,
+    AvailableTypesResponseSerializer,
+    ErrorResponseSerializer,
+)
 
 
 class ConfigFilterSet(filters.FilterSet):
+    '''
+    Filters for configurations.
+
+    Available fields for filtering:
+    - type: configuration type
+    - name: configuration name
+    - is_active: configuration activity
+    - version: configuration version
+    '''
+
     class Meta:
         model = Config
         fields: typing.ClassVar = ['type', 'name', 'is_active', 'version']
@@ -35,13 +58,187 @@ class ConfigFilterSet(filters.FilterSet):
         }
 
 
+@extend_schema_view(
+    retrieve=extend_schema(
+        summary='Retrieves configuration by ID',
+        description='Returns full information about a specific configuration by its ID.',
+        responses={
+            200: ConfigSerializer,
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Configuration not found',
+            ),
+        },
+        tags=['Configuration'],
+    ),
+    update=extend_schema(
+        summary='Full updates configuration',
+        description='''
+        Fully updates a configuration.
+        
+        Requires administrator's role.
+        ''',
+        request=ConfigSerializer,
+        responses={
+            200: ConfigSerializer,
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Invalid request data',
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Not enough rights',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Configuration not found',
+            ),
+        },
+        tags=['Configuration'],
+    ),
+    list=extend_schema(
+        summary='List of configurations',
+        description='''
+        Returns a list of configurations.
+
+        Of all configurations having the same project, type and name:
+        - If there are active ones, returns active ones
+        - If there are none, returns the latest ones
+        ''',
+        parameters=[
+            OpenApiParameter(
+                name='type',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='configuration type',
+                examples=[
+                    OpenApiExample('Global', value='GLOBAL'),
+                    OpenApiExample('Report', value='REPORT'),
+                    OpenApiExample('Schedule', value='SCHEDULE'),
+                ],
+            ),
+            OpenApiParameter(
+                name='name',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='configuration name',
+            ),
+            OpenApiParameter(
+                name='is_active',
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description='congiguration activity',
+            ),
+            OpenApiParameter(
+                name='version',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='configuration version',
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=ConfigSerializer(many=True),
+                description='The list of configurations was successfully received',
+            ),
+        },
+        tags=['Configuration'],
+    ),
+    create=extend_schema(
+        summary='Creates new configuration',
+        description='''
+        Creates new configuration.
+        
+        Requires adminisrtator's role.
+        The configuration will be created if there is no configuration with the same name.
+        ''',
+        request=ConfigSerializer,
+        responses={
+            201: ConfigSerializer,
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Invalid request data',
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Not enough rights',
+            ),
+        },
+        tags=['Configuration'],
+    ),
+    partial_update=extend_schema(
+        summary='Partial update configuration',
+        description='''
+        Updates a configuration or create a new version.
+
+        Rules:
+        - If name is provided, the configuration and all its versions
+          are renamed
+        - If content is not provided and description and/or is_active are provided,
+          the configuration is updated accordingly
+        - If content is provided:
+            - and no version with the same content exists, a new version is created
+            - and a version with the same content exists, the existing configuration is updated
+        
+        Requires administrator's role.
+        ''',
+        request=ConfigSerializer,
+        responses={
+            200: ConfigSerializer,
+            201: ConfigSerializer,
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Invalid request data',
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Not enough rights',
+            ),
+        },
+        tags=['Configuration'],
+    ),
+    destroy=extend_schema(
+        summary='Deletes configuration',
+        description='''
+        Deletes a configuration.
+
+        Requires administrator's role.
+        ''',
+        responses={
+            204: OpenApiResponse(description='The configuration was successfully deleted'),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Not enough rights',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Configuration not found',
+            ),
+        },
+        tags=['Configuration'],
+    ),
+)
 class ConfigViewSet(ModelViewSet):
+    '''
+    API for managing system configurations.
+
+    Allows you to create, view, update, and delete configurations,
+    and also work with their versions and schemas.
+    '''
+
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
     filterset_class = ConfigFilter
     filter_backends: typing.ClassVar[list] = [ProjectFilterBackend, DjangoFilterBackend]
 
     def get_queryset(self):
+        '''
+        Returns a queryset based on the user's role.
+
+        Returns configurations available to the current user:
+        - Administrators see all configurations
+        - Regular users can see the configurations of their projects
+        '''
         configs = self.filter_queryset(super().get_queryset())
         access_token = self.request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
@@ -74,12 +271,16 @@ class ConfigViewSet(ModelViewSet):
 
         return configs.none()
 
+    @auth_required()
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @auth_required(as_admin=True)
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
-        '''
-        Create and return a config unless another with the same name exists.
-        Request: POST api/v2/config.
-        '''
         access_token = request.COOKIES.get('access_token')
         serializer = serialize(
             self.serializer_class,
@@ -92,20 +293,6 @@ class ConfigViewSet(ModelViewSet):
 
     @auth_required(as_admin=True)
     def partial_update(self, request, *args, **kwargs):
-        '''
-        Update a configuration or create a new version.
-
-        Rules:
-        - If name is provided, the configuration and all its versions
-          are renamed.
-        - If content is not provided and description and/or is_active are provided,
-          the configuration is updated accordingly.
-        - If content is provided:
-            - and no version with the same content exists, a new version is created.
-            - and a version with the same content exists, the existing configuration is updated.
-
-        Request: PATCH api/v2/config/<ID>.
-        '''
         config = self.get_object()
 
         with transaction.atomic():
@@ -169,12 +356,33 @@ class ConfigViewSet(ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
+    @extend_schema(
+        description='Retrieves the JSON schema by passed config type and name.',
+        summary='Returns configuration schema',
+        parameters=[
+            OpenApiParameter(
+                name='type',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description='configuration type',
+                required=True,
+            ),
+            OpenApiParameter(
+                name='name',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description='configuration name',
+                required=True,
+            ),
+        ],
+        responses={
+            200: 'Successful receipt of the JSON schema',
+            422: 'Invalid configuration type or name',
+        },
+        tags=['Configuration'],
+    )
     @action(detail=False, methods=['get'], url_path='schema')
     def get_schema(self, request, *args, **kwargs):
-        '''
-        Get the JSON schema by passed config type and name.
-        Request: GET api/v2/config/get_schema/?type=<config_type>&name=<config_name>.
-        '''
         config_type = request.query_params.get('type')
         config_name = request.query_params.get('name')
         json_schema = ConfigServices.get_schema(config_type, config_name)
@@ -189,33 +397,61 @@ class ConfigViewSet(ModelViewSet):
             data={'type': 'ValueError', 'message': msg},
         )
 
+    @extend_schema(
+        description='Retrieves all versions of passed configurations.',
+        summary='All versions of configuration',
+        responses={
+            200: AllVersionsResponseSerializer,
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Configuration not found',
+            ),
+        },
+        tags=['Configuration'],
+    )
     @action(detail=True, methods=['get'])
     def all_versions(self, request, *args, **kwargs):
-        '''
-        Get all versions of passed config.
-        Request: GET api/v2/config/<ID>/all_versions.
-        '''
         config = self.get_object()
-        config_data = self.get_serializer(config).data
+
         all_config_versions = Config.objects.get_all_versions(
-            config_data['type'],
-            config_data['name'],
-            config_data['project'],
+            config.type,
+            config.name,
+            config.project,
         )
 
-        data = {
-            'type': config_data['type'],
-            'name': config_data['name'],
-            'project': config_data['project'],
-            'all_config_versions': all_config_versions,
-        }
-        return Response(data, status=status.HTTP_200_OK)
+        page = self.paginate_queryset(all_config_versions)
+        if page is not None:
+            configs_serializer = self.get_serializer(page, many=True)
 
+            response_data = {
+                'type': config.type,
+                'name': config.name,
+                'project': config.project_id,
+                'all_config_versions': configs_serializer.data,
+            }
+
+            response_serializer = AllVersionsResponseSerializer(response_data)
+            return self.get_paginated_response(response_serializer.data)
+
+        configs_serializer = self.get_serializer(all_config_versions, many=True)
+        response_data = {
+            'type': config.type,
+            'name': config.name,
+            'project': config.project_id,
+            'all_config_versions': configs_serializer.data,
+        }
+
+        response_serializer = AllVersionsResponseSerializer(response_data)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary='Available configuration types and names',
+        description='Returns a list of available configuration types and names.',
+        responses={200: AvailableTypesResponseSerializer},
+        tags=['Configuration'],
+    )
     @action(detail=False, methods=['get'])
     def available_types_names(self, request):
-        '''
-        Returns a list of available configuration types and names.
-        '''
         config_type_names = [
             {
                 'type': ConfigTypes.REPORT,
@@ -240,13 +476,9 @@ class ConfigViewSet(ModelViewSet):
         return Response({'config_types_names': config_type_names}, status=status.HTTP_200_OK)
 
     def list(self, request):
-        '''
-        Of all configurations having the same project, type and name, if there are active ones,
-        returns active ones, if there are none, returns the latest ones.
-        '''
+        queryset = self.filter_queryset(self.get_queryset())
         configs_to_display = (
-            self.get_queryset()
-            .order_by('project', 'type', 'name', '-is_active', '-created')
+            queryset.order_by('project', 'type', 'name', '-is_active', '-created')
             .distinct('project', 'type', 'name')
             .values(
                 'id',
@@ -259,4 +491,9 @@ class ConfigViewSet(ModelViewSet):
                 'created',
             )
         )
+
+        page = self.paginate_queryset(configs_to_display)
+        if page is not None:
+            return self.get_paginated_response(page)
+
         return Response(configs_to_display, status=status.HTTP_200_OK)
