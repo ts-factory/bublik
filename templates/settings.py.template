@@ -14,6 +14,7 @@ from datetime import timedelta
 import importlib.util
 import os
 import sys
+import logging
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -123,6 +124,31 @@ MANAGEMENT_COMMANDS_LOG = '${MANAGEMENT_COMMANDS_LOG}'
 WSGI_APPLICATION = 'bublik.wsgi.application'
 DJANGO_LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
 CELERY_LOG_LEVEL = os.getenv('CELERYD_LOG_LEVEL', 'INFO')
+
+class DetailedErrorFormatter(logging.Formatter):
+    def format(self, record):
+        if record.exc_info:
+            record.exc_text = self.formatException(record.exc_info, record)
+        return super().format(record)
+
+    def formatException(self, exc_info, record=None):
+        prefix = self._format_prefix(record) if record else ''
+        traceback_text = super().formatException(exc_info)
+        formatted_lines = [f'{prefix} {line}' for line in traceback_text.splitlines()]
+        return '\n'.join(formatted_lines)
+
+    def _format_prefix(self, record):
+        dummy = logging.LogRecord(
+            name=record.name,
+            level=record.levelno,
+            pathname=record.pathname,
+            lineno=record.lineno,
+            msg='',
+            args=(),
+            exc_info=None,
+        )
+        return super().format(dummy).rstrip()
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -148,6 +174,10 @@ LOGGING = {
         'json': {
             'format': '%(asctime)s %(levelname)s %(module)s %(message)s',
             'class': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+        },
+        'detailed.error': {
+            '()': DetailedErrorFormatter,
+            'format': '[%(asctime)s][%(levelname)s](%(name)s) %(message)s',
         },
     },
     'handlers': {
@@ -179,10 +209,18 @@ LOGGING = {
             'backupCount': 10,
             'formatter': 'detailed',
         },
+        'file.error': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/error.log'),
+            'maxBytes': 15728640, # 1024 * 1024 * 10B = 10MB
+            'backupCount': 5,
+            'formatter': 'detailed.error',
+        },
     },
     'loggers': {
         '': {
-            'handlers': ['console.simple'],
+            'handlers': ['console.simple', 'file.error'],
             'level': DJANGO_LOG_LEVEL,
         },
         'colored': {
