@@ -161,6 +161,11 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple.colored',
         },
+        'console.detailed': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'detailed',
+        },
         'console.json': {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.StreamHandler',
@@ -192,7 +197,7 @@ LOGGING = {
             'colorise': True,
         },
         'bublik.server': {
-            'handlers': ['console.json'],
+            'handlers': ['console.detailed'],
             'level': DJANGO_LOG_LEVEL,
             'propagate': False,
         },
