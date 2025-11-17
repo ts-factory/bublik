@@ -4,9 +4,27 @@
 from rest_framework import serializers
 
 
+class ConfigVersionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    version = serializers.IntegerField()
+    is_active = serializers.BooleanField()
+    description = serializers.CharField(allow_null=True)
+    created = serializers.DateTimeField()
+
+
 class AllVersionsResponseSerializer(serializers.Serializer):
-    pass
+    type = serializers.CharField()
+    name = serializers.CharField()
+    project = serializers.IntegerField(allow_null=True)
+    all_config_versions = ConfigVersionSerializer(many=True)
+
+
+class ConfigTypeNameSerializer(serializers.Serializer):
+    type = serializers.CharField()
+    name = serializers.CharField(required=False)
+    required = serializers.BooleanField()
+    description = serializers.CharField()
 
 
 class AvailableTypesNamesResponseSerializer(serializers.Serializer):
-    pass
+    config_types_names = ConfigTypeNameSerializer(many=True)
