@@ -223,6 +223,7 @@ class ConfigViewSet(ModelViewSet):
     and also work with their versions and schemas.
     '''
 
+    pagination_class = None
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
     filterset_class = ConfigFilter
