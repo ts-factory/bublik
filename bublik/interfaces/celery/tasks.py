@@ -140,7 +140,10 @@ def importruns(
         raise AttributeError(msg)
 
     except Exception as e:
-        logger.error(e)
+        error_data = getattr(e, 'message', type(e).__name__)
+        logger.error(
+            f'Importruns failed: {error_data}',
+        )
         raise
 
     finally:
