@@ -10,7 +10,6 @@ import tempfile
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
-from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 import pendulum
 
@@ -20,7 +19,7 @@ from bublik.core.argparse import (
     parser_type_str_or_none,
     parser_type_url,
 )
-from bublik.core.checks import check_run_file, modify_msg
+from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
@@ -217,21 +216,6 @@ class Command(BaseCommand):
 
             project = meta_data.project if project is None else project
             logger.info(f'the project name is {project.name}')
-
-            # Check whether the RUN_COMPLETE_FILE attribute exists
-            try:
-                ConfigServices.getattr_from_global(
-                    GlobalConfigs.PER_CONF.name,
-                    'RUN_COMPLETE_FILE',
-                    project.id,
-                )
-            except (ObjectDoesNotExist, KeyError) as e:
-                msg = modify_msg(
-                    str(e),
-                    run_url,
-                )
-                logger.error(msg)
-                return
 
             # Extract logs base
             logger.info('downloading run logs: %s', run_url)
