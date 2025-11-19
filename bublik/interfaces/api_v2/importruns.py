@@ -45,9 +45,17 @@ class ImportrunsViewSet(ViewSet):
         project_id = request.query_params.get('project')
         param_project_name = Project.objects.get(id=project_id).name if project_id else None
 
-        try:
-            requesting_host = get_current_scheme_host_prefix(request)
+        requesting_host = get_current_scheme_host_prefix(request)
 
+        task_id = tasks.importruns.delay(
+            param_url,
+            param_force,
+            param_from,
+            param_to,
+            requesting_host,
+            param_project_name,
+        )
+        if indicate_collision(str(task_id), param_url):
             task_id = tasks.importruns.delay(
                 param_url,
                 param_force,
@@ -56,25 +64,13 @@ class ImportrunsViewSet(ViewSet):
                 requesting_host,
                 param_project_name,
             )
-            if indicate_collision(str(task_id), param_url):
-                task_id = tasks.importruns.delay(
-                    param_url,
-                    param_force,
-                    param_from,
-                    param_to,
-                    requesting_host,
-                    param_project_name,
-                )
 
-            data = {
-                'celery_task_id': str(task_id),
-                'flower': build_absolute_uri(request, f'flower/task/{task_id}'),
-                'import_log': build_absolute_uri(request, f'importlog/{task_id}'),
-            }
-            return Response(data=data)
-
-        except Exception as e:
-            return Response({'error': str(e), 'backtrace': traceback.format_exc()})
+        data = {
+            'celery_task_id': str(task_id),
+            'flower': build_absolute_uri(request, f'flower/task/{task_id}'),
+            'import_log': build_absolute_uri(request, f'importlog/{task_id}'),
+        }
+        return Response(data=data)
 
     @action(detail=False, methods=['get'])
     def log(self, request):
