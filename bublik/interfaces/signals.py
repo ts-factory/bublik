@@ -56,7 +56,7 @@ def categorize_metas_on_config_change(sender, instance, **kwargs):
         and instance.is_active
     ):
         project_name = instance.project.name if instance.project else None
-        call_command('meta_categorization', project=project_name)
+        call_command('meta_categorization', project_name=project_name)
 
 
 @receiver(post_delete, sender=MetaTest)
