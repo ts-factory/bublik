@@ -228,11 +228,20 @@ LOGGING = {
             'level': DJANGO_LOG_LEVEL,
             'propagate': False,
         },
-        'celery.task': {
-            'handlers': [],
+        'celery': {
+            'handlers': ['file.error'],
             'level': CELERY_LOG_LEVEL,
-            'propagate': True,
-            'colorise': True,
+            'propagate': False,
+        },
+        'celery.task': {
+            'handlers': ['file.error'],
+            'level': CELERY_LOG_LEVEL,
+            'propagate': False,
+        },
+        'celery.task.<task_id>': {
+            'handlers': ['file.error'],
+            'level': CELERY_LOG_LEVEL,
+            'propagate': False,
         },
         'bublik.server': {
             'handlers': ['console.detailed'],
