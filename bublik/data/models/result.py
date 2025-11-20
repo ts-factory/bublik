@@ -447,7 +447,6 @@ Timestamp of the iteration (or test run) execution end.''',
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
-        null=True,
         help_text='The project identifier.',
     )
 
