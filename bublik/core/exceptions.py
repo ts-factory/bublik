@@ -3,6 +3,8 @@
 
 import logging
 
+from rest_framework import status
+from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -46,3 +48,26 @@ def custom_exception_handler(exc, context):
     response.data = updated_response_data
 
     return response
+
+
+class BublikError(Exception):
+    def __init__(self, message='Internal server error'):
+        super().__init__(message)
+        self.message = message
+
+
+class BublikServerError(BublikError):
+    pass
+
+
+class BublikAPIError(BublikError, APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = 'Something went wrong, please try again'
+
+    def __init__(self, message=None, status_code=None):
+        if message is None:
+            message = self.default_detail
+        BublikError.__init__(self, message)
+        APIException.__init__(self, detail=message)
+        if status_code is not None:
+            self.status_code = status_code
