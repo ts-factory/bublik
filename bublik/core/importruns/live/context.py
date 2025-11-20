@@ -476,7 +476,7 @@ class LiveLogContext:
         # Add TestIterationResult
         logger.debug('adding result')
         test_iteration_result = add_iteration_result(
-            project_id=None,
+            project_id=self.project.id,
             start_time=self.last_ts,
             iteration=test_iteration,
             run=self.run,
