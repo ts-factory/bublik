@@ -198,6 +198,15 @@ class Command(BaseCommand):
                         'the project so that meta_data.json can be generated using '
                         'the corresponding FILES_TO_GENERATE_METADATA.',
                     )
+                    create_event(
+                        facility=EventLog.FacilityChoices.IMPORTRUNS,
+                        severity=EventLog.SeverityChoices.ERR,
+                        msg=f'failed import {run_url} '
+                        f'-- {task_msg} '
+                        f'-- Error: meta_data.json not found and cannot be generated '
+                        'because no project was provided '
+                        f'-- runtime: {runtime(import_run_start_time)} sec',
+                    )
                     return
 
                 # Save to process dir available files for generating metadata
