@@ -194,21 +194,15 @@ class Command(BaseCommand):
                 meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'), project)
             else:
                 if project is None:
-                    logger.error(
-                        'meta_data.json not found. To import logs, you must specify '
-                        'the project so that meta_data.json can be generated using '
-                        'the corresponding FILES_TO_GENERATE_METADATA.',
+                    error_msg = (
+                        'meta_data.json not found. You must either add meta_data.json '
+                        'to the run source directory or specify the project so that '
+                        'meta_data.json can be generated using the FILES_TO_GENERATE_METADATA '
+                        'from the corresponding main project configuration.'
                     )
-                    create_event(
-                        facility=EventLog.FacilityChoices.IMPORTRUNS,
-                        severity=EventLog.SeverityChoices.ERR,
-                        msg=f'failed import {run_url} '
-                        f'-- {task_msg} '
-                        f'-- Error: meta_data.json not found and cannot be generated '
-                        'because no project was provided '
-                        f'-- runtime: {runtime(import_run_start_time)} sec',
+                    raise ImportrunsError(
+                        message=error_msg,
                     )
-                    return
 
                 # Save to process dir available files for generating metadata
                 files_to_try = ConfigServices.getattr_from_global(
