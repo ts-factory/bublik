@@ -247,7 +247,9 @@ class MetaData:
                 continue
 
             if not name and not value:
-                logger.warning(f"meta with empty 'name' and 'value' can't be saved: {m_data}")
+                logger.warning(
+                    f'meta with empty \'name\' and \'value\' can\'t be saved: {m_data}',
+                )
                 continue
 
             reference = self.__preprocess_meta(m_data)
