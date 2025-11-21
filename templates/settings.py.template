@@ -133,8 +133,23 @@ class DetailedErrorFormatter(logging.Formatter):
 
     def formatException(self, exc_info, record=None):
         prefix = self._format_prefix(record) if record else ''
+
         traceback_text = super().formatException(exc_info)
         formatted_lines = [f'{prefix} {line}' for line in traceback_text.splitlines()]
+
+        exc_type, exc_value, tb = exc_info
+        if hasattr(exc_value, 'debug_details') and exc_value.debug_details:
+            if isinstance(exc_value.debug_details, str):
+                debug_lines = exc_value.debug_details.splitlines()
+            else:
+                try:
+                    debug_lines = list(exc_value.debug_details)
+                except TypeError:
+                    debug_lines = repr(exc_value.debug_details).splitlines()
+            formatted_lines.append(f'{prefix} Debug details:')
+            for line in debug_lines:
+                formatted_lines.append(f'{prefix}   {line}')
+
         return '\n'.join(formatted_lines)
 
     def _format_prefix(self, record):
