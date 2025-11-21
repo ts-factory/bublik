@@ -265,32 +265,43 @@ class Command(BaseCommand):
                 run_completed = True
 
             # Import run incrementally
-            run = incremental_import(json_data, project.id, meta_data, run_completed, force)
+            run, created = incremental_import(
+                json_data,
+                project.id,
+                meta_data,
+                run_completed,
+                force,
+            )
 
-            if run:
-                add_import_id(run, task_id)
-                add_run_log(run, suffix_url, logs_base)
-                categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
-                prepare_cache_for_completed_run(run)
-
-                logger.info(f'run id is {run.id}')
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.INFO,
-                    msg=f'successful import {run_url} '
-                    f'-- run_id={run.id} '
-                    f'-- {task_msg} '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
-                )
-            else:
+            if not created:
+                msg = 'run already exists'
+                logger.warning(f'{msg} (ID: {run.id}). Ignoring: {run_url}')
                 create_event(
                     facility=EventLog.FacilityChoices.IMPORTRUNS,
                     severity=EventLog.SeverityChoices.WARNING,
-                    msg=f'session logs weren\'t processed {run_url} '
+                    msg=f'failed import {run_url} '
+                    f'-- run_id={run.id} '
                     f'-- {task_msg} '
+                    f'-- Error: {msg}'
                     f'-- runtime: {runtime(import_run_start_time)} sec',
                 )
-                logger.info("run logs weren't processed")
+                return
+
+            add_import_id(run, task_id)
+            add_run_log(run, suffix_url, logs_base)
+            categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
+            prepare_cache_for_completed_run(run)
+
+            logger.info(f'run id is {run.id}')
+
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.INFO,
+                msg=f'successful import {run_url} '
+                f'-- run_id={run.id} '
+                f'-- {task_msg} '
+                f'-- runtime: {runtime(import_run_start_time)} sec',
+            )
 
         except Exception as e:
             create_event(
