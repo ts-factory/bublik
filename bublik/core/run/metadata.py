@@ -272,8 +272,6 @@ class MetaData:
                 f'run meta: {meta.type!s:<13} {meta.name!s:<15} = {meta.value!s:<}',
             )
 
-        return True
-
     def force_update_metas(self, run):
         new = []
         matched = []
@@ -331,8 +329,6 @@ class MetaData:
 
         logger.info(f'new meta results: {created}')
 
-        return True
-
     def check_if_essential_metas_changed(self, run):
         run_key_metas = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
@@ -357,5 +353,6 @@ class MetaData:
         self.check_if_essential_metas_changed(run)
 
         if force_update:
-            return self.force_update_metas(run)
-        return self.get_or_create_metas(run)
+            self.force_update_metas(run)
+        else:
+            self.get_or_create_metas(run)
