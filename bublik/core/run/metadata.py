@@ -13,6 +13,7 @@ import pendulum
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
+from bublik.core.exceptions import ImportrunsError
 from bublik.core.importruns.utils import measure_time
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
@@ -332,7 +333,7 @@ class MetaData:
 
         return True
 
-    def is_essential_metas_changed(self, run):
+    def check_if_essential_metas_changed(self, run):
         run_key_metas = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
@@ -346,14 +347,14 @@ class MetaData:
 
         for name, value in essential_metas:
             if not find_dict_in_list({'name': name, 'value': value}, self.metas):
-                logger.error(f'broken essential meta: {name} = {value}')
-                return True
-        return False
+                msg = f'broken essential meta: {name} = {value}'
+                raise ImportrunsError(
+                    message=msg,
+                )
 
     @measure_time('processing meta data')
     def handle(self, run, force_update=False):
-        if self.is_essential_metas_changed(run):
-            return False
+        self.check_if_essential_metas_changed(run)
 
         if force_update:
             return self.force_update_metas(run)
