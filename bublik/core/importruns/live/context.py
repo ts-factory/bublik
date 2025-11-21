@@ -209,9 +209,7 @@ class LiveLogContext:
             msg = f'this run already exists ({self.run})'
             raise LLInvalidInputError(msg)
 
-        if not meta_data.handle(self.run, force_update):
-            msg = 'failed to update metadata'
-            raise LLInternalError(msg)
+        meta_data.handle(self.run, force_update)
 
         if tags is not None:
             add_tags(self.run, tags)
