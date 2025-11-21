@@ -180,9 +180,7 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
         was_online = run.import_mode == ImportMode.LIVE
         # It's always OK to add to imports that were originally online
         if run.finish and not was_online and not force:
-            logger.info('the run has already been added earlier, ignoring')
-            logger.info(f'run id is {run_id}')
-            return None
+            return run, False
         if run_completed:
             run.start = run_start
             run.finish = run_finish
@@ -212,7 +210,7 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
     meta_data.handle(run, force_update)
 
     if not run_log:
-        return run
+        return run, True
 
     tests_nums_prologues = {}
 
@@ -255,4 +253,4 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
 
     call_command('run_cache', 'delete', '-i', run.id, '--logger_out', True)
 
-    return run
+    return run, True
