@@ -64,6 +64,14 @@ class ImportrunsError(BublikServerError):
     pass
 
 
+class RunOutsidePeriodError(ImportrunsError):
+    pass
+
+
+class RunAlreadyExistsError(ImportrunsError):
+    pass
+
+
 class BublikAPIError(BublikError, APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = 'Something went wrong, please try again'
