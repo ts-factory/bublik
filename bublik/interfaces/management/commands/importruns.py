@@ -20,6 +20,7 @@ from bublik.core.argparse import (
 )
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
+from bublik.core.exceptions import ImportrunsError
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
@@ -230,18 +231,13 @@ class Command(BaseCommand):
             logger.info('downloading run logs: %s', run_url)
             logs_base, suffix_url = extract_logs_base(run_url, project.id)
             if not suffix_url:
-                logger.error(
-                    f'run url doesn\'t matched project references, ignoring: {run_url}',
+                error_msg = (
+                    'run URL doesn\'t match any of the logs bases URIs specified '
+                    'in the project\'s references configuration'
                 )
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.ERR,
-                    msg=f'failed import {run_url} '
-                    f'-- {task_msg} '
-                    f'-- Error: URL doesn\'t match project references '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                raise ImportrunsError(
+                    message=error_msg,
                 )
-                return
 
             # Filter out runs that don't fit the specified interval
             if not meta_data.check_run_period(date_from, date_to):
