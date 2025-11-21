@@ -4,6 +4,7 @@
 
 from django.db import transaction
 
+from bublik.core.importruns.utils import measure_time
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.stats import get_run_stats_detailed
 
@@ -11,6 +12,7 @@ from bublik.core.run.stats import get_run_stats_detailed
 logger = get_task_or_server_logger()
 
 
+@measure_time('preparing cache for complited run')
 @transaction.atomic
 def prepare_cache_for_completed_run(run):
     if run.finish:

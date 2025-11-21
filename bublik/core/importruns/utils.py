@@ -5,6 +5,8 @@ from datetime import datetime
 
 from django.core.files import locks
 
+from bublik.core.logging import get_task_or_server_logger
+
 
 # This is a test for UUID4 collisions
 def indicate_collision(task_id, url):
@@ -35,3 +37,20 @@ def indicate_collision(task_id, url):
 
     # To call the task againg if collision
     return status
+
+
+def measure_time(prefix: str = ''):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            logger = get_task_or_server_logger()
+            logger.info(f'{prefix} is started')
+            start_time = datetime.now()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                elapsed = datetime.now() - start_time
+                logger.info(f'{prefix} is completed in [{elapsed}]')
+
+        return wrapper
+
+    return decorator
