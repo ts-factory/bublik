@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
+from functools import wraps
 import os
 import re
 import shutil
@@ -20,7 +21,11 @@ from bublik.core.argparse import (
 )
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
-from bublik.core.exceptions import ImportrunsError
+from bublik.core.exceptions import (
+    ImportrunsError,
+    RunAlreadyExistsError,
+    RunOutsidePeriodError,
+)
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
@@ -38,6 +43,70 @@ logger = get_task_or_server_logger()
 
 def runtime(start_time):
     return (datetime.now() - start_time).total_seconds()
+
+
+def with_import_events(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        run_url = kwargs.get('run_url')
+        task_id = kwargs.get('task_id')
+
+        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
+        start_time = datetime.now()
+
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'started import {run_url} -- {task_msg}',
+        )
+
+        try:
+            run = func(*args, **kwargs)
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.INFO,
+                msg=(
+                    f'successful import {run_url} '
+                    f'-- run_id={run.id} '
+                    f'-- {task_msg} '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            return run
+
+        except (RunOutsidePeriodError, RunAlreadyExistsError) as re:
+            logger.warning(f'{re.message}. Ignoring {run_url}')
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.WARNING,
+                msg=(
+                    f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: {re.message} '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            return None
+
+        except Exception as e:
+            error_data = getattr(e, 'message', type(e).__name__)
+            logger.error(
+                f'Importruns failed: {error_data}',
+                exc_info=e,
+            )
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.ERR,
+                msg=(
+                    f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: {error_data} '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            return None
+
+    return wrapper
 
 
 class HTTPDirectoryTraverser:
@@ -140,6 +209,7 @@ class Command(BaseCommand):
             help='The name of the project or None (default)',
         )
 
+    @with_import_events
     def import_run(
         self,
         run_url,
@@ -149,17 +219,9 @@ class Command(BaseCommand):
         date_to=None,
         project_name=None,
     ):
-        import_run_start_time = datetime.now()
-        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
-        create_event(
-            facility=EventLog.FacilityChoices.IMPORTRUNS,
-            severity=EventLog.SeverityChoices.INFO,
-            msg=f'started import {run_url} -- {task_msg}',
-        )
-
         project = Project.objects.get(name=project_name) if project_name is not None else None
-
         process_dir = None
+
         try:
             # Create temp dir for logs processing
             process_dir = tempfile.mkdtemp()
@@ -240,16 +302,9 @@ class Command(BaseCommand):
                     f'the period {date_from.to_date_string()} - '
                     f'{date_to.to_date_string()}'
                 )
-                logger.warning(f'{msg}. Ignoring: {run_url}')
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.WARNING,
-                    msg=f'failed import {run_url} '
-                    f'-- {task_msg} '
-                    f'-- Error: {msg} '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                raise RunOutsidePeriodError(
+                    message=msg,
                 )
-                return
 
             if meta_data_saved:
                 run_completed = check_run_file(
@@ -275,18 +330,10 @@ class Command(BaseCommand):
             )
 
             if not created:
-                msg = 'run already exists'
-                logger.warning(f'{msg} (ID: {run.id}). Ignoring: {run_url}')
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.WARNING,
-                    msg=f'failed import {run_url} '
-                    f'-- run_id={run.id} '
-                    f'-- {task_msg} '
-                    f'-- Error: {msg}'
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                msg = f'run already exists -- run_id={run.id}'
+                raise RunAlreadyExistsError(
+                    message=msg,
                 )
-                return
 
             add_import_id(run, task_id)
             add_run_log(run, suffix_url, logs_base)
@@ -295,25 +342,7 @@ class Command(BaseCommand):
 
             logger.info(f'run id is {run.id}')
 
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.INFO,
-                msg=f'successful import {run_url} '
-                f'-- run_id={run.id} '
-                f'-- {task_msg} '
-                f'-- runtime: {runtime(import_run_start_time)} sec',
-            )
-
-        except Exception as e:
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
-                msg=f'failed import {run_url} '
-                f'-- {task_msg} '
-                f'-- Error: {e!s} '
-                f'-- runtime: {runtime(import_run_start_time)} sec',
-            )
-            logger.error(str(e))
+            return run
 
         finally:
             # Cleanup temporary dir
@@ -353,8 +382,8 @@ class Command(BaseCommand):
 
         for run_url in spear.find_runs():
             self.import_run(
-                run_url,
-                force,
+                run_url=run_url,
+                force=force,
                 task_id=options['task_id'],
                 date_from=date_from,
                 date_to=date_to,
