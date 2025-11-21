@@ -266,40 +266,13 @@ class Command(BaseCommand):
                 run_completed = True
 
             # Import run incrementally
-            logger.info('the process of incremental import of run logs is started')
-            start_time = datetime.now()
             run = incremental_import(json_data, project.id, meta_data, run_completed, force)
-            logger.info(
-                f'the process of incremental import of run logs is completed in ['
-                f'{datetime.now() - start_time}]',
-            )
 
             if run:
-                logger.info('the process of adding import id is started')
-                start_time = datetime.now()
                 add_import_id(run, task_id)
-                logger.info(
-                    f'the process of adding import id is completed in ['
-                    f'{datetime.now() - start_time}]',
-                )
-
-                logger.info('the process of adding run log is started')
-                start_time = datetime.now()
                 add_run_log(run, suffix_url, logs_base)
-                logger.info(
-                    f'the process of adding run log is completed in ['
-                    f'{datetime.now() - start_time}]',
-                )
-
                 categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
-
-                logger.info('the process of preparing cache for complited run is started')
-                start_time = datetime.now()
                 prepare_cache_for_completed_run(run)
-                logger.info(
-                    f'the process of preparing cache for complited run is completed in ['
-                    f'{datetime.now() - start_time}]',
-                )
 
                 logger.info(f'run id is {run.id}')
                 create_event(
