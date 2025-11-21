@@ -209,9 +209,7 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
 
     set_run_import_mode(run, ImportMode.SOURCE)
 
-    if not meta_data.handle(run, force_update):
-        logger.info("meta_data wasn't processed")
-        return None
+    meta_data.handle(run, force_update)
 
     if not run_log:
         return run
