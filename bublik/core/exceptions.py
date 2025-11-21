@@ -51,9 +51,12 @@ def custom_exception_handler(exc, context):
 
 
 class BublikError(Exception):
-    def __init__(self, message='Internal server error'):
+    def __init__(self, message='Internal server error', debug_details=None):
+        if debug_details is None:
+            debug_details = []
         super().__init__(message)
         self.message = message
+        self.debug_details = debug_details
 
 
 class BublikServerError(BublikError):
@@ -73,23 +76,27 @@ class RunAlreadyExistsError(ImportrunsError):
 
 
 class URLFetchError(ImportrunsError):
-    def __init__(self, message='HTTP error occurred'):
-        super().__init__(message)
+    def __init__(self, message='HTTP error occurred', debug_details=None):
+        if debug_details is None:
+            debug_details = []
+        super().__init__(message, debug_details)
 
 
 class RunCompromisedError(ImportrunsError):
-    def __init__(self, message='run compromised'):
-        super().__init__(message)
+    def __init__(self, message='run compromised', debug_details=None):
+        if debug_details is None:
+            debug_details = []
+        super().__init__(message, debug_details)
 
 
 class BublikAPIError(BublikError, APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = 'Something went wrong, please try again'
 
-    def __init__(self, message=None, status_code=None):
+    def __init__(self, message=None, debug_details=None, status_code=None):
         if message is None:
             message = self.default_detail
-        BublikError.__init__(self, message)
+        BublikError.__init__(self, message, debug_details)
         APIException.__init__(self, detail=message)
         if status_code is not None:
             self.status_code = status_code
