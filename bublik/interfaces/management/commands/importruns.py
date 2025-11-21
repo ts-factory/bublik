@@ -235,17 +235,18 @@ class Command(BaseCommand):
 
             # Filter out runs that don't fit the specified interval
             if not meta_data.check_run_period(date_from, date_to):
-                logger.debug(
+                msg = (
                     'run isn\'t satisfy '
                     f'the period {date_from.to_date_string()} - '
-                    f'{date_to.to_date_string()}, ignoring: {run_url}',
+                    f'{date_to.to_date_string()}'
                 )
+                logger.warning(f'{msg}. Ignoring: {run_url}')
                 create_event(
                     facility=EventLog.FacilityChoices.IMPORTRUNS,
                     severity=EventLog.SeverityChoices.WARNING,
                     msg=f'failed import {run_url} '
                     f'-- {task_msg} '
-                    f'-- Error: run doesn\'t satisfy time period '
+                    f'-- Error: {msg} '
                     f'-- runtime: {runtime(import_run_start_time)} sec',
                 )
                 return
