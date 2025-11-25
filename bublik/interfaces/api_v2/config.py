@@ -36,6 +36,14 @@ class ConfigFilterSet(filters.FilterSet):
 
 
 class ConfigViewSet(ModelViewSet):
+    '''
+    API for managing system configurations.
+
+    Allows you to create, view, update, and delete configurations,
+    and also work with their versions and schemas.
+    '''
+
+    pagination_class = None
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
     filterset_class = ConfigFilter
