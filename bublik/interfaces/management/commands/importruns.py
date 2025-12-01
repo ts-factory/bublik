@@ -139,7 +139,16 @@ class HTTPDirectoryTraverser:
         if ast.find(
             lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
         ):
-            logger.info(f'run compromised, ignoring: {url}')
+            msg = 'run compromised'
+            logger.warning(f'{msg}. Ignoring: {url}')
+            event_msg = f'failed import {url} -- {self.task_msg} -- Error: {msg}'
+            if self.start_time:
+                event_msg += f' -- runtime: {runtime(self.start_time)} sec'
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.WARNING,
+                msg=event_msg,
+            )
             return
 
         if check_run_file('meta_data.json', url):
