@@ -84,7 +84,7 @@ class MetaData:
             subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            msg = f'per-project generate_metadata.py has returned an error {e}'
+            msg = 'failed to generate metadata using per-project generate_metadata.py'
             raise ImportrunsError(
                 msg,
             ) from e
