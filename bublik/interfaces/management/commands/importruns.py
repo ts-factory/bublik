@@ -183,8 +183,6 @@ class HTTPDirectoryTraverser:
         url,
     ):
         html = fetch_url(url, quiet_404=True)
-        if not html:
-            raise URLFetchError
 
         ast = BeautifulSoup(markup=html, features='html.parser')
         if ast.find(
