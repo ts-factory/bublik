@@ -70,7 +70,7 @@ class MetaData:
 
     @staticmethod
     def generate(process_dir, project_name):
-        logger.info(f'Generate meta_data.json at {process_dir}')
+        logger.info(f'generate meta_data.json at {process_dir}')
         try:
             path_meta_data_script = os.path.join(settings.PER_CONF_DIR, 'generate_metadata.py')
             cmd = shlex.split(
@@ -84,9 +84,9 @@ class MetaData:
             subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            msg = f'Per-project generate_metadata.py has returned an error {e}'
+            msg = f'per-project generate_metadata.py has returned an error {e}'
             raise ImportrunsError(
-                message=msg,
+                msg,
             ) from e
 
         return MetaData.load(os.path.join(process_dir, 'meta_data.json'))
@@ -126,7 +126,7 @@ class MetaData:
             self.project.id,
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
-            msg = 'There is no status meta in meta_data.json. It is a required meta.'
+            msg = 'there is no status meta in meta_data.json. It is a required meta.'
             raise ImportrunsError(message=msg)
 
         key_metas_fields = set()
