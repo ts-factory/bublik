@@ -24,7 +24,9 @@ from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import (
     ImportrunsError,
     RunAlreadyExistsError,
+    RunCompromisedError,
     RunOutsidePeriodError,
+    URLFetchError,
 )
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
@@ -121,51 +123,52 @@ class HTTPDirectoryTraverser:
         self,
         url,
     ):
-        html = fetch_url(url, quiet_404=True)
-        if not html:
-            msg = 'HTTP error occurred'
-            logger.error(f'{msg}. Ignoring: {url}')
-            event_msg = f'failed import {url} -- {self.task_msg} -- Error: {msg}'
+        try:
+            html = fetch_url(url, quiet_404=True)
+            if not html:
+                raise URLFetchError
+
+            ast = BeautifulSoup(markup=html, features='html.parser')
+            if ast.find(
+                lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
+            ):
+                raise RunCompromisedError
+
+            if check_run_file('meta_data.json', url):
+                yield url
+                return
+
+            # NOTE: the parser relies on links to directories ending with a slash "/"
+            for node in ast.find_all(
+                lambda t: t.name == 'a'
+                and hasattr(t, 'href')
+                and not re.match(r'(\./)?\.\./?', t['href'])
+                and t['href'].endswith('/'),
+            ):
+                a_href = node['href'].strip()
+                url_next = urljoin(url + '/', a_href)
+
+                yield from self.__find_runs(url_next)
+        except (URLFetchError, RunCompromisedError) as e:
+            event_msg = f'failed import {url} -- {self.task_msg} -- Error: {e.message}'
             if self.start_time:
                 event_msg += f' -- runtime: {runtime(self.start_time)} sec'
+
+            severity = (
+                EventLog.SeverityChoices.ERR
+                if isinstance(e, URLFetchError)
+                else EventLog.SeverityChoices.WARNING
+            )
+            logger_func = logger.error if isinstance(e, URLFetchError) else logger.warning
+            logger_func(f'Importruns failed: {e.message}. Ignoring: {url}')
+
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
+                severity=severity,
                 msg=event_msg,
             )
+
             return
-
-        ast = BeautifulSoup(markup=html, features='html.parser')
-        if ast.find(
-            lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
-        ):
-            msg = 'run compromised'
-            logger.warning(f'{msg}. Ignoring: {url}')
-            event_msg = f'failed import {url} -- {self.task_msg} -- Error: {msg}'
-            if self.start_time:
-                event_msg += f' -- runtime: {runtime(self.start_time)} sec'
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.WARNING,
-                msg=event_msg,
-            )
-            return
-
-        if check_run_file('meta_data.json', url):
-            yield url
-            return
-
-        # NOTE: the parser relies on links to directories ending with a slash "/"
-        for node in ast.find_all(
-            lambda t: t.name == 'a'
-            and hasattr(t, 'href')
-            and not re.match(r'(\./)?\.\./?', t['href'])
-            and t['href'].endswith('/'),
-        ):
-            a_href = node['href'].strip()
-            url_next = urljoin(url + '/', a_href)
-
-            yield from self.__find_runs(url_next)
 
     def find_runs(self):
         yield from self.__find_runs(self.url)
