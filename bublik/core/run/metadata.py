@@ -114,7 +114,7 @@ class MetaData:
                 self.project = Project.objects.get(name=project_meta['value'])
             except Project.DoesNotExist as mdne:
                 msg = (
-                    f'the project does not exist: {project_meta["value"]}. '
+                    f'project "{project_meta["value"]}" does not exist. '
                     'Create it to import logs.'
                 )
                 raise ImportrunsError(message=msg) from mdne
