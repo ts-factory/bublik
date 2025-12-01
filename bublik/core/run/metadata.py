@@ -7,7 +7,6 @@ import shlex
 import subprocess
 
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, Q
 import pendulum
 
@@ -86,9 +85,9 @@ class MetaData:
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             msg = f'Per-project generate_metadata.py has returned an error {e}'
-            raise RuntimeError(
-                msg,
-            ) from RuntimeError
+            raise ImportrunsError(
+                message=msg,
+            ) from e
 
         return MetaData.load(os.path.join(process_dir, 'meta_data.json'))
 
@@ -97,20 +96,20 @@ class MetaData:
         self.version = meta_data.get('version')
         if not self.version or (self.version and self.version > 1):
             msg = 'not valid version of meta_data.json'
-            raise ValueError(msg)
+            raise ImportrunsError(message=msg)
 
         # Check format specific data
         self.metas = meta_data.get('metas')
         if not self.metas:
             msg = 'meta_data.json parser expected a list of metas'
-            raise KeyError(msg)
+            raise ImportrunsError(message=msg)
 
         # Assign project from meta if not provided
         if not self.project:
             project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
             if not project_meta:
                 msg = 'meta_data.json parser expected a PROJECT meta.'
-                raise ValueError(msg)
+                raise ImportrunsError(message=msg)
             try:
                 self.project = Project.objects.get(name=project_meta['value'])
             except Project.DoesNotExist as mdne:
@@ -118,7 +117,7 @@ class MetaData:
                     f'the project does not exist: {project_meta["value"]}. '
                     'Create it to import logs.'
                 )
-                raise ObjectDoesNotExist(msg) from mdne
+                raise ImportrunsError(message=msg) from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
@@ -128,7 +127,7 @@ class MetaData:
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
             msg = 'There is no status meta in meta_data.json. It is a required meta.'
-            raise ValueError(msg)
+            raise ImportrunsError(message=msg)
 
         key_metas_fields = set()
         key_metas_names = ConfigServices.getattr_from_global(
@@ -167,21 +166,21 @@ class MetaData:
                     f'the following key meta is duplicated: {meta_name}, '
                     'that compromises metadata, ignoring the run'
                 )
-                raise ValueError(msg)
+                raise ImportrunsError(message=msg)
 
         if key_metas_names:
             msg = (
                 "can't identify the run, the following RUN_KEY_METAS are "
                 f"absent in metadata: {','.join(key_metas_names)}"
             )
-            raise AttributeError(msg)
+            raise ImportrunsError(message=msg)
 
         # Check if all key metas satisfy Meta model
         model_fields = [f.name for f in Meta._meta.get_fields()]
         diff = get_difference(key_metas_fields, model_fields)
         if diff:
             msg = f"meta can't have the following fields: {','.join(diff)}"
-            raise ValueError(msg)
+            raise ImportrunsError(message=msg)
 
     def __parse_timestamps(self):
         start_meta = find_dict_in_list({'name': 'START_TIMESTAMP'}, self.metas)
