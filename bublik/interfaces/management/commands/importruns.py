@@ -47,6 +47,68 @@ def runtime(start_time):
     return (datetime.now() - start_time).total_seconds()
 
 
+def with_path_processing_events(func):
+    @wraps(func)
+    def wrapper(self, *args, **options):
+        start_time = datetime.now()
+
+        # Log URLs without a training slash are valid, but they don't pass
+        # Kerberos authorization check (bug 11109, bug 11168).
+        init_url = options['url']
+        if not init_url.endswith('/'):
+            init_url += '/'
+            options['url'] = init_url
+
+        task_id = options['task_id']
+        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
+
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'started processing the path {init_url} -- {task_msg}',
+        )
+
+        counter = Counter()
+        try:
+            for _run_url in func(self, *args, **options):
+                counter.increment()
+        except (URLFetchError, RunCompromisedError) as e:
+            event_msg = (
+                f'failed import {init_url} '
+                f'-- {task_msg} '
+                f'-- Error: {e.message} '
+                f'-- runtime: {runtime(start_time)} sec'
+            )
+
+            severity = (
+                EventLog.SeverityChoices.ERR
+                if isinstance(e, URLFetchError)
+                else EventLog.SeverityChoices.WARNING
+            )
+            logger_func = logger.error if isinstance(e, URLFetchError) else logger.warning
+            logger_func(f'Importruns failed: {e.message}. Ignoring: {init_url}', exc_info=e)
+
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=severity,
+                msg=event_msg,
+            )
+        finally:
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.INFO,
+                msg=(
+                    f'finished processing the path {init_url} '
+                    f'-- {task_msg} '
+                    f'-- {counter.counter} sessions were processed '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            logger.info(f'completed in [{datetime.now() - start_time}]')
+
+    return wrapper
+
+
 def with_import_events(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -112,63 +174,39 @@ def with_import_events(func):
 
 
 class HTTPDirectoryTraverser:
-    def __init__(self, url, task_msg, start_time=None):
+    def __init__(self, url):
         super().__init__()
-
         self.url = url
-        self.task_msg = task_msg
-        self.start_time = start_time
 
     def __find_runs(
         self,
         url,
     ):
-        try:
-            html = fetch_url(url, quiet_404=True)
-            if not html:
-                raise URLFetchError
+        html = fetch_url(url, quiet_404=True)
+        if not html:
+            raise URLFetchError
 
-            ast = BeautifulSoup(markup=html, features='html.parser')
-            if ast.find(
-                lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
-            ):
-                raise RunCompromisedError
+        ast = BeautifulSoup(markup=html, features='html.parser')
+        if ast.find(
+            lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
+        ):
+            raise RunCompromisedError
 
-            if check_run_file('meta_data.json', url):
-                yield url
-                return
-
-            # NOTE: the parser relies on links to directories ending with a slash "/"
-            for node in ast.find_all(
-                lambda t: t.name == 'a'
-                and hasattr(t, 'href')
-                and not re.match(r'(\./)?\.\./?', t['href'])
-                and t['href'].endswith('/'),
-            ):
-                a_href = node['href'].strip()
-                url_next = urljoin(url + '/', a_href)
-
-                yield from self.__find_runs(url_next)
-        except (URLFetchError, RunCompromisedError) as e:
-            event_msg = f'failed import {url} -- {self.task_msg} -- Error: {e.message}'
-            if self.start_time:
-                event_msg += f' -- runtime: {runtime(self.start_time)} sec'
-
-            severity = (
-                EventLog.SeverityChoices.ERR
-                if isinstance(e, URLFetchError)
-                else EventLog.SeverityChoices.WARNING
-            )
-            logger_func = logger.error if isinstance(e, URLFetchError) else logger.warning
-            logger_func(f'Importruns failed: {e.message}. Ignoring: {url}')
-
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=severity,
-                msg=event_msg,
-            )
-
+        if check_run_file('meta_data.json', url):
+            yield url
             return
+
+        # NOTE: the parser relies on links to directories ending with a slash "/"
+        for node in ast.find_all(
+            lambda t: t.name == 'a'
+            and hasattr(t, 'href')
+            and not re.match(r'(\./)?\.\./?', t['href'])
+            and t['href'].endswith('/'),
+        ):
+            a_href = node['href'].strip()
+            url_next = urljoin(url + '/', a_href)
+
+            yield from self.__find_runs(url_next)
 
     def find_runs(self):
         yield from self.__find_runs(self.url)
@@ -361,48 +399,20 @@ class Command(BaseCommand):
                         f'[Importruns] Failed to remove {process_dir=} ({e.strerror})',
                     )
 
+    @with_path_processing_events
     def handle(self, *args, **options):
-        start_time = datetime.now()
-        counter = Counter()
+        spear = HTTPDirectoryTraverser(options['url'])
 
-        # Log URLs without a training slash are valid, but they don't pass
-        # Kerberos authorization check (bug 11109, bug 11168).
-        init_url = options['url']
-        if not init_url.endswith('/'):
-            init_url += '/'
-
-        force = options['force']
-        task_id = options['task_id']
-        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
-
-        spear = HTTPDirectoryTraverser(init_url, task_msg=task_msg, start_time=start_time)
-
-        create_event(
-            facility=EventLog.FacilityChoices.IMPORTRUNS,
-            severity=EventLog.SeverityChoices.INFO,
-            msg=f'started processing the path {init_url} -- {task_msg}',
-        )
-
-        # Max out the given dates to make them inclusive
         date_from = pendulum.instance(datetime.combine(options['from'], datetime.min.time()))
         date_to = pendulum.instance(datetime.combine(options['to'], datetime.max.time()))
 
         for run_url in spear.find_runs():
             self.import_run(
                 run_url=run_url,
-                force=force,
+                force=options['force'],
                 task_id=options['task_id'],
                 date_from=date_from,
                 date_to=date_to,
                 project_name=options['project_name'],
             )
-            counter.increment()
-        create_event(
-            facility=EventLog.FacilityChoices.IMPORTRUNS,
-            severity=EventLog.SeverityChoices.INFO,
-            msg=f'finished processing the path {init_url} '
-            f'-- {task_msg} '
-            f'-- {counter.counter} sessions were processed '
-            f'-- runtime: {runtime(start_time)} sec',
-        )
-        logger.info(f'completed in [{datetime.now() - start_time}]')
+            yield run_url
