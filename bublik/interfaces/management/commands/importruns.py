@@ -123,20 +123,15 @@ class HTTPDirectoryTraverser:
     ):
         html = fetch_url(url, quiet_404=True)
         if not html:
-            logger.error(f'HTTP error occurred, ignoring: {url}')
+            msg = 'HTTP error occurred'
+            logger.error(f'{msg}. Ignoring: {url}')
+            event_msg = f'failed import {url} -- {self.task_msg} -- Error: {msg}'
             if self.start_time:
-                msg = (
-                    f'failed import {url} '
-                    f'-- {self.task_msg} '
-                    f'-- Error: HTTP error occurred '
-                    f'-- runtime: {runtime(self.start_time)} sec'
-                )
-            else:
-                msg = f'failed import {url} -- {self.task_msg} -- Error: HTTP error occurred'
+                event_msg += f' -- runtime: {runtime(self.start_time)} sec'
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.ERR,
-                msg=msg,
+                msg=event_msg,
             )
             return
 
