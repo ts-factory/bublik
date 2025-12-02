@@ -39,14 +39,14 @@ def get_or_create_task_logger(task_id):
         and isinstance(logger.handlers[0], TaskFileHandler)
         and logger.handlers[0].logpath.endswith(task_id)
     ):
-        return logger, logger.handlers[0].logpath
+        return logger
 
     for h in logger.handlers[:]:
         logger.removeHandler(h)
         h.close()
     task_file_handler = TaskFileHandler(task_id)
     logger.addHandler(task_file_handler)
-    return logger, task_file_handler.logpath
+    return logger
 
 
 def parse_log(error_regex, project_regex, logpath, maxlen=5):
