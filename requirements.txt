@@ -68,7 +68,6 @@ psycopg2-binary==2.9.10
 pycodestyle==2.7.0
 pycparser==2.19
 pydot==2.0.0
-pyeda==0.29.0
 pyflakes==2.3.1
 pykerberos==1.2.4
 pylint==3.3.8
@@ -90,6 +89,7 @@ smmap==3.0.1
 soupsieve==1.7.3
 SQLAlchemy==2.0.36
 sqlparse==0.5.1
+sympy==1.14.0
 toml==0.10.2
 tomli
 tornado==6.5.2
