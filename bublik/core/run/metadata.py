@@ -345,8 +345,14 @@ class MetaData:
         for name, value in essential_metas:
             if not find_dict_in_list({'name': name, 'value': value}, self.metas):
                 msg = f'broken essential meta: {name} = {value}'
+                debug_details = [
+                    f'Run ID: {run.id}',
+                    f'Essential run metas found in the DB: {essential_metas}',
+                    f'Essential run metas found in the meta_data.json: {self.metas}',
+                ]
                 raise ImportrunsError(
                     message=msg,
+                    debug_details=debug_details,
                 )
 
     @measure_time('processing meta data')
