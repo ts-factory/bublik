@@ -7,6 +7,7 @@ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Count
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.exceptions import ImportrunsError
 from bublik.core.importruns.utils import measure_time
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
@@ -130,10 +131,14 @@ def add_iteration_result(
             iteration_result.tin != int(tin) and iteration_result.tin > -1
         ):
             msg = (
-                f'TestIterationResult object with passed exec_seqno ({exec_seqno}) '
-                f'already exists to current run: {iteration_result}'
+                f'Test result with sequence number {exec_seqno} already exists '
+                'for this run. Duplicate entries are not allowed.'
             )
-            raise ValueError(msg)
+            debug_details = [
+                f'Run ID: {run.id}',
+                f'Existing TestIterationResult with passed exec_seqno: {iteration_result}',
+            ]
+            raise ImportrunsError(message=msg, debug_details=debug_details)
         iteration_result.project_id = project_id
         iteration_result.start = prepare_date(start_time)
         iteration_result.finish = prepare_date(finish_time) if finish_time else None
