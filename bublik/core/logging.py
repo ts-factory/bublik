@@ -33,6 +33,17 @@ def get_or_create_task_logger(task_id):
     # Every logger in the celery package inherits from the "celery" logger,
     # and every task logger inherits from the "celery.task" logger.
     logger = get_task_logger(task_id)
+
+    if (
+        len(logger.handlers) == 1
+        and isinstance(logger.handlers[0], TaskFileHandler)
+        and logger.handlers[0].logpath.endswith(task_id)
+    ):
+        return logger, logger.handlers[0].logpath
+
+    for h in logger.handlers[:]:
+        logger.removeHandler(h)
+        h.close()
     task_file_handler = TaskFileHandler(task_id)
     logger.addHandler(task_file_handler)
     return logger, task_file_handler.logpath
