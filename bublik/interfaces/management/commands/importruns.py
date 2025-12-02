@@ -73,6 +73,11 @@ def with_path_processing_events(func):
             for _run_url in func(self, *args, **options):
                 counter.increment()
         except (URLFetchError, RunCompromisedError) as e:
+            # Update exception debug details with init url
+            debug_details = getattr(e, 'debug_details', [])
+            debug_details.append(f'Init URL: {init_url}')
+            e.debug_details = debug_details
+
             event_msg = (
                 f'failed import {init_url} '
                 f'-- {task_msg} '
@@ -153,11 +158,17 @@ def with_import_events(func):
             return None
 
         except Exception as e:
+            # Update exception debug details with run source url
+            debug_details = getattr(e, 'debug_details', [])
+            debug_details.append(f'Run source URL: {run_url}')
+            e.debug_details = debug_details
+
             error_data = getattr(e, 'message', type(e).__name__)
             logger.error(
                 f'Importruns failed: {error_data}',
                 exc_info=e,
             )
+
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.ERR,
@@ -334,8 +345,18 @@ class Command(BaseCommand):
                     'run URL doesn\'t match any of the logs bases URIs specified '
                     'in the project\'s references configuration'
                 )
+                logs_bases = ConfigServices.getattr_from_global(
+                    GlobalConfigs.REFERENCES.name,
+                    'LOGS_BASES',
+                    project.id,
+                )
+                allowed_uris = {
+                    uri for logs_base in logs_bases for uri in logs_base.get('uri', [])
+                }
+                debug_details = [f'Allowed URIs: {allowed_uris}']
                 raise ImportrunsError(
                     message=error_msg,
+                    debug_details=debug_details,
                 )
 
             # Filter out runs that don't fit the specified interval
