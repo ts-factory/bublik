@@ -36,8 +36,7 @@ def update_config_cache(sender, instance, **kwargs):
 @receiver(post_delete, sender=Config)
 def delete_config_cache(sender, instance, **kwargs):
     if instance.type == ConfigTypes.GLOBAL and instance.is_active:
-        project_id = instance.project.id if instance.project else None
-        del GlobalConfigCache(instance.name, project_id).content
+        del GlobalConfigCache(instance.name, instance.project_id).content
 
 
 @receiver(post_delete, sender=Config)
