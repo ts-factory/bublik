@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 
 from celery.signals import after_task_publish, task_failure, task_received, task_success
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from bublik import settings
 from bublik.core.logging import get_task_or_server_logger, parse_log
@@ -92,14 +93,14 @@ def importruns(
     requesting_host=None,
     param_project_name=None,
 ):
-
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
 
     logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
 
-    cmd_import = ['./manage.py', 'importruns']
+    # To avoid cyclic dependency between importruns.py and this module
+    from bublik.interfaces.management.commands.importruns import Command as ImportRunsCommand
 
     try:
         query_url = urljoin(
@@ -108,16 +109,22 @@ def importruns(
             f'&force={param_force}&project_name={param_project_name}',
         )
 
+        argv = []
         if param_from:
-            cmd_import += ['--from', param_from]
+            argv += ['--from', param_from]
         if param_to:
-            cmd_import += ['--to', param_to]
+            argv += ['--to', param_to]
         if param_project_name:
-            cmd_import += ['--project_name', param_project_name]
+            argv += ['--project_name', param_project_name]
         if param_force:
-            cmd_import += ['--force', param_force]
-        if param_url:
-            cmd_import += ['--task_id', task_id]
+            argv += ['--force', param_force]
+
+        argv += ['--task_id', task_id, param_url]
+        cmd = ImportRunsCommand()
+        parser = cmd.create_parser('manage.py', cmd.help)
+
+        try:
+            options = parser.parse_args(argv)
 
             logger.info('importruns task started:')
             logger.info(f'[ID]:   {task_id}')
@@ -126,18 +133,15 @@ def importruns(
             logger.info(f'[URL]:  {param_url}')
             logger.info(f'[RUN]:  curl {query_url}')
 
-            with open(logpath, 'a') as log:
-                subprocess.run(
-                    [*cmd_import, param_url],
-                    stdout=log,
-                    stderr=log,
-                    shell=False,
-                    check=True,
-                )
-                log.flush()
+            opts_dict = vars(options)
+            url = opts_dict.pop('url')
+            call_command('importruns', url, **opts_dict)
+
             return task_id
-        msg = 'Invalid parameters for the `importruns`'
-        raise AttributeError(msg)
+
+        except (SystemExit, CommandError) as exc:
+            msg = 'Invalid parameters for the `importruns`'
+            raise AttributeError(msg) from exc
 
     except Exception as e:
         error_data = getattr(e, 'message', type(e).__name__)
