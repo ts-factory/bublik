@@ -10,6 +10,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from bublik import settings
+from bublik.core.exceptions import ImportrunsError
 from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
@@ -140,8 +141,10 @@ def importruns(
             return task_id
 
         except (SystemExit, CommandError) as exc:
-            msg = 'Invalid parameters for the `importruns`'
-            raise AttributeError(msg) from exc
+            error_msg = 'invalid parameters for importruns command'
+            raise ImportrunsError(
+                message=error_msg,
+            ) from exc
 
     except Exception as e:
         error_data = getattr(e, 'message', type(e).__name__)
