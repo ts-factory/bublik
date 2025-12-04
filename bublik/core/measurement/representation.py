@@ -320,7 +320,9 @@ class ReportChartBuilder:
         of the x-axis argument.
         '''
         return {
-            sga: {x: point_data for x, point_data in points.items() if isinstance(x, int)}
+            sga: {
+                x: point_data for x, point_data in points.items() if isinstance(x, (int, float))
+            }
             for sga, points in sequences.items()
         }
 
