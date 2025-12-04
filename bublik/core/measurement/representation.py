@@ -125,13 +125,12 @@ class ChartViewBuilder:
         ]
         self.merge_key_value = [kv if kv is not None else '' for kv in self.merge_key_value]
 
-    def get_measurement_chart_label(self, series_group_argument=None):
+    def get_measurement_chart_label(self, series_args_label=None):
         measurement_data = self.measurement.representation()
         label_items = {
             'type': measurement_data['type'],
             'units': measurement_data['units'],
             'aggr': measurement_data['aggr'],
-            'series_group_arg': series_group_argument,
             'tool': measurement_data['tool'],
             'keys': measurement_data['keys'],
         }
@@ -147,11 +146,7 @@ class ChartViewBuilder:
                 else None
             ),
             'units_arrg': f'({units_aggr_data})',
-            'sga': (
-                f'by {label_items["series_group_arg"]}'
-                if label_items['series_group_arg']
-                else None
-            ),
+            'sgas': (f'by {series_args_label}' if series_args_label else None),
             'tool': f': based on {label_items["tool"]}' if label_items['tool'] else None,
             'keys': f'({(", ".join(label_items["keys"]))})' if label_items['keys'] else None,
         }
@@ -181,12 +176,17 @@ class ReportRecordBuilder(ChartViewBuilder):
 
         self.type = 'record-block'
         self.test_config = test_config
-        series_config = test_config.get('overlay_by', {})
-        series_arg_label = series_config.get(
-            'arg_label',
-            series_config.get('arg', None),
-        )
-        self.subtitle = self.get_measurement_chart_label(series_arg_label)
+
+        series_config = test_config.get('overlay_by', [])
+        series_args = [
+            series_arg_config.get(
+                'arg_label',
+                series_arg_config['arg'],
+            )
+            for series_arg_config in series_config
+        ]
+        series_args_label = ', '.join(series_args)
+        self.subtitle = self.get_measurement_chart_label(series_args_label)
 
         axis_y = AxisRepresentationBuilder(measurement, key='y_value').to_representation()
         self.label = axis_y['label']
@@ -199,24 +199,40 @@ class ReportRecordBuilder(ChartViewBuilder):
                 label=self.test_config['axis_x'].get('label', axis_x_arg),
                 key='x_value',
             )
-            arg_vals_labels = series_config.get('arg_vals_labels', None)
-            series = self.get_series(record_points, arg_vals_labels)
+
+            series_args_vals_labels = {
+                series_arg_config['arg']: series_arg_config['arg_vals_labels']
+                for series_arg_config in series_config
+                if 'arg_vals_labels' in series_arg_config
+            }
+
+            series = self.get_series(record_points, series_args_vals_labels)
             if chart_view:
                 self.chart = ReportChartBuilder(
                     axis_x,
                     axis_y,
-                    series_arg_label,
+                    series_args_label,
                     series,
                 ).representation()
             if table_view:
-                base_series_label = self.get_series_label(
-                    series_config.get('percentage_base_value', None),
-                    arg_vals_labels,
+                base_series_label = (
+                    self.get_series_label(
+                        {
+                            series_arg_config['arg']: series_arg_config['percentage_base_value']
+                            for series_arg_config in series_config
+                        },
+                        series_args_vals_labels,
+                    )
+                    if all(
+                        'percentage_base_value' in series_arg_config
+                        for series_arg_config in series_config
+                    )
+                    else None
                 )
                 self.table = ReportTableBuilder(
                     axis_x,
                     axis_y,
-                    series_arg_label,
+                    series_args_label,
                     base_series_label,
                     series,
                 ).representation()
@@ -233,17 +249,23 @@ class ReportRecordBuilder(ChartViewBuilder):
             records_grouped[record.subtitle].append(record)
         return records_grouped
 
-    def get_series_label(self, sgav, arg_vals_labels):
-        sgav = str(sgav)
-        if arg_vals_labels:
-            with contextlib.suppress(KeyError):
-                sgav = str(arg_vals_labels[sgav])
-        return sgav
+    def get_series_label(self, series_args_vals, series_args_vals_labels):
+        series_label_data = []
+        for sga, sga_value in series_args_vals.items():
+            sga_value = str(sga_value)
+            if sga in series_args_vals_labels:
+                with contextlib.suppress(KeyError):
+                    sga_value = str(series_args_vals_labels[sga][sga_value])
+            series_label_data.append(sga_value)
+        return ', '.join(series_label_data)
 
-    def get_series(self, record_points, arg_vals_labels):
+    def get_series(self, record_points, series_args_vals_labels):
         series = defaultdict(dict)
         for point in record_points:
-            series_label = self.get_series_label(point.series_group_arg_val, arg_vals_labels)
+            series_label = self.get_series_label(
+                point.series_args_vals,
+                series_args_vals_labels,
+            )
             series[series_label].update(point.point)
         return series
 
@@ -390,8 +412,7 @@ class ReportTableBuilder:
             for axis_x_val, point_data in points.items():
                 try:
                     percentage = round(
-                        100
-                        * (point_data['y_value'] / base_series[axis_x_val]['y_value'] - 1),
+                        100 * (point_data['y_value'] / base_series[axis_x_val]['y_value'] - 1),
                         2,
                     )
                 except ZeroDivisionError:
@@ -406,7 +427,7 @@ class ReportTableBuilder:
         Add series with percentages.
         '''
         table_series = copy.deepcopy(series)
-        if base_series_label != 'None':
+        if base_series_label:
             if base_series_label in series:
                 table_series = self.sort_series(table_series, base_series_label)
                 table_series.update(self.get_percentages(series, base_series_label))

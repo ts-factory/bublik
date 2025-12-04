@@ -13,8 +13,8 @@ The report has four levels of nesting:
 3. Measurement level. It contains measurement (combination of type, aggregation, keys and
    units of measurement).
 4. Record level. It contains records (tables and/or charts with measurement results).
-   The points on each of the record are combined into series according to the value of one
-   specific argument.
+   The points in each record are grouped into series based on the values of specific
+   arguments.
 '''
 
 
@@ -37,8 +37,10 @@ class ReportPoint:
         self.args_vals = {}
 
         # get series level data
-        series_group_arg = self.test_config.get('overlay_by', {}).get('arg', None)
-        self.series_group_arg_val = None
+        self.series_args_vals = {
+            series_arg_config['arg']: None
+            for series_arg_config in self.test_config.get('overlay_by', [])
+        }
 
         # get measurements level data
         self.measurement = mmr.measurement
@@ -54,8 +56,8 @@ class ReportPoint:
             if arg.name == self.axis_x_arg:
                 axis_x_value = parse_number(arg.value)
                 value = mmr.value
-            elif arg.name == series_group_arg:
-                self.series_group_arg_val = parse_number(arg.value)
+            elif arg.name in self.series_args_vals:
+                self.series_args_vals[arg.name] = parse_number(arg.value)
             elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = parse_number(arg.value)
 
@@ -63,8 +65,9 @@ class ReportPoint:
         warnings = []
         if axis_x_value is None:
             warnings.append(f'The test has no argument {self.axis_x_arg}')
-        if series_group_arg is not None and self.series_group_arg_val is None:
-            warnings.append(f'The test has no argument {series_group_arg}')
+        for series_arg, series_arg_value in self.series_args_vals.items():
+            if series_arg_value is None:
+                warnings.append(f'The test has no argument {series_arg}')
         if warnings:
             raise ValueError(warnings)
 
@@ -181,7 +184,7 @@ class ReportArgsValsLevel:
         # arguments
         series_config = test_config.get('overlay_by', None)
         if series_config and test_config['chart_view']:
-            series_arg = series_config['arg']
+            series_label = self.content[0]['content'][0]['chart']['series_label']
             series_val = self.content[0]['content'][0]['chart']['data'][0]['series']
             if all(
                 len(rec_block['chart']['data']) == 1
@@ -198,25 +201,39 @@ class ReportArgsValsLevel:
                             rec_block['table']['data'][0].pop('series')
                             rec_block['table']['labels'].pop('series')
 
+                # get a dictionary of series arguments and their values
+                series_args = []
+                for series_arg_label in series_label.split(','):
+                    for series_arg_config in series_config:
+                        if 'arg_label' in series_arg_config:
+                            if series_arg_label == series_arg_config['arg_label']:
+                                series_args.append(series_arg_config['arg'])
+                        elif series_arg_label == series_arg_config['arg']:
+                            series_args.append(series_arg_config['arg'])
+                series_args_vals = dict(zip(series_args, series_val.split(',')))
+
                 # if the series argument is not common, add it to the list of arguments
                 # and their values, as well as to the IDs and labels of the current level and
                 # all sublevels
-                if series_arg not in common_args:
-                    series_param = f'{series_arg}: {series_val}'
-                    arg_val_id = '|'.join([self.id, series_param.replace(' ', '')])
-                    for meas_block in self.content:
-                        meas_id = arg_val_id + meas_block['id'][len(self.id) :]
-                        for rec_block in meas_block['content']:
-                            rec_block['id'] = meas_id + rec_block['id'][len(meas_block['id']) :]
-                        meas_block['id'] = meas_id
+                for series_arg, series_val in series_args_vals.items():
+                    if series_arg not in common_args:
+                        series_param = f'{series_arg}: {series_val}'
+                        arg_val_id = '|'.join([self.id, series_param.replace(' ', '')])
+                        for meas_block in self.content:
+                            meas_id = arg_val_id + meas_block['id'][len(self.id) :]
+                            for rec_block in meas_block['content']:
+                                rec_block['id'] = (
+                                    meas_id + rec_block['id'][len(meas_block['id']) :]
+                                )
+                            meas_block['id'] = meas_id
 
-                    self.args_vals.update(
-                        {
-                            series_arg: parse_number(series_val),
-                        },
-                    )
-                    self.id = arg_val_id
-                    self.label = f'{self.label} | {series_param}'
+                        self.args_vals.update(
+                            {
+                                series_arg: parse_number(series_val),
+                            },
+                        )
+                        self.id = arg_val_id
+                        self.label = f'{self.label} | {series_param}'
 
 
 class ReportTestLevel:
