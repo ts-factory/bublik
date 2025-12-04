@@ -77,7 +77,7 @@ class UpdateSeqSettingsStructure(BaseReformatStep):
     def applied(self, config, **kwargs):
         content = config.content
         for _test_name, test_config_data in content['tests'].items():
-            if 'sequences' not in test_config_data:
+            if 'sequence_group_arg' in test_config_data:
                 return False
         return True
 
