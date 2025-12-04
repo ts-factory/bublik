@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import copy
 import itertools
 import logging
@@ -233,8 +232,13 @@ def create_event(facility, severity, msg):
     )
 
 
-def convert_to_int_if_digit(arg_value):
-    with contextlib.suppress(AttributeError):
-        if arg_value.isdigit():
-            return int(arg_value)
-    return arg_value
+def parse_number(arg_value):
+    if not isinstance(arg_value, str):
+        return arg_value
+    try:
+        return int(arg_value)
+    except ValueError:
+        try:
+            return float(arg_value)
+        except ValueError:
+            return arg_value

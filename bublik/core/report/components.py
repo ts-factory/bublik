@@ -3,7 +3,7 @@
 
 from bublik.core.measurement.representation import ReportRecordBuilder
 from bublik.core.run.data import is_result_unexpected
-from bublik.core.utils import convert_to_int_if_digit, unordered_group_by
+from bublik.core.utils import parse_number, unordered_group_by
 
 
 '''
@@ -52,12 +52,12 @@ class ReportPoint:
         # collect test argument values, value of sequence argument and the point
         for arg in mmr.result.iteration.test_arguments.all():
             if arg.name == self.axis_x_arg:
-                axis_x_value = convert_to_int_if_digit(arg.value)
+                axis_x_value = parse_number(arg.value)
                 value = mmr.value
             elif arg.name == sequence_group_arg:
-                self.sequence_group_arg_val = convert_to_int_if_digit(arg.value)
+                self.sequence_group_arg_val = parse_number(arg.value)
             elif arg.name not in common_args[self.test_name]:
-                self.args_vals[arg.name] = convert_to_int_if_digit(arg.value)
+                self.args_vals[arg.name] = parse_number(arg.value)
 
         # check iteration
         warnings = []
@@ -192,7 +192,7 @@ class ReportArgsValsLevel:
 
                 self.args_vals.update(
                     {
-                        series_label: convert_to_int_if_digit(series_val),
+                        series_label: parse_number(series_val),
                     },
                 )
                 self.id = arg_val_id

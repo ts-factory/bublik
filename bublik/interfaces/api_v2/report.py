@@ -14,7 +14,7 @@ from bublik.core.report.services import (
     filter_by_not_show_args,
     get_common_args,
 )
-from bublik.core.utils import convert_to_int_if_digit, unordered_group_by
+from bublik.core.utils import parse_number, unordered_group_by
 from bublik.data.models import (
     Config,
     MeasurementResult,
@@ -163,7 +163,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
                     'test_name': test_name,
                     'common_args': common_test_args,
                     'args_vals': {
-                        arg.name: convert_to_int_if_digit(arg.value)
+                        arg.name: parse_number(arg.value)
                         for arg in mmr.result.iteration.test_arguments.all()
                         if arg.name not in common_test_args
                     },

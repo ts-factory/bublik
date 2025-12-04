@@ -9,7 +9,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models.signals import post_save
 
-from bublik.core.utils import convert_to_int_if_digit
+from bublik.core.utils import parse_number
 from bublik.data.models import (
     Config,
     ConfigTypes,
@@ -45,7 +45,7 @@ def read_conf_file(file_path):
     h.read(file_path)
     return [
         {
-            attr_name: convert_to_int_if_digit(
+            attr_name: parse_number(
                 h.get(section, attr_name, raw=True, fallback=None),
             )
             for attr_name in [
