@@ -265,7 +265,7 @@ class ReportRecordDataBuilder:
         Align all sequences to the same x-axis by filling missing points with empty values.
         '''
         for sequence_arg, sequence in self.sequences.items():
-            for axis_x_val in set(axis_x_data['values']) - set(sequence.keys()):
+            for axis_x_val in set(axis_x_data.get('values', [])) - set(sequence.keys()):
                 self.sequences[sequence_arg][axis_x_val] = {'y_value': None}
 
     def get_record_data(self, axis_x_data):
