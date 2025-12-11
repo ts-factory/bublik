@@ -13,7 +13,7 @@ The report has four levels of nesting:
 3. Measurement level. It contains measurement (combination of type, aggregation, keys and
    units of measurement).
 4. Record level. It contains records (tables and/or charts with measurement results).
-   The points on each of the record are combined into sequences according to the value of one
+   The points on each of the record are combined into series according to the value of one
    specific argument.
 '''
 
@@ -36,9 +36,9 @@ class ReportPoint:
         # get argument values level data
         self.args_vals = {}
 
-        # get sequences level data
-        sequence_group_arg = self.test_config.get('overlay_by', {}).get('arg', None)
-        self.sequence_group_arg_val = None
+        # get series level data
+        series_group_arg = self.test_config.get('overlay_by', {}).get('arg', None)
+        self.series_group_arg_val = None
 
         # get measurements level data
         self.measurement = mmr.measurement
@@ -49,13 +49,13 @@ class ReportPoint:
         axis_x_value = None
         value = None
 
-        # collect test argument values, value of sequence argument and the point
+        # collect test argument values, value of series argument and the point
         for arg in mmr.result.iteration.test_arguments.all():
             if arg.name == self.axis_x_arg:
                 axis_x_value = parse_number(arg.value)
                 value = mmr.value
-            elif arg.name == sequence_group_arg:
-                self.sequence_group_arg_val = parse_number(arg.value)
+            elif arg.name == series_group_arg:
+                self.series_group_arg_val = parse_number(arg.value)
             elif arg.name not in common_args[self.test_name]:
                 self.args_vals[arg.name] = parse_number(arg.value)
 
@@ -63,8 +63,8 @@ class ReportPoint:
         warnings = []
         if axis_x_value is None:
             warnings.append(f'The test has no argument {self.axis_x_arg}')
-        if sequence_group_arg is not None and self.sequence_group_arg_val is None:
-            warnings.append(f'The test has no argument {sequence_group_arg}')
+        if series_group_arg is not None and self.series_group_arg_val is None:
+            warnings.append(f'The test has no argument {series_group_arg}')
         if warnings:
             raise ValueError(warnings)
 
@@ -176,12 +176,12 @@ class ReportArgsValsLevel:
         for subtitle, records in records_by_subtitles.items():
             self.content.append(ReportMeasurementLevel(self.id, subtitle, records).__dict__)
 
-        # move the sequences argument alongside the other arguments if it has the same value
+        # move the series argument alongside the other arguments if it has the same value
         # across all results within the corresponding block and is not present in the common
         # arguments
-        sequences_config = test_config.get('overlay_by', None)
-        if sequences_config and test_config['chart_view']:
-            series_arg = sequences_config['arg']
+        series_config = test_config.get('overlay_by', None)
+        if series_config and test_config['chart_view']:
+            series_arg = series_config['arg']
             series_val = self.content[0]['content'][0]['chart']['data'][0]['series']
             if all(
                 len(rec_block['chart']['data']) == 1
