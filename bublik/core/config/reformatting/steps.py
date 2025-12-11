@@ -364,3 +364,31 @@ class RenameSequencesToOverlayBy(BaseReformatStep):
                 test_config_data['overlay_by'] = test_config_data.pop('sequences')
         config.content = content
         return config
+
+
+class AllowMultipleSeriesArgs(BaseReformatStep):
+    '''
+    Reformat passed report config content:
+    "overlay_by": {"arg": "pkts", "percentage_base_value": 1} ->
+    "overlay_by": [{"arg": "pkts", "percentage_base_value": 1}]
+    '''
+
+    def applied(self, config, **kwargs):
+        content = config.content
+        for _test_name, test_config_data in content['tests'].items():
+            if 'overlay_by' in test_config_data and isinstance(
+                test_config_data['overlay_by'],
+                dict,
+            ):
+                return False
+        return True
+
+    def reformat(self, config, **kwargs):
+        content = config.content
+        for _test_name, test_config_data in content['tests'].items():
+            if 'overlay_by' in test_config_data:
+                test_config_data['overlay_by'] = [
+                    test_config_data['overlay_by'],
+                ]
+        config.content = content
+        return config
