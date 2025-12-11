@@ -96,15 +96,15 @@
                         }
                     },
                     "sequences": {
-                        "description": "Sequences settings",
+                        "description": "Settings for placing multiple results on the same axes",
                         "type": "object",
                         "properties": {
                             "arg": {
-                                "description": "Specify an argument for displaying iteration results on the same axes",
+                                "description": "Argument to group results into series on the same axes",
                                 "type": ["string"]
                             },
                             "arg_label": {
-                                "description": "Specify label to display the sequense group argument",
+                                "description": "Label to display for the grouping argument",
                                 "type": ["string"]
                             },
                             "percentage_base_value": {
@@ -112,7 +112,7 @@
                                 "type": ["string", "number"]
                             },
                             "arg_vals_labels": {
-                                "description": "Specify labels to display the sequense group argument values",
+                                "description": "Labels to display for values of the grouping argument",
                                 "type": "object",
                                 "additionalProperties": true
                             }
