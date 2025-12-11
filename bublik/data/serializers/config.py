@@ -123,6 +123,25 @@ class ConfigSerializer(ModelSerializer):
                 msg = f'Invalid format: {jeve_msg}'
                 raise serializers.ValidationError(msg) from jeve
 
+        if config_type == ConfigTypes.REPORT:
+            for test_name, test_config in content['tests'].items():
+                overlay_args = {
+                    overlay_arg_config['arg']
+                    for overlay_arg_config in test_config.get('overlay_by', [])
+                }
+                overlay_args_labels = {
+                    overlay_arg_config['arg_label']
+                    for overlay_arg_config in test_config.get('overlay_by', [])
+                    if 'arg_label' in overlay_arg_config
+                }
+                invalid_labels = overlay_args & overlay_args_labels
+                if invalid_labels:
+                    msg = (
+                        'Invalid format: overlay argument labels conflict with '
+                        f'overlay arguments for {test_name} ({", ".join(invalid_labels)})'
+                    )
+                    raise serializers.ValidationError(msg)
+
         return content
 
     @classmethod
