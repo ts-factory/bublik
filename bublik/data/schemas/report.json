@@ -97,29 +97,34 @@
                     },
                     "overlay_by": {
                         "description": "Settings for placing multiple results on the same axes",
-                        "type": "object",
-                        "properties": {
-                            "arg": {
-                                "description": "Argument to group results into series on the same axes",
-                                "type": ["string"]
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "arg": {
+                                    "description": "Argument to group results into series on the same axes",
+                                    "type": ["string"]
+                                },
+                                "arg_label": {
+                                    "description": "Label to display for the grouping argument",
+                                    "type": ["string"]
+                                },
+                                "percentage_base_value": {
+                                    "description": "Base value for percentage calculation",
+                                    "type": ["string", "number"]
+                                },
+                                "arg_vals_labels": {
+                                    "description": "Labels to display for values of the grouping argument",
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
                             },
-                            "arg_label": {
-                                "description": "Label to display for the grouping argument",
-                                "type": ["string"]
-                            },
-                            "percentage_base_value": {
-                                "description": "Base value for percentage calculation",
-                                "type": ["string", "number"]
-                            },
-                            "arg_vals_labels": {
-                                "description": "Labels to display for values of the grouping argument",
-                                "type": "object",
-                                "additionalProperties": true
-                            }
+                            "required": [
+                                "arg"
+                            ]
                         },
-                        "required": [
-                            "arg"
-                        ]
+                        "minItems": 1,
+                        "uniqueItems": true
                     },
                     "not_show_args": {
                         "description": "Arguments and their values for excluding results from the report",
