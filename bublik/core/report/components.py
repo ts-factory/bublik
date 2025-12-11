@@ -143,6 +143,8 @@ class ReportArgsValsLevel:
     '''
 
     def __init__(self, test_name, test_lvl_id, arg_val_label, arg_val_points, report_config):
+        test_config = report_config['tests'][test_name]
+
         self.type = 'arg-val-block'
         self.args_vals = arg_val_points[0].args_vals
         self.label = arg_val_label
@@ -156,7 +158,7 @@ class ReportArgsValsLevel:
             records.append(
                 ReportRecordBuilder(
                     next(iter(points)).measurement,
-                    report_config['tests'][test_name],
+                    test_config,
                     points,
                 ),
             )
@@ -168,7 +170,7 @@ class ReportArgsValsLevel:
 
         # move the sequences argument alongside the other arguments if it has the same value
         # across all results within the corresponding block
-        if report_config['tests'][test_name]['chart_view']:
+        if test_config['chart_view']:
             series_label = self.content[0]['content'][0]['chart']['series_label']
             series_val = self.content[0]['content'][0]['chart']['data'][0]['series']
             if all(
