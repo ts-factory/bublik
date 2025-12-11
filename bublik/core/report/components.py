@@ -142,7 +142,15 @@ class ReportArgsValsLevel:
     and their values.
     '''
 
-    def __init__(self, test_name, test_lvl_id, arg_val_label, arg_val_points, report_config):
+    def __init__(
+        self,
+        test_name,
+        common_args,
+        test_lvl_id,
+        arg_val_label,
+        arg_val_points,
+        report_config,
+    ):
         test_config = report_config['tests'][test_name]
 
         self.type = 'arg-val-block'
@@ -169,7 +177,8 @@ class ReportArgsValsLevel:
             self.content.append(ReportMeasurementLevel(self.id, subtitle, records).__dict__)
 
         # move the sequences argument alongside the other arguments if it has the same value
-        # across all results within the corresponding block
+        # across all results within the corresponding block and is not present in the common
+        # arguments
         sequences_config = test_config.get('sequences', None)
         if sequences_config and test_config['chart_view']:
             series_arg = sequences_config['arg']
@@ -180,26 +189,34 @@ class ReportArgsValsLevel:
                 for meas_block in self.content
                 for rec_block in meas_block['content']
             ):
-                series_param = f'{series_arg}: {series_val}'
-                arg_val_id = '|'.join([self.id, series_param.replace(' ', '')])
+                # remove all series labels from the data
                 for meas_block in self.content:
-                    meas_id = arg_val_id + meas_block['id'][len(self.id) :]
                     for rec_block in meas_block['content']:
-                        rec_block['id'] = meas_id + rec_block['id'][len(meas_block['id']) :]
                         rec_block['chart'].pop('series_label')
                         rec_block['chart']['data'][0].pop('series')
                         if 'table' in rec_block:
                             rec_block['table']['data'][0].pop('series')
                             rec_block['table']['labels'].pop('series')
-                    meas_block['id'] = meas_id
 
-                self.args_vals.update(
-                    {
-                        series_arg: parse_number(series_val),
-                    },
-                )
-                self.id = arg_val_id
-                self.label = f'{self.label} | {series_param}'
+                # if the series argument is not common, add it to the list of arguments
+                # and their values, as well as to the IDs and labels of the current level and
+                # all sublevels
+                if series_arg not in common_args:
+                    series_param = f'{series_arg}: {series_val}'
+                    arg_val_id = '|'.join([self.id, series_param.replace(' ', '')])
+                    for meas_block in self.content:
+                        meas_id = arg_val_id + meas_block['id'][len(self.id) :]
+                        for rec_block in meas_block['content']:
+                            rec_block['id'] = meas_id + rec_block['id'][len(meas_block['id']) :]
+                        meas_block['id'] = meas_id
+
+                    self.args_vals.update(
+                        {
+                            series_arg: parse_number(series_val),
+                        },
+                    )
+                    self.id = arg_val_id
+                    self.label = f'{self.label} | {series_param}'
 
 
 class ReportTestLevel:
@@ -223,6 +240,7 @@ class ReportTestLevel:
         for arg_val_label, points in points_by_argvals.items():
             arg_val_record = ReportArgsValsLevel(
                 test_name,
+                self.common_args,
                 self.id,
                 arg_val_label,
                 points,
