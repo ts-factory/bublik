@@ -123,6 +123,24 @@
                                 "arg"
                             ]
                         },
+                        "allOf": [
+                            {
+                                "if": {
+                                    "contains": {
+                                        "required": ["percentage_base_value"]
+                                    }
+                                },
+                                "then": {
+                                    "not": {
+                                        "contains": {
+                                            "not": {
+                                                "required": ["percentage_base_value"]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        ],
                         "minItems": 1,
                         "uniqueItems": true
                     },
