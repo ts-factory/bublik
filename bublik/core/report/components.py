@@ -172,7 +172,7 @@ class ReportArgsValsLevel:
         # across all results within the corresponding block
         sequences_config = test_config.get('sequences', None)
         if sequences_config and test_config['chart_view']:
-            series_label = self.content[0]['content'][0]['chart']['series_label']
+            series_arg = sequences_config['arg']
             series_val = self.content[0]['content'][0]['chart']['data'][0]['series']
             if all(
                 len(rec_block['chart']['data']) == 1
@@ -180,7 +180,7 @@ class ReportArgsValsLevel:
                 for meas_block in self.content
                 for rec_block in meas_block['content']
             ):
-                series_param = f'{series_label}: {series_val}'
+                series_param = f'{series_arg}: {series_val}'
                 arg_val_id = '|'.join([self.id, series_param.replace(' ', '')])
                 for meas_block in self.content:
                     meas_id = arg_val_id + meas_block['id'][len(self.id) :]
@@ -195,7 +195,7 @@ class ReportArgsValsLevel:
 
                 self.args_vals.update(
                     {
-                        series_label: parse_number(series_val),
+                        series_arg: parse_number(series_val),
                     },
                 )
                 self.id = arg_val_id
