@@ -95,7 +95,7 @@
                             "additionalProperties": false
                         }
                     },
-                    "sequences": {
+                    "overlay_by": {
                         "description": "Settings for placing multiple results on the same axes",
                         "type": "object",
                         "properties": {
