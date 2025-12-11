@@ -342,3 +342,25 @@ class ImproveMetaStructure(BaseReformatStep):
 
         config.content = reformatted_content
         return config
+
+
+class RenameSequencesToOverlayBy(BaseReformatStep):
+    '''
+    Reformat passed report config content:
+    "sequences": {...} -> "overlay_by": {...}
+    '''
+
+    def applied(self, config, **kwargs):
+        content = config.content
+        for _test_name, test_config_data in content['tests'].items():
+            if 'sequences' in test_config_data:
+                return False
+        return True
+
+    def reformat(self, config, **kwargs):
+        content = config.content
+        for _test_name, test_config_data in content['tests'].items():
+            if 'sequences' in test_config_data:
+                test_config_data['overlay_by'] = test_config_data.pop('sequences')
+        config.content = content
+        return config

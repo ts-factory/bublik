@@ -7,6 +7,7 @@ from bublik.core.config.reformatting.steps import (
     BaseReformatStep,
     ImproveMetaStructure,
     RemoveUnsupportedAttributes,
+    RenameSequencesToOverlayBy,
     SimplifyMetaStructure,
     UpdateAxisXStructure,
     UpdateCSRFTrustedOrigins,
@@ -44,6 +45,7 @@ class ReportConfigReformatPipeline(ReformatPipeline):
         super().__init__()
         self.add_step(UpdateAxisXStructure())
         self.add_step(UpdateSeqSettingsStructure())
+        self.add_step(RenameSequencesToOverlayBy())
 
 
 class PerConfConfigReformatPipeline(ReformatPipeline):
