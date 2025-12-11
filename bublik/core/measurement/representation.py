@@ -125,13 +125,13 @@ class ChartViewBuilder:
         ]
         self.merge_key_value = [kv if kv is not None else '' for kv in self.merge_key_value]
 
-    def get_measurement_chart_label(self, sequense_group_argument=None):
+    def get_measurement_chart_label(self, series_group_argument=None):
         measurement_data = self.measurement.representation()
         label_items = {
             'type': measurement_data['type'],
             'units': measurement_data['units'],
             'aggr': measurement_data['aggr'],
-            'sequense_group_arg': sequense_group_argument,
+            'series_group_arg': series_group_argument,
             'tool': measurement_data['tool'],
             'keys': measurement_data['keys'],
         }
@@ -148,8 +148,8 @@ class ChartViewBuilder:
             ),
             'units_arrg': f'({units_aggr_data})',
             'sga': (
-                f'by {label_items["sequense_group_arg"]}'
-                if label_items['sequense_group_arg']
+                f'by {label_items["series_group_arg"]}'
+                if label_items['series_group_arg']
                 else None
             ),
             'tool': f': based on {label_items["tool"]}' if label_items['tool'] else None,
@@ -181,10 +181,10 @@ class ReportRecordBuilder(ChartViewBuilder):
 
         self.type = 'record-block'
         self.test_config = test_config
-        sequences_config = test_config.get('overlay_by', {})
-        series_arg_label = sequences_config.get(
+        series_config = test_config.get('overlay_by', {})
+        series_arg_label = series_config.get(
             'arg_label',
-            sequences_config.get('arg', None),
+            series_config.get('arg', None),
         )
         self.subtitle = self.get_measurement_chart_label(series_arg_label)
 
@@ -199,18 +199,18 @@ class ReportRecordBuilder(ChartViewBuilder):
                 label=self.test_config['axis_x'].get('label', axis_x_arg),
                 key='x_value',
             )
-            arg_vals_labels = sequences_config.get('arg_vals_labels', None)
-            sequences = self.get_sequences(record_points, arg_vals_labels)
+            arg_vals_labels = series_config.get('arg_vals_labels', None)
+            series = self.get_series(record_points, arg_vals_labels)
             if chart_view:
                 self.chart = ReportChartBuilder(
                     axis_x,
                     axis_y,
                     series_arg_label,
-                    sequences,
+                    series,
                 ).representation()
             if table_view:
                 base_series_label = self.get_series_label(
-                    sequences_config.get('percentage_base_value', None),
+                    series_config.get('percentage_base_value', None),
                     arg_vals_labels,
                 )
                 self.table = ReportTableBuilder(
@@ -218,7 +218,7 @@ class ReportRecordBuilder(ChartViewBuilder):
                     axis_y,
                     series_arg_label,
                     base_series_label,
-                    sequences,
+                    series,
                 ).representation()
 
     def representation(self):
@@ -240,47 +240,47 @@ class ReportRecordBuilder(ChartViewBuilder):
                 sgav = str(arg_vals_labels[sgav])
         return sgav
 
-    def get_sequences(self, record_points, arg_vals_labels):
-        sequences = defaultdict(dict)
+    def get_series(self, record_points, arg_vals_labels):
+        series = defaultdict(dict)
         for point in record_points:
-            series_label = self.get_series_label(point.sequence_group_arg_val, arg_vals_labels)
-            sequences[series_label].update(point.point)
-        return sequences
+            series_label = self.get_series_label(point.series_group_arg_val, arg_vals_labels)
+            series[series_label].update(point.point)
+        return series
 
 
 class ReportRecordDataBuilder:
     '''
     This class allows you to get data for building tables and charts
-    based on the passed sequences.
+    based on the passed series.
     '''
 
-    def __init__(self, sequences):
-        self.sequences = sequences
+    def __init__(self, series):
+        self.series = series
 
-    def sort_points_sequences(self):
-        return {sga: dict(sorted(points.items())) for sga, points in self.sequences.items()}
+    def sort_points_series(self):
+        return {sga: dict(sorted(points.items())) for sga, points in self.series.items()}
 
-    def normalize_sequences(self, axis_x_data):
+    def normalize_series(self, axis_x_data):
         '''
-        Align all sequences to the same x-axis by filling missing points with empty values.
+        Align all series to the same x-axis by filling missing points with empty values.
         '''
-        for sequence_arg, sequence in self.sequences.items():
-            for axis_x_val in set(axis_x_data.get('values', [])) - set(sequence.keys()):
-                self.sequences[sequence_arg][axis_x_val] = {'y_value': None}
+        for series_arg, series in self.series.items():
+            for axis_x_val in set(axis_x_data.get('values', [])) - set(series.keys()):
+                self.series[series_arg][axis_x_val] = {'y_value': None}
 
     def get_record_data(self, axis_x_data):
-        self.normalize_sequences(axis_x_data)
+        self.normalize_series(axis_x_data)
         with contextlib.suppress(TypeError):
-            self.sequences = self.sort_points_sequences()
+            self.series = self.sort_points_series()
         return [
             {
                 'series': series_name,
                 'points': [
                     {'x_value': axis_x_val} | point_data
-                    for axis_x_val, point_data in sequence_points.items()
+                    for axis_x_val, point_data in series_points.items()
                 ],
             }
-            for series_name, sequence_points in self.sequences.items()
+            for series_name, series_points in self.series.items()
         ]
 
 
@@ -297,39 +297,39 @@ class ReportChartBuilder:
         'data',
     ]
 
-    def __init__(self, axis_x, axis_y, series_label, sequences):
-        chart_sequences = self.get_chart_sequences(sequences)
-        axis_x.add_values(sorted(self.get_axis_x_values(chart_sequences)))
+    def __init__(self, axis_x, axis_y, series_label, series):
+        chart_series = self.get_chart_series(series)
+        axis_x.add_values(sorted(self.get_axis_x_values(chart_series)))
         self.axis_x = axis_x.to_representation()
         self.axis_y = axis_y
         self.series_label = series_label
-        self.warnings = self.get_warnings(sequences)
-        self.data = ReportRecordDataBuilder(chart_sequences).get_record_data(self.axis_x)
+        self.warnings = self.get_warnings(series)
+        self.data = ReportRecordDataBuilder(chart_series).get_record_data(self.axis_x)
 
     def representation(self):
         return {
             key: self.__dict__[key] for key in self.__class__.REPR_KEYS if key in self.__dict__
         }
 
-    def get_axis_x_values(self, sequences):
-        return {axis_x for points in sequences.values() for axis_x in points}
+    def get_axis_x_values(self, series):
+        return {axis_x for points in series.values() for axis_x in points}
 
-    def get_chart_sequences(self, sequences):
+    def get_chart_series(self, series):
         '''
-        Leave only the points in the sequences that have the numeric value
+        Leave only the points in the series that have the numeric value
         of the x-axis argument.
         '''
         return {
             sga: {
                 x: point_data for x, point_data in points.items() if isinstance(x, (int, float))
             }
-            for sga, points in sequences.items()
+            for sga, points in series.items()
         }
 
-    def get_warnings(self, sequences):
+    def get_warnings(self, series):
         # points with a non-numeric value of the x-axis argument cannot be displayed on chart
         invalid_axis_x_values = list(
-            set(self.get_axis_x_values(sequences)) - set(self.axis_x.get('values', [])),
+            set(self.get_axis_x_values(series)) - set(self.axis_x.get('values', [])),
         )
         return [
             f'The results corresponding to {self.axis_x["label"]}={iaxv} '
@@ -350,7 +350,7 @@ class ReportTableBuilder:
         'data',
     ]
 
-    def __init__(self, axis_x, axis_y, series_label, base_series_label, sequences):
+    def __init__(self, axis_x, axis_y, series_label, base_series_label, series):
         self.warnings = []
         axis_x = axis_x.to_representation()
         self.labels = {
@@ -359,7 +359,7 @@ class ReportTableBuilder:
             'series': series_label,
         }
         self.data = ReportRecordDataBuilder(
-            self.get_table_sequences(sequences, base_series_label),
+            self.get_table_series(series, base_series_label),
         ).get_record_data(axis_x)
 
     def representation(self):
@@ -367,23 +367,23 @@ class ReportTableBuilder:
             key: self.__dict__[key] for key in self.__class__.REPR_KEYS if key in self.__dict__
         }
 
-    def sort_sequences(self, sequences, base_series_label):
+    def sort_series(self, series, base_series_label):
         '''
-        Make the base sequence first.
+        Make the base series first.
         '''
         return {
-            base_series_label: sequences[base_series_label],
-            **{k: v for k, v in sequences.items() if k != base_series_label},
+            base_series_label: series[base_series_label],
+            **{k: v for k, v in series.items() if k != base_series_label},
         }
 
-    def get_percentages(self, sequences, base_series_label):
+    def get_percentages(self, series, base_series_label):
         '''
-        Calculate the gain relative to the base sequence.
+        Calculate the gain relative to the base series.
         '''
         percentages = {}
         self.formatters = {}
-        base_sequence = sequences.pop(base_series_label)
-        for sgav, points in sequences.items():
+        base_series = series.pop(base_series_label)
+        for sgav, points in series.items():
             percentage_label = f'{sgav} gain'
             percentages[percentage_label] = {}
             self.formatters[percentage_label] = '%'
@@ -391,7 +391,7 @@ class ReportTableBuilder:
                 try:
                     percentage = round(
                         100
-                        * (point_data['y_value'] / base_sequence[axis_x_val]['y_value'] - 1),
+                        * (point_data['y_value'] / base_series[axis_x_val]['y_value'] - 1),
                         2,
                     )
                 except ZeroDivisionError:
@@ -401,22 +401,22 @@ class ReportTableBuilder:
                 percentages[percentage_label][axis_x_val] = {'y_value': percentage}
         return percentages
 
-    def get_table_sequences(self, sequences, base_series_label):
+    def get_table_series(self, series, base_series_label):
         '''
-        Add sequences with percentages.
+        Add series with percentages.
         '''
-        table_sequences = copy.deepcopy(sequences)
+        table_series = copy.deepcopy(series)
         if base_series_label != 'None':
-            if base_series_label in sequences:
-                table_sequences = self.sort_sequences(table_sequences, base_series_label)
-                table_sequences.update(self.get_percentages(sequences, base_series_label))
+            if base_series_label in series:
+                table_series = self.sort_series(table_series, base_series_label)
+                table_series.update(self.get_percentages(series, base_series_label))
             else:
                 self.warnings.append(
-                    f'There is no sequence corresponding to the passed '
+                    f'There is no series corresponding to the passed '
                     f'base value {base_series_label}. '
                     'Persentage calculation is skipped.',
                 )
-        return table_sequences
+        return table_series
 
 
 class MeasurementRepresentation:
