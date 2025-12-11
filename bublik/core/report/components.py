@@ -170,7 +170,8 @@ class ReportArgsValsLevel:
 
         # move the sequences argument alongside the other arguments if it has the same value
         # across all results within the corresponding block
-        if test_config['chart_view']:
+        sequences_config = test_config.get('sequences', None)
+        if sequences_config and test_config['chart_view']:
             series_label = self.content[0]['content'][0]['chart']['series_label']
             series_val = self.content[0]['content'][0]['chart']['data'][0]['series']
             if all(
