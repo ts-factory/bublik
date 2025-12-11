@@ -37,7 +37,7 @@ class ReportPoint:
         self.args_vals = {}
 
         # get sequences level data
-        sequence_group_arg = self.test_config.get('sequences', {}).get('arg', None)
+        sequence_group_arg = self.test_config.get('overlay_by', {}).get('arg', None)
         self.sequence_group_arg_val = None
 
         # get measurements level data
@@ -179,7 +179,7 @@ class ReportArgsValsLevel:
         # move the sequences argument alongside the other arguments if it has the same value
         # across all results within the corresponding block and is not present in the common
         # arguments
-        sequences_config = test_config.get('sequences', None)
+        sequences_config = test_config.get('overlay_by', None)
         if sequences_config and test_config['chart_view']:
             series_arg = sequences_config['arg']
             series_val = self.content[0]['content'][0]['chart']['data'][0]['series']

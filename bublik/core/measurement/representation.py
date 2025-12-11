@@ -181,7 +181,7 @@ class ReportRecordBuilder(ChartViewBuilder):
 
         self.type = 'record-block'
         self.test_config = test_config
-        sequences_config = test_config.get('sequences', {})
+        sequences_config = test_config.get('overlay_by', {})
         series_arg_label = sequences_config.get(
             'arg_label',
             sequences_config.get('arg', None),
