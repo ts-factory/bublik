@@ -146,7 +146,8 @@
                     "axis_y",
                     "not_show_args",
                     "records_order"
-                ]
+                ],
+                "additionalProperties": false
             }
         }
     },
