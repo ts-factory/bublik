@@ -30,18 +30,21 @@ class ConfigServices:
     def get_global_content_from_cache(config_name, project_id):
         config_cache = GlobalConfigCache(config_name, project_id)
         config_content = config_cache.content
-        if not config_content:
-            config_content = Config.objects.get_global(config_name, project_id).content
+        if config_content is None:
+            try:
+                config_content = Config.objects.get_global(config_name, project_id).content
+            except ObjectDoesNotExist:
+                config_content = {}
             config_cache.content = config_content
         return config_content
 
     @staticmethod
     def getattr_from_global(config_name, data_key, project_id, **kwargs):
-        with contextlib.suppress(ObjectDoesNotExist, KeyError):
+        with contextlib.suppress(KeyError):
             return ConfigServices.get_global_content_from_cache(config_name, project_id)[
                 data_key
             ]
-        with contextlib.suppress(ObjectDoesNotExist, KeyError):
+        with contextlib.suppress(KeyError):
             return ConfigServices.get_global_content_from_cache(config_name, None)[data_key]
         if 'default' in kwargs:
             return kwargs['default']

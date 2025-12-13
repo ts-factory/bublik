@@ -4,12 +4,11 @@
 import sys
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db.models import Q
 
 from bublik.core.argparse import parser_type_int_or_none
 from bublik.core.cache import GlobalConfigCache
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import Config, Project
+from bublik.data.models import GlobalConfigs, Project
 
 
 class Command(BaseCommand):
@@ -47,17 +46,9 @@ class Command(BaseCommand):
             project_ids = options['project']
             config_names = options['name']
 
-            configs = Config.objects.filter(
-                is_active=True,
-                name__in=config_names,
-            )
-            project_query = Q(project__in=project_ids)
-            if None in project_ids:
-                project_query |= Q(project__isnull=True)
-            configs_name_project = configs.filter(project_query).values_list(
-                'name',
-                'project_id',
-            )
+            configs_name_project = [
+                (cfg_name, pid) for cfg_name in GlobalConfigs.all() for pid in project_ids
+            ]
 
             if not configs_name_project:
                 self.stdout.write(
