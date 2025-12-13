@@ -5,7 +5,7 @@ import contextlib
 
 from django.core.exceptions import ObjectDoesNotExist
 
-from bublik.core.cache import GlobalConfigCache
+from bublik.core.cache import ProjectCache
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs
 from bublik.data.schemas.services import load_schema
 
@@ -28,14 +28,14 @@ class ConfigServices:
 
     @staticmethod
     def get_global_content_from_cache(config_name, project_id):
-        config_cache = GlobalConfigCache(config_name, project_id)
-        config_content = config_cache.content
+        config_cache = ProjectCache(project_id).configs
+        config_content = config_cache.get(config_name)
         if config_content is None:
             try:
                 config_content = Config.objects.get_global(config_name, project_id).content
             except ObjectDoesNotExist:
                 config_content = {}
-            config_cache.content = config_content
+            config_cache.set(config_name, config_content)
         return config_content
 
     @staticmethod

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 import functools
 from typing import ClassVar
 
@@ -172,35 +174,66 @@ def cache_page_if_run_done(timeout):
     return _cache_decorator
 
 
-class GlobalConfigCache:
-    CONFIG_NAME_CHOICES: ClassVar[set] = models.GlobalConfigs.all()
+class ProjectCache:
+    CACHE_ALIAS = 'project'
 
-    def __init__(self, config_name, project_id):
-        self.project_id = project_id
-        self.name = config_name
-        self.key = self.__generate_cache_key(config_name)
-        self._content = self.__get_cache()
-
-    def __generate_cache_key(self, config_name):
-        if config_name not in self.CONFIG_NAME_CHOICES:
-            msg = (
-                f'You try to create cache for unknown config name: {config_name}. '
-                f'Possible are: {self.CONFIG_NAME_CHOICES}.'
-            )
-            raise Exception(msg)
-        return str(self.project_id) + f'.{config_name}'
-
-    def __get_cache(self):
-        return caches['config'].get(self.key)
+    def __init__(self, project_id: int):
+        self._project_id = project_id
+        self._content = caches[self.CACHE_ALIAS]
 
     @property
-    def content(self):
-        return self._content
+    def configs(self):
+        return _ConfigsCache(self)
 
-    @content.setter
-    def content(self, content):
-        self._content = caches['config'].set(self.key, content, None)
 
-    @content.deleter
-    def content(self):
-        caches['config'].delete(self.key)
+class _ProjectSectionCache:
+    '''
+    Base class for project section caches.
+
+    Each section cache stores data under keys like
+    'project:{project_id}:{SECTION}:{data_key}'.
+    '''
+
+    SECTION: ClassVar[str] | None = None
+    KEY_DATA_CHOICES: ClassVar[set[str]] | None = None
+
+    def __init__(self, project_cache: ProjectCache):
+        if self.SECTION is None:
+            msg = f'{self.__class__.__name__} must define SECTION'
+            raise RuntimeError(msg)
+        if self.KEY_DATA_CHOICES is None:
+            msg = f'{self.__class__.__name__} must define KEY_DATA_CHOICES'
+            raise RuntimeError(msg)
+        self._project = project_cache
+
+    def _cache_key(self, data_key: str) -> str:
+        return f'project:{self._project._project_id}:{self.SECTION}:{data_key}'
+
+    def _validate(self, data_key: str) -> None:
+        if data_key not in self.KEY_DATA_CHOICES:
+            msg = (
+                f'Unknown {self.SECTION} data key: {data_key}. '
+                f'Possible: {self.KEY_DATA_CHOICES}.'
+            )
+            raise KeyError(msg)
+
+    def get(self, data_key: str):
+        self._validate(data_key)
+        return self._project._content.get(self._cache_key(data_key))
+
+    def set(self, data_key: str, value, timeout: int | None = None):
+        self._validate(data_key)
+        self._project._content.set(self._cache_key(data_key), value, timeout)
+
+    def delete(self, data_key: str):
+        self._validate(data_key)
+        self._project._content.delete(self._cache_key(data_key))
+
+    def clear_all(self):
+        for data_key in self.KEY_DATA_CHOICES:
+            self.delete(data_key)
+
+
+class _ConfigsCache(_ProjectSectionCache):
+    SECTION = 'configs'
+    KEY_DATA_CHOICES: ClassVar[set[str]] = set(models.GlobalConfigs.all())
