@@ -239,7 +239,7 @@ CACHES = {
             },
         },
     },
-    'config': {
+    'project': {
         'BACKEND': 'redis_cache.RedisCache',
         'LOCATION': '127.0.0.1:6379',
         'TIMEOUT': 86400,
