@@ -9,7 +9,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from bublik.core.argparse import parser_type_str_or_none
-from bublik.core.cache import set_tags_categories_cache
+from bublik.core.cache import ProjectCache
 from bublik.data.models import (
     Config,
     GlobalConfigs,
@@ -172,7 +172,7 @@ class Command(BaseCommand):
                         f'[project id={pid}] failed to create and assign meta categories: {e}',
                     )
                 else:
-                    set_tags_categories_cache(pid)
+                    ProjectCache(pid).tags.load()
                     logger.debug(f'[project id={pid}] tags categories cache was updated')
 
         logger.debug(f'completed in [{datetime.now() - start_time}]')

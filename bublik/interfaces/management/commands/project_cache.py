@@ -15,6 +15,7 @@ class Command(BaseCommand):
     help = 'Delete, create, or update cached project data.'
     PROJECT_SECTION_CHOICES: ClassVar[set] = {
         'configs',
+        'tags',
     }
 
     def add_arguments(self, parser):
@@ -48,6 +49,8 @@ class Command(BaseCommand):
             for data_key in data_keys:
                 if data_key == 'configs':
                     ProjectCache(pid).configs.clear_all()
+                elif data_key == 'tags':
+                    ProjectCache(pid).tags.clear_all()
 
     def load_cache(self, project_ids, data_keys):
         for data_key in data_keys:
@@ -57,6 +60,9 @@ class Command(BaseCommand):
                 ]
                 for config_name_project in configs_name_project:
                     ConfigServices.get_global_content_from_cache(*config_name_project)
+            elif data_key == 'tags':
+                for pid in project_ids:
+                    ProjectCache(pid).tags.load()
 
     def handle(self, *args, **options):
         try:
