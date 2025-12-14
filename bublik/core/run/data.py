@@ -66,6 +66,8 @@ def get_tags_by_runs(runs, not_categorize=False):
     Runs items can represent TestIterationResult objects or just IDs.
     """
 
+    runs = [run.id if hasattr(run, 'id') else run for run in runs]
+
     run_project_map = dict(
         TestIterationResult.objects.filter(id__in=runs).values_list('id', 'project_id'),
     )
