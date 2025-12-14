@@ -279,7 +279,7 @@ class MetaData:
         # Metas storing an import id and tags are not a part of metadata.
         # Therefore, they are excluded from the metadata processing statistics.
         existing = MetaResult.objects.filter(
-            Q(result=run) & ~Q(meta__type__in=('import', 'tag', 'log')),
+            Q(result=run) & ~Q(meta__type__in=('import', 'tag')),
         )
         deleted = existing._clone()
 
