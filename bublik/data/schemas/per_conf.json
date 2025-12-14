@@ -66,7 +66,15 @@
                 "type": "string",
                 "items": {
                     "type": "string"
-                }
+                },
+                "enum": [
+                    "go_run",
+                    "go_run_failed",
+                    "go_tree",
+                    "go_bug",
+                    "go_source",
+                    "go_report"
+                ]
             },
             "default": {
                 "total": "go_tree",
