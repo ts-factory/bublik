@@ -13,6 +13,7 @@ from bublik.core.report.services import (
     filter_by_axis_y,
     filter_by_not_show_args,
     get_common_args,
+    get_configs_for_run_report,
 )
 from bublik.core.utils import parse_number, unordered_group_by
 from bublik.data.models import (
@@ -20,7 +21,6 @@ from bublik.data.models import (
     MeasurementResult,
     TestIterationResult,
 )
-from bublik.data.models.result import ResultType
 from bublik.data.serializers import ConfigSerializer, TestIterationResultSerializer
 
 
@@ -39,39 +39,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         Return a list of active configs that can be used to build a report on the current run.
         Request: GET /api/v2/report/<run_id>/configs
         '''
-        run = self.get_object()
-        iters = TestIterationResult.objects.filter(test_run=run)
-        test_names = list(
-            iters.filter(iteration__test__result_type=ResultType.conv(ResultType.TEST))
-            .distinct('iteration__test__name')
-            .values_list(
-                'iteration__test__name',
-                flat=True,
-            ),
-        )
-
-        active_report_configs = Config.objects.filter(
-            type='report',
-            project_id=run.project.id,
-            is_active=True,
-        )
-
-        run_report_configs = []
-        for report_config in active_report_configs:
-            report_config_content = report_config.content
-            # skip invalid
-            if 'test_names_order' not in report_config_content:
-                continue
-            report_config_test_names = report_config_content['test_names_order']
-            if set(report_config_test_names).intersection(test_names):
-                run_report_configs.append(
-                    model_to_dict(
-                        report_config,
-                        exclude=['type', 'is_active', 'user', 'content'],
-                    ),
-                )
-
-        return Response({'run_report_configs': run_report_configs})
+        return Response({'run_report_configs': get_configs_for_run_report(self.get_object())})
 
     def retrieve(self, request, pk=None):
         r'''
