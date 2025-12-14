@@ -7,6 +7,7 @@ from itertools import groupby
 import json
 from typing import ClassVar
 
+from bublik.core.exceptions import ImportrunsError
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
@@ -337,8 +338,10 @@ class HandlerArtifacts:
                     axis_x = InstanceLevel.pop(view, 'axis_x', True)
                     axis_y = InstanceLevel.pop(view, 'axis_y', False)
                 else:
-                    msg = 'Unsupported view type'
-                    raise ValueError(msg)
+                    msg = (
+                        f'Unsupported view type: {view_type}. Possible are: point, line-graph.'
+                    )
+                    raise ImportrunsError(msg)
 
                 viewlvl = ViewLevel(view)
                 if view_type == 'point':
