@@ -327,14 +327,6 @@ class HandlerArtifacts:
         for artifact in artifacts:
             self.handle_artifact(artifact)
 
-    def handle_existing_mi_artifact(self, artifact):
-        try:
-            self.handle_mi_artifact(artifact)
-        except (KeyError, ValueError) as e:
-            logger.error(e)
-            msg = 'Invalid MI log format'
-            raise ValueError(msg) from ValueError
-
     def handle_views(self, views):
         try:
             for view in views:
