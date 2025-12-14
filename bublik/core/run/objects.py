@@ -150,12 +150,12 @@ def add_iteration_result(
             exec_seqno=exec_seqno,
             test_run=run,
         )
-        msg = (
-            f'duplicated TestIterationResult objects were found! '
-            f'IDs: {list(iteration_result.values_list("id", flat=True))}. '
-            'Check and clean DB!'
-        )
-        raise ValueError(msg) from mor
+        msg = 'duplicated TestIterationResult objects were found! Check and clean DB!'
+        debug_details = [
+            f'Run ID: {run.id}',
+            f'Duplicated TestIterationResult objects: {iteration_result}',
+        ]
+        raise ImportrunsError(message=msg, debug_details=debug_details) from mor
     except ObjectDoesNotExist:
         iteration_result = TestIterationResult.objects.create(
             test_run=run,
