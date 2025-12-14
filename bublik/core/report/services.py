@@ -2,8 +2,15 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from django.db.models import Count, Q
+from django.forms.models import model_to_dict
 
-from bublik.data.models import MeasurementResult, TestArgument
+from bublik.data.models import (
+    Config,
+    MeasurementResult,
+    TestArgument,
+    TestIterationResult,
+)
+from bublik.data.models.result import ResultType
 
 
 def get_common_args(mmrs_test):
@@ -87,3 +94,38 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
         not_show_mmrs = not_show_mmrs.union(arg_vals_mmrs)
 
     return mmrs_test.difference(not_show_mmrs)
+
+
+def get_configs_for_run_report(run):
+    iters = TestIterationResult.objects.filter(test_run=run)
+    test_names = list(
+        iters.filter(iteration__test__result_type=ResultType.conv(ResultType.TEST))
+        .distinct('iteration__test__name')
+        .values_list(
+            'iteration__test__name',
+            flat=True,
+        ),
+    )
+
+    active_report_configs = Config.objects.filter(
+        type='report',
+        project_id=run.project.id,
+        is_active=True,
+    )
+
+    run_report_configs = []
+    for report_config in active_report_configs:
+        report_config_content = report_config.content
+        # skip invalid
+        if 'test_names_order' not in report_config_content:
+            continue
+        report_config_test_names = report_config_content['test_names_order']
+        if set(report_config_test_names).intersection(test_names):
+            run_report_configs.append(
+                model_to_dict(
+                    report_config,
+                    exclude=['type', 'is_active', 'user', 'content'],
+                ),
+            )
+
+    return run_report_configs
