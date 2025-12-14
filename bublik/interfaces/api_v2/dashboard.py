@@ -19,6 +19,7 @@ from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
 from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.importruns.live.check import livelog_check_run_timeout
+from bublik.core.report.services import get_configs_for_run_report
 from bublik.core.run.external_links import get_sources
 from bublik.core.run.stats import (
     get_run_conclusion,
@@ -377,6 +378,7 @@ class DashboardPayload:
         'go_tree': 'go to run tests as a tree with its logs and context',
         'go_bug': 'go to bug in the repository',
         'go_source': 'go to source from which the run was imported',
+        'go_report': 'go to the most recent report',
     }
 
     def __call__(self, settings):
@@ -455,3 +457,18 @@ class DashboardPayload:
                     },
                 },
             )
+
+    def go_report(self, data, run):
+        run_report_configs_data = get_configs_for_run_report(run)
+        if run_report_configs_data:
+            # get the ID of the most recent applicable config
+            cfg_id = max(run_report_configs_data, key=lambda cfg_data: cfg_data['id'])['id']
+            for item in data:
+                item.update(
+                    {
+                        'payload': {
+                            'url': 'runs',
+                            'params': f'{run.id}/report/?config={cfg_id}',
+                        },
+                    },
+                )
