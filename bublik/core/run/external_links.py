@@ -25,7 +25,7 @@ def get_sources(result, source=None):
         if not run:
             return None
 
-        log = run.meta_results.filter(meta__type='log').first()
+        log = run.meta_results.filter(meta__type='log').order_by('id').last()
 
         if not log:
             # Backward compatibility for bug 11190.
@@ -35,7 +35,7 @@ def get_sources(result, source=None):
                 parent_package__isnull=True,
             )
             if main_package:
-                log = main_package.meta_results.filter(meta__type='log').first()
+                log = main_package.meta_results.filter(meta__type='log').order_by('id').last()
 
         if log and log.reference:
             project_id = run.project.id
