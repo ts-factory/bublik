@@ -107,42 +107,6 @@ class RunCache:
             del self.data
 
 
-def set_tags_categories_cache(project_id):
-    """
-    Tags cache represents the following dict: {'meta_id': 'tag_name=tag_value', }.
-
-    TODO: Can be optimized by expanding cached tags instead of reseting them
-    when meta_categorization can be called for a chosen set of metas.
-    """
-
-    tags = models.Meta.objects.filter(type='tag')
-
-    important_tags_data = tags.filter(
-        category__priority__range=(1, 3),
-        category__project_id=project_id,
-    ).order_by('category__priority', 'name')
-
-    relevant_tags_data = tags.filter(
-        Q(category__priority__range=(4, 9)) & Q(category__project_id=project_id)
-        | Q(category__isnull=True),
-    ).order_by('category__priority', 'name')
-
-    tags_data = tags.filter(
-        Q(category__priority__range=(1, 9)) & Q(category__project_id=project_id)
-        | Q(category__isnull=True),
-    ).order_by('category__priority', 'name')
-
-    def prepare_tags(tags_data):
-        tags = {}
-        for tag in tags_data:
-            tags[tag.id] = key_value_transforming(tag.name, tag.value)
-        return tags
-
-    caches['run'].set('important_tags', prepare_tags(important_tags_data), None)
-    caches['run'].set('relevant_tags', prepare_tags(relevant_tags_data), None)
-    caches['run'].set('tags', prepare_tags(tags_data), None)
-
-
 def cache_page_if_run_done(timeout):
     def _cache_decorator(viewfunc):
         @functools.wraps(viewfunc)
@@ -184,6 +148,10 @@ class ProjectCache:
     @property
     def configs(self):
         return _ConfigsCache(self)
+
+    @property
+    def tags(self):
+        return _TagsCache(self)
 
 
 class _ProjectSectionCache:
@@ -237,3 +205,59 @@ class _ProjectSectionCache:
 class _ConfigsCache(_ProjectSectionCache):
     SECTION = 'configs'
     KEY_DATA_CHOICES: ClassVar[set[str]] = set(models.GlobalConfigs.all())
+
+
+class _TagsCache(_ProjectSectionCache):
+    SECTION = 'tags'
+    KEY_DATA_CHOICES: ClassVar[set] = {
+        'important',
+        'relevant',
+        'all',
+    }
+
+    def load(self):
+        '''
+        Populate tags cache for the project.
+
+        Each cache entry stores a mapping of meta tag IDs to their string
+        representation produced by ``key_value_transforming``.
+
+        Cache keys:
+            - 'important': project-related tags with category priority 1-3
+            - 'relevant': project-related tags with category priority 4-9
+              or without a category
+            - 'all': all project-related tags with category priority 1-9
+              or without a category
+
+        Value format:
+            {meta_id: 'tag_name=tag_value'}
+        '''
+
+        tags = models.Meta.objects.filter(type='tag')
+
+        important_tags_data = tags.filter(
+            category__priority__range=(1, 3),
+            category__project_id=self._project._project_id,
+        ).order_by('category__priority', 'name')
+
+        relevant_tags_data = tags.filter(
+            Q(category__priority__range=(4, 9))
+            & Q(category__project_id=self._project._project_id)
+            | Q(category__isnull=True),
+        ).order_by('category__priority', 'name')
+
+        tags_data = tags.filter(
+            Q(category__priority__range=(1, 9))
+            & Q(category__project_id=self._project._project_id)
+            | Q(category__isnull=True),
+        ).order_by('category__priority', 'name')
+
+        def prepare_tags(tags_data):
+            tags = {}
+            for tag in tags_data:
+                tags[tag.id] = key_value_transforming(tag.name, tag.value)
+            return tags
+
+        self.set('important', prepare_tags(important_tags_data))
+        self.set('relevant', prepare_tags(relevant_tags_data))
+        self.set('all', prepare_tags(tags_data))
