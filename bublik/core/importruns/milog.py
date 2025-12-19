@@ -4,9 +4,9 @@
 from collections import Counter
 from datetime import datetime, timedelta
 from itertools import groupby
-import logging
 from typing import ClassVar
 
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
     ChartView,
@@ -23,7 +23,7 @@ from bublik.data.serializers import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class Saver:

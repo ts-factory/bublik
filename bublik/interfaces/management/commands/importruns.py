@@ -2,7 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
-import logging
+from functools import wraps
 import os
 import re
 import shutil
@@ -21,9 +21,17 @@ from bublik.core.argparse import (
 )
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
+from bublik.core.exceptions import (
+    ImportrunsError,
+    RunAlreadyExistsError,
+    RunCompromisedError,
+    RunOutsidePeriodError,
+    URLFetchError,
+)
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_run_log
@@ -32,50 +40,166 @@ from bublik.core.utils import Counter, create_event
 from bublik.data.models import EventLog, GlobalConfigs, Project
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def runtime(start_time):
     return (datetime.now() - start_time).total_seconds()
 
 
-class HTTPDirectoryTraverser:
-    def __init__(self, url, task_msg, start_time=None):
-        super().__init__()
+def with_path_processing_events(func):
+    @wraps(func)
+    def wrapper(self, *args, **options):
+        start_time = datetime.now()
 
+        # Log URLs without a training slash are valid, but they don't pass
+        # Kerberos authorization check (bug 11109, bug 11168).
+        init_url = options['url']
+        if not init_url.endswith('/'):
+            init_url += '/'
+            options['url'] = init_url
+
+        task_id = options['task_id']
+        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
+
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'started processing the path {init_url} -- {task_msg}',
+        )
+
+        counter = Counter()
+        try:
+            for _run_url in func(self, *args, **options):
+                counter.increment()
+        except (URLFetchError, RunCompromisedError) as e:
+            # Update exception debug details with init url
+            debug_details = getattr(e, 'debug_details', [])
+            debug_details.append(f'Init URL: {init_url}')
+            e.debug_details = debug_details
+
+            event_msg = (
+                f'failed import {init_url} '
+                f'-- {task_msg} '
+                f'-- Error: {e.message} '
+                f'-- runtime: {runtime(start_time)} sec'
+            )
+
+            severity = (
+                EventLog.SeverityChoices.ERR
+                if isinstance(e, URLFetchError)
+                else EventLog.SeverityChoices.WARNING
+            )
+            logger_func = logger.error if isinstance(e, URLFetchError) else logger.warning
+            logger_func(f'Importruns failed: {e.message}. Ignoring: {init_url}', exc_info=e)
+
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=severity,
+                msg=event_msg,
+            )
+        finally:
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.INFO,
+                msg=(
+                    f'finished processing the path {init_url} '
+                    f'-- {task_msg} '
+                    f'-- {counter.counter} sessions were processed '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            logger.info(f'completed in [{datetime.now() - start_time}]')
+
+    return wrapper
+
+
+def with_import_events(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        run_url = kwargs.get('run_url')
+        task_id = kwargs.get('task_id')
+
+        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
+        start_time = datetime.now()
+
+        create_event(
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            severity=EventLog.SeverityChoices.INFO,
+            msg=f'started import {run_url} -- {task_msg}',
+        )
+
+        try:
+            run = func(*args, **kwargs)
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.INFO,
+                msg=(
+                    f'successful import {run_url} '
+                    f'-- run_id={run.id} '
+                    f'-- {task_msg} '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            return run
+
+        except (RunOutsidePeriodError, RunAlreadyExistsError) as re:
+            logger.warning(f'{re.message}. Ignoring {run_url}')
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.WARNING,
+                msg=(
+                    f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: {re.message} '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            return None
+
+        except Exception as e:
+            # Update exception debug details with run url
+            debug_details = getattr(e, 'debug_details', [])
+            debug_details.append(f'Run URL: {run_url}')
+            e.debug_details = debug_details
+
+            error_data = getattr(e, 'message', type(e).__name__)
+            logger.error(
+                f'Importruns failed: {error_data}',
+                exc_info=e,
+            )
+
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.ERR,
+                msg=(
+                    f'failed import {run_url} '
+                    f'-- {task_msg} '
+                    f'-- Error: {error_data} '
+                    f'-- runtime: {runtime(start_time)} sec'
+                ),
+            )
+            return None
+
+    return wrapper
+
+
+class HTTPDirectoryTraverser:
+    def __init__(self, url):
+        super().__init__()
         self.url = url
-        self.task_msg = task_msg
-        self.start_time = start_time
 
     def __find_runs(
         self,
         url,
     ):
         html = fetch_url(url, quiet_404=True)
-        if not html:
-            logger.error(f'HTTP error occurred, ignoring: {url}')
-            if self.start_time:
-                msg = (
-                    f'failed import {url} '
-                    f'-- {self.task_msg} '
-                    f'-- Error: HTTP error occurred '
-                    f'-- runtime: {runtime(self.start_time)} sec'
-                )
-            else:
-                msg = f'failed import {url} -- {self.task_msg} -- Error: HTTP error occurred'
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
-                msg=msg,
-            )
-            return
 
         ast = BeautifulSoup(markup=html, features='html.parser')
         if ast.find(
             lambda t: t.name == 'a' and t.string.strip().lower() == 'trc_compromised.js',
         ):
-            logger.info(f'run compromised, ignoring: {url}')
-            return
+            raise RunCompromisedError
 
         if check_run_file('meta_data.json', url):
             yield url
@@ -139,6 +263,7 @@ class Command(BaseCommand):
             help='The name of the project or None (default)',
         )
 
+    @with_import_events
     def import_run(
         self,
         run_url,
@@ -148,17 +273,9 @@ class Command(BaseCommand):
         date_to=None,
         project_name=None,
     ):
-        import_run_start_time = datetime.now()
-        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
-        create_event(
-            facility=EventLog.FacilityChoices.IMPORTRUNS,
-            severity=EventLog.SeverityChoices.INFO,
-            msg=f'started import {run_url} -- {task_msg}',
-        )
-
         project = Project.objects.get(name=project_name) if project_name is not None else None
-
         process_dir = None
+
         try:
             # Create temp dir for logs processing
             process_dir = tempfile.mkdtemp()
@@ -193,12 +310,15 @@ class Command(BaseCommand):
                 meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'), project)
             else:
                 if project is None:
-                    logger.error(
-                        'meta_data.json not found. To import logs, you must specify '
-                        'the project so that meta_data.json can be generated using '
-                        'the corresponding FILES_TO_GENERATE_METADATA.',
+                    error_msg = (
+                        'meta_data.json not found. You must either add meta_data.json '
+                        'to the run source directory or specify the project so that '
+                        'meta_data.json can be generated using the FILES_TO_GENERATE_METADATA '
+                        'from the corresponding main project configuration.'
                     )
-                    return
+                    raise ImportrunsError(
+                        message=error_msg,
+                    )
 
                 # Save to process dir available files for generating metadata
                 files_to_try = ConfigServices.getattr_from_global(
@@ -221,35 +341,34 @@ class Command(BaseCommand):
             logger.info('downloading run logs: %s', run_url)
             logs_base, suffix_url = extract_logs_base(run_url, project.id)
             if not suffix_url:
-                logger.error(
-                    f'run url doesn\'t matched project references, ignoring: {run_url}',
+                error_msg = (
+                    'run URL doesn\'t match any of the logs bases URIs specified '
+                    'in the project\'s references configuration'
                 )
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.ERR,
-                    msg=f'failed import {run_url} '
-                    f'-- {task_msg} '
-                    f'-- Error: URL doesn\'t match project references '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                logs_bases = ConfigServices.getattr_from_global(
+                    GlobalConfigs.REFERENCES.name,
+                    'LOGS_BASES',
+                    project.id,
                 )
-                return
+                allowed_uris = {
+                    uri for logs_base in logs_bases for uri in logs_base.get('uri', [])
+                }
+                debug_details = [f'Allowed URIs: {allowed_uris}']
+                raise ImportrunsError(
+                    message=error_msg,
+                    debug_details=debug_details,
+                )
 
             # Filter out runs that don't fit the specified interval
             if not meta_data.check_run_period(date_from, date_to):
-                logger.debug(
+                msg = (
                     'run isn\'t satisfy '
                     f'the period {date_from.to_date_string()} - '
-                    f'{date_to.to_date_string()}, ignoring: {run_url}',
+                    f'{date_to.to_date_string()}'
                 )
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.WARNING,
-                    msg=f'failed import {run_url} '
-                    f'-- {task_msg} '
-                    f'-- Error: run doesn\'t satisfy time period '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
+                raise RunOutsidePeriodError(
+                    message=msg,
                 )
-                return
 
             if meta_data_saved:
                 run_completed = check_run_file(
@@ -266,70 +385,28 @@ class Command(BaseCommand):
                 run_completed = True
 
             # Import run incrementally
-            logger.info('the process of incremental import of run logs is started')
-            start_time = datetime.now()
-            run = incremental_import(json_data, project.id, meta_data, run_completed, force)
-            logger.info(
-                f'the process of incremental import of run logs is completed in ['
-                f'{datetime.now() - start_time}]',
+            run, created = incremental_import(
+                json_data,
+                project.id,
+                meta_data,
+                run_completed,
+                force,
             )
 
-            if run:
-                logger.info('the process of adding import id is started')
-                start_time = datetime.now()
-                add_import_id(run, task_id)
-                logger.info(
-                    f'the process of adding import id is completed in ['
-                    f'{datetime.now() - start_time}]',
+            if not created:
+                msg = f'run already exists -- run_id={run.id}'
+                raise RunAlreadyExistsError(
+                    message=msg,
                 )
 
-                logger.info('the process of adding run log is started')
-                start_time = datetime.now()
-                add_run_log(run, suffix_url, logs_base)
-                logger.info(
-                    f'the process of adding run log is completed in ['
-                    f'{datetime.now() - start_time}]',
-                )
+            add_import_id(run, task_id)
+            add_run_log(run, suffix_url, logs_base)
+            categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
+            prepare_cache_for_completed_run(run)
 
-                categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
+            logger.info(f'run id is {run.id}')
 
-                logger.info('the process of preparing cache for complited run is started')
-                start_time = datetime.now()
-                prepare_cache_for_completed_run(run)
-                logger.info(
-                    f'the process of preparing cache for complited run is completed in ['
-                    f'{datetime.now() - start_time}]',
-                )
-
-                logger.info(f'run id is {run.id}')
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.INFO,
-                    msg=f'successful import {run_url} '
-                    f'-- run_id={run.id} '
-                    f'-- {task_msg} '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
-                )
-            else:
-                create_event(
-                    facility=EventLog.FacilityChoices.IMPORTRUNS,
-                    severity=EventLog.SeverityChoices.WARNING,
-                    msg=f'session logs weren\'t processed {run_url} '
-                    f'-- {task_msg} '
-                    f'-- runtime: {runtime(import_run_start_time)} sec',
-                )
-                logger.info("run logs weren't processed")
-
-        except Exception as e:
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
-                msg=f'failed import {run_url} '
-                f'-- {task_msg} '
-                f'-- Error: {e!s} '
-                f'-- runtime: {runtime(import_run_start_time)} sec',
-            )
-            logger.error(str(e))
+            return run
 
         finally:
             # Cleanup temporary dir
@@ -341,48 +418,20 @@ class Command(BaseCommand):
                         f'[Importruns] Failed to remove {process_dir=} ({e.strerror})',
                     )
 
+    @with_path_processing_events
     def handle(self, *args, **options):
-        start_time = datetime.now()
-        counter = Counter()
+        spear = HTTPDirectoryTraverser(options['url'])
 
-        # Log URLs without a training slash are valid, but they don't pass
-        # Kerberos authorization check (bug 11109, bug 11168).
-        init_url = options['url']
-        if not init_url.endswith('/'):
-            init_url += '/'
-
-        force = options['force']
-        task_id = options['task_id']
-        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
-
-        spear = HTTPDirectoryTraverser(init_url, task_msg=task_msg, start_time=start_time)
-
-        create_event(
-            facility=EventLog.FacilityChoices.IMPORTRUNS,
-            severity=EventLog.SeverityChoices.INFO,
-            msg=f'started processing the path {init_url} -- {task_msg}',
-        )
-
-        # Max out the given dates to make them inclusive
         date_from = pendulum.instance(datetime.combine(options['from'], datetime.min.time()))
         date_to = pendulum.instance(datetime.combine(options['to'], datetime.max.time()))
 
         for run_url in spear.find_runs():
             self.import_run(
-                run_url,
-                force,
+                run_url=run_url,
+                force=options['force'],
                 task_id=options['task_id'],
                 date_from=date_from,
                 date_to=date_to,
                 project_name=options['project_name'],
             )
-            counter.increment()
-        create_event(
-            facility=EventLog.FacilityChoices.IMPORTRUNS,
-            severity=EventLog.SeverityChoices.INFO,
-            msg=f'finished processing the path {init_url} '
-            f'-- {task_msg} '
-            f'-- {counter.counter} sessions were processed '
-            f'-- runtime: {runtime(start_time)} sec',
-        )
-        logger.info(f'completed in [{datetime.now() - start_time}]')
+            yield run_url

@@ -6,13 +6,14 @@ import logging
 from django.db.models import F
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.core.utils import get_local_log
 from bublik.data.models import GlobalConfigs, Meta, MetaResult
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class ImportMode:

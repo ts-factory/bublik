@@ -15,6 +15,7 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required, get_user_by_access_token
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
+from bublik.core.exceptions import UnprocessableEntityError
 from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.shortcuts import serialize
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, UserRoles
@@ -184,10 +185,7 @@ class ConfigViewSet(ModelViewSet):
             'There is no JSON schema corresponding to the passed '
             f'configuration type-name: {config_type}-{config_name}'
         )
-        return Response(
-            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            data={'type': 'ValueError', 'message': msg},
-        )
+        raise UnprocessableEntityError(msg)
 
     @action(detail=True, methods=['get'])
     def all_versions(self, request, *args, **kwargs):

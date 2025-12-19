@@ -3,7 +3,6 @@
 
 from collections import OrderedDict
 import json
-import logging
 import re
 
 from django.conf import settings
@@ -17,6 +16,7 @@ from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
 )
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.measurement.services import exist_measurement_results
 from bublik.core.meta.categorization import get_metas_by_category
 from bublik.core.meta.match_references import build_revision_references
@@ -41,7 +41,7 @@ from bublik.data.models import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def get_children(parent, test_results=TestIterationResult.objects, q=None):

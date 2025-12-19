@@ -10,10 +10,10 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import serialize
 from bublik.data import models
 from bublik.data.serializers import MetaSerializer
-from bublik.interfaces.celery.tasks import get_or_create_task_logger
 
 
 logger = logging.getLogger()
@@ -53,7 +53,10 @@ class ImportrunsTest(APITestCase):
         """Get importruns log for a certain run."""
 
         import_id = 'test'
-        logger, logpath = get_or_create_task_logger(import_id)
+        os.environ['TASK_ID'] = import_id
+
+        logger = get_task_or_server_logger()
+        logpath = logger.handlers[0].logpath
         logger.info(f'Create test log: {logpath}')
         open(logpath, 'w+').close()
 

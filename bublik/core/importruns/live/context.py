@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import collections
 from datetime import timedelta
-import logging
 from typing import ClassVar
 
 from django.conf import settings
@@ -16,6 +15,7 @@ from bublik.core.datetime_formatting import utc_ts_to_dt
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem, PlanTracker
 from bublik.core.importruns.milog import HandlerArtifacts
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import (
     add_expected_result,
@@ -36,7 +36,7 @@ from bublik.data.models.result import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class LiveLogError(Exception):

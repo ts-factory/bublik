@@ -19,7 +19,7 @@ from bublik.data.serializers import ConfigSerializer
 from bublik.interfaces.signals import categorize_metas_on_config_change, signal_disabled
 
 
-logger = logging.getLogger('color')
+logger = logging.getLogger('colored')
 
 
 def get_config_data_type(config):

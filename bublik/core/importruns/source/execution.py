@@ -2,8 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
-from datetime import datetime
-import logging
 
 from django.core.management import call_command
 from django.db import transaction
@@ -11,6 +9,8 @@ from django.db import transaction
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem
 from bublik.core.importruns.milog import EntryLevel, HandlerArtifacts
+from bublik.core.importruns.utils import measure_time
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.objects import (
     add_expected_result,
     add_iteration,
@@ -29,7 +29,22 @@ from bublik.core.run.objects import (
 from bublik.data.models import TestIterationResult
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
+
+
+@measure_time('handling iterations')
+def handle_iterations(run_log, run, project_id, tests_nums_prologues):
+    for iteration_data in run_log['iters']:
+        handle_iteration(
+            iteration_data,
+            run,
+            project_id,
+            None,
+            None,
+            None,
+            0,
+            tests_nums_prologues,
+        )
 
 
 def handle_iteration(
@@ -149,6 +164,7 @@ def handle_iteration(
         )
 
 
+@measure_time('incremental import')
 @transaction.atomic
 def incremental_import(run_log, project_id, meta_data, run_completed, force):
     handle_iteration.counter = Counter(iter_obj=0, created_iter_obj=0)
@@ -164,9 +180,7 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
         was_online = run.import_mode == ImportMode.LIVE
         # It's always OK to add to imports that were originally online
         if run.finish and not was_online and not force:
-            logger.info('the run has already been added earlier, ignoring')
-            logger.info(f'run id is {run_id}')
-            return None
+            return run, False
         if run_completed:
             run.start = run_start
             run.finish = run_finish
@@ -191,67 +205,25 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
 
         run = TestIterationResult.objects.create(**run_data, project_id=project_id)
 
-    logger.info('the process of setting run import mode is started')
-    start_time = datetime.now()
     set_run_import_mode(run, ImportMode.SOURCE)
-    logger.info(
-        f'the process of setting run import mode is completed in ['
-        f'{datetime.now() - start_time}]',
-    )
 
-    logger.info('the process of processing meta data is started')
-    start_time = datetime.now()
-    if not meta_data.handle(run, force_update):
-        logger.info("meta_data wasn't processed")
-        return None
-    logger.info(
-        f'the process of processing meta data is completed in [{datetime.now() - start_time}]',
-    )
+    meta_data.handle(run, force_update)
 
     if not run_log:
-        return run
+        return run, True
 
     tests_nums_prologues = {}
 
     if run_log.get('plan'):
-        logger.info('the process of setting run count is started')
-        start_time = datetime.now()
         plan_root = PlanItem(run_log['plan'])
         set_run_count(run, 'expected_items', plan_root.tests_num())
-        logger.info(
-            f'the process of setting run count is completed in [{datetime.now() - start_time}]',
-        )
         plan_root.tests_num_prologue(tests_nums_prologues, plan_id=0)
     else:
         logger.warning('the execution plan is missing in MI log, or its version is unknown')
-        logger.info('the process of clearing run count is started')
-        start_time = datetime.now()
         clear_run_count(run, 'expected_items')
-        logger.info(
-            (
-                'the process of clearing run count is completed in'
-                f' [{datetime.now() - start_time}]'
-            ),
-        )
 
     if run_log.get('iters') is not None:
-        logger.info('the process of handling iterations is started')
-        start_time = datetime.now()
-        for iteration_data in run_log['iters']:
-            handle_iteration(
-                iteration_data,
-                run,
-                project_id,
-                None,
-                None,
-                None,
-                0,
-                tests_nums_prologues,
-            )
-        logger.info(
-            f'the process of handling iterations is completed in ['
-            f'{datetime.now() - start_time}]',
-        )
+        handle_iterations(run_log, run, project_id, tests_nums_prologues)
         logger.info(
             f"the number of handled iterations is {handle_iteration.counter['iter_obj']}",
         )
@@ -275,13 +247,10 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
     else:
         logger.info('there is no iterations in this run. Skip handling.')
 
-    logger.info('the process of adding tags is started')
-    start_time = datetime.now()
     tags = run_log.get('tags', [])
     add_tags(run, tags)
-    logger.info(f'the process of adding tags is completed in [{datetime.now() - start_time}]')
     logger.info(f'the number of added tags is {len(tags)}')
 
     call_command('run_cache', 'delete', '-i', run.id, '--logger_out', True)
 
-    return run
+    return run, True

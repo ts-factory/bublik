@@ -15,3 +15,9 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 
 __all__ = ['app']
+
+import celery.signals
+
+@celery.signals.setup_logging.connect
+def disable_celery_logging(*args, **kwargs):
+    pass
