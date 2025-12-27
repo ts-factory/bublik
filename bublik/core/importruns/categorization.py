@@ -8,7 +8,7 @@ import re
 
 from django.core.management import call_command
 
-from bublik.core.cache import set_tags_categories_cache
+from bublik.core.cache import ProjectCache
 from bublik.core.importruns import get_or_none
 from bublik.core.run.metadata import MetaData
 from bublik.data.models import Meta, MetaCategory, MetaPattern, Project
@@ -66,5 +66,5 @@ def categorize_metas(meta_data: MetaData, project_id) -> None:
 
     # Since tags are also Meta objects but are processed differently - we need
     # to update cached tags
-    set_tags_categories_cache(project_id)
+    ProjectCache(project_id).tags.load()
     logger.info('Update cached tags.')

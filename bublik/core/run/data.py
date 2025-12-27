@@ -3,8 +3,7 @@
 
 from collections import OrderedDict, defaultdict
 
-from django.core.cache import caches
-
+from bublik.core.cache import ProjectCache
 from bublik.core.config.services import ConfigServices
 from bublik.core.meta.categorization import (
     get_metas_by_category,
@@ -18,6 +17,7 @@ from bublik.data.models import (
     MetaResult,
     Project,
     TestArgument,
+    TestIterationResult,
 )
 
 
@@ -66,37 +66,48 @@ def get_tags_by_runs(runs, not_categorize=False):
     Runs items can represent TestIterationResult objects or just IDs.
     """
 
-    if not_categorize:
-        all_tags = caches['run'].get('tags', [])
-    else:
-        all_important_tags = caches['run'].get('important_tags', {})
-        all_relevant_tags = caches['run'].get('relevant_tags', {})
-        all_tags = set(all_important_tags) | set(all_relevant_tags)
+    run_project_map = dict(
+        TestIterationResult.objects.filter(id__in=runs).values_list('id', 'project_id'),
+    )
 
-    tags_results_query = MetaResult.objects.filter(
-        result__in=runs,
-        meta__in=all_tags,
-    ).values_list('meta__id', 'result__id')
+    run_meta_ids_map = defaultdict(set)
+    meta_qs = MetaResult.objects.filter(result_id__in=runs).values_list('result_id', 'meta_id')
+    for run_id, meta_id in meta_qs:
+        run_meta_ids_map[run_id].add(meta_id)
 
-    tags_results_dict = defaultdict(list)
-    for meta_id, result_id in tags_results_query:
-        tags_results_dict[meta_id].append(result_id)
+    tags_cache_per_project = {}
+    for project_id in set(run_project_map.values()):
+        tags_cache = ProjectCache(project_id).tags
+        if not any(tags_cache.get(k) for k in tags_cache.KEY_DATA_CHOICES):
+            tags_cache.load()
+        tags_cache_per_project[project_id] = tags_cache
 
-    def match_tags(cached_tags):
-        tags = defaultdict(list)
-        for meta_id, meta_value in cached_tags.items():
-            if meta_id in tags_results_dict:
-                for result_id in tags_results_dict[meta_id]:
-                    tags[result_id].append(meta_value)
-        return tags
+    al_tags_by_run = {}
+    important_tags_by_run = {}
+    relevant_tags_by_run = {}
 
-    if not_categorize:
-        return match_tags(all_tags)
+    for run_id, meta_ids in run_meta_ids_map.items():
+        project_tags_cache = tags_cache_per_project[run_project_map[run_id]]
 
-    important_tags = match_tags(all_important_tags)
-    relevant_tags = match_tags(all_relevant_tags)
+        if not_categorize:
+            al_tags_by_run[run_id] = [
+                value
+                for tag_id, value in project_tags_cache.get('all').items()
+                if tag_id in meta_ids
+            ]
+        else:
+            important_tags_by_run[run_id] = [
+                value
+                for tag_id, value in project_tags_cache.get('important').items()
+                if tag_id in meta_ids
+            ]
+            relevant_tags_by_run[run_id] = [
+                value
+                for tag_id, value in project_tags_cache.get('relevant').items()
+                if tag_id in meta_ids
+            ]
 
-    return important_tags, relevant_tags
+    return al_tags_by_run if not_categorize else (important_tags_by_run, relevant_tags_by_run)
 
 
 def get_parameters_by_iterations(iterations):

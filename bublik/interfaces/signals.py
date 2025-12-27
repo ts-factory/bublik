@@ -7,7 +7,7 @@ from django.core.management import call_command
 from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 
-from bublik.core.cache import GlobalConfigCache, RunCache
+from bublik.core.cache import ProjectCache, RunCache
 from bublik.data.models import (
     Config,
     ConfigTypes,
@@ -29,14 +29,13 @@ def delete_run_cache(instance, sender, **kwargs):
 def update_config_cache(sender, instance, **kwargs):
     if instance.type == ConfigTypes.GLOBAL and instance.is_active:
         project_id = instance.project.id if instance.project else None
-        config_cache = GlobalConfigCache(instance.name, project_id)
-        config_cache.content = instance.content
+        ProjectCache(project_id).configs.set(instance.name, instance.content)
 
 
 @receiver(post_delete, sender=Config)
 def delete_config_cache(sender, instance, **kwargs):
     if instance.type == ConfigTypes.GLOBAL and instance.is_active:
-        del GlobalConfigCache(instance.name, instance.project_id).content
+        ProjectCache(instance.project_id).configs.delete(instance.name)
 
 
 @receiver(post_delete, sender=Config)
