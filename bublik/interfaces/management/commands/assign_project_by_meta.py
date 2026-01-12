@@ -56,15 +56,19 @@ class Command(BaseCommand):
             )
             return False, msg
 
-        runs_num = TestIterationResult.objects.filter(test_run__isnull=True).count()
-        runs_with_single_meta = (
-            metas.filter(metaresult__result__test_run__isnull=True)
-            .values('metaresult__result')
-            .annotate(meta_count=Count('id'))
+        runs = TestIterationResult.objects.filter(test_run__isnull=True)
+        runs_with_single_meta_num = (
+            runs.annotate(
+                meta_count=Count(
+                    'meta_results__meta',
+                    filter=Q(meta_results__meta__name=meta_name),
+                    distinct=True,
+                ),
+            )
             .filter(meta_count=1)
             .count()
         )
-        if runs_with_single_meta != runs_num:
+        if runs_with_single_meta_num != runs.count():
             msg = (
                 'Invalid meta name: not all runs are linked '
                 'to exactly one meta with this name.'
