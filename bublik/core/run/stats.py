@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
-
 from collections import OrderedDict
 import json
 import re
 
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import Exists, F, OuterRef, Q, Value
 from django.db.models.functions import Concat
@@ -266,7 +266,7 @@ def get_run_stats_detailed(run_id, requirements=None):
                 available_req_metas.append(
                     Meta.objects.get(type='requirement', value=requirement),
                 )
-            except Meta.DoesNotExist:
+            except ObjectDoesNotExist:
                 return None
 
         run_stats = generate_result(
@@ -666,7 +666,7 @@ def generate_all_run_details(run):
     )
     categories = get_metas_by_category(run_meta_results, category_names, project.id)
     for category, category_values in categories.items():
-        categories[category] = key_value_list_transforming(category_values)
+        categories[category] = list(key_value_list_transforming(category_values))
 
     logger.debug('[run_details]: preparing resulting dict')
     return {
@@ -684,9 +684,9 @@ def generate_all_run_details(run):
         'conclusion_reason': conclusion_reason,
         'important_tags': important_tags.get(run_id, []),
         'relevant_tags': relevant_tags.get(run_id, []),
-        'branches': key_value_list_transforming(branches),
+        'branches': list(key_value_list_transforming(branches)),
         'revisions': revisions,
-        'labels': key_value_list_transforming(labels),
+        'labels': list(key_value_list_transforming(labels)),
         'special_categories': categories,
         'configuration': configurations[0] if configurations else None,
     }
