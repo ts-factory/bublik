@@ -35,9 +35,12 @@ from bublik.data.models import (
 
 
 class HistoryService:
+    '''Expected number of parts when splitting key:value formatted test arguments.'''
+
+    EXPECTED_KEY_VALUE_PARTS = 2
 
     @staticmethod
-    def build_history_queryset(
+    def build_history_queryset(  # noqa: PLR0913
         test_name: str,
         project_id: int | None = None,
         run_ids: str | None = None,
@@ -52,7 +55,7 @@ class HistoryService:
         label_expr: str | None = None,
         tag_expr: str | None = None,
         run_properties: str | None = None,
-        hash: str | None = None,
+        iteration_hash: str | None = None,
         test_args: str | None = None,
         test_arg_expr: str | None = None,
         result_statuses: str | None = None,
@@ -78,7 +81,7 @@ class HistoryService:
             label_expr: Label filter expression
             tag_expr: Tag filter expression
             run_properties: Comma-separated run properties (e.g., 'compromised')
-            hash: Iteration hash
+            iteration_hash: Iteration hash
             test_args: Comma-separated test arguments (key:value format)
             test_arg_expr: Test argument filter expression
             result_statuses: Comma-separated result statuses
@@ -96,15 +99,10 @@ class HistoryService:
         query_delimiter = settings.QUERY_DELIMITER
         test_arg_delimiter = settings.KEY_VALUE_DELIMITER
 
-        # Check test name
-        test_ids = get_test_ids_by_name(test_name)
-        if not test_ids:
-            msg = f'Invalid test name: {test_name}'
-            raise ValidationError(msg)
+        # Step 1: Validate test name
+        test_ids = HistoryService._validate_test_name(test_name)
 
-        ### Apply run filters ###
-
-        # Filter by project and dates
+        # Step 2: Prepare dates and get base run results
         from_date_obj, to_date_obj, _ = prepare_dates_period(from_date, to_date, 30)
         runs_results = TestIterationResult.objects.filter(
             test_run__isnull=True,
@@ -112,6 +110,118 @@ class HistoryService:
             start__date__lte=to_date_obj,
         )
 
+        # Step 3: Apply run filters
+        runs_results_ids, runs_results = HistoryService._apply_run_filters(
+            runs_results=runs_results,
+            from_date_obj=from_date_obj,
+            to_date_obj=to_date_obj,
+            project_id=project_id,
+            run_ids=run_ids,
+            branches=branches,
+            revisions=revisions,
+            labels=labels,
+            tags=tags,
+            branch_expr=branch_expr,
+            rev_expr=rev_expr,
+            label_expr=label_expr,
+            tag_expr=tag_expr,
+            run_properties=run_properties,
+            query_delimiter=query_delimiter,
+        )
+
+        # Early return if no runs found
+        if not runs_results.exists():
+            return TestIterationResult.objects.none(), from_date_obj, to_date_obj
+
+        # Step 4: Filter test results by runs
+        test_results = TestIterationResult.objects.filter(test_run__in=runs_results_ids)
+
+        # Step 5: Apply iteration filters
+        test_results = HistoryService._apply_iteration_filters(
+            test_results=test_results,
+            test_ids=test_ids,
+            iteration_hash=iteration_hash,
+            test_args=test_args,
+            test_arg_expr=test_arg_expr,
+            query_delimiter=query_delimiter,
+            test_arg_delimiter=test_arg_delimiter,
+        )
+
+        # Step 6: Apply result filters
+        test_results = HistoryService._apply_result_filters(
+            test_results=test_results,
+            result_statuses=result_statuses,
+            verdict=verdict,
+            verdict_lookup=verdict_lookup,
+            verdict_expr=verdict_expr,
+            result_types=result_types,
+            query_delimiter=query_delimiter,
+        )
+
+        # Step 7: Finalize queryset
+        final_queryset = HistoryService._finalize_queryset(test_results)
+
+        return final_queryset, from_date_obj, to_date_obj
+
+    @staticmethod
+    def _validate_test_name(test_name: str) -> list[int]:
+        '''Validate test name and return test IDs.
+
+        Args:
+            test_name: Name of the test to validate
+
+        Returns:
+            List of test IDs
+
+        Raises:
+            ValidationError: if test name is invalid
+        '''
+        test_ids = get_test_ids_by_name(test_name)
+        if not test_ids:
+            msg = f'Invalid test name: {test_name}'
+            raise ValidationError(msg)
+        return test_ids
+
+    @staticmethod
+    def _apply_run_filters(  # noqa: PLR0913
+        runs_results: TestIterationResult,
+        from_date_obj,
+        to_date_obj,
+        project_id: int | None,
+        run_ids: str | None,
+        branches: str | None,
+        revisions: str | None,
+        labels: str | None,
+        tags: str | None,
+        branch_expr: str | None,
+        rev_expr: str | None,
+        label_expr: str | None,
+        tag_expr: str | None,
+        run_properties: str | None,
+        query_delimiter: str,
+    ) -> tuple[list[int], TestIterationResult]:
+        '''Apply run-level filters and return run IDs and filtered queryset.
+
+        Args:
+            runs_results: Base queryset of runs
+            from_date_obj: Start date object
+            to_date_obj: End date object
+            project_id: Optional project filter
+            run_ids: Comma-separated run IDs
+            branches: Comma-separated branch names
+            revisions: Comma-separated revisions
+            labels: Comma-separated labels
+            tags: Comma-separated tags
+            branch_expr: Branch filter expression
+            rev_expr: Revision filter expression
+            label_expr: Label filter expression
+            tag_expr: Tag filter expression
+            run_properties: Comma-separated run properties
+            query_delimiter: Delimiter for splitting multi-value strings
+
+        Returns:
+            Tuple of (run_ids_list, filtered_runs_queryset)
+        '''
         # Apply project filter if provided
         if project_id:
             runs_results = runs_results.filter(project_id=project_id)
@@ -152,24 +262,42 @@ class HistoryService:
                 run_properties.split(query_delimiter),
             )
 
-        # Return empty if no runs found
-        if not runs_results.exists():
-            return TestIterationResult.objects.none(), from_date_obj, to_date_obj
-
-        # Filter test results by found runs
+        # Return run IDs and filtered queryset
         runs_results_ids = list(runs_results.values_list('id', flat=True))
-        test_results = TestIterationResult.objects.filter(test_run__in=runs_results_ids)
+        return runs_results_ids, runs_results
 
-        ### Apply iteration filters ###
+    @staticmethod
+    def _apply_iteration_filters(
+        test_results: TestIterationResult,
+        test_ids: list[int],
+        iteration_hash: str | None,
+        test_args: str | None,
+        test_arg_expr: str | None,
+        query_delimiter: str,
+        test_arg_delimiter: str,
+    ) -> TestIterationResult:
+        '''Apply iteration-level filters to test results.
 
+        Args:
+            test_results: Base queryset of test results
+            test_ids: List of test IDs to filter by
+            iteration_hash: Optional iteration hash filter
+            test_args: Comma-separated test arguments (key:value format)
+            test_arg_expr: Test argument filter expression
+            query_delimiter: Delimiter for splitting multi-value strings
+            test_arg_delimiter: Delimiter for key:value pairs
+
+        Returns:
+            Filtered test results queryset
+        '''
         # Filter by test name
         test_iterations = TestIteration.objects.filter(test__in=test_ids)
 
-        # Filter by hash
-        if hash:
-            test_iterations = test_iterations.filter(hash=hash)
+        # Filter by iteration_hash
+        if iteration_hash:
+            test_iterations = test_iterations.filter(hash=iteration_hash)
             if not test_iterations.exists():
-                msg = f'Invalid hash: {hash}'
+                msg = f'Invalid hash: {iteration_hash}'
                 raise ValidationError(msg)
         else:
             test_iterations = test_iterations.filter(hash__isnull=False)
@@ -182,13 +310,14 @@ class HistoryService:
                 (arg.strip() for arg in test_args.split(query_delimiter)),
             ):
                 parts = test_arg.split(test_arg_delimiter, 1)
-                if len(parts) == 2:
+                if len(parts) == HistoryService.EXPECTED_KEY_VALUE_PARTS:
                     arg_key, arg_value = (part.strip() for part in parts)
                     test_arg_query |= Q(name=arg_key, value=arg_value)
 
             test_args_filter = list(TestArgument.objects.filter(test_arg_query))
             if not test_args_filter:
-                return test_results.none(), from_date_obj, to_date_obj
+                test_iteration_ids = list(test_iterations.values_list('id', flat=True))
+                return test_results.filter(iteration__in=test_iteration_ids)
 
             for arg in test_args_filter:
                 test_iterations = test_iterations.filter(test_arguments=arg)
@@ -203,10 +332,32 @@ class HistoryService:
 
         # Filter results by iterations
         test_iteration_ids = list(test_iterations.values_list('id', flat=True))
-        test_results = test_results.filter(iteration__in=test_iteration_ids)
+        return test_results.filter(iteration__in=test_iteration_ids)
 
-        ### Apply result filters ###
+    @staticmethod
+    def _apply_result_filters(
+        test_results: TestIterationResult,
+        result_statuses: str | None,
+        verdict: str | None,
+        verdict_lookup: str | None,
+        verdict_expr: str | None,
+        result_types: str | None,
+        query_delimiter: str,
+    ) -> TestIterationResult:
+        """Apply result-level filters to test results.
 
+        Args:
+            test_results: Base queryset of test results
+            result_statuses: Comma-separated result statuses
+            verdict: Verdict filter value
+            verdict_lookup: Verdict lookup type ('regex', 'string', 'none')
+            verdict_expr: Verdict filter expression
+            result_types: Comma-separated result types
+            query_delimiter: Delimiter for splitting multi-value strings
+
+        Returns:
+            Filtered test results queryset
+        """
         # Filter by result statuses
         if result_statuses:
             result_meta_ids = list(
@@ -249,7 +400,18 @@ class HistoryService:
                 result_types.split(query_delimiter),
             )
 
-        # Finish annotation
+        return test_results
+
+    @staticmethod
+    def _finalize_queryset(test_results: TestIterationResult):
+        '''Apply final annotations and ordering to queryset.
+
+        Args:
+            test_results: Filtered queryset of test results
+
+        Returns:
+            Annotated and ordered queryset
+        '''
         return (
             test_results.select_related('test_run', 'iteration')
             .annotate(
@@ -273,9 +435,7 @@ class HistoryService:
                 'run_id',
                 'has_error',
                 'is_measurements',
-            ),
-            from_date_obj,
-            to_date_obj,
+            )
         )
 
     @staticmethod

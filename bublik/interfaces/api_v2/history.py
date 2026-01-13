@@ -37,7 +37,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             'label_expr': request.query_params.get('label_expr', ''),
             'tag_expr': request.query_params.get('tag_expr', ''),
             'run_properties': request.query_params.get('run_properties', ''),
-            'hash': request.query_params.get('hash', ''),
+            'iteration_hash': request.query_params.get('hash', ''),
             'test_args': request.query_params.get('test_args', []),
             'test_arg_expr': request.query_params.get('test_arg_expr', ''),
             'result_statuses': request.query_params.get('result_statuses', ''),
