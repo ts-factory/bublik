@@ -666,7 +666,7 @@ def generate_all_run_details(run):
     )
     categories = get_metas_by_category(run_meta_results, category_names, project.id)
     for category, category_values in categories.items():
-        categories[category] = key_value_list_transforming(category_values)
+        categories[category] = list(key_value_list_transforming(category_values))
 
     logger.debug('[run_details]: preparing resulting dict')
     return {
@@ -684,9 +684,9 @@ def generate_all_run_details(run):
         'conclusion_reason': conclusion_reason,
         'important_tags': important_tags.get(run_id, []),
         'relevant_tags': relevant_tags.get(run_id, []),
-        'branches': key_value_list_transforming(branches),
+        'branches': list(key_value_list_transforming(branches)),
         'revisions': revisions,
-        'labels': key_value_list_transforming(labels),
+        'labels': list(key_value_list_transforming(labels)),
         'special_categories': categories,
         'configuration': configurations[0] if configurations else None,
     }

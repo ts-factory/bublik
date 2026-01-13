@@ -55,11 +55,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         Returns:
             Dictionary with full run details including metadata, stats, etc.
         '''
-        result = await sync_to_async(RunService.get_run_details)(run_id)
-        for key in ['branches', 'labels']:
-            if key in result and hasattr(result[key], '__iter__'):
-                result[key] = list(result[key])
-        return result
+        return await sync_to_async(RunService.get_run_details)(run_id)
 
     @mcp.tool()
     async def get_run_status(run_id: int) -> str:
