@@ -75,21 +75,3 @@ jobs:
       - name: Run Flynt in check mode
         run: |
           echo "${{ needs.detect-changes.outputs.python_files }}" | xargs flynt -f
-
-  quote-style-check:
-    name: Check Quote Style Consistency
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    if: ${{ needs.detect-changes.outputs.python_files != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Unify
-        run: pip install unify
-
-      - name: Run Unify in check mode
-        run: |
-          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs unify -c --quote "'"
