@@ -2,42 +2,14 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from itertools import chain
-import typing
 
-from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Exists, F, OuterRef, Q
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound
 from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.filter_backends import ProjectFilterBackend
-from bublik.core.history.v2.utils import (
-    generate_hashkey,
-    group_results,
-    group_results_by_iteration,
-    prepare_list_results,
-)
-from bublik.core.run.data import (
-    get_metadata_by_runs,
-    get_parameters_by_iterations,
-    get_results,
-    get_tags_by_runs,
-    get_verdicts,
-)
-from bublik.core.run.filter_expression import filter_by_expression
-from bublik.core.run.tests_organization import get_test_ids_by_name
-from bublik.core.run.utils import prepare_dates_period
-from bublik.data.models import (
-    MeasurementResult,
-    Meta,
-    MetaResult,
-    TestArgument,
-    TestIteration,
-    TestIterationResult,
-)
+from bublik.core.history.v2.utils import generate_hashkey
 
 
 __all__ = [
@@ -46,256 +18,30 @@ __all__ = [
 
 
 class HistoryViewSet(ListModelMixin, GenericViewSet):
-    filter_backends: typing.ClassVar[list] = [ProjectFilterBackend]
-
-    def get_queryset(self):
-        query_delimiter = settings.QUERY_DELIMITER
-        test_arg_delimiter = settings.KEY_VALUE_DELIMITER
-
-        # Get test name
-        test_name = self.request.query_params.get('test_name')
-
-        ### Get run filter params ###
-        # Get run IDs
-        run_ids = self.request.query_params.get('run_ids', '')
-        # Get period
-        from_date = self.request.query_params.get('from_date', '')
-        to_date = self.request.query_params.get('to_date', '')
-        # Get meta data
-        branches = self.request.query_params.get('branches', '')
-        revisions = self.request.query_params.get('revisions', '')
-        labels = self.request.query_params.get('labels', '')
-        tags = self.request.query_params.get('tags', '')
-        # Get meta data expressions
-        branch_expr = {
-            'type': 'branch',
-            'expr': self.request.query_params.get('branch_expr', ''),
-        }
-        rev_expr = {
-            'type': 'revision',
-            'expr': self.request.query_params.get('rev_expr', ''),
-        }
-        label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
-        tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
-        # Get run properties: compromised / not compromised sessions
-        run_properties = self.request.query_params.get('run_properties', '')
-
-        ### Get iteration filter params ###
-        # Get hash
-        hash = self.request.query_params.get('hash', '')
-        # Get test arguments and test argument expression
-        test_args = self.request.query_params.get('test_args', [])
-        test_arg_expr = self.request.query_params.get('test_arg_expr', '')
-
-        ### Get result filter params ###
-        # Get result statuses: PASSED / FAILED / KILLED / CORED / SKIPPED / FAKED / INCOMPLETE
-        result_statuses = self.request.query_params.get('result_statuses', '')
-        # Get verdict, its lookup and expression
-        verdict = self.request.query_params.get('verdict', '')
-        verdict_lookup = self.request.query_params.get('verdict_lookup', '')
-        verdict_expr = self.request.query_params.get('verdict_expr', '')
-        # Get result types: expected / unexpected results
-        result_types = self.request.query_params.get('result_types', '')
-
-        # Check passed test name first
-        test_ids = get_test_ids_by_name(test_name)
-        if not test_ids:
-            msg = 'Test with the specified name was not found'
-            raise NotFound(msg)
-
-        ### Apply run filters ###
-
-        # Filter by project and dates
-        self.from_date, self.to_date, _ = prepare_dates_period(from_date, to_date, 30)
-        runs_results = self.filter_queryset(
-            TestIterationResult.objects.filter(
-                test_run__isnull=True,
-                start__date__gte=self.from_date,
-                start__date__lte=self.to_date,
-            ),
-        )
-
-        # Filter by run IDs
-        if run_ids:
-            run_ids = run_ids.split(query_delimiter)
-            runs_results = runs_results.filter(id__in=run_ids)
-
-        # Combine branches, revisions, labels, tags to the one set of metas
-        run_metas = []
-        for metas_string in [branches, revisions, labels, tags]:
-            metas = metas_string.split(query_delimiter)
-            run_metas.extend(filter(None, metas))
-
-        # Filter by run metas passed as multiple values
-        if run_metas:
-            runs_results = runs_results.filter_by_run_metas(run_metas)
-
-        # Filter by run metas expressions
-        for meta_expr in [branch_expr, rev_expr, label_expr, tag_expr]:
-            if meta_expr['expr']:
-                runs_results = filter_by_expression(
-                    filtered_qs=runs_results,
-                    expr_str=meta_expr['expr'],
-                    expr_type=meta_expr['type'],
-                )
-
-        # Filter by run property: compromised / not compromised sessions
-        if run_properties:
-            runs_results = runs_results.filter_by_run_classification(
-                run_properties.split(query_delimiter),
-            )
-
-        # Return empty list if no runs found
-        if not runs_results:
-            return TestIterationResult.objects.none()
-
-        # Filter test results by found runs
-        runs_results_ids = list(runs_results.values_list('id', flat=True))
-        test_results = TestIterationResult.objects.filter(test_run__in=runs_results_ids)
-
-        ### Apply iteration filters ###
-
-        # Filter test iterations by test name
-        test_iterations = TestIteration.objects.filter(test__in=test_ids)
-
-        # Filter test iterations by hash
-        if hash:
-            test_iterations = test_iterations.filter(hash=hash)
-            if not test_iterations.exists():
-                msg = 'No iterations found with the specified hash'
-                raise NotFound(msg)
-        else:
-            test_iterations = test_iterations.filter(hash__isnull=False)
-
-        # Prepare filter by test arguments
-        test_args_filter = []
-        if len(test_args) != 0:
-            test_arg_query = Q()
-            for test_arg in filter(
-                None,
-                (arg.strip() for arg in test_args.split(query_delimiter)),
-            ):
-                arg_key, arg_value = (
-                    part.strip() for part in test_arg.split(test_arg_delimiter, 1)
-                )
-                test_arg_query |= Q(name=arg_key, value=arg_value)
-
-            test_args_filter = list(TestArgument.objects.filter(test_arg_query))
-
-            if not test_args_filter:
-                return test_results.none()
-
-        # Apply filter by test arguments
-        if test_args_filter:
-            for arg in test_args_filter:
-                test_iterations = test_iterations.filter(test_arguments=arg)
-
-        # Apply filter by test arguments expression
-        if test_arg_expr:
-            test_iterations = filter_by_expression(
-                filtered_qs=test_iterations,
-                expr_str=test_arg_expr,
-                expr_type='test_argument',
-            )
-
-        # Filter test results by found iterations
-        test_iteration_ids = list(test_iterations.values_list('id', flat=True))
-        test_results = test_results.filter(iteration__in=test_iteration_ids)
-
-        ### Apply result filters ###
-
-        # Filter by result statuses
-        if result_statuses:
-            result_meta_ids = list(
-                Meta.objects.filter(
-                    type='result',
-                    value__in=result_statuses.split(query_delimiter),
-                ).values_list('id', flat=True),
-            )
-            test_results = test_results.filter(meta_results__meta__in=result_meta_ids)
-
-        # Filter by verdicts
-        if verdict:
-            if verdict_lookup == 'regex':
-                verdict_lookup = '__iregex'
-            elif verdict_lookup == 'string':
-                verdict = verdict.split(query_delimiter)
-                verdict_lookup = '__in'
-            else:
-                verdict_lookup = ''
-            verdict_meta_filter = {'type': 'verdict'}
-            verdict_meta_filter['value' + verdict_lookup] = verdict
-            verdict_meta_ids = list(
-                Meta.objects.filter(**verdict_meta_filter).values_list('id', flat=True),
-            )
-            test_results = test_results.filter(meta_results__meta__in=verdict_meta_ids)
-        elif not verdict and verdict_lookup == 'none':
-            test_results = test_results.exclude(meta_results__meta__type='verdict')
-
-        # Filter by verdict expression
-        if verdict_expr:
-            test_results = filter_by_expression(
-                filtered_qs=test_results,
-                expr_str=verdict_expr,
-                expr_type='verdict',
-            )
-
-        # Filter by result type classification: expected / unexpected results
-        if result_types:
-            test_results = test_results.filter_by_result_classification(
-                result_types.split(query_delimiter),
-            )
-
-        # Finish annotation
-        return (
-            test_results.select_related('test_run', 'iteration')
-            .annotate(
-                run_id=F('test_run__id'),
-                iteration_hash=F('iteration__hash'),
-                has_error=Exists(
-                    MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err'),
-                ),
-                is_measurements=Exists(
-                    MeasurementResult.objects.filter(result__id=OuterRef('id')),
-                ),
-            )
-            .order_by('-start', 'id')
-            .distinct('start', 'id')
-            .values(
-                'id',
-                'start',
-                'finish',
-                'iteration_id',
-                'iteration_hash',
-                'run_id',
-                'has_error',
-                'is_measurements',
-            )
-        )
-
-    def prepare_results_data(self, test_results, grouped=False):
-        '''This is a hand-help method to prepare results data available as instance fields.'''
-
-        # Prepare results, iterations and runs IDs
-        self.runs_ids = set()
-        self.iterations_ids = set()
-        self.results_ids = set()
-
-        for result in test_results:
-            self.runs_ids.add(result['run_id'])
-            self.iterations_ids.add(result['iteration_id'])
-            self.results_ids.add(result['id'])
-
-        # Calculate entities of the filtered results (!) before pagination
-        total_results = len(test_results)
-        unexpected_results = sum([result['has_error'] is True for result in test_results])
-
-        counts = {
-            'runs': len(self.runs_ids),
-            'iterations': len(self.iterations_ids),
-            'total_results': total_results,
-            'expected_results': total_results - unexpected_results,
-            'unexpected_results': unexpected_results,
+    def _extract_query_params(self, request):
+        return {
+            'test_name': request.query_params.get('test_name'),
+            'project_id': request.query_params.get('project'),
+            'from_date': request.query_params.get('from_date', ''),
+            'to_date': request.query_params.get('to_date', ''),
+            'run_ids': request.query_params.get('run_ids', ''),
+            'branches': request.query_params.get('branches', ''),
+            'revisions': request.query_params.get('revisions', ''),
+            'labels': request.query_params.get('labels', ''),
+            'tags': request.query_params.get('tags', ''),
+            'branch_expr': request.query_params.get('branch_expr', ''),
+            'rev_expr': request.query_params.get('rev_expr', ''),
+            'label_expr': request.query_params.get('label_expr', ''),
+            'tag_expr': request.query_params.get('tag_expr', ''),
+            'run_properties': request.query_params.get('run_properties', ''),
+            'iteration_hash': request.query_params.get('hash', ''),
+            'test_args': request.query_params.get('test_args', []),
+            'test_arg_expr': request.query_params.get('test_arg_expr', ''),
+            'result_statuses': request.query_params.get('result_statuses', ''),
+            'verdict': request.query_params.get('verdict', ''),
+            'verdict_lookup': request.query_params.get('verdict_lookup', ''),
+            'verdict_expr': request.query_params.get('verdict_expr', ''),
+            'result_types': request.query_params.get('result_types', ''),
         }
 
         data = {}
