@@ -1,17 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
+from collections import OrderedDict
 from itertools import groupby
 
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
 from bublik.core.measurement.representation import ChartViewBuilder
+from bublik.core.utils import key_value_dict_transforming, unordered_group_by
 from bublik.data.models import (
     ChartView,
     ChartViewType,
     Measurement,
     MeasurementResult,
     MeasurementResultList,
+    TestIterationResult,
     View,
 )
 
@@ -160,3 +165,121 @@ def get_measurement_charts(result_id):
             for mmr_list in mmr_lists
         ]
     return charts
+
+
+class MeasurementService:
+    '''Service for measurement-related operations (shared between REST API and MCP).'''
+
+    @staticmethod
+    def list_measurements():
+        '''Get all measurements.
+
+        Returns:
+            QuerySet of Measurement objects with prefetched metas
+        '''
+        return Measurement.objects.prefetch_related('metas').all()
+
+    @staticmethod
+    def get_measurement(measurement_id: int) -> Measurement:
+        '''Get a measurement by ID.
+
+        Args:
+            measurement_id: The ID of the measurement
+
+        Returns:
+            Measurement instance
+
+        Raises:
+            ValidationError: if measurement not found
+        '''
+        try:
+            return Measurement.objects.get(id=measurement_id)
+        except Measurement.DoesNotExist as e:
+            msg = f'Measurement {measurement_id} not found'
+            raise ValidationError(msg) from e
+
+    @staticmethod
+    def get_trend_charts(result_ids: list[int]) -> list:
+        '''Get measurement trend charts for multiple result IDs.
+
+        Groups measurements by measurement_group_key and builds chart representations.
+
+        Args:
+            result_ids: List of test result IDs
+
+        Returns:
+            List of chart representations
+
+        Raises:
+            ValidationError: if result_ids is empty
+        '''
+        if not result_ids:
+            msg = 'result_ids cannot be empty'
+            raise ValidationError(msg)
+
+        mmrs = get_measurement_results(result_ids)
+        mmrs_groups = unordered_group_by(mmrs, 'measurement_group_key')
+
+        return [
+            (
+                ChartViewBuilder(next(iter(mmr_group)).measurement).by_measurement_results(
+                    mmr_group,
+                )
+            ).representation()
+            for _mm_key, mmr_group in mmrs_groups.items()
+        ]
+
+    @staticmethod
+    def get_measurements_by_result_ids(result_ids: list[int]) -> list[dict]:
+        '''Get measurements with parameters for each result ID.
+
+        For each result, includes:
+        - run_id, result_id, start time, test_name
+        - parameters_list (from test arguments)
+        - measurement_series_charts
+
+        Args:
+            result_ids: List of test result IDs
+
+        Returns:
+            List of dictionaries containing measurement data for each result
+
+        Raises:
+            ValidationError: if result_ids is empty
+        '''
+        if not result_ids:
+            msg = 'result_ids cannot be empty'
+            raise ValidationError(msg)
+
+        measurement_series_charts_by_result = []
+        for result_id in result_ids:
+            test_result = TestIterationResult.objects.get(id=result_id)
+
+            # get parameters
+            parameters = {}
+            for test_argument in test_result.iteration.test_arguments.all():
+                parameters[test_argument.name] = test_argument.value
+            parameters = OrderedDict(sorted(parameters.items()))
+            parameters_list = list(key_value_dict_transforming(parameters))
+
+            # get chart data
+            measurement_series_charts = []
+            for chart in get_measurement_charts(result_id):
+                # Unify expected to fail here since
+                # Strings nested within an f-string cannot use the same quote character
+                # as the f-string prior to Python 3.12
+                chart['id'] = f'{test_result.id}_{chart["id"]}'
+                measurement_series_charts.append(chart)
+
+            measurement_series_charts_by_result.append(
+                {
+                    'run_id': test_result.test_run_id,
+                    'result_id': test_result.id,
+                    'start': test_result.start,
+                    'test_name': test_result.iteration.test.name,
+                    'parameters_list': parameters_list,
+                    'measurement_series_charts': measurement_series_charts,
+                },
+            )
+
+        return measurement_series_charts_by_result
