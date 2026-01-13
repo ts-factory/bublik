@@ -2,6 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 from __future__ import annotations
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, Q
 from django.forms.models import model_to_dict
 
@@ -119,7 +120,7 @@ class ReportService:
         '''
         try:
             report_config_obj = Config.objects.get(id=config_id)
-        except Config.DoesNotExist as e:
+        except ObjectDoesNotExist as e:
             msg = f'Config {config_id} not found'
             raise NotFoundError(msg) from e
 
