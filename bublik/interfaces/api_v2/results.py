@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
+from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
 from bublik.core.run.stats import (
     generate_results_details,
@@ -141,79 +142,22 @@ class ResultViewSet(ModelViewSet):
     filter_backends: ClassVar[list] = []
 
     def get_queryset(self):
-        queries = Q()
-        queryset = models.TestIterationResult.objects.filter()
-        query_delimiter = settings.QUERY_DELIMITER
-        errors = []
-
         parent_id = self.request.query_params.get('parent_id')
         test_name = self.request.query_params.get('test_name')
         results = self.request.query_params.get('results')
         result_properties = self.request.query_params.get('result_properties')
         requirements = self.request.query_params.get('requirements')
 
-        if parent_id:
-            if not get_or_none(models.TestIterationResult.objects, id=parent_id):
-                errors.append('No test iteration result found by the given parent id')
-            queries &= Q(parent_package=parent_id)
-
-        if test_name:
-            test_ids = get_test_ids_by_name(test_name)
-            if not test_ids:
-                errors.append('No tests found by the given test name')
-            queries &= Q(iteration__test__in=test_ids, iteration__hash__isnull=False)
-
-        if results:
-            results = results.split(query_delimiter)
-            diff = get_difference(results, models.ResultStatus.all_statuses())
-            if diff:
-                errors.append(f'Unknown result results: {diff}')
-            queries &= Q(
-                meta_results__meta__type='result',
-                meta_results__meta__value__in=results,
-            )
-
-        if errors:
-            raise ValidationError(errors)
-
-        queryset = queryset.filter(queries)
-
-        if result_properties:
-            queryset = queryset.filter_by_result_classification(
-                result_properties.split(query_delimiter),
-            )
-
-        if requirements:
-            requirements = requirements.split(query_delimiter)
-            available_req_metas = []
-            for requirement in requirements:
-                try:
-                    available_req_metas.append(
-                        models.Meta.objects.get(type='requirement', value=requirement),
-                    )
-                except models.Meta.DoesNotExist:
-                    return models.TestIterationResult.objects.none()
-            for req_meta in available_req_metas:
-                queryset = queryset.filter(meta_results__meta=req_meta)
-
-        return (
-            queryset.order_by('-start', 'id')
-            .select_related('iteration', 'project')
-            .prefetch_related(
-                'expectations',
-                'expectations__expectmeta_set',
-                'measurement_results',
-                'meta_results__meta',
-                'iteration__test_arguments',
-            )
-            .distinct('id', 'start')
+        return ResultService.list_results(
+            parent_id=parent_id,
+            test_name=test_name,
+            results=results,
+            result_properties=result_properties,
+            requirements=requirements,
         )
 
     def retrieve(self, request, pk=None):
-        result = self.get_object()
-        return Response(
-            data={'result': generate_result_details(result)},
-        )
+        return Response(data={'result': ResultService.get_result_details(pk)})
 
     def list(self, request):
         return Response(
@@ -222,25 +166,8 @@ class ResultViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def artifacts_and_verdicts(self, request, pk=None):
-        result_metas = models.Meta.objects.filter(metaresult__result__id=pk)
-        data = {
-            'artifacts': list(result_metas.filter(type='artifact').values()),
-            'verdicts': list(result_metas.filter(type='verdict').values()),
-        }
-        return Response(data)
+        return Response(ResultService.get_result_artifacts_and_verdicts(pk))
 
     @action(detail=True, methods=['get'])
     def measurements(self, request, pk=None):
-        # get tables
-        mmrs = get_measurement_results([pk])
-        tables = [mmr.representation(additional='measurement') for mmr in mmrs]
-
-        test_iter_res = self.get_object()
-        data = {
-            'run_id': test_iter_res.test_run_id,
-            'iteration_id': test_iter_res.iteration_id,
-            'charts': get_measurement_charts(pk),
-            'tables': tables,
-        }
-
-        return Response(data)
+        return Response(ResultService.get_result_measurements(pk))
