@@ -1,0 +1,18 @@
+### Table 0
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 1 | 0 | INFO | Test:Run | <TIME> | Starting comprehensive_test |
+| 2 | 1 | INFO | Test:Step | <TIME> | Initialize driver subsystem |
+
+---
+
+### Table 1
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 1 | 0 | VERB | Test:Self | <TIME> | [MEASUREMENT] |
+| 2 | 0 | INFO | Test:Artifact | <TIME> | Saving core dump to core_dump.bin |
+| 4 | 0 | INFO | Tester:Run | <TIME> | Test execution finished with errors |
+
+*Filter: levels=['INFO'], truncated to 200 chars | Total: 5*

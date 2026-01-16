@@ -1,0 +1,54 @@
+# Log Overview: comprehensive_test
+
+**Result:** FAILED | **Duration:** 15m 30s
+**Start:** <TIMESTAMP> | **End:** <TIMESTAMP>
+**Error:** Memory allocation failed
+**hash:** abc123def456 | **tin:** 98765.0
+**Page:** 1 of 2
+
+## Parameters
+
+| Name | Value |
+|------|-------|
+| driver | virtio |
+| mode | async |
+| queue_size | 1024 |
+
+## Verdicts
+
+- [INFO] Driver initialized successfully
+- [ERROR] Memory allocation failed with ENOMEM
+
+## Artifacts
+
+- [ERROR] core_dump.bin
+- [INFO] perf_results.csv
+
+## Requirements
+
+- REQ-DRV-001
+- REQ-MEM-003
+- REQ-PERF-001
+
+## Authors
+
+- dev@example.com
+- test-author@example.com
+
+## Objective
+
+Comprehensive test covering all log types and levels
+
+## Description
+
+Comprehensive test for all log types
+[Link](https://docs.example.com/comprehensive_test)
+
+## Statistics
+
+**Total Lines:** 12
+**By Level:** ERROR: 2 | INFO: 4 | PACKET: 1 | RING: 1 | VERB: 3 | WARN: 1
+
+### Entity:User Pairs
+
+`Driver:Debug`, `Driver:Init`, `Kernel:Buffer`, `Sniffer:Capture`, `Test:Artifact`, `Test:Run`, `Test:Self`, `Test:Step`, `Test:Verdict`, `Tester:Run`
