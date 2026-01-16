@@ -1,0 +1,20 @@
+### Table 0
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 2 | 1 | INFO | Test:Step | <TIME> | Initialize driver subsystem |
+| 4 | 0 | WARN | Test:Self | <TIME> | Optional feature X not supported, falling back to default |
+| 5 | 0 | ERROR | Test:Self | <TIME> | Failed to allocate descriptor ring: ENOMEM |
+
+---
+
+### Table 1
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 1 | 0 | VERB | Test:Self | <TIME> | [MEASUREMENT] |
+| 2 | 0 | INFO | Test:Artifact | <TIME> | Saving core dump to core_dump.bin |
+| 3 | 0 | ERROR | Test:Verdict | <TIME> | Test FAILED: Memory allocation failed with ENOMEM |
+| 4 | 0 | INFO | Tester:Run | <TIME> | Test execution finished with errors |
+
+*Filter: scenario | Total: 7*

@@ -1,0 +1,25 @@
+### Table 0
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 1 | 0 | INFO | Test:Run | <TIME> | Starting comprehensive_test |
+| 2 | 1 | INFO | Test:Step | <TIME> | Initialize driver subsystem |
+| 3 | 2 | VERB | Driver:Init | <TIME> | Driver handle acquired: <ADDR> |
+| 4 | 0 | WARN | Test:Self | <TIME> | Optional feature X not supported, falling back to default |
+| 5 | 0 | ERROR | Test:Self | <TIME> | Failed to allocate descriptor ring: ENOMEM |
+| 6 | 0 | VERB | Driver:Debug | <TIME> | ``` # Memory allocation trace malloc(4096) = <ADDR> malloc(4096) = <ADDR> malloc(4096) = NULL  # ENOMEM free(<ADDR>) free(<ADDR>) ``` |
+| 7 | 0 | RING | Kernel:Buffer | <TIME> | [TRUNCATED: 470 chars] \| Col0 \| Col1 \| Col2 \| Col3 \| Col4 \| Col5 \| Col6 \| Col7 \| Col8 \| Col9 \| Col10 \| Col11 \| Col12 \| Col13 \| Col14 \| Col15 \| Col16 \| \|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\|---\| \| ... [truncated] |
+| 8 | 0 | PACKET | Sniffer:Capture | <TIME> | [TRUNCATED: 248 chars] \| Label \| Content1 \| Content2 \| Content3 \| \|---\|---\|---\|---\| \| Ethernet \| dst: ff:ff:ff:ff:ff:ff \| src: 00:11:22:33:44:55 \| type: <ADDR> \| \| IPv4 \| src: 192.168.1.100 \| dst: 192.168.1.1 \| proto: TCP \|... [truncated] |
+
+---
+
+### Table 1
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 1 | 0 | VERB | Test:Self | <TIME> | [MEASUREMENT] |
+| 2 | 0 | INFO | Test:Artifact | <TIME> | Saving core dump to core_dump.bin |
+| 3 | 0 | ERROR | Test:Verdict | <TIME> | Test FAILED: Memory allocation failed with ENOMEM |
+| 4 | 0 | INFO | Tester:Run | <TIME> | Test execution finished with errors |
+
+*Filter: truncated to 200 chars | Total: 12*
