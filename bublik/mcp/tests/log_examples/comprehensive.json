@@ -1,0 +1,408 @@
+{
+  "version": "v1",
+  "root": [
+    {
+      "type": "te-log",
+      "pagination": {
+        "cur_page": 1,
+        "pages_count": 2
+      },
+      "content": [
+        {
+          "type": "te-log-meta",
+          "entity_model": {
+            "id": "12345",
+            "name": "comprehensive_test",
+            "entity": "test",
+            "result": "FAILED",
+            "error": "Memory allocation failed",
+            "extended_properties": {
+              "hash": "abc123def456",
+              "tin": 98765
+            }
+          },
+          "meta": {
+            "start": "2025-01-15T10:00:00.000Z",
+            "end": "2025-01-15T10:15:30.123Z",
+            "duration": "15m 30s",
+            "parameters": [
+              { "name": "driver", "value": "virtio" },
+              { "name": "mode", "value": "async" },
+              { "name": "queue_size", "value": "1024" }
+            ],
+            "verdicts": [
+              { "verdict": "Driver initialized successfully", "level": "INFO" },
+              {
+                "verdict": "Memory allocation failed with ENOMEM",
+                "level": "ERROR"
+              }
+            ],
+            "objective": "Comprehensive test covering all log types and levels",
+            "requirements": ["REQ-DRV-001", "REQ-MEM-003", "REQ-PERF-001"],
+            "authors": [
+              { "email": "dev@example.com" },
+              { "email": "test-author@example.com" }
+            ],
+            "artifacts": [
+              { "level": "ERROR", "artifact": "core_dump.bin" },
+              { "level": "INFO", "artifact": "perf_results.csv" }
+            ],
+            "description": {
+              "url": "https://docs.example.com/comprehensive_test",
+              "text": "Comprehensive test for all log types"
+            }
+          }
+        },
+        {
+          "type": "te-log-entity-list",
+          "items": [
+            {
+              "id": "pkg-001",
+              "name": "driver_package",
+              "entity": "package",
+              "result": "PASSED",
+              "extended_properties": { "hash": "pkg123" }
+            },
+            {
+              "id": "pkg-002",
+              "name": "network_package",
+              "entity": "package",
+              "result": "FAILED",
+              "error": "Timeout",
+              "extended_properties": { "hash": "pkg456" }
+            }
+          ]
+        },
+        {
+          "type": "te-log-table",
+          "data": [
+            {
+              "line_number": 1,
+              "level": "INFO",
+              "entity_name": "Test",
+              "user_name": "Run",
+              "timestamp": {
+                "timestamp": 1705312800.0,
+                "formatted": "10:00:00.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-text",
+                  "content": "Starting comprehensive_test"
+                }
+              ],
+              "children": [
+                {
+                  "line_number": 2,
+                  "level": "INFO",
+                  "entity_name": "Test",
+                  "user_name": "Step",
+                  "timestamp": {
+                    "timestamp": 1705312801.0,
+                    "formatted": "10:00:01.000"
+                  },
+                  "log_content": [
+                    {
+                      "type": "te-log-table-content-text",
+                      "content": "Initialize driver subsystem"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "line_number": 3,
+                      "level": "VERB",
+                      "entity_name": "Driver",
+                      "user_name": "Init",
+                      "timestamp": {
+                        "timestamp": 1705312802.0,
+                        "formatted": "10:00:02.000"
+                      },
+                      "log_content": [
+                        {
+                          "type": "te-log-table-content-text",
+                          "content": "Driver handle acquired: 0x7fff1234"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "line_number": 4,
+              "level": "WARN",
+              "entity_name": "Test",
+              "user_name": "Self",
+              "timestamp": {
+                "timestamp": 1705312805.0,
+                "formatted": "10:00:05.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-text",
+                  "content": "Optional feature X not supported, falling back to default"
+                }
+              ]
+            },
+            {
+              "line_number": 5,
+              "level": "ERROR",
+              "entity_name": "Test",
+              "user_name": "Self",
+              "timestamp": {
+                "timestamp": 1705312810.0,
+                "formatted": "10:00:10.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-text",
+                  "content": "Failed to allocate descriptor ring: ENOMEM"
+                }
+              ]
+            },
+            {
+              "line_number": 6,
+              "level": "VERB",
+              "entity_name": "Driver",
+              "user_name": "Debug",
+              "timestamp": {
+                "timestamp": 1705312815.0,
+                "formatted": "10:00:15.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-file",
+                  "content": "# Memory allocation trace\nmalloc(4096) = 0x7fff0000\nmalloc(4096) = 0x7fff1000\nmalloc(4096) = NULL  # ENOMEM\nfree(0x7fff0000)\nfree(0x7fff1000)"
+                }
+              ]
+            },
+            {
+              "line_number": 7,
+              "level": "RING",
+              "entity_name": "Kernel",
+              "user_name": "Buffer",
+              "timestamp": {
+                "timestamp": 1705312820.0,
+                "formatted": "10:00:20.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-memory-dump",
+                  "dump": [
+                    [
+                      "0x0000",
+                      "00",
+                      "01",
+                      "02",
+                      "03",
+                      "04",
+                      "05",
+                      "06",
+                      "07",
+                      "08",
+                      "09",
+                      "0A",
+                      "0B",
+                      "0C",
+                      "0D",
+                      "0E",
+                      "0F"
+                    ],
+                    [
+                      "0x0010",
+                      "10",
+                      "11",
+                      "12",
+                      "13",
+                      "14",
+                      "15",
+                      "16",
+                      "17",
+                      "18",
+                      "19",
+                      "1A",
+                      "1B",
+                      "1C",
+                      "1D",
+                      "1E",
+                      "1F"
+                    ],
+                    [
+                      "0x0020",
+                      "DE",
+                      "AD",
+                      "BE",
+                      "EF",
+                      "CA",
+                      "FE",
+                      "BA",
+                      "BE",
+                      "00",
+                      "00",
+                      "00",
+                      "00",
+                      "00",
+                      "00",
+                      "00",
+                      "00"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "line_number": 8,
+              "level": "PACKET",
+              "entity_name": "Sniffer",
+              "user_name": "Capture",
+              "timestamp": {
+                "timestamp": 1705312825.0,
+                "formatted": "10:00:25.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-packet-sniffer",
+                  "content": [
+                    {
+                      "label": "Ethernet",
+                      "content": [
+                        "dst: ff:ff:ff:ff:ff:ff",
+                        "src: 00:11:22:33:44:55",
+                        "type: 0x0800"
+                      ]
+                    },
+                    {
+                      "label": "IPv4",
+                      "content": [
+                        "src: 192.168.1.100",
+                        "dst: 192.168.1.1",
+                        "proto: TCP"
+                      ]
+                    },
+                    {
+                      "label": "TCP",
+                      "content": ["sport: 54321", "dport: 80", "flags: SYN"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "te-log-table",
+          "data": [
+            {
+              "line_number": 1,
+              "level": "VERB",
+              "entity_name": "Test",
+              "user_name": "Self",
+              "timestamp": {
+                "timestamp": 1705312900.0,
+                "formatted": "10:01:40.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-mi",
+                  "content": {
+                    "type": "measurement",
+                    "version": 1,
+                    "tool": "te_perf",
+                    "name": "throughput",
+                    "description": "Message throughput measurement",
+                    "results": [
+                      {
+                        "type": "measurement",
+                        "description": "Messages per second",
+                        "name": "msg_rate",
+                        "entries": [
+                          {
+                            "aggr": "mean",
+                            "value": 15234.56,
+                            "base_units": "msg/s",
+                            "multiplier": "1"
+                          },
+                          {
+                            "aggr": "min",
+                            "value": 14500.0,
+                            "base_units": "msg/s",
+                            "multiplier": "1"
+                          },
+                          {
+                            "aggr": "max",
+                            "value": 16100.0,
+                            "base_units": "msg/s",
+                            "multiplier": "1"
+                          }
+                        ]
+                      }
+                    ],
+                    "views": [
+                      {
+                        "name": "throughput_view",
+                        "type": "line-graph",
+                        "title": "Message Throughput",
+                        "axis_x": { "type": "auto-seqno", "name": "Sample" },
+                        "axis_y": [
+                          { "type": "msg_rate", "name": "Messages/sec" }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "line_number": 2,
+              "level": "INFO",
+              "entity_name": "Test",
+              "user_name": "Artifact",
+              "timestamp": {
+                "timestamp": 1705313000.0,
+                "formatted": "10:03:20.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-text",
+                  "content": "Saving core dump to core_dump.bin"
+                }
+              ]
+            },
+            {
+              "line_number": 3,
+              "level": "ERROR",
+              "entity_name": "Test",
+              "user_name": "Verdict",
+              "timestamp": {
+                "timestamp": 1705313100.0,
+                "formatted": "10:05:00.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-text",
+                  "content": "Test FAILED: Memory allocation failed with ENOMEM"
+                }
+              ]
+            },
+            {
+              "line_number": 4,
+              "level": "INFO",
+              "entity_name": "Tester",
+              "user_name": "Run",
+              "timestamp": {
+                "timestamp": 1705313130.0,
+                "formatted": "10:05:30.000"
+              },
+              "log_content": [
+                {
+                  "type": "te-log-table-content-text",
+                  "content": "Test execution finished with errors"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
