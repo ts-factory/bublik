@@ -12,17 +12,15 @@ from asgiref.sync import sync_to_async
 from bublik.core.dashboard import DashboardService
 from bublik.core.history.services import HistoryService
 from bublik.core.log.services import LogService
-from bublik.core.measurement.services import MeasurementService
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.project import ProjectService
-from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
 from bublik.core.run.stats import generate_runs_details, get_test_runs
 from bublik.core.server.services import ServerService
 from bublik.core.tree.services import TreeService
-from bublik.data.models import Measurement
-from bublik.data.serializers import MeasurementSerializer
+from bublik.mcp.models import JsonLog
+from bublik.mcp.processor import LogProcessor
 
 
 if TYPE_CHECKING:
@@ -46,66 +44,6 @@ def get_default_date_range():
 
 def register_tools(mcp: FastMCP):  # noqa: C901
     '''Register all MCP tools with the FastMCP server.'''
-
-    @mcp.tool()
-    def get_server_info() -> str:
-        '''Get basic MCP server information.
-
-        Returns server name, version, and status.
-        '''
-        tools_list = [
-            'get_server_info',
-            'get_run_details',
-            'get_run_status',
-            'get_run_stats',
-            'get_run_source',
-            'get_run_compromised',
-            'get_result_details',
-            'get_result_measurements',
-            'get_result_artifacts_and_verdicts',
-            'list_measurements',
-            'get_measurement',
-            'get_measurement_trend_charts',
-            'get_measurements_by_result_ids',
-            'list_projects',
-            'get_project',
-            'list_runs',
-            'list_runs_today',
-            'get_latest_run_date',
-            'get_dashboard',
-            'get_dashboard_today',
-            'get_latest_dashboard_date',
-            'get_log_json',
-            'get_log_urls',
-            'get_log_html_url',
-            'get_tree',
-            'get_tree_path',
-            'get_history',
-            'get_history_grouped',
-            'get_run_requirements',
-            'get_run_nok_distribution',
-            'get_run_comment',
-            'list_results',
-            'get_server_version',
-            'get_report_configs',
-            'get_report',
-        ]
-
-        prompts_list = [
-            'daily_test_health_check',
-            'investigate_test_failure',
-            'performance_trend_analysis',
-            'compare_test_runs',
-            'root_cause_analysis',
-            'test_report_generator',
-        ]
-
-        summary_mcp_server: str = f'''Bublik MCP Server
-        - Tools: {", ".join(tools_list)}
-        - Prompts: {", ".join(prompts_list)}
-        '''
-
-        return summary_mcp_server
 
     @mcp.tool()
     async def get_run_details(run_id: int) -> dict:
@@ -188,18 +126,6 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         return await sync_to_async(ResultService.get_result_details)(result_id)
 
     @mcp.tool()
-    async def get_result_measurements(result_id: int) -> dict:
-        '''Get measurements for a test result.
-
-        Args:
-            result_id: The ID of the test result
-
-        Returns:
-            Dictionary with run_id, iteration_id, charts, and tables
-        '''
-        return await sync_to_async(ResultService.get_result_measurements)(result_id)
-
-    @mcp.tool()
     async def get_result_artifacts_and_verdicts(result_id: int) -> dict:
         '''Get artifacts and verdicts for a test result.
 
@@ -210,68 +136,6 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             Dictionary with artifacts and verdicts lists
         '''
         return await sync_to_async(ResultService.get_result_artifacts_and_verdicts)(result_id)
-
-    @mcp.tool()
-    async def get_measurement(measurement_id: int) -> dict:
-        '''Get details of a specific measurement.
-
-        Args:
-            measurement_id: The ID of the measurement
-
-        Returns:
-            Dictionary with full measurement details
-
-        Raises:
-            ValidationError: if measurement not found
-        '''
-
-        def _get_measurement():
-            measurement = MeasurementService.get_measurement(measurement_id)
-            measurement = Measurement.objects.prefetch_related('metas').get(id=measurement.id)
-            serializer = MeasurementSerializer(measurement)
-            return serializer.data
-
-        return await sync_to_async(_get_measurement)()
-
-    @mcp.tool()
-    async def get_measurement_trend_charts(result_ids: list[int]) -> list:
-        '''Get measurement trend charts grouped by measurement for multiple result IDs.
-
-        This provides trend analysis across multiple test results, with measurements
-        grouped by their measurement_group_key.
-
-        Args:
-            result_ids: List of test result IDs to analyze
-
-        Returns:
-            List of chart representations
-
-        Raises:
-            ValidationError: if result_ids is empty
-        '''
-        return await sync_to_async(MeasurementService.get_trend_charts)(result_ids)
-
-    @mcp.tool()
-    async def get_measurements_by_result_ids(result_ids: list[int]) -> list[dict]:
-        '''Get measurements with parameters for each result ID.
-
-        For each result, includes:
-        - run_id, result_id, start time, test_name
-        - parameters_list (from test arguments)
-        - measurement_series_charts
-
-        Args:
-            result_ids: List of test result IDs
-
-        Returns:
-            List of dictionaries containing measurement data for each result
-
-        Raises:
-            ValidationError: if result_ids is empty
-        '''
-        return await sync_to_async(MeasurementService.get_measurements_by_result_ids)(
-            result_ids,
-        )
 
     @mcp.tool()
     async def list_results(
@@ -526,21 +390,6 @@ def register_tools(mcp: FastMCP):  # noqa: C901
     # Log tools
 
     @mcp.tool()
-    async def get_log_json(result_id: int, page: int | None = None) -> dict:
-        '''Get JSON log content for a test result.
-
-        Fetches the actual JSON log data and attachments for a test result.
-
-        Args:
-            result_id: The ID of the test result
-            page: Optional page number (0 for all pages combined, >0 for specific page)
-
-        Returns:
-            Dictionary with log content, attachments, and source URLs
-        '''
-        return await sync_to_async(LogService.get_log_json)(result_id, page)
-
-    @mcp.tool()
     async def get_log_urls(result_id: int, page: int | None = None) -> dict:
         """Get log URLs for a test result (without fetching content).
 
@@ -569,19 +418,159 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         '''
         return await sync_to_async(LogService.get_html_log_url)(result_id)
 
-    # Tree tools
+    LOG_RETURN_FORMAT: str = 'markdown'  # noqa: N806
 
     @mcp.tool()
-    async def get_tree(run_id: int) -> dict:
-        '''Get test tree structure for a run.
+    async def get_log_overview(
+        result_id: int,
+        page: int | None = None,
+        include_scenario: bool = True,
+        max_content_length: int | None = 200,
+    ) -> dict | str:
+        '''Get structured log overview with metadata and optional scenario logs.
+
+        Extracts comprehensive log header information including test metadata,
+        parameters, verdicts, artifacts, requirements, authors, and statistics.
 
         Args:
-            run_id: The ID of the test run
+            result_id: Test result ID
+            page: Optional page number (0 for all pages combined, >0 for specific page)
+            include_scenario: Include scenario-related log lines in overview
+            max_content_length: Maximum content length per scenario line. If specified,
+                content exceeding this length will be truncated and marked with
+                content_truncated=True. Use get_log_line to retrieve full content.
 
         Returns:
-            Dictionary with tree structure (linear dict) and main_package ID
+            LogOverview as dictionary or markdown string
+
+        Raises:
+            ValueError: If no header block is found in the log
         '''
-        return await sync_to_async(TreeService.get_tree)(run_id)
+
+        def _get_overview():
+            log_data = LogService.get_log_json(result_id, page)
+            validated_log = JsonLog.model_validate(log_data['log'])
+
+            processor = LogProcessor(validated_log)
+            overview = processor.get_overview(
+                include_scenario=include_scenario,
+                max_content_length=max_content_length,
+            )
+
+            if LOG_RETURN_FORMAT == 'markdown':
+                return overview.to_markdown()
+            return overview.model_dump()
+
+        return await sync_to_async(_get_overview)()
+
+    @mcp.tool()
+    async def get_log_lines(  # noqa: PLR0913
+        result_id: int,
+        page: int | None = None,
+        start_line: int | None = None,
+        end_line: int | None = None,
+        levels: list[str] | None = None,
+        entity_names: list[str] | None = None,
+        user_names: list[str] | None = None,
+        entity_user_pairs: list[str] | None = None,
+        table_index: int = 0,
+        max_content_length: int | None = 200,
+    ) -> dict | str:
+        '''Extract and filter log lines.
+
+        Retrieves log lines with optional range-based and content-based filtering.
+        All filters are AND-combined. Supports truncating content for display.
+
+        Args:
+            result_id: Test result ID
+            page: Optional page number (0 for all pages combined, >0 for specific page)
+            start_line: Starting line number (inclusive), None for start
+            end_line: Ending line number (inclusive), None for end
+            levels: Filter by log levels (ERROR, WARN, INFO, VERB, PACKET, RING)
+            entity_names: Filter by entity names
+            user_names: Filter by user names
+            entity_user_pairs: Filter by "entity:user" combinations (e.g., ["Tester:Run"])
+            table_index: Log table block index (default: 0)
+            max_content_length: Maximum content length per line. If specified,
+                content exceeding this length will be truncated and marked with
+                content_truncated=True. Use get_log_line to retrieve full content.
+
+        Returns:
+            LogLinesResult as dictionary or markdown string. When truncated,
+            lines will have content_truncated=True and original_content_length set.
+        '''
+
+        def _get_lines():
+            log_data = LogService.get_log_json(result_id, page)
+            validated_log = JsonLog.model_validate(log_data['log'])
+
+            processor = LogProcessor(validated_log)
+            result = processor.get_lines(
+                start_line=start_line,
+                end_line=end_line,
+                levels=levels,
+                entity_names=entity_names,
+                user_names=user_names,
+                entity_user_pairs=entity_user_pairs,
+                table_index=table_index,
+                max_content_length=max_content_length,
+            )
+
+            if LOG_RETURN_FORMAT == 'markdown':
+                return result.to_markdown(max_content_length=None)
+            return result.model_dump()
+
+        return await sync_to_async(_get_lines)()
+
+    @mcp.tool()
+    async def get_log_line(
+        result_id: int,
+        line_number: int,
+        page: int | None = None,
+    ) -> dict | str:
+        '''Get a single log line with full, untruncated content.
+
+        Use this tool to retrieve the complete content of a specific line
+        after using get_log_lines with truncation.
+
+        Args:
+            result_id: Test result ID
+            line_number: Line number to retrieve
+            page: Optional page number (0 for all pages combined, >0 for specific page)
+
+        Returns:
+            Single LogLine as dictionary or markdown string with full content
+
+        Raises:
+            ValueError: If line_number is not found
+        '''
+
+        def _get_line():
+            log_data = LogService.get_log_json(result_id, page)
+            validated_log = JsonLog.model_validate(log_data['log'])
+
+            processor = LogProcessor(validated_log)
+
+            result = processor.get_lines(
+                start_line=line_number,
+                end_line=line_number,
+                max_content_length=None,
+            )
+
+            if not result.lines:
+                msg = f'Line {line_number} not found in result {result_id}'
+                raise ValueError(msg)
+
+            line = next(
+                (line for line in result.lines if line.line_number == line_number),
+                result.lines[0],
+            )
+
+            if LOG_RETURN_FORMAT == 'markdown':
+                return line.to_markdown(max_content_length=None)
+            return line.model_dump()
+
+        return await sync_to_async(_get_line)()
 
     @mcp.tool()
     async def get_tree_path(result_id: int) -> list[int]:
@@ -727,36 +716,3 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             Dictionary with repository revision information
         '''
         return await sync_to_async(ServerService.get_version)()
-
-    # Report tools
-
-    @mcp.tool()
-    async def get_report_configs(run_id: int) -> list[dict]:
-        '''Get available report configurations for a run.
-
-        Args:
-            run_id: The ID of the test run
-
-        Returns:
-            List of available report config dictionaries
-        '''
-        run = await sync_to_async(ReportService.get_run)(run_id)
-        return await sync_to_async(ReportService.get_configs_for_run_report)(run)
-
-    @mcp.tool()
-    async def get_report(run_id: int, config_id: int) -> dict:
-        '''Generate full report for a run using specified config.
-
-        Returns complete report with warnings, config, content, and unprocessed iterations.
-
-        Args:
-            run_id: The ID of the test run
-            config_id: The ID of the report config
-
-        Returns:
-            Dictionary with full report data (warnings, config, content, unprocessed_iters)
-
-        Raises:
-            ValidationError: if run not found, config not found, or config validation fails
-        '''
-        return await sync_to_async(ReportService.generate_report)(run_id, config_id)
