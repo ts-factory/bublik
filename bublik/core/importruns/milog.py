@@ -4,6 +4,7 @@
 from collections import Counter
 from datetime import datetime, timedelta
 from itertools import groupby
+import json
 import logging
 from typing import ClassVar
 
@@ -301,15 +302,30 @@ class HandlerArtifacts:
     def __init__(self, test_iter_result):
         self.test_iter_result = test_iter_result
 
+    def handle(self, artifacts):
+        #
+        # After fix in script/xml_log_parse
+        # this function will be changed.
+        #
+        for artifact in artifacts:
+            try:
+                mi_log = json.loads(artifact)
+                self.handle_mi_artifact(mi_log)
+            except json.decoder.JSONDecodeError:
+                self.handle_artifact(artifact)
+
+    def handle_artifact(self, artifact):
+        m_data = {'type': 'artifact', 'value': artifact}
+        mr_serializer = serialize(
+            MetaResultSerializer,
+            {'meta': m_data, 'result': self.test_iter_result.id},
+            logger,
+        )
+        mr_serializer.get_or_create()
+
     def handle_artifacts(self, artifacts):
         for artifact in artifacts:
-            m_data = {'type': 'artifact', 'value': artifact}
-            mr_serializer = serialize(
-                MetaResultSerializer,
-                {'meta': m_data, 'result': self.test_iter_result.id},
-                logger,
-            )
-            mr_serializer.get_or_create()
+            self.handle_artifact(artifact)
 
     def handle_existing_mi_artifact(self, artifact):
         try:
@@ -352,50 +368,53 @@ class HandlerArtifacts:
             logger.error(e)
             logger.error('Failed to process views')
 
+    def handle_mi_artifact(self, artifact):
+        start_time = datetime.now()
+        try:
+            results = InstanceLevel.pop(artifact, 'results', True)
+            views = InstanceLevel.pop(artifact, 'views', False)
+            commonlvl = CommonLevel(artifact)
+
+            for result in results:
+                entries = InstanceLevel.pop(result, 'entries', True)
+                resultlvl = ResultLevel(result, commonlvl)
+
+                def entries_by_measurements(entry):
+                    return [entry['aggr'], entry['base_units'], entry['multiplier']]
+
+                entries = sorted(entries, key=entries_by_measurements)
+                serial = -1
+                for _, entries_group in groupby(entries, key=entries_by_measurements):
+                    serial += 1
+                    entries_group = list(entries_group)
+                    values = [entry['value'] for entry in entries_group]
+                    entry = entries_group[0]
+                    entry['value'] = values
+                    try:
+                        entrylvl = EntryLevel(entry, serial, resultlvl)
+                        entrylvl.save(self.test_iter_result)
+                    except KeyError as ke:
+                        ke = str(ke).replace("'", '')
+                        logger.error(f'invalid MI log format: {ke}')
+                    except ValueError as ve:
+                        ve = str(ve).replace("'", '')
+                        logger.warning(f'{ve}. Check your MI logs.')
+
+            if views is not None:
+                self.handle_views(views)
+
+            HandlerArtifacts.handle_meas_time += datetime.now() - start_time
+
+        except Exception as e:
+            e = str(e).replace("'", '')
+            logger.error(
+                f'invalid MI log format: {e}. Handling of the current MI log is completed '
+                f'without saving.',
+            )
+        finally:
+            Saver.single_measurements.clear()
+            Saver.list_measurements.clear()
+
     def handle_mi_artifacts(self, artifacts):
         for artifact in artifacts:
-            start_time = datetime.now()
-            try:
-                results = InstanceLevel.pop(artifact, 'results', True)
-                views = InstanceLevel.pop(artifact, 'views', False)
-                commonlvl = CommonLevel(artifact)
-
-                for result in results:
-                    entries = InstanceLevel.pop(result, 'entries', True)
-                    resultlvl = ResultLevel(result, commonlvl)
-
-                    def entries_by_measurements(entry):
-                        return [entry['aggr'], entry['base_units'], entry['multiplier']]
-
-                    entries = sorted(entries, key=entries_by_measurements)
-                    serial = -1
-                    for _, entries_group in groupby(entries, key=entries_by_measurements):
-                        serial += 1
-                        entries_group = list(entries_group)
-                        values = [entry['value'] for entry in entries_group]
-                        entry = entries_group[0]
-                        entry['value'] = values
-                        try:
-                            entrylvl = EntryLevel(entry, serial, resultlvl)
-                            entrylvl.save(self.test_iter_result)
-                        except KeyError as ke:
-                            ke = str(ke).replace("'", '')
-                            logger.error(f'invalid MI log format: {ke}')
-                        except ValueError as ve:
-                            ve = str(ve).replace("'", '')
-                            logger.warning(f'{ve}. Check your MI logs.')
-
-                if views is not None:
-                    self.handle_views(views)
-
-                HandlerArtifacts.handle_meas_time += datetime.now() - start_time
-
-            except Exception as e:
-                e = str(e).replace("'", '')
-                logger.error(
-                    f'invalid MI log format: {e}. Handling of the current MI log is completed '
-                    f'without saving.',
-                )
-            finally:
-                Saver.single_measurements.clear()
-                Saver.list_measurements.clear()
+            self.handle_mi_artifact(artifact)
