@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.cache import RunCache
-from bublik.core.run.tree import path_to_node, tree_representation
+from bublik.core.tree.representation import path_to_node, tree_representation
 from bublik.data.models import TestIterationResult
 
 
