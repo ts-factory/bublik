@@ -29,9 +29,11 @@ def render_docs(request):
     base_dir = Path(settings.BUBLIK_DOCS_STATIC).resolve()
     base_file_path = (base_dir / path).resolve()
 
-    if not str(base_file_path).startswith(str(base_dir) + '/'):
+    try:
+        base_file_path.relative_to(base_dir)
+    except ValueError:
         msg = f'Invalid path: {base_file_path}'
-        raise Http404(msg)
+        raise Http404(msg) from None
 
     if base_file_path.is_dir():
         index_path = base_file_path / 'index.html'
