@@ -34,7 +34,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Black
-        run: pip install black
+        run: pip install $(grep '^black==' requirements.txt)
 
       - name: Run Black in check mode
         run: |
