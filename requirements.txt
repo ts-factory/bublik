@@ -73,6 +73,7 @@ pyflakes==2.3.1
 pykerberos==1.2.4
 pylint==3.3.8
 pyparsing==3.1.2
+pytest==9.0.2
 python-dateutil==2.8.2
 python-json-logger==2.0.7
 python-memcached==1.59
@@ -91,6 +92,7 @@ soupsieve==1.7.3
 SQLAlchemy==2.0.36
 sqlparse==0.5.1
 sympy==1.14.0
+syrupy==5.0.0
 toml==0.10.2
 tomli
 tornado==6.5.2
