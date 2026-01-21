@@ -9,7 +9,7 @@ import urllib
 from deepdiff import DeepHash
 from django.conf import settings
 
-from bublik.core.datetime_formatting import display_to_milliseconds, get_duration
+from bublik.core.datetime_formatting import get_duration
 from bublik.core.run.stats import get_expected_results
 from bublik.core.run.utils import prepare_dates_period
 from bublik.core.utils import key_value_dict_transforming
@@ -36,7 +36,6 @@ def prepare_list_results(
     results,
     verdicts,
 ):
-
     results_to_response = []
     for test_result in test_results:
         run_id = test_result['run_id']
@@ -64,8 +63,8 @@ def prepare_list_results(
         metadata = metadata_by_runs.get(run_id, [])
 
         result = {
-            'start_date': display_to_milliseconds(result_start),
-            'finish_date': display_to_milliseconds(result_finish),
+            'start_date': result_start.isoformat(),
+            'finish_date': result_finish.isoformat(),
             'duration': get_duration(result_start, result_finish),
             'obtained_result': obtained_result_data,
             'expected_results': expected_results_data,
@@ -142,7 +141,6 @@ def group_results(
     results,
     verdicts,
 ):
-
     # Preare data for iteration group
     results_to_response = []
     for test_results in test_results_by_iteration:
@@ -168,7 +166,7 @@ def group_results(
                 {
                     'run_id': run_id,
                     'result_id': result_id,
-                    'start_date': test_result['start'].date(),
+                    'start_date': test_result['start'].isoformat(),
                     'result_type': results[result_id],
                     'verdict': verdicts.get(result_id, []),
                     'has_error': test_result['has_error'],

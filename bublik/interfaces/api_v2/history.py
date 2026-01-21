@@ -14,7 +14,6 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.history.v2.utils import (
     generate_hashkey,
@@ -340,8 +339,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         if add_context is None:
             add_context = {}
         response = {
-            'from_date': display_to_date_in_numbers(self.from_date),
-            'to_date': display_to_date_in_numbers(self.to_date),
+            'from_date': self.from_date.isoformat(),
+            'to_date': self.to_date.isoformat(),
             'counts': counts,
             'pagination': self.paginator.get_pagination(),
             'results': response_list,
