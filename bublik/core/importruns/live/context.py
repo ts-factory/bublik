@@ -401,7 +401,7 @@ class LiveLogContext:
 
         # Set the finish time for the whole run
         self.ts_microstep()
-        self.finish_run('RUN_STATUS_ERROR')
+        self.finish_run('RUN_STATUS_INTERRUPTED')
 
     def handle_test_start(self, event):
         """Process 'test_start' events produced by TE."""
