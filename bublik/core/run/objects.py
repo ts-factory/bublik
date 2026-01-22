@@ -251,6 +251,7 @@ def run_status_default(status_key):
         'RUN_STATUS_WARNING': RunStatus.WARNING,
         'RUN_STATUS_STOPPED': RunStatus.STOPPED,
         'RUN_STATUS_BUSY': RunStatus.BUSY,
+        'RUN_STATUS_INTERRUPTED': RunStatus.INTERRUPTED,
     }
     return default_status[status_key]
 

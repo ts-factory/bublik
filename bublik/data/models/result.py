@@ -44,6 +44,7 @@ class RunStatus:
     ERROR = 'ERROR'
     STOPPED = 'STOPPED'
     BUSY = 'BUSY'
+    INTERRUPTED = 'INTERRUPTED'
 
     @classmethod
     def all(cls):
@@ -93,6 +94,7 @@ class RunConclusion:
     STOPPED = 'run-stopped'
     BUSY = 'run-busy'
     COMPROMISED = 'run-compromised'
+    INTERRUPTED = 'run-interrupted'
 
     @classmethod
     def all(cls):
@@ -120,6 +122,7 @@ class RunConclusion:
             RunStatus.ERROR: cls.ERROR,
             RunStatus.STOPPED: cls.STOPPED,
             RunStatus.BUSY: cls.BUSY,
+            RunStatus.INTERRUPTED: cls.INTERRUPTED,
         }
         run_status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
