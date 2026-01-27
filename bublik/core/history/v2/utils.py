@@ -141,7 +141,7 @@ def group_results(
     results,
     verdicts,
 ):
-    # Preare data for iteration group
+    # Prepare data for iteration group
     results_to_response = []
     for test_results in test_results_by_iteration:
         group = test_results[0]
