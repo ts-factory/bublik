@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import logging
 import os
 
 import requests
 from requests_kerberos import DISABLED, HTTPKerberosAuth
 
+from bublik.core.exceptions import URLFetchError
+from bublik.core.logging import get_task_or_server_logger
 
-logger = logging.getLogger('bublik.server')
+
+logger = get_task_or_server_logger()
+
 
 SAVE_URL_CHUNK_SIZE = 16384
 
@@ -35,12 +38,10 @@ def get_url(url_str, raise_for_status=True, quiet_404=False):
 def fetch_url(url_str, quiet_404=False):
     try:
         req = get_url(url_str, quiet_404=quiet_404)
-        if req is None:
-            return None
-    except requests.exceptions.HTTPError as e:
-        logger.error(e)
-        return None
-
+        if req is None or not req.text:
+            raise requests.exceptions.HTTPError
+    except Exception as e:
+        raise URLFetchError from e
     return req.text
 
 

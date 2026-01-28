@@ -1,47 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from datetime import datetime
-import logging
 import os
 import subprocess
 from urllib.parse import urljoin
 
 from celery.signals import after_task_publish, task_failure, task_received, task_success
-from celery.utils.log import get_task_logger
 from django.core.management import call_command
-from pythonjsonlogger import jsonlogger
+from django.core.management.base import CommandError
 
 from bublik import settings
-from bublik.core.logging import parse_log
+from bublik.core.exceptions import ImportrunsError
+from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
 from bublik.data.models import EventLog, Project, TestIterationResult
 from bublik.interfaces.celery import app
-
-
-def get_or_create_task_logger(task_id):
-    '''A helper function to create function specific logger lazily.'''
-
-    date_folder = os.path.join(
-        settings.MANAGEMENT_COMMANDS_LOG,
-        datetime.now().date().strftime('runs_%Y.%m.%d'),
-    )
-    if not os.path.exists(date_folder):
-        os.makedirs(date_folder)
-
-    logpath = os.path.join(date_folder, task_id)
-
-    # Every logger in the celery package inherits from the "celery" logger,
-    # and every task logger inherits from the "celery.task" logger.
-    logger = get_task_logger(task_id)
-    handler = logging.FileHandler(logpath)
-
-    formatter = jsonlogger.JsonFormatter(settings.LOGGING['formatters']['json']['format'])
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    return logger, logpath
 
 
 @after_task_publish.connect()
@@ -120,11 +94,14 @@ def importruns(
     requesting_host=None,
     param_project_name=None,
 ):
-
     task_id = self.request.id
-    logger, logpath = get_or_create_task_logger(task_id)
+    os.environ['TASK_ID'] = task_id
 
-    cmd_import = ['./manage.py', 'importruns']
+    logger = get_task_or_server_logger()
+    logpath = logger.handlers[0].logpath
+
+    # To avoid cyclic dependency between importruns.py and this module
+    from bublik.interfaces.management.commands.importruns import Command as ImportRunsCommand
 
     try:
         query_url = urljoin(
@@ -133,16 +110,22 @@ def importruns(
             f'&force={param_force}&project_name={param_project_name}',
         )
 
+        argv = []
         if param_from:
-            cmd_import += ['--from', param_from]
+            argv += ['--from', param_from]
         if param_to:
-            cmd_import += ['--to', param_to]
+            argv += ['--to', param_to]
         if param_project_name:
-            cmd_import += ['--project_name', param_project_name]
+            argv += ['--project_name', param_project_name]
         if param_force:
-            cmd_import += ['--force', param_force]
-        if param_url:
-            cmd_import += ['--task_id', task_id]
+            argv += ['--force', param_force]
+
+        argv += ['--task_id', task_id, param_url]
+        cmd = ImportRunsCommand()
+        parser = cmd.create_parser('manage.py', cmd.help)
+
+        try:
+            options = parser.parse_args(argv)
 
             logger.info('importruns task started:')
             logger.info(f'[ID]:   {task_id}')
@@ -151,21 +134,23 @@ def importruns(
             logger.info(f'[URL]:  {param_url}')
             logger.info(f'[RUN]:  curl {query_url}')
 
-            with open(logpath, 'a') as log:
-                subprocess.run(
-                    [*cmd_import, param_url],
-                    stdout=log,
-                    stderr=log,
-                    shell=False,
-                    check=True,
-                )
-                log.flush()
+            opts_dict = vars(options)
+            url = opts_dict.pop('url')
+            call_command('importruns', url, **opts_dict)
+
             return task_id
-        msg = 'Invalid parameters for the `importruns`'
-        raise AttributeError(msg)
+
+        except (SystemExit, CommandError) as exc:
+            error_msg = 'invalid parameters for importruns command'
+            raise ImportrunsError(
+                message=error_msg,
+            ) from exc
 
     except Exception as e:
-        logger.error(e)
+        error_data = getattr(e, 'message', type(e).__name__)
+        logger.error(
+            f'Importruns failed: {error_data}',
+        )
         raise
 
     finally:
@@ -204,7 +189,10 @@ def importruns(
 @app.task(bind=True)
 def meta_categorization(self, project_name):
     task_id = self.request.id
-    logger, logpath = get_or_create_task_logger(task_id)
+    os.environ['TASK_ID'] = task_id
+
+    logger = get_task_or_server_logger()
+    logpath = logger.handlers[0].logpath
 
     query_url = f"curl 'http://{settings.BUBLIK_HOST}/meta_categorization/'"
 
@@ -232,7 +220,10 @@ def update_all_hashed_objects(self):
 @app.task(bind=True)
 def clear_all_runs_stats_cache(self):
     task_id = self.request.id
-    logger, logpath = get_or_create_task_logger(task_id)
+    os.environ['TASK_ID'] = task_id
+
+    logger = get_task_or_server_logger()
+    logpath = logger.handlers[0].logpath
 
     query_url = f"curl 'http://{settings.BUBLIK_HOST}/clear_all_runs_stats_cache/'"
 

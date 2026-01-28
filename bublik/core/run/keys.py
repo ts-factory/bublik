@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import logging
 import re
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.logging import get_task_or_server_logger
 from bublik.data.models import GlobalConfigs
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def prepare_expected_key(key_str, project_id):

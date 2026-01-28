@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import logging
 
 from django.db import transaction
 
+from bublik.core.importruns.utils import measure_time
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.stats import get_run_stats_detailed
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
+@measure_time('preparing cache for complited run')
 @transaction.atomic
 def prepare_cache_for_completed_run(run):
     if run.finish:

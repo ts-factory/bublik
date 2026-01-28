@@ -1,9 +1,56 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from datetime import datetime
+import logging
+import os
 import os.path
 import re
 import subprocess
+
+from celery.utils.log import get_task_logger
+from pythonjsonlogger import jsonlogger
+
+from bublik import settings
+
+
+class TaskFileHandler(logging.FileHandler):
+    def __init__(self, task_id, *args, **kwargs):
+        date_folder = os.path.join(
+            settings.MANAGEMENT_COMMANDS_LOG,
+            datetime.now().strftime('runs_%Y.%m.%d'),
+        )
+        os.makedirs(date_folder, exist_ok=True)
+        self.logpath = os.path.join(date_folder, task_id)
+        super().__init__(self.logpath, *args, **kwargs)
+
+        formatter = jsonlogger.JsonFormatter(settings.LOGGING['formatters']['json']['format'])
+        self.setFormatter(formatter)
+
+
+def get_task_or_server_logger():
+    '''A helper function to create function specific logger lazily.'''
+    # Every logger in the celery package inherits from the "celery" logger,
+    # and every task logger inherits from the "celery.task" logger.
+    task_id = os.getenv('TASK_ID', None)
+    if task_id is None:
+        return logging.getLogger('bublik.server')
+
+    logger = get_task_logger(task_id)
+
+    if (
+        len(logger.handlers) == 1
+        and isinstance(logger.handlers[0], TaskFileHandler)
+        and logger.handlers[0].logpath.endswith(task_id)
+    ):
+        return logger
+
+    for h in logger.handlers[:]:
+        logger.removeHandler(h)
+        h.close()
+    task_file_handler = TaskFileHandler(task_id)
+    logger.addHandler(task_file_handler)
+    return logger
 
 
 def parse_log(error_regex, project_regex, logpath, maxlen=5):

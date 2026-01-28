@@ -5,9 +5,10 @@ from collections import Counter
 from datetime import datetime, timedelta
 from itertools import groupby
 import json
-import logging
 from typing import ClassVar
 
+from bublik.core.exceptions import ImportrunsError
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
     ChartView,
@@ -24,7 +25,7 @@ from bublik.data.serializers import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class Saver:
@@ -327,14 +328,6 @@ class HandlerArtifacts:
         for artifact in artifacts:
             self.handle_artifact(artifact)
 
-    def handle_existing_mi_artifact(self, artifact):
-        try:
-            self.handle_mi_artifact(artifact)
-        except (KeyError, ValueError) as e:
-            logger.error(e)
-            msg = 'Invalid MI log format'
-            raise ValueError(msg) from ValueError
-
     def handle_views(self, views):
         try:
             for view in views:
@@ -345,8 +338,10 @@ class HandlerArtifacts:
                     axis_x = InstanceLevel.pop(view, 'axis_x', True)
                     axis_y = InstanceLevel.pop(view, 'axis_y', False)
                 else:
-                    msg = 'Unsupported view type'
-                    raise ValueError(msg)
+                    msg = (
+                        f'Unsupported view type: {view_type}. Possible are: point, line-graph.'
+                    )
+                    raise ImportrunsError(msg)
 
                 viewlvl = ViewLevel(view)
                 if view_type == 'point':

@@ -2,18 +2,19 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import json
-import logging
 import os
 import shlex
 import subprocess
 
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, Q
 import pendulum
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
+from bublik.core.exceptions import ImportrunsError
+from bublik.core.importruns.utils import measure_time
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
@@ -26,7 +27,7 @@ from bublik.data.serializers import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 class MetaData:
@@ -69,7 +70,7 @@ class MetaData:
 
     @staticmethod
     def generate(process_dir, project_name):
-        logger.info(f'Generate meta_data.json at {process_dir}')
+        logger.info(f'generate meta_data.json at {process_dir}')
         try:
             path_meta_data_script = os.path.join(settings.PER_CONF_DIR, 'generate_metadata.py')
             cmd = shlex.split(
@@ -83,10 +84,10 @@ class MetaData:
             subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            msg = f'Per-project generate_metadata.py has returned an error {e}'
-            raise RuntimeError(
+            msg = 'failed to generate metadata using per-project generate_metadata.py'
+            raise ImportrunsError(
                 msg,
-            ) from RuntimeError
+            ) from e
 
         return MetaData.load(os.path.join(process_dir, 'meta_data.json'))
 
@@ -95,28 +96,28 @@ class MetaData:
         self.version = meta_data.get('version')
         if not self.version or (self.version and self.version > 1):
             msg = 'not valid version of meta_data.json'
-            raise ValueError(msg)
+            raise ImportrunsError(message=msg)
 
         # Check format specific data
         self.metas = meta_data.get('metas')
         if not self.metas:
             msg = 'meta_data.json parser expected a list of metas'
-            raise KeyError(msg)
+            raise ImportrunsError(message=msg)
 
         # Assign project from meta if not provided
         if not self.project:
             project_meta = find_dict_in_list({'name': 'PROJECT'}, self.metas)
             if not project_meta:
                 msg = 'meta_data.json parser expected a PROJECT meta.'
-                raise ValueError(msg)
+                raise ImportrunsError(message=msg)
             try:
                 self.project = Project.objects.get(name=project_meta['value'])
             except Project.DoesNotExist as mdne:
                 msg = (
-                    f'the project does not exist: {project_meta["value"]}. '
+                    f'project "{project_meta["value"]}" does not exist. '
                     'Create it to import logs.'
                 )
-                raise ObjectDoesNotExist(msg) from mdne
+                raise ImportrunsError(message=msg) from mdne
 
         # Check status meta
         run_status_meta = ConfigServices.getattr_from_global(
@@ -125,8 +126,8 @@ class MetaData:
             self.project.id,
         )
         if not find_dict_in_list({'name': run_status_meta}, self.metas):
-            msg = 'There is no status meta in meta_data.json. It is a required meta.'
-            raise ValueError(msg)
+            msg = 'there is no status meta in meta_data.json. It is a required meta.'
+            raise ImportrunsError(message=msg)
 
         key_metas_fields = set()
         key_metas_names = ConfigServices.getattr_from_global(
@@ -165,21 +166,21 @@ class MetaData:
                     f'the following key meta is duplicated: {meta_name}, '
                     'that compromises metadata, ignoring the run'
                 )
-                raise ValueError(msg)
+                raise ImportrunsError(message=msg)
 
         if key_metas_names:
             msg = (
                 "can't identify the run, the following RUN_KEY_METAS are "
                 f"absent in metadata: {','.join(key_metas_names)}"
             )
-            raise AttributeError(msg)
+            raise ImportrunsError(message=msg)
 
         # Check if all key metas satisfy Meta model
         model_fields = [f.name for f in Meta._meta.get_fields()]
         diff = get_difference(key_metas_fields, model_fields)
         if diff:
             msg = f"meta can't have the following fields: {','.join(diff)}"
-            raise ValueError(msg)
+            raise ImportrunsError(message=msg)
 
     def __parse_timestamps(self):
         start_meta = find_dict_in_list({'name': 'START_TIMESTAMP'}, self.metas)
@@ -245,7 +246,9 @@ class MetaData:
                 continue
 
             if not name and not value:
-                logger.warning(f"meta with empty 'name' and 'value' can't be saved: {m_data}")
+                logger.warning(
+                    f'meta with empty \'name\' and \'value\' can\'t be saved: {m_data}',
+                )
                 continue
 
             reference = self.__preprocess_meta(m_data)
@@ -269,8 +272,6 @@ class MetaData:
             logger.debug(
                 f'run meta: {meta.type!s:<13} {meta.name!s:<15} = {meta.value!s:<}',
             )
-
-        return True
 
     def force_update_metas(self, run):
         new = []
@@ -329,9 +330,7 @@ class MetaData:
 
         logger.info(f'new meta results: {created}')
 
-        return True
-
-    def is_essential_metas_changed(self, run):
+    def check_if_essential_metas_changed(self, run):
         run_key_metas = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_KEY_METAS',
@@ -345,14 +344,22 @@ class MetaData:
 
         for name, value in essential_metas:
             if not find_dict_in_list({'name': name, 'value': value}, self.metas):
-                logger.error(f'broken essential meta: {name} = {value}')
-                return True
-        return False
+                msg = f'broken essential meta: {name} = {value}'
+                debug_details = [
+                    f'Run ID: {run.id}',
+                    f'Essential run metas found in the DB: {essential_metas}',
+                    f'Essential run metas found in the meta_data.json: {self.metas}',
+                ]
+                raise ImportrunsError(
+                    message=msg,
+                    debug_details=debug_details,
+                )
 
+    @measure_time('processing meta data')
     def handle(self, run, force_update=False):
-        if self.is_essential_metas_changed(run):
-            return False
+        self.check_if_essential_metas_changed(run)
 
         if force_update:
-            return self.force_update_metas(run)
-        return self.get_or_create_metas(run)
+            self.force_update_metas(run)
+        else:
+            self.get_or_create_metas(run)

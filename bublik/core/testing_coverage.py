@@ -3,18 +3,17 @@
 
 from collections import defaultdict
 from datetime import datetime
-import logging
 import os
-
 from subprocess import PIPE, STDOUT, Popen
 
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.external_links import get_trc_brief
 from bublik.core.run.filter_expression import TestRunMeta
 from bublik.core.run.stats import get_run_stats_detailed, get_test_runs
 from bublik.data.models import MetaResult, TestIteration
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def packages_path_to_str(packages, package_strip):

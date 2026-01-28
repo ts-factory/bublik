@@ -2,12 +2,14 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
-import logging
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Count
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.exceptions import ImportrunsError
+from bublik.core.importruns.utils import measure_time
+from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.run.keys import prepare_expected_key
 from bublik.core.run.utils import prepare_date
@@ -30,7 +32,7 @@ from bublik.data.serializers import (
 )
 
 
-logger = logging.getLogger('bublik.server')
+logger = get_task_or_server_logger()
 
 
 def add_test(test_name, result_type, parent_test):
@@ -129,10 +131,14 @@ def add_iteration_result(
             iteration_result.tin != int(tin) and iteration_result.tin > -1
         ):
             msg = (
-                f'TestIterationResult object with passed exec_seqno ({exec_seqno}) '
-                f'already exists to current run: {iteration_result}'
+                f'Test result with sequence number {exec_seqno} already exists '
+                'for this run. Duplicate entries are not allowed.'
             )
-            raise ValueError(msg)
+            debug_details = [
+                f'Run ID: {run.id}',
+                f'Existing TestIterationResult with passed exec_seqno: {iteration_result}',
+            ]
+            raise ImportrunsError(message=msg, debug_details=debug_details)
         iteration_result.project_id = project_id
         iteration_result.start = prepare_date(start_time)
         iteration_result.finish = prepare_date(finish_time) if finish_time else None
@@ -144,12 +150,12 @@ def add_iteration_result(
             exec_seqno=exec_seqno,
             test_run=run,
         )
-        msg = (
-            f'duplicated TestIterationResult objects were found! '
-            f'IDs: {list(iteration_result.values_list("id", flat=True))}. '
-            'Check and clean DB!'
-        )
-        raise ValueError(msg) from mor
+        msg = 'duplicated TestIterationResult objects were found! Check and clean DB!'
+        debug_details = [
+            f'Run ID: {run.id}',
+            f'Duplicated TestIterationResult objects: {iteration_result}',
+        ]
+        raise ImportrunsError(message=msg, debug_details=debug_details) from mor
     except ObjectDoesNotExist:
         iteration_result = TestIterationResult.objects.create(
             test_run=run,
@@ -189,6 +195,7 @@ def clear_meta_result(m_data, mr_data):
     MetaResult.objects.filter(meta=meta, **mr_data).delete()
 
 
+@measure_time('adding run log')
 def add_run_log(run, source_suffix, logs_base):
     reference, _ = Reference.objects.get_or_create(
         uri=logs_base['uri'][-1],
@@ -200,6 +207,7 @@ def add_run_log(run, source_suffix, logs_base):
     )
 
 
+@measure_time('adding tags')
 def add_tags(run, tags):
     if not tags:
         return
@@ -211,6 +219,7 @@ def add_tags(run, tags):
         )
 
 
+@measure_time('adding import ID')
 def add_import_id(run, import_id):
     add_meta_result(
         m_data={'name': 'import_id', 'type': 'import', 'value': import_id},
@@ -218,6 +227,7 @@ def add_import_id(run, import_id):
     )
 
 
+@measure_time('setting run count')
 def set_run_count(run, count_name, count_value):
     update_or_create_meta_result(
         m_data={'name': count_name, 'type': 'count', 'value': str(count_value)},
@@ -232,10 +242,12 @@ def set_prologues_counts(iteration, count_name, count_value):
     )
 
 
+@measure_time('clearing run count')
 def clear_run_count(run, count_name):
     clear_meta_result(m_data={'name': count_name, 'type': 'count'}, mr_data={'result': run})
 
 
+@measure_time('setting run import mode')
 def set_run_import_mode(run, import_mode):
     update_or_create_meta_result(
         m_data={'name': 'import_mode', 'type': 'import', 'value': import_mode},
