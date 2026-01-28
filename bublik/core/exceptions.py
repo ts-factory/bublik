@@ -110,3 +110,8 @@ class BadGatewayError(BublikAPIError):
 class UnprocessableEntityError(BublikAPIError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = 'Unprocessable entity'
+
+
+class NotFoundError(BublikAPIError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = 'Not found'
