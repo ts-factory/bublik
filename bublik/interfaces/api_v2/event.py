@@ -8,12 +8,14 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db.models import Case, CharField, Q, Value, When
+from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.datetime_formatting import date_str_to_db
-from bublik.data.models import EventLog
+from bublik.data.models import EventLog, TestIterationResult
 from bublik.data.serializers import EventLogSerializer
 
 
@@ -75,6 +77,25 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
             import_events = import_events.filter(msg__contains=url)
 
         return import_events
+
+    @action(detail=True, methods=['get'])
+    def status(self, request, pk=None):
+        celery_task_id = pk
+        try:
+            run = TestIterationResult.objects.get(
+                meta_results__meta__value=celery_task_id,
+                meta_results__meta__name='import_id',
+                meta_results__meta__type='import',
+            )
+        except TestIterationResult.DoesNotExist:
+            msg = 'Run corresponding to the passed Celery task ID doesn\'t exist'
+            return Response(data={'messages': [msg]}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            data={
+                'run_id': run.id,
+            },
+        )
 
     def list(self, request, *args, **kwargs):
         try:
