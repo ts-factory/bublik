@@ -36,6 +36,7 @@ class ConfigFilterSet(filters.FilterSet):
 
 
 class ConfigViewSet(ModelViewSet):
+    pagination_class = None
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
     filterset_class = ConfigFilter
