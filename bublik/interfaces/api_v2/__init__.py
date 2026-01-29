@@ -15,7 +15,6 @@ from .auth import (
 from .comments import TestCommentViewSet
 from .config import ConfigViewSet
 from .dashboard import (
-    DashboardFormatting,
     DashboardPayload,
     DashboardViewSet,
 )
@@ -40,7 +39,6 @@ __all__ = [
     'ActivateView',
     'AdminViewSet',
     'ConfigViewSet',
-    'DashboardFormatting',
     'DashboardPayload',
     'DashboardViewSet',
     'ForgotPasswordResetView',

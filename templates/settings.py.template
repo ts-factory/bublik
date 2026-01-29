@@ -224,15 +224,15 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
         # 'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-        # 'LOCATION': '127.0.0.1:11211',
+        # 'LOCATION': 'redis://127.0.0.1:11211',
         # 'TIMEOUT': 60 * 20,
     },
     'run': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': '127.0.0.1:6379',
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379',
         'OPTIONS': {
             'DB': 0,
-            'COMPRESSOR_CLASS': 'redis_cache.compressors.BZip2Compressor',
+            'COMPRESSOR_CLASS': 'django_redis.compressors.bzip2.BZip2Compressor',
             'COMPRESSOR_CLASS_KWARGS': {
                 # 1 - 9; 1 - fastest, biggest; 9 - slowest, smallest
                 'compresslevel': 9,
@@ -240,8 +240,8 @@ CACHES = {
         },
     },
     'project': {
-        'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': '127.0.0.1:6379',
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379',
         'TIMEOUT': 86400,
     },
 }

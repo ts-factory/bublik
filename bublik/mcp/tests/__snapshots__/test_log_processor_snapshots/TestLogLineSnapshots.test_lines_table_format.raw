@@ -1,0 +1,7 @@
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 1 | 0 | INFO | Test:Run | <TIME> | Starting comprehensive_test |
+| 2 | 1 | INFO | Test:Step | <TIME> | Initialize driver subsystem |
+| 3 | 2 | VERB | Driver:Init | <TIME> | Driver handle acquired: <ADDR> |
+| 4 | 0 | WARN | Test:Self | <TIME> | Optional feature X not supported, falling back to default |
+| 5 | 0 | ERROR | Test:Self | <TIME> | Failed to allocate descriptor ring: ENOMEM |

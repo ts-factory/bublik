@@ -2,11 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import typing
-from typing import Iterable
 
-from django.db.models import F
-from django.db.models.fields import DateField
-from django.db.models.functions import Cast
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework import status
@@ -15,31 +11,22 @@ from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
+from bublik.core.dashboard import DashboardService
 from bublik.core.filter_backends import ProjectFilterBackend
-from bublik.core.importruns.live.check import livelog_check_run_timeout
-from bublik.core.report.services import get_configs_for_run_report
+from bublik.core.report.services import ReportService
 from bublik.core.run.external_links import get_sources
-from bublik.core.run.stats import (
-    get_run_conclusion,
-    get_run_stats,
-    get_run_status,
-    get_run_status_by_nok,
-)
-from bublik.core.utils import dicts_groupby, get_difference
-from bublik.data.models import GlobalConfigs, Meta, TestIterationResult
+from bublik.core.utils import get_difference
+from bublik.data.models import GlobalConfigs, TestIterationResult
 
 
 __all__ = [
-    'DashboardFormatting',
     'DashboardPayload',
     'DashboardViewSet',
 ]
 
 
 class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
-
     required_settings: typing.ClassVar[list] = ['DASHBOARD_HEADER']
     extended_data: typing.ClassVar[list] = ['total', 'total_expected', 'progress', 'unexpected']
     available_column_modes: typing.ClassVar['dict'] = {
@@ -80,46 +67,29 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             message = ', '.join(self.errors)
             return Response(data={'message': message}, status=status.HTTP_400_BAD_REQUEST)
 
-        self.date = request.GET.get('date', self.get_latest_run_date())
+        # Parse and validate project_id
+        project_id = self._parse_project_id(request)
+        if isinstance(project_id, Response):
+            return project_id
 
-        if not self.date:
+        # Get date from request or use latest available
+        date = request.GET.get('date')
+        if not date:
+            date = DashboardService.get_latest_dashboard_date(project_id)
+
+        if not date:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        runs = self.get_queryset()
+        # Get dashboard data from service
+        data = self._get_dashboard_data(date, project_id)
+        if isinstance(data, Response):
+            return data
 
-        if not runs:
-            return Response(status=status.HTTP_204_NO_CONTENT)
+        # Apply payload handlers for URL generation (UI-specific)
+        self._apply_payload_to_dashboard_data(data)
+        data['payload'] = self.payload.description
 
-        rows_data = []
-        for run in runs:
-            conclusion, conclusion_reason = get_run_conclusion(run)
-            row_data = self.prepare_row_data(run)
-            rows_data.append(
-                {
-                    'row_cells': row_data,
-                    'context': {
-                        'run_id': run.id,
-                        'project_id': run.project.id,
-                        'project_name': run.project.name,
-                        'start': run.start.timestamp(),
-                        'status': get_run_status(run),
-                        'status_by_nok': get_run_status_by_nok(run)[0],
-                        'conclusion': conclusion,
-                        'conclusion_reason': conclusion_reason,
-                    },
-                },
-            )
-
-        rows_data.sort(key=lambda x: self.runs_sort(x))
-
-        response = {
-            'date': self.date,
-            'rows': rows_data,
-            'header': [{'key': k, 'name': n} for k, n in self.header.items()],
-            'payload': self.payload.description,
-        }
-
-        return Response(data=response)
+        return Response(data=data)
 
     @action(detail=False, methods=['get'])
     def default_mode(self, request):
@@ -137,36 +107,22 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
     def prepare_settings(self):
         self.payload = DashboardPayload()
-        self.formatting = DashboardFormatting()
         return self.check_and_apply_settings()
-
-    def apply_if_match_header(self, setting, project_id, default=None, ignore=None, keys=False):
-        data = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            setting,
-            project_id,
-            default=default,
-        ).copy()
-
-        comparable = data.keys() if keys else data
-
-        diff = get_difference(comparable, self.header.keys(), ignore)
-        if diff:
-            self.errors.append(f"{setting} doesn't match DASHBOARD_HEADER, mismatch: {diff}")
-
-        return data
 
     def check_and_apply_settings(self):
         project_id = self.request.query_params.get('project')
 
-        # Mandatory settings (must be defined in per_conf global config object):
-        for setting in self.required_settings:
-            ConfigServices.getattr_from_global(
-                GlobalConfigs.PER_CONF.name,
-                setting,
-                project_id,
-            )
+        # Use service validation for all dashboard settings
+        validation = DashboardService.validate_dashboard_settings(
+            project_id,
+            raise_on_error=False,  # Get errors for ViewSet compatibility
+        )
 
+        if not validation['valid']:
+            self.errors = validation['errors']
+            return False
+
+        # Load settings (now known to be valid)
         header = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_HEADER',
@@ -184,180 +140,159 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             project_id,
         )
 
-        self.errors = []
-        if getattr(self, 'header', None):
-            # Default settings (can be changed in per_conf global config object):
-            self.sort = self.apply_if_match_header(
-                'DASHBOARD_RUNS_SORT',
-                project_id,
-                default=['start'],
-                ignore=['start'],
-            )
+        # Load optional settings
+        self.sort = ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'DASHBOARD_RUNS_SORT',
+            project_id,
+            default=['start'],
+        )
+        self.payload_settings = ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'DASHBOARD_PAYLOAD',
+            project_id,
+            default={},
+        )
+        self.formatting_settings = ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'DASHBOARD_FORMATTING',
+            project_id,
+            default={'progress': 'percent'},
+        )
 
-            # Optional settings (can be defined in per_conf global config object):
-            self.payload_settings = self.apply_if_match_header(
-                'DASHBOARD_PAYLOAD',
-                project_id,
-                default={},
-                keys=True,
-            )
-
-            self.formatting_settings = self.apply_if_match_header(
-                'DASHBOARD_FORMATTING',
-                project_id,
-                default={'progress': 'percent'},
-                keys=True,
-                ignore=['progress'],
-            )
-
-            self.payload(self.payload_settings)
-            self.errors.extend(self.payload.errors)
-            self.formatting.apply_settings(self.formatting_settings)
-            self.errors.extend(self.formatting.errors)
+        # Initialize payload (remains in ViewSet - UI-specific)
+        self.payload(self.payload_settings)
+        self.errors = self.payload.errors
 
         return bool(not self.errors)
 
-    def get_latest_run_date(self):
-        project_id = self.request.query_params.get('project')
-        if self.date_meta:
-            dates = Meta.objects.filter(name=self.date_meta)
-            if project_id:
-                dates = dates.filter(metaresult__result__project_id=project_id)
-            date = (
-                dates.annotate(date=Cast(F('value'), DateField()))
-                .order_by('-date')
-                .values_list(F('date'), flat=True)
-                .first()
-            )
-            if date:
-                return date
-        else:
-            all_runs = self.filter_queryset(
-                TestIterationResult.objects.filter(test_run=None).order_by('-start'),
-            )
-            latest_run = all_runs.first()
-            if latest_run:
-                return latest_run.start.date()
+    def _extract_payload(self, processed):
+        '''Extract payload from processed handler result.
+
+        Args:
+            processed: Result from payload handler (list or dict)
+
+        Returns:
+            Payload dict or None if no payload found
+        '''
+        if isinstance(processed, list) and processed and 'payload' in processed[0]:
+            return processed[0]['payload']
+        if isinstance(processed, dict) and 'payload' in processed:
+            return processed['payload']
         return None
 
-    def normalize_values(self, row_data):
-        for key in self.header:
-            data = row_data.get(key)
-            if data:
-                row_data[key] = data[0] if len(data) == 1 else data
-        return row_data
+    def _prepare_handler_data(self, cell_data):
+        '''Prepare cell data for payload handler consumption.
 
-    def add_payload(self, row_data, run):
-        for key in self.header:
-            if key in self.payload.handlers:
-                self.payload.handlers[key](row_data[key], run)
-        return row_data
+        Payload handlers expect data in specific formats (list of dicts
+        or dict with 'value' key).
+        This normalizes various cell_data formats into the expected structure.
 
-    def add_formatting(self, row_data):
-        for key in self.header:
-            if key in self.formatting.handlers:
-                self.formatting.handlers[key](row_data[key])
-        return row_data
+        Args:
+            cell_data: Raw cell data from dashboard
 
-    def prepare_row_data(self, run):
-        livelog_check_run_timeout(run)
-        cache = RunCache.by_obj(run, 'dashboard-v2')
-        row_data = cache.data
-        if not row_data:
-            # Get all meta data for the row
-            metabased_data = self.get_metabased_data(run)
-            # Build cells for every row accessed by the header key
-            row_data = {}
-            for key, category in self.header.items():
-                if key not in self.extended_data:
-                    row_data[key] = metabased_data.get(category, [])
-                else:
-                    row_data[key] = self.get_extended_data(run, key)
-            self.add_formatting(row_data)
+        Returns:
+            Normalized data structure for payload handler
+        '''
+        if isinstance(cell_data, dict):
+            return [cell_data]
+        if isinstance(cell_data, list):
+            if cell_data and isinstance(cell_data[0], (str, int, float)):
+                return [{'value': v} for v in cell_data]
+            return cell_data
+        # Single primitive value
+        return {'value': cell_data}
 
-        # Should not be cached, as can be changed by users any time
-        self.add_payload(row_data, run)
+    def _merge_payload_to_cell(self, row, key, cell_data, processed):
+        '''Merge payload from processed handler result back into cell data.
 
-        # To support multiple values as key-list and one value as key-value.
-        self.normalize_values(row_data)
-
-        return row_data
-
-    def get_metabased_data(self, run):
-        raw_data = list(
-            run.meta_results.select_related('meta')
-            .filter(
-                meta__category__name__in=self.header.values(),
-                meta__category__project_id=run.project.id,
-            )
-            .annotate(category=F('meta__category__name'), value=F('meta__value'))
-            .values('category', 'value'),
-        )
-        # Example of metabased_data: {'Session': ['loni'], 'Branch': ['master'], 'DL': ['OK'], }
-        return dict(dicts_groupby(raw_data, 'category'))
-
-    def get_extended_data(self, run, key):
-        data = {'value': get_run_stats(run.id).get(key, '')}
-        return [data]
-
-    def prepare_sort_key(self, row, key):
-        if key == 'start':
-            return row['context']['start']
-
-        cell_data = row['row_cells'][key]
-        if cell_data and 'value' in cell_data:
-            return cell_data['value']
-
-        if isinstance(cell_data, Iterable):
-            values = []
-            for item in cell_data:
-                values.append(item['value'])
-            return ','.join(values)
-
-        return ''
-
-    def runs_sort(self, row):
-        sort_keys = []
-        for key in self.sort:
-            sort_keys.append(self.prepare_sort_key(row, key))
-        return sort_keys
-
-
-class DashboardFormatting:
-    '''
-    Applies formatting rules to particular values displayed on the dashboard.
-    '''
-
-    handlers: typing.ClassVar['dict'] = {}
-    handlers_available: typing.ClassVar['list'] = [
-        'percent',
-    ]
-
-    def apply_settings(self, settings):
-        if not self.__match_settings_to_methods(settings.values()):
+        Args:
+            row: Dashboard row dict
+            key: Cell key within the row
+            cell_data: Original cell data reference
+            processed: Processed data from payload handler
+        '''
+        payload = self._extract_payload(processed)
+        if not payload:
             return
 
-        for rule, method in settings.items():
-            self.handlers[rule] = getattr(self, method)
+        if isinstance(cell_data, dict):
+            cell_data['payload'] = payload
+        elif isinstance(cell_data, (str, int, float)):
+            row['row_cells'][key] = {'value': cell_data, 'payload': payload}
+        elif isinstance(cell_data, list) and cell_data:
+            if isinstance(cell_data[0], dict):
+                cell_data[0]['payload'] = payload
+            elif isinstance(cell_data[0], (str, int, float)):
+                cell_data[0] = {'value': cell_data[0], 'payload': payload}
 
-    def __match_settings_to_methods(self, settings):
-        self.errors = []
-        diff = get_difference(settings, self.handlers_available)
-        if diff:
-            self.errors.append(f"Unknown value(s) in DASHBOARD_FORMATTING: {', '.join(diff)}")
-            return False
-        return True
+    def _apply_payload_to_dashboard_data(self, data: dict) -> None:
+        '''Apply payload handlers to dashboard cell data for URL generation.
 
-    def percent(self, data):
-        for item in data:
-            value = item['value']
-            if isinstance(value, (int, float)):
-                item.update(
-                    {
-                        'value': str(round(value * 100)) + '%',
-                    },
+        This is a UI-specific operation that adds navigation URLs to dashboard cells.
+        The payload handlers in DashboardPayload generate URLs for run details,
+        tree views, source links, etc.
+
+        Args:
+            data: Dashboard data dictionary with 'rows' key containing row data.
+                  Modified in-place to add payload information.
+        '''
+        if not hasattr(self, 'payload') or not self.payload.handlers:
+            return
+
+        for row in data.get('rows', []):
+            run_id = row['context']['run_id']
+            run = TestIterationResult.objects.get(id=run_id)
+
+            for key in row['row_cells']:
+                if key not in self.payload.handlers or 'context' not in row:
+                    continue
+
+                cell_data = row['row_cells'][key]
+                handler_data = self._prepare_handler_data(cell_data)
+
+                # Apply payload handler
+                processed = self.payload.handlers[key](handler_data, run)
+
+                # Merge payload back into cell data
+                self._merge_payload_to_cell(row, key, cell_data, processed)
+
+    def _parse_project_id(self, request):
+        '''Parse and validate project_id from request query params.
+
+        Returns:
+            int project_id, or Response object if validation fails
+        '''
+        project_id = request.query_params.get('project')
+        if project_id is not None:
+            try:
+                return int(project_id)
+            except (ValueError, TypeError):
+                return Response(
+                    data={'message': f'Invalid project_id: {project_id}'},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-        return data
+        return None
+
+    def _get_dashboard_data(self, date, project_id):
+        '''Get dashboard data from service with error handling.
+
+        Returns:
+            dict with dashboard data, or Response object if error occurs
+        '''
+        try:
+            return DashboardService.get_dashboard_data(
+                date,
+                project_id,
+                header=self.header,
+                formatting_settings=self.formatting_settings,
+                sort_config=self.sort if hasattr(self, 'sort') else None,
+            )
+        except Exception as e:
+            return Response(
+                data={'message': str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class DashboardPayload:
@@ -459,7 +394,7 @@ class DashboardPayload:
             )
 
     def go_report(self, data, run):
-        run_report_configs_data = get_configs_for_run_report(run)
+        run_report_configs_data = ReportService.get_configs_for_run_report(run)
         if run_report_configs_data:
             # get the ID of the most recent applicable config
             cfg_id = max(run_report_configs_data, key=lambda cfg_data: cfg_data['id'])['id']
