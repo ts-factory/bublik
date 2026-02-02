@@ -33,6 +33,21 @@ def get_run_root(result):
         return None
 
 
+def split_test_path(full_test_name):
+    parts_iter = iter(full_test_name.strip('/').split('/'))
+    segments = []
+
+    for part in parts_iter:
+        if part == '..':
+            next_part = next(parts_iter, None)
+            if next_part is not None:
+                segments.append(f'../{next_part}')
+        else:
+            segments.append(part)
+
+    return segments
+
+
 def get_test_by_full_path(full_test_name):
     try:
         test_entity = models.ResultType.conv('test')
@@ -40,10 +55,10 @@ def get_test_by_full_path(full_test_name):
         session_entity = models.ResultType.conv('session')
 
         test = None
-        parts = full_test_name.strip('/').split('/')
-        for name_part in parts[:-1]:
+        path_segments = split_test_path(full_test_name)
+        for path_segment in path_segments[:-1]:
             test = models.Test.objects.get(
-                name=name_part,
+                name=path_segment,
                 parent=test,
                 result_type__in=[package_entity, session_entity],
             )
@@ -61,7 +76,7 @@ def get_test_by_full_path(full_test_name):
 
         return get_or_none(
             models.Test.objects,
-            name=parts[-1],
+            name=path_segments[-1],
             parent=parent,
             result_type=test_entity,
         )
