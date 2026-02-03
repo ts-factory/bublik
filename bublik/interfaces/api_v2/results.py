@@ -10,7 +10,6 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
-from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
 from bublik.core.run.stats import (
@@ -32,22 +31,19 @@ all = [
 
 class RunViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
-    filter_backends: ClassVar[list] = [ProjectFilterBackend]
 
     def get_queryset(self):
         '''Delegate to RunService for consistency with MCP tools.'''
-        return self.filter_queryset(
-            RunService.list_runs_queryset(
-                start_date=self.request.query_params.get('start_date'),
-                finish_date=self.request.query_params.get('finish_date'),
-                project_id=self.request.query_params.get('project'),
-                run_status=self.request.query_params.get('run_status'),
-                run_data=self.request.query_params.get('run_data'),
-                tag_expr=self.request.query_params.get('tag_expr'),
-                label_expr=self.request.query_params.get('label_expr'),
-                revision_expr=self.request.query_params.get('revision_expr'),
-                branch_expr=self.request.query_params.get('branch_expr'),
-            ),
+        return RunService.list_runs_queryset(
+            start_date=self.request.query_params.get('start_date'),
+            finish_date=self.request.query_params.get('finish_date'),
+            project_id=self.request.query_params.get('project'),
+            run_status=self.request.query_params.get('run_status'),
+            run_data=self.request.query_params.get('run_data'),
+            tag_expr=self.request.query_params.get('tag_expr'),
+            label_expr=self.request.query_params.get('label_expr'),
+            revision_expr=self.request.query_params.get('revision_expr'),
+            branch_expr=self.request.query_params.get('branch_expr'),
         )
 
     def list(self, request):
