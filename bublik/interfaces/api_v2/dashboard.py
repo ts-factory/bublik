@@ -13,7 +13,6 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.dashboard import DashboardService
-from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.report.services import ReportService
 from bublik.core.run.external_links import get_sources
 from bublik.core.utils import get_difference
@@ -27,18 +26,16 @@ __all__ = [
 
 
 class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
-    required_settings: typing.ClassVar[list] = ['DASHBOARD_HEADER']
-    extended_data: typing.ClassVar[list] = ['total', 'total_expected', 'progress', 'unexpected']
     available_column_modes: typing.ClassVar['dict'] = {
         'one_day_one_column': {'days': 1, 'columns': 1},
         'one_day_two_columns': {'days': 1, 'columns': 2},
         'two_days_two_columns': {'days': 2, 'columns': 2},
     }
-    filter_backends: typing.ClassVar[list] = [ProjectFilterBackend]
 
     def get_queryset(self):
         self.payload = DashboardPayload()
-        self.check_and_apply_settings()
+        project_id = self.request.query_params.get('project')
+        self.check_and_apply_settings(project_id)
 
         queryset = self.filter_queryset(
             TestIterationResult.objects.select_related('project').filter(test_run=None),
@@ -63,14 +60,10 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         Return dashboard data for one day.
         Route: /api/v2/dashboard/?date=yyyy-mm-dd.
         '''
-        if not self.prepare_settings():
+        project_id = request.query_params.get('project')
+        if not self.prepare_settings(project_id):
             message = ', '.join(self.errors)
             return Response(data={'message': message}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Parse and validate project_id
-        project_id = self._parse_project_id(request)
-        if isinstance(project_id, Response):
-            return project_id
 
         # Get date from request or use latest available
         date = request.GET.get('date')
@@ -80,10 +73,13 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         if not date:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        # Get dashboard data from service
-        data = self._get_dashboard_data(date, project_id)
-        if isinstance(data, Response):
-            return data
+        data = DashboardService.get_dashboard_data(
+            date,
+            project_id,
+            header=self.header,
+            formatting_settings=self.formatting_settings,
+            sort_config=self.sort,
+        )
 
         # Apply payload handlers for URL generation (UI-specific)
         self._apply_payload_to_dashboard_data(data)
@@ -93,7 +89,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=False, methods=['get'])
     def default_mode(self, request):
-        if not self.prepare_settings():
+        project_id = request.query_params.get('project')
+        if not self.prepare_settings(project_id):
             message = ', '.join(self.errors)
             return Response(data={'message': message}, status=status.HTTP_400_BAD_REQUEST)
         mode = self.available_column_modes.get(self.default_mode)
@@ -105,13 +102,11 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             )
         return Response(data={'mode': mode})
 
-    def prepare_settings(self):
+    def prepare_settings(self, project_id):
         self.payload = DashboardPayload()
-        return self.check_and_apply_settings()
+        return self.check_and_apply_settings(project_id)
 
-    def check_and_apply_settings(self):
-        project_id = self.request.query_params.get('project')
-
+    def check_and_apply_settings(self, project_id):
         # Use service validation for all dashboard settings
         validation = DashboardService.validate_dashboard_settings(
             project_id,
@@ -182,7 +177,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return None
 
     def _prepare_handler_data(self, cell_data):
-        '''Prepare cell data for payload handler consumption.
+        """Prepare cell data for payload handler consumption.
 
         Payload handlers expect data in specific formats (list of dicts
         or dict with 'value' key).
@@ -193,7 +188,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
         Returns:
             Normalized data structure for payload handler
-        '''
+        """
         if isinstance(cell_data, dict):
             return [cell_data]
         if isinstance(cell_data, list):
@@ -227,7 +222,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                 cell_data[0] = {'value': cell_data[0], 'payload': payload}
 
     def _apply_payload_to_dashboard_data(self, data: dict) -> None:
-        '''Apply payload handlers to dashboard cell data for URL generation.
+        """Apply payload handlers to dashboard cell data for URL generation.
 
         This is a UI-specific operation that adds navigation URLs to dashboard cells.
         The payload handlers in DashboardPayload generate URLs for run details,
@@ -236,7 +231,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         Args:
             data: Dashboard data dictionary with 'rows' key containing row data.
                   Modified in-place to add payload information.
-        '''
+        """
         if not hasattr(self, 'payload') or not self.payload.handlers:
             return
 
@@ -256,43 +251,6 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
                 # Merge payload back into cell data
                 self._merge_payload_to_cell(row, key, cell_data, processed)
-
-    def _parse_project_id(self, request):
-        '''Parse and validate project_id from request query params.
-
-        Returns:
-            int project_id, or Response object if validation fails
-        '''
-        project_id = request.query_params.get('project')
-        if project_id is not None:
-            try:
-                return int(project_id)
-            except (ValueError, TypeError):
-                return Response(
-                    data={'message': f'Invalid project_id: {project_id}'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        return None
-
-    def _get_dashboard_data(self, date, project_id):
-        '''Get dashboard data from service with error handling.
-
-        Returns:
-            dict with dashboard data, or Response object if error occurs
-        '''
-        try:
-            return DashboardService.get_dashboard_data(
-                date,
-                project_id,
-                header=self.header,
-                formatting_settings=self.formatting_settings,
-                sort_config=self.sort if hasattr(self, 'sort') else None,
-            )
-        except Exception as e:
-            return Response(
-                data={'message': str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
 
 class DashboardPayload:
