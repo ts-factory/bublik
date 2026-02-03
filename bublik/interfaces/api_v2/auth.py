@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.cache import never_cache
-from rest_framework import generics, status
+from rest_framework import generics
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -83,10 +83,9 @@ class ActivateView(APIView):
             return Response(
                 {'message': 'The email is verified. You are registered.'},
             )
-        return Response(
-            {'message': 'Invalid email verification link'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
+
+        msg = 'Invalid email verification link'
+        raise PermissionDenied(msg)
 
 
 class LogInView(TokenObtainPairView):
@@ -99,20 +98,16 @@ class LogInView(TokenObtainPairView):
 
         # check if email and password are provided
         if not email or not password:
-            return Response(
-                {'message': 'Please provide both email and password'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            msg = 'Please provide both email and password'
+            raise PermissionDenied(msg)
 
         # authenticate user
         user = authenticate(email=email, password=password)
 
         # check if user is valid
         if not user:
-            return Response(
-                {'message': 'Invalid credentials'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            msg = 'Invalid credentials'
+            raise PermissionDenied(msg)
 
         # create refresh and access token
         refresh_token = self.serializer_class.get_token(user)
@@ -203,20 +198,16 @@ class RefreshTokenView(TokenRefreshView):
         try:
             refresh_token = request.COOKIES.get('refresh_token')
             if not refresh_token:
-                return Response(
-                    {'message': 'No refresh token provided'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+                msg = 'No refresh token provided'
+                raise PermissionDenied(msg)
 
             refresh_token = RefreshToken(refresh_token)
 
             try:
                 refresh_token.verify()
-            except TokenError:
-                return Response(
-                    {'message': 'Not a valid refresh token'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            except TokenError as te:
+                msg = 'Not a valid refresh token'
+                raise PermissionDenied(msg) from te
 
             user_id = refresh_token['user_id']
             user = User.objects.get(pk=user_id)
@@ -259,11 +250,9 @@ class LogOutView(APIView):
             refresh_token = RefreshToken(refresh_token)
             try:
                 refresh_token.verify()
-            except TokenError:
-                return Response(
-                    {'message': 'Not a valid refresh token'},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            except TokenError as te:
+                msg = 'Not a valid refresh token'
+                raise PermissionDenied(msg) from te
 
             refresh_token.blacklist()
 
@@ -293,10 +282,8 @@ class ForgotPasswordView(generics.CreateAPIView):
         try:
             user = User.objects.get(email=email)
         except ObjectDoesNotExist:
-            return Response(
-                {'message': 'No user found with this email'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            msg = 'No user found with this email'
+            raise PermissionDenied(msg) from None
 
         # generate a password reset token
         user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
@@ -347,10 +334,9 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
             return Response(
                 {'message': 'Password reset successfully'},
             )
-        return Response(
-            {'message': 'Invalid reset link'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
+
+        msg = 'Invalid reset link'
+        raise PermissionDenied(msg)
 
 
 class AdminViewSet(GenericViewSet):
