@@ -1,15 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-import typing
-
 from django.core.cache import cache
 from rest_framework.decorators import action
 from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.history.services import HistoryService
 from bublik.core.history.v2.utils import generate_hashkey
 
@@ -20,11 +17,10 @@ __all__ = [
 
 
 class HistoryViewSet(ListModelMixin, GenericViewSet):
-    filter_backends: typing.ClassVar[list] = [ProjectFilterBackend]
-
     def _extract_query_params(self, request):
         return {
             'test_name': request.query_params.get('test_name'),
+            'project_id': request.query_params.get('project'),
             'from_date': request.query_params.get('from_date', ''),
             'to_date': request.query_params.get('to_date', ''),
             'run_ids': request.query_params.get('run_ids', ''),
