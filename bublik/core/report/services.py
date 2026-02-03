@@ -102,11 +102,14 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
 
 
 class ReportService:
-    '''Service for report generation operations (shared between REST API and MCP).'''
+    '''
+    Service for report generation operations (shared between REST API and MCP).
+    '''
 
     @staticmethod
     def get_run(run_id: int) -> TestIterationResult:
-        '''Get a run by ID.
+        '''
+        Get a run by ID.
 
         Args:
             run_id: The ID of the test run
@@ -125,7 +128,8 @@ class ReportService:
 
     @staticmethod
     def get_report_config(config_id: int) -> tuple[Config, dict, dict]:
-        '''Get and validate a report configuration.
+        '''
+        Get and validate a report configuration.
 
         Args:
             config_id: The ID of the report config
@@ -156,7 +160,8 @@ class ReportService:
 
     @staticmethod
     def get_configs_for_run_report(run) -> list[dict]:
-        '''Get available report configurations for a run.
+        '''
+        Get available report configurations for a run.
 
         Args:
             run: TestIterationResult instance
@@ -199,7 +204,8 @@ class ReportService:
 
     @staticmethod
     def generate_report(run_id: int, config_id: int) -> dict:
-        '''Generate full report for a run using specified config.
+        '''
+        Generate full report for a run using specified config.
 
         Args:
             run_id: The ID of the test run

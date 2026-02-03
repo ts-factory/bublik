@@ -33,8 +33,8 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         )
 
     def retrieve(self, request, pk=None):
-        r'''
-        Request: GET /api/v2/report/<run_id>?config=<config_id\>
+        '''
+        Request: GET /api/v2/report/<run_id>?config=<config_id\\>
         '''
         # Check if the config ID has been passed
         report_config_id = request.query_params.get('config')

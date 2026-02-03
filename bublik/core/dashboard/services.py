@@ -32,7 +32,8 @@ class DashboardService:
         formatting_settings: dict | None = None,
         sort_config: list | None = None,
     ) -> dict:
-        """Get dashboard data for a specific date.
+        '''
+        Get dashboard data for a specific date.
 
         Args:
             date: Date string in 'yyyy-mm-dd' format
@@ -46,7 +47,7 @@ class DashboardService:
 
         Raises:
             ValidationError: if date format is invalid or config missing
-        """
+        '''
 
         # Get dashboard header configuration (required) if not provided
         if header is None:
@@ -121,7 +122,8 @@ class DashboardService:
 
     @staticmethod
     def apply_dashboard_formatting(rows_data: list, formatting_settings: dict):
-        """Apply formatting rules to dashboard row cells.
+        '''
+        Apply formatting rules to dashboard row cells.
 
         This is a public method that validates formatting methods before applying them.
         Available formatters: 'percent'.
@@ -133,7 +135,7 @@ class DashboardService:
 
         Raises:
             ValidationError: if unknown formatting method specified
-        """
+        '''
         available_formatters = {'percent'}
 
         # Validate formatting methods
@@ -154,7 +156,8 @@ class DashboardService:
 
     @staticmethod
     def _apply_formatting(rows_data: list, formatting_settings: dict):
-        """Apply formatting rules to row cells.
+        '''
+        Apply formatting rules to row cells.
 
         Internal method that does not validate. Use apply_dashboard_formatting()
         for public access with validation.
@@ -162,7 +165,7 @@ class DashboardService:
         Args:
             rows_data: List of row dictionaries with 'row_cells' key
             formatting_settings: Dict mapping keys to formatting method names
-        """
+        '''
         for row in rows_data:
             for key, method_name in formatting_settings.items():
                 if key in row['row_cells']:
@@ -172,14 +175,15 @@ class DashboardService:
 
     @staticmethod
     def sort_dashboard_rows(rows_data: list, sort_config: list) -> None:
-        """Sort dashboard rows in-place by the configured columns.
+        '''
+        Sort dashboard rows in-place by the configured columns.
 
         Args:
             rows_data: List of row dictionaries with 'row_cells' and 'context' keys
             sort_config: List of column keys to sort by (e.g., ['start', 'total'])
 
         The rows_data list is modified in-place.
-        """
+        '''
 
         def prepare_sort_key(row: dict, key: str):
             if key == 'start':
@@ -202,11 +206,12 @@ class DashboardService:
 
     @staticmethod
     def _format_percent(data):
-        """Format a value as a percentage.
+        '''
+        Format a value as a percentage.
 
         Args:
             data: Cell data (dict or list of dicts) with 'value' key
-        """
+        '''
 
         def format_value(item):
             value = item.get('value')
@@ -222,7 +227,8 @@ class DashboardService:
 
     @staticmethod
     def prepare_row_data(run, header, project_id):
-        '''Prepare row cells data for a run.
+        '''
+        Prepare row cells data for a run.
 
         This is the single source of truth for dashboard row preparation.
         Shared between REST API DashboardViewSet and MCP tools.
@@ -275,14 +281,15 @@ class DashboardService:
 
     @staticmethod
     def get_latest_dashboard_date(project_id: int | None = None) -> str | None:
-        """Get the most recent date with dashboard data.
+        '''
+        Get the most recent date with dashboard data.
 
         Args:
             project_id: Optional project ID to filter by
 
         Returns:
             Date string in 'yyyy-mm-dd' format, or None
-        """
+        '''
 
         date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
@@ -318,7 +325,8 @@ class DashboardService:
         project_id: int | None = None,
         raise_on_error: bool = False,
     ) -> dict:
-        """Validate all dashboard configuration settings.
+        '''
+        Validate all dashboard configuration settings.
 
         Args:
             project_id: Optional project ID for per-project config
@@ -330,7 +338,7 @@ class DashboardService:
 
         Raises:
             ValidationError: if settings invalid and raise_on_error=True
-        """
+        '''
         errors = []
 
         # Get header (required setting)
@@ -435,12 +443,13 @@ class DashboardService:
 
     @staticmethod
     def get_latest_run_date(project_id: int | None = None) -> str | None:
-        """Alias for get_latest_dashboard_date() for backward compatibility.
+        '''
+        Alias for get_latest_dashboard_date() for backward compatibility.
 
         Args:
             project_id: Optional project ID to filter by
 
         Returns:
             Date string in 'yyyy-mm-dd' format, or None
-        """
+        '''
         return DashboardService.get_latest_dashboard_date(project_id)

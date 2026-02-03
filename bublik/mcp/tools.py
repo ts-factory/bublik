@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_default_date_range():
-    '''Calculate default date range: 6 months ago to today.
+    '''
+    Calculate default date range: 6 months ago to today.
 
     Returns:
         Tuple of (from_date, to_date) as ISO format strings (yyyy-mm-dd)
@@ -43,11 +44,14 @@ def get_default_date_range():
 
 
 def register_tools(mcp: FastMCP):  # noqa: C901
-    '''Register all MCP tools with the FastMCP server.'''
+    '''
+    Register all MCP tools with the FastMCP server.
+    '''
 
     @mcp.tool()
     async def get_run_details(run_id: int) -> dict:
-        '''Get detailed information about a test run.
+        '''
+        Get detailed information about a test run.
 
         Args:
             run_id: The ID of the test run
@@ -59,14 +63,15 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_run_status(run_id: int) -> str:
-        """Get the status of a test run.
+        '''
+        Get the status of a test run.
 
         Args:
             run_id: The ID of the test run
 
         Returns:
             Status string for the run (e.g., 'passed', 'failed', 'skipped')
-        """
+        '''
         return await sync_to_async(RunService.get_run_status)(run_id)
 
     @mcp.tool()
@@ -74,7 +79,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         run_id: int,
         requirements: str | None = None,
     ) -> dict:
-        '''Get statistics for a test run.
+        '''
+        Get statistics for a test run.
 
         Args:
             run_id: The ID of the test run
@@ -87,7 +93,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_run_source(run_id: int) -> str:
-        '''Get the source URL for a test run.
+        '''
+        Get the source URL for a test run.
 
         Args:
             run_id: The ID of the test run
@@ -99,7 +106,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_run_compromised(run_id: int) -> dict:
-        '''Get the compromised status of a test run.
+        '''
+        Get the compromised status of a test run.
 
         Args:
             run_id: The ID of the test run
@@ -111,7 +119,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_result_details(result_id: int) -> dict:
-        '''Get detailed information about a test result.
+        '''
+        Get detailed information about a test result.
 
         Args:
             result_id: The ID of the test result
@@ -123,7 +132,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_result_artifacts_and_verdicts(result_id: int) -> dict:
-        '''Get artifacts and verdicts for a test result.
+        '''
+        Get artifacts and verdicts for a test result.
 
         Args:
             result_id: The ID of the test result
@@ -143,7 +153,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        """List test results with filtering.
+        '''
+        List test results with filtering.
 
         Args:
             parent_id: Filter by parent package ID
@@ -158,7 +169,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with pagination metadata and result details
-        """
+        '''
         return await sync_to_async(ResultService.list_results_paginated)(
             parent_id=parent_id,
             test_name=test_name,
@@ -173,7 +184,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def list_projects() -> list[dict]:
-        '''List all available projects.
+        '''
+        List all available projects.
 
         Returns:
             List of projects with id and name
@@ -182,7 +194,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_project(project_id: int) -> dict:
-        '''Get details of a specific project.
+        '''
+        Get details of a specific project.
 
         Args:
             project_id: The ID of the project
@@ -208,7 +221,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        """List test runs with comprehensive filtering.
+        '''
+        List test runs with comprehensive filtering.
 
         Args:
             start_date: Start date in yyyy-mm-dd format (e.g., '2024-01-01')
@@ -225,7 +239,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with pagination metadata and run details
-        """
+        '''
         queryset = await sync_to_async(RunService.list_runs_queryset)(
             start_date=start_date,
             finish_date=finish_date,
@@ -250,7 +264,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        """List test runs for today.
+        '''
+        List test runs for today.
 
         Args:
             project_id: Optional project ID to filter results
@@ -259,7 +274,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with pagination metadata and today's run details
-        """
+        '''
         today = date.today().isoformat()
         queryset = await sync_to_async(RunService.list_runs_queryset)(
             start_date=today,
@@ -275,7 +290,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_latest_run_date(project_id: int | None = None) -> str | None:
-        '''Get the most recent run date.
+        '''
+        Get the most recent run date.
 
         Args:
             project_id: Optional project ID to filter by
@@ -302,7 +318,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         sort_by: str | None = None,
         validate: bool = False,
     ) -> dict:
-        """Get dashboard data for a specific date (structured format).
+        '''
+        Get dashboard data for a specific date (structured format).
 
         Returns the same format as /api/v2/dashboard/ endpoint with:
         - date: The dashboard date
@@ -322,7 +339,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Raises:
             ValidationError: if validate=True and settings are invalid
-        """
+        '''
         # Optional validation (useful for debugging config issues)
         if validate:
             await sync_to_async(DashboardService.validate_dashboard_settings)(
@@ -342,7 +359,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         project_id: int | None = None,
         sort_by: str | None = None,
     ) -> dict:
-        """Get dashboard data for today (structured format).
+        '''
+        Get dashboard data for today (structured format).
 
         If no data exists for today, returns the most recent dashboard data available.
         This matches the behavior of the REST API /api/v2/dashboard/ endpoint.
@@ -353,7 +371,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with the latest dashboard structure
-        """
+        '''
         # Get latest available date (matches REST API behavior)
         date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
             project_id=project_id,
@@ -371,7 +389,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_latest_dashboard_date(project_id: int | None = None) -> str | None:
-        '''Get the most recent date with dashboard data.
+        '''
+        Get the most recent date with dashboard data.
 
         Args:
             project_id: Optional project ID to filter by
@@ -387,7 +406,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_log_urls(result_id: int, page: int | None = None) -> dict:
-        """Get log URLs for a test result (without fetching content).
+        '''
+        Get log URLs for a test result (without fetching content).
 
         Args:
             result_id: The ID of the test result
@@ -395,7 +415,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with 'url' and 'attachments_url' keys
-        """
+        '''
         return await sync_to_async(LogService.get_json_log_urls)(
             result_id,
             page,
@@ -404,7 +424,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_log_html_url(result_id: int) -> str | None:
-        '''Get HTML log URL for a test result.
+        '''
+        Get HTML log URL for a test result.
 
         Args:
             result_id: The ID of the test result
@@ -423,7 +444,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         include_scenario: bool = True,
         max_content_length: int | None = 200,
     ) -> dict | str:
-        '''Get structured log overview with metadata and optional scenario logs.
+        '''
+        Get structured log overview with metadata and optional scenario logs.
 
         Extracts comprehensive log header information including test metadata,
         parameters, verdicts, artifacts, requirements, authors, and statistics.
@@ -472,7 +494,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         table_index: int = 0,
         max_content_length: int | None = 200,
     ) -> dict | str:
-        '''Extract and filter log lines.
+        '''
+        Extract and filter log lines.
 
         Retrieves log lines with optional range-based and content-based filtering.
         All filters are AND-combined. Supports truncating content for display.
@@ -524,7 +547,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         line_number: int,
         page: int | None = None,
     ) -> dict | str:
-        '''Get a single log line with full, untruncated content.
+        '''
+        Get a single log line with full, untruncated content.
 
         Use this tool to retrieve the complete content of a specific line
         after using get_log_lines with truncation.
@@ -570,7 +594,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_tree_path(result_id: int) -> list[int]:
-        '''Get path to a specific test result in the tree.
+        '''
+        Get path to a specific test result in the tree.
 
         Args:
             result_id: The ID of the test result
@@ -595,7 +620,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        """Get test history (linear format).
+        '''
+        Get test history (linear format).
 
         Args:
             test_name: Name of the test to get history for
@@ -611,7 +637,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with history results, counts, date range, and pagination
-        """
+        '''
         # Set default date range if not provided
         if from_date is None and to_date is None:
             from_date, to_date = get_default_date_range()
@@ -642,7 +668,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        """Get test history grouped by iteration.
+        '''
+        Get test history grouped by iteration.
 
         Args:
             test_name: Name of the test to get history for
@@ -658,7 +685,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
         Returns:
             Dictionary with grouped history results, counts, date range, and pagination
-        """
+        '''
         # Set default date range if not provided
         if from_date is None and to_date is None:
             from_date, to_date = get_default_date_range()
@@ -680,7 +707,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_run_requirements(run_id: int) -> list[str]:
-        '''Get requirements for a run.
+        '''
+        Get requirements for a run.
 
         Args:
             run_id: The ID of the test run
@@ -692,7 +720,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_run_comment(run_id: int) -> str | None:
-        '''Get comment for a run.
+        '''
+        Get comment for a run.
 
         Args:
             run_id: The ID of the test run
@@ -706,7 +735,8 @@ def register_tools(mcp: FastMCP):  # noqa: C901
 
     @mcp.tool()
     async def get_server_version() -> dict:
-        '''Get server version information.
+        '''
+        Get server version information.
 
         Returns:
             Dictionary with repository revision information

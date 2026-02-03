@@ -30,7 +30,8 @@ from bublik.data.serializers import RunCommentSerializer
 class RunService:
     @staticmethod
     def get_run(run_id: int) -> models.TestIterationResult:
-        '''Get a run by ID.
+        '''
+        Get a run by ID.
 
         Args:
             run_id: The ID of the test run
@@ -49,7 +50,8 @@ class RunService:
 
     @staticmethod
     def get_run_details(run_id: int) -> dict:
-        '''Get full details for a single run.
+        '''
+        Get full details for a single run.
 
         Args:
             run_id: The ID of the test run
@@ -62,7 +64,8 @@ class RunService:
 
     @staticmethod
     def get_run_status(run_id: int) -> str:
-        '''Get status string for a run.
+        '''
+        Get status string for a run.
 
         Args:
             run_id: The ID of the test run
@@ -75,7 +78,8 @@ class RunService:
 
     @staticmethod
     def get_run_stats(run_id: int, requirements: str | None = None) -> dict:
-        '''Get statistics for a run.
+        '''
+        Get statistics for a run.
 
         Args:
             run_id: The ID of the test run
@@ -88,7 +92,8 @@ class RunService:
 
     @staticmethod
     def get_run_source(run_id: int) -> str:
-        '''Get source URL for a run.
+        '''
+        Get source URL for a run.
 
         Args:
             run_id: The ID of the test run
@@ -101,7 +106,8 @@ class RunService:
 
     @staticmethod
     def get_run_compromised(run_id: int) -> dict:
-        '''Get compromised status for a run.
+        '''
+        Get compromised status for a run.
 
         Args:
             run_id: The ID of the test run
@@ -122,7 +128,8 @@ class RunService:
         bug_id: str | None = None,
         reference_key: str | None = None,
     ) -> dict:
-        """Mark a run as compromised.
+        '''
+        Mark a run as compromised.
 
         Args:
             run_id: The ID of the test run
@@ -135,7 +142,7 @@ class RunService:
 
         Raises:
             ValidationError: if validation fails
-        """
+        '''
         err_msg = validate_compromised_request(run_id, comment, bug_id, reference_key)
         if err_msg:
             raise ValidationError(err_msg)
@@ -148,7 +155,8 @@ class RunService:
 
     @staticmethod
     def unmark_run_compromised(run_id: int) -> dict:
-        '''Remove compromised status from a run.
+        '''
+        Remove compromised status from a run.
 
         Args:
             run_id: The ID of the test run
@@ -171,7 +179,8 @@ class RunService:
         revision_expr: str | None = None,
         branch_expr: str | None = None,
     ):
-        '''Get filtered runs queryset.
+        '''
+        Get filtered runs queryset.
 
         This provides a single source of truth for run filtering,
         shared between REST API and MCP tools.
@@ -237,7 +246,8 @@ class RunService:
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        '''List runs filtered by date range and optionally by project.
+        '''
+        List runs filtered by date range and optionally by project.
 
         Args:
             start_date: Optional start date (yyyy-mm-dd)
@@ -260,7 +270,8 @@ class RunService:
 
     @staticmethod
     def get_run_requirements(run_id: int) -> list[str]:
-        '''Get requirements for a run.
+        '''
+        Get requirements for a run.
 
         Args:
             run_id: The ID of the test run
@@ -277,7 +288,8 @@ class RunService:
 
     @staticmethod
     def get_nok_distribution(run_id: int) -> dict:
-        '''Get NOK (failure) distribution for a run.
+        '''
+        Get NOK (failure) distribution for a run.
 
         Args:
             run_id: The ID of the test run
@@ -290,7 +302,8 @@ class RunService:
 
     @staticmethod
     def get_run_comment(run_id: int) -> str | None:
-        '''Get comment for a run.
+        '''
+        Get comment for a run.
 
         Args:
             run_id: The ID of the test run
@@ -315,7 +328,8 @@ class RunService:
 
     @staticmethod
     def create_run_comment(run_id: int, content: str) -> dict:
-        '''Create or update run comment.
+        '''
+        Create or update run comment.
 
         Args:
             run_id: The ID of the test run
@@ -348,7 +362,8 @@ class RunService:
 
     @staticmethod
     def delete_run_comment(run_id: int) -> None:
-        '''Delete run comment.
+        '''
+        Delete run comment.
 
         Args:
             run_id: The ID of the test run

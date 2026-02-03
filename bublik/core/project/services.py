@@ -9,11 +9,14 @@ from bublik.data import models
 
 
 class ProjectService:
-    '''Service for project-related operations (shared between REST API and MCP).'''
+    '''
+    Service for project-related operations (shared between REST API and MCP).
+    '''
 
     @staticmethod
     def list_projects() -> list[dict]:
-        '''List all projects.
+        '''
+        List all projects.
 
         Returns:
             List of dictionaries with project id and name
@@ -22,7 +25,8 @@ class ProjectService:
 
     @staticmethod
     def get_project(project_id: int) -> dict:
-        '''Get a single project by ID.
+        '''
+        Get a single project by ID.
 
         Args:
             project_id: The ID of the project

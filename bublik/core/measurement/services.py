@@ -168,11 +168,14 @@ def get_measurement_charts(result_id):
 
 
 class MeasurementService:
-    '''Service for measurement-related operations (shared between REST API and MCP).'''
+    '''
+    Service for measurement-related operations (shared between REST API and MCP).
+    '''
 
     @staticmethod
     def list_measurements():
-        '''Get all measurements.
+        '''
+        Get all measurements.
 
         Returns:
             QuerySet of Measurement objects with prefetched metas
@@ -181,7 +184,8 @@ class MeasurementService:
 
     @staticmethod
     def get_measurement(measurement_id: int) -> Measurement:
-        '''Get a measurement by ID.
+        '''
+        Get a measurement by ID.
 
         Args:
             measurement_id: The ID of the measurement
@@ -200,7 +204,8 @@ class MeasurementService:
 
     @staticmethod
     def get_trend_charts(result_ids: list[int]) -> list:
-        '''Get measurement trend charts for multiple result IDs.
+        '''
+        Get measurement trend charts for multiple result IDs.
 
         Groups measurements by measurement_group_key and builds chart representations.
 
@@ -231,7 +236,8 @@ class MeasurementService:
 
     @staticmethod
     def get_measurements_by_result_ids(result_ids: list[int]) -> list[dict]:
-        '''Get measurements with parameters for each result ID.
+        '''
+        Get measurements with parameters for each result ID.
 
         For each result, includes:
         - run_id, result_id, start time, test_name

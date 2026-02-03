@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025-2026 OKTET Labs Ltd. All rights reserved.
 
-'''Pagination utilities for non-DRF contexts (e.g., MCP tools).'''
+'''
+Pagination utilities for non-DRF contexts (e.g., MCP tools).
+'''
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -10,7 +12,9 @@ from django.core.exceptions import ValidationError
 
 
 class PaginatedResult:
-    '''Helper to paginate querysets for non-DRF contexts (e.g., MCP tools).'''
+    '''
+    Helper to paginate querysets for non-DRF contexts (e.g., MCP tools).
+    '''
 
     @staticmethod
     def paginate_queryset(
@@ -18,7 +22,8 @@ class PaginatedResult:
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        """Apply pagination to a queryset and return paginated result.
+        '''
+        Apply pagination to a queryset and return paginated result.
 
         Args:
             queryset: Django QuerySet or list to paginate
@@ -30,7 +35,7 @@ class PaginatedResult:
 
         Raises:
             ValidationError: if page/page_size are invalid
-        """
+        '''
         default_page = 1
         default_page_size = 25
         max_page_size = 10000

@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025-2026 OKTET Labs Ltd. All rights reserved.
 
-'''Snapshot tests for LogProcessor markdown output.
+'''
+Snapshot tests for LogProcessor markdown output.
 
 This module uses syrupy for snapshot testing to verify that LogProcessor
 produces consistent markdown output across code changes.
@@ -27,14 +28,18 @@ if TYPE_CHECKING:
 
 
 class TestOverviewSnapshots:
-    '''Snapshot tests for get_overview method.'''
+    '''
+    Snapshot tests for get_overview method.
+    '''
 
     def test_overview_markdown(
         self,
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test overview markdown output without scenario lines.'''
+        '''
+        Test overview markdown output without scenario lines.
+        '''
         overview = single_processor.get_overview(include_scenario=False)
         md_content = overview.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -45,7 +50,9 @@ class TestOverviewSnapshots:
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test overview markdown output with scenario lines included.'''
+        '''
+        Test overview markdown output with scenario lines included.
+        '''
         overview = single_processor.get_overview(include_scenario=True)
         md_content = overview.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -53,14 +60,18 @@ class TestOverviewSnapshots:
 
 
 class TestLinesSnapshots:
-    '''Snapshot tests for line extraction methods.'''
+    '''
+    Snapshot tests for line extraction methods.
+    '''
 
     def test_all_lines(
         self,
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test all lines markdown output.'''
+        '''
+        Test all lines markdown output.
+        '''
         result = single_processor.get_lines(max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -71,7 +82,9 @@ class TestLinesSnapshots:
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test scenario lines markdown output.'''
+        '''
+        Test scenario lines markdown output.
+        '''
         result = single_processor.get_scenario_lines(max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -82,7 +95,9 @@ class TestLinesSnapshots:
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test line range extraction markdown output.'''
+        '''
+        Test line range extraction markdown output.
+        '''
         result = single_processor.get_lines(start_line=1, end_line=5, max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -90,14 +105,18 @@ class TestLinesSnapshots:
 
 
 class TestFilteredLinesSnapshots:
-    '''Snapshot tests for filtered line extraction.'''
+    '''
+    Snapshot tests for filtered line extraction.
+    '''
 
     def test_filter_by_error_level(
         self,
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test filtering by ERROR level.'''
+        '''
+        Test filtering by ERROR level.
+        '''
         result = single_processor.get_lines(levels=['ERROR'], max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -108,7 +127,9 @@ class TestFilteredLinesSnapshots:
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test filtering by WARN level.'''
+        '''
+        Test filtering by WARN level.
+        '''
         result = single_processor.get_lines(levels=['WARN'], max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -119,7 +140,9 @@ class TestFilteredLinesSnapshots:
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test filtering by INFO level.'''
+        '''
+        Test filtering by INFO level.
+        '''
         result = single_processor.get_lines(levels=['INFO'], max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -130,7 +153,9 @@ class TestFilteredLinesSnapshots:
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test filtering by multiple levels (ERROR and WARN).'''
+        '''
+        Test filtering by multiple levels (ERROR and WARN).
+        '''
         result = single_processor.get_lines(levels=['ERROR', 'WARN'], max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -138,14 +163,18 @@ class TestFilteredLinesSnapshots:
 
 
 class TestLogLineSnapshots:
-    '''Snapshot tests for individual LogLine formatting.'''
+    '''
+    Snapshot tests for individual LogLine formatting.
+    '''
 
     def test_lines_table_format(
         self,
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test table row format for first 5 lines.'''
+        '''
+        Test table row format for first 5 lines.
+        '''
         lines = single_processor.flat_lines[:5]
         header = '| Line | Depth | Level | Entity:User | Time | Content |'
         separator = '|------|-------|-------|-------------|------|---------|'
@@ -156,14 +185,18 @@ class TestLogLineSnapshots:
 
 
 class TestMultipleTablesSnapshots:
-    '''Snapshot tests for multiple te-log-table blocks.'''
+    '''
+    Snapshot tests for multiple te-log-table blocks.
+    '''
 
     def test_all_lines_separate_tables(
         self,
         single_processor: LogProcessor,
         snapshot_md: SnapshotAssertion,
     ):
-        '''Test that all lines render as separate tables.'''
+        '''
+        Test that all lines render as separate tables.
+        '''
         result = single_processor.get_lines(max_content_length=200)
         md_content = result.to_markdown()
         normalized = normalize_dynamic_content(md_content)
@@ -173,7 +206,9 @@ class TestMultipleTablesSnapshots:
         self,
         single_processor: LogProcessor,
     ):
-        '''Test that LogLine objects have correct table_index values.'''
+        '''
+        Test that LogLine objects have correct table_index values.
+        '''
         lines = single_processor.flat_lines
         expected_lines: int = 12
 

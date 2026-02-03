@@ -11,11 +11,14 @@ from bublik.data import models
 
 
 class TreeService:
-    '''Service for tree-related operations (shared between REST API and MCP).'''
+    '''
+    Service for tree-related operations (shared between REST API and MCP).
+    '''
 
     @staticmethod
     def get_result(result_id: int) -> models.TestIterationResult:
-        '''Get a result by ID.
+        '''
+        Get a result by ID.
 
         Args:
             result_id: The ID of the test result
@@ -34,7 +37,8 @@ class TreeService:
 
     @staticmethod
     def get_tree(run_id: int) -> dict:
-        """Get tree representation of a run.
+        '''
+        Get tree representation of a run.
 
         Args:
             run_id: The ID of the test run
@@ -44,7 +48,7 @@ class TreeService:
 
         Raises:
             ValidationError: if run not found
-        """
+        '''
         result = TreeService.get_result(run_id)
 
         # Try to get cached tree
@@ -73,7 +77,8 @@ class TreeService:
 
     @staticmethod
     def get_tree_path(result_id: int) -> list[int]:
-        '''Get path from root to a specific node.
+        '''
+        Get path from root to a specific node.
 
         Args:
             result_id: The ID of the test result

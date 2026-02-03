@@ -16,7 +16,8 @@ from bublik.data import models
 class LogService:
     @staticmethod
     def get_result(result_id: int) -> models.TestIterationResult:
-        '''Get a result by ID.
+        '''
+        Get a result by ID.
 
         Args:
             result_id: The ID of the test result
@@ -39,7 +40,8 @@ class LogService:
         page: int | None = None,
         request_origin: str | None = None,
     ) -> dict:
-        """Get JSON log and attachments URLs for a result.
+        '''
+        Get JSON log and attachments URLs for a result.
 
         Args:
             result_id: The ID of the test result
@@ -51,7 +53,7 @@ class LogService:
 
         Raises:
             ValidationError: if result not found or invalid page parameter
-        """
+        '''
         result = LogService.get_result(result_id)
         run_source_link = get_sources(result)
 
@@ -96,7 +98,8 @@ class LogService:
 
     @staticmethod
     def get_html_log_url(result_id: int) -> str | None:
-        '''Get HTML log URL for a result.
+        '''
+        Get HTML log URL for a result.
 
         Args:
             result_id: The ID of the test result
@@ -112,7 +115,8 @@ class LogService:
 
     @staticmethod
     def fetch_log_content(url: str) -> dict:
-        """Fetch JSON content from URL.
+        '''
+        Fetch JSON content from URL.
 
         Args:
             url: URL to fetch from
@@ -122,7 +126,7 @@ class LogService:
 
         Raises:
             ValidationError: if URL is missing
-        """
+        '''
         if not url:
             msg = 'URL parameter is missing'
             raise ValidationError(msg)
@@ -138,7 +142,8 @@ class LogService:
 
     @staticmethod
     def get_log_json(result_id: int, page: int | None = None) -> dict:
-        """Fetch and return actual JSON log content.
+        '''
+        Fetch and return actual JSON log content.
 
         Args:
             result_id: The ID of the test result
@@ -152,7 +157,7 @@ class LogService:
 
         Raises:
             ValidationError: if result not found or invalid parameters
-        """
+        '''
         # Get URLs (without proxy for direct fetching)
         urls = LogService.get_json_log_urls(result_id, page, request_origin=None)
 

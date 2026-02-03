@@ -162,7 +162,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return bool(not self.errors)
 
     def _extract_payload(self, processed):
-        '''Extract payload from processed handler result.
+        '''
+        Extract payload from processed handler result.
 
         Args:
             processed: Result from payload handler (list or dict)
@@ -177,7 +178,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return None
 
     def _prepare_handler_data(self, cell_data):
-        """Prepare cell data for payload handler consumption.
+        '''
+        Prepare cell data for payload handler consumption.
 
         Payload handlers expect data in specific formats (list of dicts
         or dict with 'value' key).
@@ -188,7 +190,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
         Returns:
             Normalized data structure for payload handler
-        """
+        '''
         if isinstance(cell_data, dict):
             return [cell_data]
         if isinstance(cell_data, list):
@@ -199,7 +201,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return {'value': cell_data}
 
     def _merge_payload_to_cell(self, row, key, cell_data, processed):
-        '''Merge payload from processed handler result back into cell data.
+        '''
+        Merge payload from processed handler result back into cell data.
 
         Args:
             row: Dashboard row dict
@@ -222,7 +225,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                 cell_data[0] = {'value': cell_data[0], 'payload': payload}
 
     def _apply_payload_to_dashboard_data(self, data: dict) -> None:
-        """Apply payload handlers to dashboard cell data for URL generation.
+        '''
+        Apply payload handlers to dashboard cell data for URL generation.
 
         This is a UI-specific operation that adds navigation URLs to dashboard cells.
         The payload handlers in DashboardPayload generate URLs for run details,
@@ -231,7 +235,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         Args:
             data: Dashboard data dictionary with 'rows' key containing row data.
                   Modified in-place to add payload information.
-        """
+        '''
         if not hasattr(self, 'payload') or not self.payload.handlers:
             return
 

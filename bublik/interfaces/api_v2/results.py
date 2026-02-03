@@ -33,7 +33,9 @@ class RunViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
 
     def get_queryset(self):
-        '''Delegate to RunService for consistency with MCP tools.'''
+        '''
+        Delegate to RunService for consistency with MCP tools.
+        '''
         return RunService.list_runs_queryset(
             start_date=self.request.query_params.get('start_date'),
             finish_date=self.request.query_params.get('finish_date'),
@@ -141,7 +143,9 @@ class ResultViewSet(ModelViewSet):
     filter_backends: ClassVar[list] = []
 
     def get_queryset(self):
-        '''Delegate to ResultService for consistency with MCP tools.'''
+        '''
+        Delegate to ResultService for consistency with MCP tools.
+        '''
         parent_id = self.request.query_params.get('parent_id')
         test_name = self.request.query_params.get('test_name')
         results = self.request.query_params.get('results')

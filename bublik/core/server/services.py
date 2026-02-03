@@ -10,7 +10,8 @@ class ServerService:
 
     @staticmethod
     def get_version() -> dict:
-        '''Get server version information.
+        '''
+        Get server version information.
 
         Returns:
             Dictionary with repository revision information

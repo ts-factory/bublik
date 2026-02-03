@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025-2026 OKTET Labs Ltd. All rights reserved.
 
-'''Log processor for working with validated JsonLog data.'''
+'''
+Log processor for working with validated JsonLog data.
+'''
 
 from __future__ import annotations
 
@@ -23,7 +25,8 @@ if TYPE_CHECKING:
 
 
 class LogProcessor:
-    '''Process validated JsonLog with extraction and filtering capabilities.
+    '''
+    Process validated JsonLog with extraction and filtering capabilities.
 
     This class takes a validated JsonLog Pydantic model and provides methods
     to extract overview information, filter log lines, and convert to markdown.
@@ -39,7 +42,8 @@ class LogProcessor:
     SCENARIO_USERS: ClassVar[list[str]] = ['Step', 'Artifact', 'Self', 'Verdict']
 
     def __init__(self, log: JsonLog):
-        '''Initialize LogProcessor with validated JsonLog.
+        '''
+        Initialize LogProcessor with validated JsonLog.
 
         Args:
             log: Validated JsonLog Pydantic model instance
@@ -55,7 +59,8 @@ class LogProcessor:
 
     @property
     def flat_lines(self) -> list[LogLine]:
-        '''Lazily flatten all nested log lines into a flat list.
+        '''
+        Lazily flatten all nested log lines into a flat list.
 
         Returns:
             List of LogLine instances from all log table blocks
@@ -66,7 +71,8 @@ class LogProcessor:
 
     @property
     def main_test_entity(self) -> str | None:
-        """Identify the main test entity from log lines.
+        '''
+        Identify the main test entity from log lines.
 
         The main entity is determined by (in priority order):
         1. First entity that has a user named "TAPI Jumps"
@@ -77,7 +83,7 @@ class LogProcessor:
 
         Returns:
             Main test entity name or None if no lines exist
-        """
+        '''
         if self._main_entity is None:
             if not self.flat_lines:
                 return None
@@ -101,7 +107,8 @@ class LogProcessor:
 
     @property
     def all_entity_user_pairs(self) -> list[str]:
-        '''Get all unique entity:user combinations from log lines.
+        '''
+        Get all unique entity:user combinations from log lines.
 
         Returns:
             Sorted list of "entity_name:user_name" strings
@@ -111,7 +118,8 @@ class LogProcessor:
 
     @property
     def scenario_filters(self) -> list[str]:
-        '''Get entity:user pairs for scenario filter.
+        '''
+        Get entity:user pairs for scenario filter.
 
         Scenario filter includes:
         - {main_entity}:Step
@@ -151,7 +159,8 @@ class LogProcessor:
         include_scenario: bool = True,
         max_content_length: int | None = None,
     ) -> LogOverview:
-        '''Extract full log overview with metadata from all te-log-meta blocks.
+        '''
+        Extract full log overview with metadata from all te-log-meta blocks.
 
         Args:
             include_scenario: Include scenario-related log lines in overview
@@ -288,7 +297,8 @@ class LogProcessor:
         table_index: int = 0,
         max_content_length: int | None = 1200,
     ) -> LogLinesResult:
-        '''Extract and filter lines from log.
+        '''
+        Extract and filter lines from log.
 
         Supports both range-based filtering (by line numbers) and content-based
         filtering (by levels, entities, users). All filters are AND-combined.
@@ -355,7 +365,8 @@ class LogProcessor:
         )
 
     def _add_parent_context(self, lines: list[LogLine]) -> list[LogLine]:
-        '''Add parent lines for all lines in the list.
+        '''
+        Add parent lines for all lines in the list.
 
         For each line with a parent, find and include the parent line.
         Recursively include all ancestors to maintain full context.
@@ -395,7 +406,8 @@ class LogProcessor:
         return result
 
     def get_scenario_lines(self, max_content_length: int | None = 200) -> LogLinesResult:
-        '''Get scenario-related log lines.
+        '''
+        Get scenario-related log lines.
 
         Scenario lines include: Step, Artifact, Self, Verdict from main entity,
         plus Tester:Run if present.
@@ -432,7 +444,8 @@ class LogProcessor:
         )
 
     def get_test_lines(self) -> LogLinesResult:
-        '''Get all lines from the main test entity.
+        '''
+        Get all lines from the main test entity.
 
         Returns:
             LogLinesResult containing all lines from main test entity
@@ -459,7 +472,8 @@ class LogProcessor:
     # =========================================================================
 
     def _flatten_all_lines(self) -> list[LogLine]:
-        '''Flatten all log table data into LogLine instances.
+        '''
+        Flatten all log table data into LogLine instances.
 
         Returns:
             List of LogLine instances from all log table blocks,
@@ -486,7 +500,8 @@ class LogProcessor:
         parent_line_number: int | None = None,
         table_index: int = 0,
     ) -> list[LogLine]:
-        '''Recursively flatten log table data with depth and table tracking.
+        '''
+        Recursively flatten log table data with depth and table tracking.
 
         Args:
             data: List of LogTableData instances
@@ -532,18 +547,20 @@ class LogProcessor:
         return lines
 
     def _escape_markdown_table_cell(self, text: str) -> str:
-        r'''Escape pipe characters for markdown tables.
+        '''
+        Escape pipe characters for markdown tables.
 
         Args:
             text: Text to escape
 
         Returns:
-            Escaped text with | replaced by \|
+            Escaped text with | replaced by \\|
         '''
         return str(text).replace('|', '\\|')
 
     def _format_file_block(self, content: str) -> str:
-        '''Format file content in a code block.
+        '''
+        Format file content in a code block.
 
         Args:
             content: File content string
@@ -555,7 +572,8 @@ class LogProcessor:
         return f'```\n{escaped}\n```'
 
     def _format_memory_dump_table(self, dump: list[list[str]]) -> str:
-        '''Format memory dump as a markdown table.
+        '''
+        Format memory dump as a markdown table.
 
         Args:
             dump: List of lists of strings representing rows
@@ -579,7 +597,8 @@ class LogProcessor:
         return '\n'.join(lines)
 
     def _format_sniffer_table(self, content: list[SnifferContentItem]) -> str:
-        '''Format packet sniffer content as an expanded table.
+        '''
+        Format packet sniffer content as an expanded table.
 
         Args:
             content: List of SnifferContentItem instances
@@ -605,7 +624,8 @@ class LogProcessor:
         return '\n'.join(lines)
 
     def _extract_content(self, log_content: list[LogContent]) -> str:
-        '''Extract text content from log_content blocks.
+        '''
+        Extract text content from log_content blocks.
 
         Args:
             log_content: List of content blocks
@@ -633,7 +653,8 @@ class LogProcessor:
         return '\n\n'.join(texts)
 
     def _get_content_type(self, log_content: list[LogContent]) -> str:
-        '''Determine the primary content type from log_content blocks.
+        '''
+        Determine the primary content type from log_content blocks.
 
         Args:
             log_content: List of content blocks

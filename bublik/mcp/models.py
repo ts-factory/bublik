@@ -291,7 +291,9 @@ class JsonLog(BaseModel):
 
 
 class LogLine(BaseModel):
-    '''Single log line with markdown conversion support.'''
+    '''
+    Single log line with markdown conversion support.
+    '''
 
     line_number: int
     level: str
@@ -308,7 +310,8 @@ class LogLine(BaseModel):
     table_index: int = 0  # Index of source te-log-table block
 
     def truncate_content(self, max_length: int) -> LogLine:
-        '''Create a copy with truncated content.
+        '''
+        Create a copy with truncated content.
 
         Args:
             max_length: Maximum content length
@@ -328,7 +331,8 @@ class LogLine(BaseModel):
         )
 
     def to_markdown(self, max_content_length: int | None = None) -> str:
-        '''Convert to markdown table row.
+        '''
+        Convert to markdown table row.
 
         Args:
             max_content_length: Optional max length for content truncation
@@ -357,7 +361,8 @@ class LogLine(BaseModel):
         )
 
     def to_markdown_full(self) -> str:
-        '''Convert to full markdown block with all details.
+        '''
+        Convert to full markdown block with all details.
 
         Returns:
             Full markdown representation of the log line
@@ -385,14 +390,17 @@ class LogLine(BaseModel):
 
 
 class LogLinesResult(BaseModel):
-    '''Result of line extraction/filtering with markdown support.'''
+    '''
+    Result of line extraction/filtering with markdown support.
+    '''
 
     lines: list[LogLine]
     total_count: int
     filter_applied: str | None = None  # Description of filter
 
     def to_markdown(self, max_content_length: int | None = None) -> str:
-        '''Convert to markdown table with separate tables per te-log-table block.
+        '''
+        Convert to markdown table with separate tables per te-log-table block.
 
         Args:
             max_content_length: Optional max length for content truncation
@@ -433,7 +441,8 @@ class LogLinesResult(BaseModel):
         return '\n'.join(result)
 
     def to_markdown_summary(self) -> str:
-        '''Convert to summary with counts by level.
+        '''
+        Convert to summary with counts by level.
 
         Returns:
             Markdown summary string
@@ -454,7 +463,9 @@ class LogLinesResult(BaseModel):
 
 
 class LogHeaderInfo(BaseModel):
-    '''Metadata from a single te-log-meta block.'''
+    '''
+    Metadata from a single te-log-meta block.
+    '''
 
     test_id: str
     test_name: str
@@ -476,7 +487,9 @@ class LogHeaderInfo(BaseModel):
 
 
 class LogOverview(BaseModel):
-    '''Log overview with full metadata and markdown conversion support.'''
+    '''
+    Log overview with full metadata and markdown conversion support.
+    '''
 
     # Identity (from LogEntityModel)
     test_id: str
@@ -516,7 +529,8 @@ class LogOverview(BaseModel):
     scenario_lines: list[LogLine] = Field(default_factory=list)
 
     def to_markdown(self) -> str:  # noqa: C901
-        '''Convert to full markdown document with tables.
+        '''
+        Convert to full markdown document with tables.
 
         Returns:
             Complete markdown representation of the log overview
@@ -668,7 +682,8 @@ class LogOverview(BaseModel):
         return '\n'.join(sections)
 
     def to_markdown_summary(self) -> str:
-        '''Convert to brief markdown summary.
+        '''
+        Convert to brief markdown summary.
 
         Returns:
             Brief markdown summary

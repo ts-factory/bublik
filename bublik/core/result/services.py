@@ -23,11 +23,14 @@ from bublik.data import models
 
 
 class ResultService:
-    '''Service for result-related operations (shared between REST API and MCP).'''
+    '''
+    Service for result-related operations (shared between REST API and MCP).
+    '''
 
     @staticmethod
     def get_result(result_id: int) -> models.TestIterationResult:
-        '''Get a result by ID.
+        '''
+        Get a result by ID.
 
         Args:
             result_id: The ID of the test result
@@ -47,7 +50,8 @@ class ResultService:
 
     @staticmethod
     def get_result_details(result_id: int) -> dict:
-        '''Get full details for a single result.
+        '''
+        Get full details for a single result.
 
         Args:
             result_id: The ID of the test result
@@ -62,7 +66,8 @@ class ResultService:
 
     @staticmethod
     def get_result_measurements(result_id: int) -> dict:
-        '''Get measurements for a result.
+        '''
+        Get measurements for a result.
 
         Args:
             result_id: The ID of the test result
@@ -85,7 +90,8 @@ class ResultService:
 
     @staticmethod
     def get_result_artifacts_and_verdicts(result_id: int) -> dict:
-        '''Get artifacts and verdicts for a result.
+        '''
+        Get artifacts and verdicts for a result.
 
         Args:
             result_id: The ID of the test result
@@ -107,7 +113,8 @@ class ResultService:
         result_properties: str | None = None,
         requirements: str | None = None,
     ):
-        '''List results with filtering.
+        '''
+        List results with filtering.
 
         This method provides a single source of truth for result filtering,
         shared between REST API and MCP tools.
@@ -202,7 +209,8 @@ class ResultService:
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        '''List results with filtering and pagination.
+        '''
+        List results with filtering and pagination.
 
         Args:
             parent_id: Filter by parent package ID

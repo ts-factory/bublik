@@ -24,7 +24,8 @@ EXAMPLES_DIR = TESTS_DIR / 'log_examples'
 
 
 def normalize_dynamic_content(content: str) -> str:
-    '''Normalize dynamic content for stable snapshots.
+    '''
+    Normalize dynamic content for stable snapshots.
 
     This function normalizes timestamps and other dynamic values
     to ensure snapshot comparisons are stable across runs.
@@ -53,13 +54,16 @@ def normalize_dynamic_content(content: str) -> str:
 
 
 class MarkdownSnapshotExtension(SingleFileSnapshotExtension):
-    '''Syrupy extension for markdown snapshot files.'''
+    '''
+    Syrupy extension for markdown snapshot files.
+    '''
 
     _file_extension = 'md'
     _write_mode = WriteMode.TEXT
 
     def serialize(self, data: str, **_kwargs) -> str:
-        '''Serialize data to markdown format.
+        '''
+        Serialize data to markdown format.
 
         Args:
             data: String data to serialize
@@ -72,7 +76,8 @@ class MarkdownSnapshotExtension(SingleFileSnapshotExtension):
 
 @pytest.fixture
 def snapshot_md(snapshot: SnapshotAssertion) -> SnapshotAssertion:
-    '''Fixture providing markdown snapshot assertion.
+    '''
+    Fixture providing markdown snapshot assertion.
 
     Args:
         snapshot: Base syrupy snapshot fixture
@@ -85,7 +90,8 @@ def snapshot_md(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 
 @pytest.fixture
 def single_example_log() -> JsonLog:
-    '''Load comprehensive.json for tests.
+    '''
+    Load comprehensive.json for tests.
 
     Returns:
         Validated JsonLog instance
@@ -101,7 +107,8 @@ def single_example_log() -> JsonLog:
 
 @pytest.fixture
 def single_processor(single_example_log: JsonLog) -> LogProcessor:
-    '''Create LogProcessor from comprehensive.json.
+    '''
+    Create LogProcessor from comprehensive.json.
 
     Args:
         single_example_log: Validated JsonLog instance

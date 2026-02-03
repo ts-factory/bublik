@@ -35,7 +35,9 @@ from bublik.data.models import (
 
 
 class HistoryService:
-    '''Expected number of parts when splitting key:value formatted test arguments.'''
+    '''
+    Expected number of parts when splitting key:value formatted test arguments.
+    '''
 
     EXPECTED_KEY_VALUE_PARTS = 2
 
@@ -64,7 +66,8 @@ class HistoryService:
         verdict_expr: str | None = None,
         result_types: str | None = None,
     ):
-        """Build history queryset with all filters applied.
+        '''
+        Build history queryset with all filters applied.
 
         Args:
             test_name: Name of the test
@@ -95,7 +98,7 @@ class HistoryService:
 
         Raises:
             ValidationError: if test name is invalid or no results found
-        """
+        '''
         query_delimiter = settings.QUERY_DELIMITER
         test_arg_delimiter = settings.KEY_VALUE_DELIMITER
 
@@ -165,7 +168,8 @@ class HistoryService:
 
     @staticmethod
     def _validate_test_name(test_name: str) -> list[int]:
-        '''Validate test name and return test IDs.
+        '''
+        Validate test name and return test IDs.
 
         Args:
             test_name: Name of the test to validate
@@ -200,7 +204,8 @@ class HistoryService:
         run_properties: str | None,
         query_delimiter: str,
     ) -> tuple[list[int], TestIterationResult]:
-        '''Apply run-level filters and return run IDs and filtered queryset.
+        '''
+        Apply run-level filters and return run IDs and filtered queryset.
 
         Args:
             runs_results: Base queryset of runs
@@ -276,7 +281,8 @@ class HistoryService:
         query_delimiter: str,
         test_arg_delimiter: str,
     ) -> TestIterationResult:
-        '''Apply iteration-level filters to test results.
+        '''
+        Apply iteration-level filters to test results.
 
         Args:
             test_results: Base queryset of test results
@@ -344,7 +350,8 @@ class HistoryService:
         result_types: str | None,
         query_delimiter: str,
     ) -> TestIterationResult:
-        """Apply result-level filters to test results.
+        '''
+        Apply result-level filters to test results.
 
         Args:
             test_results: Base queryset of test results
@@ -357,7 +364,7 @@ class HistoryService:
 
         Returns:
             Filtered test results queryset
-        """
+        '''
         # Filter by result statuses
         if result_statuses:
             result_meta_ids = list(
@@ -404,7 +411,8 @@ class HistoryService:
 
     @staticmethod
     def _finalize_queryset(test_results: TestIterationResult):
-        '''Apply final annotations and ordering to queryset.
+        '''
+        Apply final annotations and ordering to queryset.
 
         Args:
             test_results: Filtered queryset of test results
@@ -440,7 +448,8 @@ class HistoryService:
 
     @staticmethod
     def prepare_results_data(test_results):
-        '''Prepare results data for response.
+        '''
+        Prepare results data for response.
 
         Args:
             test_results: Queryset of test results
@@ -492,7 +501,8 @@ class HistoryService:
         page_size: int | None = None,
         **filters,
     ) -> dict:
-        '''Get test history (linear format).
+        '''
+        Get test history (linear format).
 
         Args:
             test_name: Name of the test
@@ -553,7 +563,8 @@ class HistoryService:
         page_size: int | None = None,
         **filters,
     ) -> dict:
-        '''Get test history grouped by iteration.
+        '''
+        Get test history grouped by iteration.
 
         Args:
             test_name: Name of the test

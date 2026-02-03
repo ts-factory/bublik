@@ -24,9 +24,9 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=True, methods=['get'])
     def json(self, request, pk=None):
-        r'''
+        '''
         Return the URLs of the corresponding JSON log file and attachments file.
-        Route: /api/v2/logs/<ID>/json/?page=<page\>.
+        Route: /api/v2/logs/<ID>/json/?page=<page\\>.
         '''
         page_str = request.query_params.get('page')
         page = int(page_str) if page_str else None
@@ -43,7 +43,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=True, methods=['get'])
     def html(self, request, pk=None):
-        r'''
+        '''
         Return the URL to the corresponding HTML log file.
         Route: /api/v2/logs/<ID>/html/.
         '''
@@ -59,7 +59,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=False, methods=['get'])
     def proxy(self, request):
-        r'''
+        '''
         Forward the request to the given URL and return the response data.
         Route: /api/v2/logs/proxy/?url=<forwarding_url>
         '''
