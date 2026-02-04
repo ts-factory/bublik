@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.run.compromised import (
@@ -128,7 +129,7 @@ class RunService:
         bug_id: str | None = None,
         reference_key: str | None = None,
     ) -> dict:
-        '''
+        """
         Mark a run as compromised.
 
         Args:
@@ -142,7 +143,7 @@ class RunService:
 
         Raises:
             ValidationError: if validation fails
-        '''
+        """
         err_msg = validate_compromised_request(run_id, comment, bug_id, reference_key)
         if err_msg:
             raise ValidationError(err_msg)
@@ -340,19 +341,20 @@ class RunService:
         '''
         run = RunService.get_run(run_id)
 
-        # Check if comment already exists
-        existing_comments = models.MetaResult.objects.filter(meta__type='comment', result=run)
-        if existing_comments.exists():
-            # Delete existing comments
-            existing_comments.delete()
+        with transaction.atomic():
+            existing_comments = models.MetaResult.objects.filter(
+                meta__type='comment',
+                result=run,
+            )
+            if existing_comments.exists():
+                existing_comments.delete()
 
-        # Create new comment
-        mr_serializer = serialize(
-            RunCommentSerializer,
-            data={'comment': content},
-            context={'run': run},
-        )
-        mr, _ = mr_serializer.get_or_create()
+            mr_serializer = serialize(
+                RunCommentSerializer,
+                data={'comment': content},
+                context={'run': run},
+            )
+            mr, _ = mr_serializer.get_or_create()
 
         return {
             'id': mr.id,
