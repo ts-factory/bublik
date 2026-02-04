@@ -32,28 +32,6 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         'two_days_two_columns': {'days': 2, 'columns': 2},
     }
 
-    def get_queryset(self):
-        self.payload = DashboardPayload()
-        project_id = self.request.query_params.get('project')
-        self.check_and_apply_settings(project_id)
-
-        queryset = self.filter_queryset(
-            TestIterationResult.objects.select_related('project').filter(test_run=None),
-        )
-
-        if self.date_meta:
-            return (
-                queryset.filter(
-                    meta_results__meta__name=self.date_meta,
-                    meta_results__meta__value=self.date,
-                )
-                .prefetch_related('meta_results')
-                .distinct()
-            )
-        return (
-            queryset.filter(start__date=self.date).prefetch_related('meta_results').distinct()
-        )
-
     @method_decorator(never_cache)
     def list(self, request):
         '''
