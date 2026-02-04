@@ -1,0 +1,16 @@
+### Table 0
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 4 | 0 | WARN | Test:Self | <TIME> | Optional feature X not supported, falling back to default |
+| 5 | 0 | ERROR | Test:Self | <TIME> | Failed to allocate descriptor ring: ENOMEM |
+
+---
+
+### Table 1
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 3 | 0 | ERROR | Test:Verdict | <TIME> | Test FAILED: Memory allocation failed with ENOMEM |
+
+*Filter: levels=['ERROR', 'WARN'], truncated to 200 chars | Total: 3*

@@ -1,0 +1,7 @@
+### Table 0
+
+| Line | Depth | Level | Entity:User | Time | Content |
+|------|-------|-------|-------------|------|---------|
+| 4 | 0 | WARN | Test:Self | <TIME> | Optional feature X not supported, falling back to default |
+
+*Filter: levels=['WARN'], truncated to 200 chars | Total: 1*
