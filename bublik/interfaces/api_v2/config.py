@@ -23,6 +23,10 @@ from bublik.data.serializers import ConfigSerializer
 
 
 class ConfigViewSet(ModelViewSet):
+    '''
+    API for managing system configurations.
+    '''
+
     pagination_class = None
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
