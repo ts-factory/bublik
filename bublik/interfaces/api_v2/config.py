@@ -93,10 +93,6 @@ class ConfigViewSet(ModelViewSet):
 
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
-        '''
-        Create and return a config unless another with the same name exists.
-        Request: POST api/v2/config.
-        '''
         access_token = request.COOKIES.get('access_token')
         serializer = serialize(
             self.serializer_class,
@@ -109,20 +105,6 @@ class ConfigViewSet(ModelViewSet):
 
     @auth_required(as_admin=True)
     def partial_update(self, request, *args, **kwargs):
-        '''
-        Update a configuration or create a new version.
-
-        Rules:
-        - If name is provided, the configuration and all its versions
-          are renamed.
-        - If content is not provided and description and/or is_active are provided,
-          the configuration is updated accordingly.
-        - If content is provided:
-            - and no version with the same content exists, a new version is created.
-            - and a version with the same content exists, the existing configuration is updated.
-
-        Request: PATCH api/v2/config/<ID>.
-        '''
         config = self.get_object()
 
         with transaction.atomic():
@@ -188,10 +170,6 @@ class ConfigViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='schema')
     def get_schema(self, request, *args, **kwargs):
-        '''
-        Get the JSON schema by passed config type and name.
-        Request: GET api/v2/config/get_schema/?type=<config_type>&name=<config_name>.
-        '''
         config_type = request.query_params.get('type')
         config_name = request.query_params.get('name')
         json_schema = ConfigServices.get_schema(config_type, config_name)
@@ -208,10 +186,6 @@ class ConfigViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def all_versions(self, request, *args, **kwargs):
-        '''
-        Get all versions of passed config.
-        Request: GET api/v2/config/<ID>/all_versions.
-        '''
         config = self.get_object()
         config_data = self.get_serializer(config).data
         all_config_versions = Config.objects.get_all_versions(
@@ -230,9 +204,6 @@ class ConfigViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def available_types_names(self, request):
-        '''
-        Returns a list of available configuration types and names.
-        '''
         config_type_names = [
             {
                 'type': ConfigTypes.REPORT,
@@ -257,10 +228,6 @@ class ConfigViewSet(ModelViewSet):
         return Response({'config_types_names': config_type_names})
 
     def list(self, request):
-        '''
-        Of all configurations having the same project, type and name, if there are active ones,
-        returns active ones, if there are none, returns the latest ones.
-        '''
         configs_to_display = (
             self.get_queryset()
             .order_by('project', 'type', 'name', '-is_active', '-created')
