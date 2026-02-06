@@ -75,6 +75,14 @@ class ConfigViewSet(ModelViewSet):
 
         return configs.none()
 
+    @auth_required()
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @auth_required(as_admin=True)
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
         '''
