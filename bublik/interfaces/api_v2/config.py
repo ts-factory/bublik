@@ -23,6 +23,10 @@ from bublik.data.serializers import ConfigSerializer
 
 
 class ConfigFilterSet(filters.FilterSet):
+    '''
+    Filters for configurations.
+    '''
+
     class Meta:
         model = Config
         fields: typing.ClassVar = ['type', 'name', 'is_active', 'version']
@@ -37,6 +41,10 @@ class ConfigFilterSet(filters.FilterSet):
 
 
 class ConfigViewSet(ModelViewSet):
+    '''
+    API for managing system configurations.
+    '''
+
     pagination_class = None
     queryset = Config.objects.all()
     serializer_class = ConfigSerializer
