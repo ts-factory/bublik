@@ -19,6 +19,7 @@ from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.shortcuts import serialize
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, UserRoles
 from bublik.data.serializers import ConfigSerializer
+from bublik.interfaces.api_v2_docs.config.schemas import config_viewset_schema
 
 
 class ConfigFilterSet(filters.FilterSet):
@@ -39,6 +40,7 @@ class ConfigFilterSet(filters.FilterSet):
         }
 
 
+@config_viewset_schema
 class ConfigViewSet(ModelViewSet):
     '''
     API for managing system configurations.
