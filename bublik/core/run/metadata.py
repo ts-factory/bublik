@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
-
 import json
 import os
 import shlex
 import subprocess
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, Q
 import pendulum
 
@@ -112,7 +112,7 @@ class MetaData:
                 raise ImportrunsError(message=msg)
             try:
                 self.project = Project.objects.get(name=project_meta['value'])
-            except Project.DoesNotExist as mdne:
+            except ObjectDoesNotExist as mdne:
                 msg = (
                     f'project "{project_meta["value"]}" does not exist. '
                     'Create it to import logs.'
