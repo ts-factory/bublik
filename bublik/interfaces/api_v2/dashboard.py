@@ -369,12 +369,12 @@ class DashboardPayload:
 
     handlers: typing.ClassVar['dict'] = {}
     handlers_available: typing.ClassVar['dict'] = {
-        'go_run': 'go to run details',
-        'go_run_failed': 'go to run details with failed results opened',
-        'go_tree': 'go to run tests as a tree with its logs and context',
-        'go_bug': 'go to bug in the repository',
-        'go_source': 'go to source from which the run was imported',
-        'go_report': 'go to the most recent report',
+        'go_run': 'Go to Run',
+        'go_run_failed': 'Go to Run (Preview NOK)',
+        'go_tree': 'Go to Log',
+        'go_bug': 'Go to Bug',
+        'go_source': 'Go to Run Source',
+        'go_report': 'Go to Report (Most Recent)',
     }
 
     def __call__(self, settings):
