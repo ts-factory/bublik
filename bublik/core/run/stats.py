@@ -655,7 +655,7 @@ def generate_all_run_details(run):
     q = MetaResultsQuery(run_meta_results)
 
     branches = q.metas_query('branch')
-    revisions = build_revision_references(q.metas_query('revision'), project.id)
+    revisions = build_revision_references(q.revision_related_query(), project.id)
     labels = q.labels_query(category_names, project.id)
     configurations = list(
         key_value_list_transforming(

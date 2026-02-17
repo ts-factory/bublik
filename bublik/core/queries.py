@@ -53,3 +53,6 @@ class MetaResultsQuery:
         return self.query_to_values(
             q=Q(meta__type='tag') & Q(meta__category__priority__range=(1, 3)),
         )
+
+    def revision_related_query(self):
+        return self.query_to_values(Q(meta__type__in=['revision', 'vcs-tag']))
