@@ -172,7 +172,7 @@ class RunService:
         finish_date: str | None = None,
         project_id: int | None = None,
         run_status: str | None = None,
-        run_data: str | None = None,
+        run_metas: str | None = None,
         tag_expr: str | None = None,
         label_expr: str | None = None,
         revision_expr: str | None = None,
@@ -186,7 +186,7 @@ class RunService:
             finish_date: Optional finish date filter
             project_id: Optional project ID filter
             run_status: Optional run status filter
-            run_data: Comma-separated metadata (tags, labels, revisions, branches)
+            run_metas: Comma-separated metadata (tags, labels, revisions, branches)
             tag_expr: Tag expression filter
             label_expr: Label expression filter
             revision_expr: Revision expression filter
@@ -214,9 +214,9 @@ class RunService:
 
         # Metadata filters
         meta_types = ['tag', 'label', 'revision', 'branch']
-        if run_data:
-            run_data_list = run_data.split(settings.QUERY_DELIMITER)
-            queryset = queryset.filter_by_run_metas(metas=run_data_list, meta_types=meta_types)
+        if run_metas:
+            run_metas_list = run_metas.split(settings.QUERY_DELIMITER)
+            queryset = queryset.filter_by_run_metas(metas=run_metas_list, meta_types=meta_types)
 
         # Expression filters
         for expr_type, expr_str in [
