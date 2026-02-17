@@ -4,6 +4,7 @@
 import logging
 
 from bublik.core.config.services import ConfigServices
+from bublik.data.models import ConfigTypes, GlobalConfigs
 
 
 logger = logging.getLogger('colored')
@@ -391,4 +392,59 @@ class AllowMultipleSeriesArgs(BaseReformatStep):
                     test_config_data['overlay_by'],
                 ]
         config.content = content
+        return config
+
+
+class MergeDashboardSettings(BaseReformatStep):
+    def applied(self, config, **kwargs):
+        content = config.content
+        return not any(
+            db_setting in content for db_setting in ['DASHBOARD_HEADER', 'DASHBOARD_PAYLOAD']
+        )
+
+    def reformat(self, config, **kwargs):
+        db_header = config.content.get(
+            'DASHBOARD_HEADER',
+        ) or ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'DASHBOARD_HEADER',
+            config.project,
+        )
+        db_payload = config.content.get(
+            'DASHBOARD_PAYLOAD',
+        ) or ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'DASHBOARD_PAYLOAD',
+            config.project,
+        )
+
+        schema = ConfigServices.get_schema(
+            ConfigTypes.GLOBAL,
+            GlobalConfigs.PER_CONF.name,
+        )
+        builtin_column_keys = [
+            item['const']
+            for item in schema['properties']['DASHBOARD_COLUMNS']['items']['properties']['key'][
+                'anyOf'
+            ]
+            if 'const' in item
+        ]
+
+        db_columns = []
+        for db_header_col in db_header:
+            if 'key' not in db_header_col or 'label' not in db_header_col:
+                continue
+            if db_header_col['key'] == 'progress':
+                db_header_col['formatting'] = 'percent'
+            payload = db_payload.get(db_header_col['key'])
+            if payload:
+                if payload == 'go_tree':
+                    payload = 'go_log'
+                db_header_col['payload'] = payload
+            if db_header_col['key'] not in builtin_column_keys:
+                db_header_col['key'] = db_header_col.pop('label')
+            db_columns.append(db_header_col)
+
+        config.content['DASHBOARD_COLUMNS'] = db_columns
+
         return config
