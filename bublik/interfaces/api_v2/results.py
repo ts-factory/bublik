@@ -66,7 +66,7 @@ class RunViewSet(ModelViewSet):
         start_date = self.request.query_params.get('start_date')
         finish_date = self.request.query_params.get('finish_date')
         run_status = self.request.query_params.get('run_status')
-        run_data = self.request.query_params.get('run_data')
+        run_metas = self.request.query_params.get('run_metas')
         tag_expr = {'type': 'tag', 'expr': self.request.query_params.get('tag_expr', '')}
         label_expr = {'type': 'label', 'expr': self.request.query_params.get('label_expr', '')}
         revision_expr = {
@@ -89,9 +89,9 @@ class RunViewSet(ModelViewSet):
             queryset = queryset.filter_by_run_status(run_status, project_id)
 
         # Filter by tags, metadata passed as multiple values
-        if run_data:
-            run_data = run_data.split(settings.QUERY_DELIMITER)
-            queryset = queryset.filter_by_run_metas(metas=run_data, meta_types=meta_types)
+        if run_metas:
+            run_metas = run_metas.split(settings.QUERY_DELIMITER)
+            queryset = queryset.filter_by_run_metas(metas=run_metas, meta_types=meta_types)
 
         # Filter tags, metadata by expression
         for meta_expr in [tag_expr, label_expr, revision_expr, branch_expr]:
