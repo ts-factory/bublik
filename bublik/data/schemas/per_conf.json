@@ -21,66 +21,103 @@
             },
             "uniqueItems": true
         },
-        "DASHBOARD_HEADER": {
+        "DASHBOARD_COLUMNS": {
             "description": "Sets columns on dashboard",
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "key": {
-                        "type": "string"
+                        "description": "Meta category name or built-in key",
+                        "anyOf": [
+                            {
+                                "const": "total",
+                                "description": "Total number of tests"
+                            },
+                            {
+                                "const": "total_expected",
+                                "description": "Total number of planned tests"
+                            },
+                            {
+                                "const": "progress",
+                                "description": "Ratio of executed tests to planned tests"
+                            },
+                            {
+                                "const": "unexpected",
+                                "description": "Number of tests with unexpected results"
+                            },
+                            {
+                                "type": "string",
+                                "description": "Meta category name"
+                            }
+                        ]
                     },
                     "label": {
+                        "description": "Displayed column name",
                         "type": "string"
+                    },
+                    "payload": {
+                        "description": "Sets link available by click on column values",
+                        "oneOf": [
+                            {
+                                "const": "go_run",
+                                "description": "Go to Run"
+                            },
+                            {
+                                "const": "go_run_failed",
+                                "description": "Go to Run (Preview NOK)"
+                            },
+                            {
+                                "const": "go_log",
+                                "description": "Go to Log"
+                            },
+                            {
+                                "const": "go_bug",
+                                "description": "Go to Bug"
+                            },
+                            {
+                                "const": "go_source",
+                                "description": "Go to Run Source"
+                            },
+                            {
+                                "const": "go_report",
+                                "description": "Go to Report (Most Recent)"
+                            }
+                        ]
+                    },
+                    "formatting": {
+                        "type": "string",
+                        "enum": ["percent"]
                     }
                 },
+                "required": ["key"],
                 "additionalProperties": false
             },
+            "uniqueItems": true,
             "default": [
                 {
-                    "key": "status",
-                    "label": "Status"
+                    "key": "Status"
                 },
                 {
                     "key": "total",
-                    "label": "Total"
+                    "label": "Total",
+                    "payload": "go_log"
                 },
                 {
                     "key": "unexpected",
-                    "label": "NOK"
+                    "label": "NOK",
+                    "payload": "go_run_failed"
                 },
                 {
                     "key": "progress",
-                    "label": "Progress"
+                    "label": "Progress",
+                    "formatting": "percent"
                 },
                 {
-                    "key": "notes",
-                    "label": "Notes"
+                    "key": "Notes",
+                    "payload": "go_bug"
                 }
             ]
-        },
-        "DASHBOARD_PAYLOAD": {
-            "description": "Sets link available by click on column values",
-            "type": "object",
-            "additionalProperties": {
-                "type": "string",
-                "items": {
-                    "type": "string"
-                },
-                "enum": [
-                    "go_run",
-                    "go_run_failed",
-                    "go_tree",
-                    "go_bug",
-                    "go_source",
-                    "go_report"
-                ]
-            },
-            "default": {
-                "total": "go_tree",
-                "unexpected": "go_run_failed",
-                "notes": "go_bug"
-            }
         },
         "DASHBOARD_DATE": {
             "description": "Represents the name of the meta pointing to which date the run is related to",
