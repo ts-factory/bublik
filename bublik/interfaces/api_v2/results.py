@@ -42,7 +42,7 @@ class RunViewSet(ModelViewSet):
             finish_date=query_params.get('finish_date'),
             project_id=project_id,
             run_status=query_params.get('run_status'),
-            run_data=query_params.get('run_data'),
+            run_metas=query_params.get('run_metas'),
             tag_expr=query_params.get('tag_expr'),
             label_expr=query_params.get('label_expr'),
             revision_expr=query_params.get('revision_expr'),
