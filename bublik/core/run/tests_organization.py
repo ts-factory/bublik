@@ -54,24 +54,13 @@ def get_test_by_full_path(full_test_name):
         package_entity = models.ResultType.conv('pkg')
         session_entity = models.ResultType.conv('session')
 
-        test = None
+        parent = None
         path_segments = split_test_path(full_test_name)
         for path_segment in path_segments[:-1]:
-            test = models.Test.objects.get(
+            parent = models.Test.objects.get(
                 name=path_segment,
-                parent=test,
-                result_type__in=[package_entity, session_entity],
-            )
-
-        # Try session as a part of the path several times in case of nesting session in session
-        # as session is used in UI but it's not expected and can be absent in the full test path
-        while test:
-            parent = test
-            test = get_or_none(
-                models.Test.objects,
-                name='session',
                 parent=parent,
-                result_type=session_entity,
+                result_type__in=[package_entity, session_entity],
             )
 
         return get_or_none(
