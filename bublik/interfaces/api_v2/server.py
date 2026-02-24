@@ -3,12 +3,12 @@
 
 import typing
 
-from django.conf import settings
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.server import ServerService
 from bublik.data.models import GlobalConfigs
 
 
@@ -22,7 +22,7 @@ class ServerViewSet(ViewSet):
 
     @action(detail=False, methods=['get'])
     def version(self, request):
-        data = settings.REPO_REVISIONS
+        data = ServerService.get_version()
         return Response(data=data)
 
     @action(detail=False, methods=['get'])
