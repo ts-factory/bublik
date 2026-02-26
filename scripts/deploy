@@ -100,6 +100,7 @@ define_step enable_linger            "Enable user service management (requires r
 define_step kerberos_service         "Create kerberos service"
 define_step celery_service           "Create celery service"
 define_step flower_service           "Create flower service"
+define_step mcp_service              "Create MCP service"
 define_step setup_gunicorn           "Setup gunicorn"
 define_step nginx_conf               "Create nginx configs (requires root)"
 define_step bootstrap_db             "Bootstrap bublik database"
@@ -264,6 +265,7 @@ function handle_user_services() {
     bublik-celery
     bublik-flower
     bublik-gunicorn
+    bublik-mcp
   )
 
   if [ -e ${LOGS_TICKET_SERVICE_PATH} ] ; then
@@ -335,6 +337,7 @@ function set_vars_dependent_on_options() {
   export CELERY_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-celery.service"
   export FLOWER_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-flower.service"
   export LOGS_TICKET_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-logs-ticket.service"
+  export MCP_SERVICE_PATH="${USER_SERVICES_PATH}/bublik-mcp.service"
 }
 
 function check_repo_revisions() {
@@ -493,6 +496,15 @@ function setup_gunicorn_handler() {
                      "${GUNICORN_DAEMON_SERVICE_PATH}"
     fi
   }
+}
+
+function mcp_service_handler() {
+  step "Create MCP service" &&
+  if [ ! -e "${MCP_SERVICE_PATH}" ] ||
+  step "MCP service exists. Rewrite?" ; then
+    set_up_service "${TEMPLATES_DIR}/bublik-mcp.service.template" \
+                   "${MCP_SERVICE_PATH}"
+  fi
 }
 
 function nginx_conf_handler() {

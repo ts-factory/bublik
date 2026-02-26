@@ -1,0 +1,14 @@
+[Unit]
+Description=Bublik MCP Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${BUBLIK_SRC}
+Environment=DJANGO_SETTINGS_MODULE=bublik.settings
+ExecStart=${ENV_DIR}/bin/python ${BUBLIK_SRC}/manage.py run_mcp_server --host ${BIND_HOST} --port 8001
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
