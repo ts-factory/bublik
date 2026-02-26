@@ -31,4 +31,23 @@ server {
         proxy_set_header Upgrade ${DOLLAR}http_upgrade;
         proxy_set_header Connection "upgrade";
     }
+
+    location ~ ^$URL_PREFIX/mcp(/|$) {
+        rewrite ^/bublik/(.*)${DOLLAR} /${DOLLAR}1 break;
+
+        proxy_pass http://127.0.0.1:8001;
+
+        # standard headers
+        proxy_set_header Host ${DOLLAR}host;
+        proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
+        proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
+
+        # SSE / long polling support
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_set_header Connection "";
+        proxy_set_header Accept "text/event-stream, application/json";
+        proxy_read_timeout 86400s;
+    }
 }
