@@ -88,7 +88,7 @@ class DashboardService:
         rows_data = []
         for run in runs:
             conclusion, conclusion_reason = get_run_conclusion(run)
-            row_cells = DashboardService.prepare_row_data(run, header, project_id)
+            row_cells = DashboardService.prepare_row_data(run, header)
             rows_data.append(
                 {
                     'row_cells': row_cells,
@@ -226,14 +226,13 @@ class DashboardService:
                 format_value(item)
 
     @staticmethod
-    def prepare_row_data(run, header, project_id):
+    def prepare_row_data(run, header):
         '''
         Prepare row cells data for a run.
 
         Args:
             run: TestIterationResult instance
             header: Dictionary mapping column keys to category names
-            project_id: Project ID for category filtering
 
         Returns:
             Dictionary with row cells data
