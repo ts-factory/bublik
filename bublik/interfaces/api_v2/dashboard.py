@@ -243,7 +243,6 @@ class DashboardPayload:
       style is controlled by css classes and can depend on data in rows.
     '''
 
-    handlers: typing.ClassVar['dict'] = {}
     handlers_available: typing.ClassVar['dict'] = {
         'go_run': 'Go to Run',
         'go_run_failed': 'Go to Run (Preview NOK)',
@@ -252,6 +251,11 @@ class DashboardPayload:
         'go_source': 'Go to Run Source',
         'go_report': 'Go to Report (Most Recent)',
     }
+
+    def __init__(self):
+        self.handlers = {}
+        self.description = {}
+        self.errors = []
 
     def __call__(self, settings):
         if not self.__match_settings_to_methods(settings.values()):
