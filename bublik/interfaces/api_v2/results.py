@@ -67,7 +67,7 @@ class RunViewSet(ModelViewSet):
             raise ValidationError(msg)
         kwargs = {'data_keys': keys}
         runs = self.get_queryset()
-        runs_ids = runs.values_list('id', flat=True)
+        runs_ids = list(runs.values_list('id', flat=True))
         for run in runs:
             kwargs.update({'run': run})
             RunCache.delete_data_for_obj(**kwargs)
