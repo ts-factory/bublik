@@ -34,10 +34,13 @@ class RunViewSet(ModelViewSet):
 
     def get_queryset(self):
         query_params = self.request.query_params
+        project_id = query_params.get('project')
+        project_id = int(project_id) if project_id is not None else None
+
         return RunService.list_runs_queryset(
             start_date=query_params.get('start_date'),
             finish_date=query_params.get('finish_date'),
-            project_id=query_params.get('project'),
+            project_id=project_id,
             run_status=query_params.get('run_status'),
             run_data=query_params.get('run_data'),
             tag_expr=query_params.get('tag_expr'),
