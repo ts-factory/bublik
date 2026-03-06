@@ -213,9 +213,10 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         if not hasattr(self, 'payload') or not self.payload.handlers:
             return
 
+        run_ids = [row['context']['run_id'] for row in data.get('rows', [])]
+        runs = TestIterationResult.objects.in_bulk(run_ids)
         for row in data.get('rows', []):
-            run_id = row['context']['run_id']
-            run = TestIterationResult.objects.get(id=run_id)
+            run = runs.get(row['context']['run_id'])
 
             for key in row['row_cells']:
                 if key not in self.payload.handlers or 'context' not in row:
