@@ -261,11 +261,11 @@ class DashboardService:
             # Build cells
             row_data = {}
             extended_keys = ['total', 'total_expected', 'progress', 'unexpected']
+            stats = get_run_stats(run.id)
             for key, category in header.items():
                 if key not in extended_keys:
                     row_data[key] = metabased_dict.get(category, [])
                 else:
-                    stats = get_run_stats(run.id)
                     row_data[key] = [{'value': stats.get(key, '')}]
 
         # Normalize values (unwrap single-item lists)
