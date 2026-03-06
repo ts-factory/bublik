@@ -33,16 +33,17 @@ class RunViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
 
     def get_queryset(self):
+        query_params = self.request.query_params
         return RunService.list_runs_queryset(
-            start_date=self.request.query_params.get('start_date'),
-            finish_date=self.request.query_params.get('finish_date'),
-            project_id=self.request.query_params.get('project'),
-            run_status=self.request.query_params.get('run_status'),
-            run_data=self.request.query_params.get('run_data'),
-            tag_expr=self.request.query_params.get('tag_expr'),
-            label_expr=self.request.query_params.get('label_expr'),
-            revision_expr=self.request.query_params.get('revision_expr'),
-            branch_expr=self.request.query_params.get('branch_expr'),
+            start_date=query_params.get('start_date'),
+            finish_date=query_params.get('finish_date'),
+            project_id=query_params.get('project'),
+            run_status=query_params.get('run_status'),
+            run_data=query_params.get('run_data'),
+            tag_expr=query_params.get('tag_expr'),
+            label_expr=query_params.get('label_expr'),
+            revision_expr=query_params.get('revision_expr'),
+            branch_expr=query_params.get('branch_expr'),
         )
 
     def list(self, request):
