@@ -213,9 +213,10 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         if not hasattr(self, 'payload') or not self.payload.handlers:
             return
 
+        run_ids = [row['context']['run_id'] for row in data.get('rows', [])]
+        runs = TestIterationResult.objects.in_bulk(run_ids)
         for row in data.get('rows', []):
-            run_id = row['context']['run_id']
-            run = TestIterationResult.objects.get(id=run_id)
+            run = runs.get(row['context']['run_id'])
 
             for key in row['row_cells']:
                 if key not in self.payload.handlers or 'context' not in row:
@@ -242,7 +243,6 @@ class DashboardPayload:
       style is controlled by css classes and can depend on data in rows.
     '''
 
-    handlers: typing.ClassVar['dict'] = {}
     handlers_available: typing.ClassVar['dict'] = {
         'go_run': 'Go to Run',
         'go_run_failed': 'Go to Run (Preview NOK)',
@@ -251,6 +251,11 @@ class DashboardPayload:
         'go_source': 'Go to Run Source',
         'go_report': 'Go to Report (Most Recent)',
     }
+
+    def __init__(self):
+        self.handlers = {}
+        self.description = {}
+        self.errors = []
 
     def __call__(self, settings):
         if not self.__match_settings_to_methods(settings.values()):

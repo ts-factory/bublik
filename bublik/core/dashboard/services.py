@@ -88,7 +88,7 @@ class DashboardService:
         rows_data = []
         for run in runs:
             conclusion, conclusion_reason = get_run_conclusion(run)
-            row_cells = DashboardService.prepare_row_data(run, header, project_id)
+            row_cells = DashboardService.prepare_row_data(run, header)
             rows_data.append(
                 {
                     'row_cells': row_cells,
@@ -226,14 +226,13 @@ class DashboardService:
                 format_value(item)
 
     @staticmethod
-    def prepare_row_data(run, header, project_id):
+    def prepare_row_data(run, header):
         '''
         Prepare row cells data for a run.
 
         Args:
             run: TestIterationResult instance
             header: Dictionary mapping column keys to category names
-            project_id: Project ID for category filtering
 
         Returns:
             Dictionary with row cells data
@@ -261,11 +260,11 @@ class DashboardService:
             # Build cells
             row_data = {}
             extended_keys = ['total', 'total_expected', 'progress', 'unexpected']
+            stats = get_run_stats(run.id)
             for key, category in header.items():
                 if key not in extended_keys:
                     row_data[key] = metabased_dict.get(category, [])
                 else:
-                    stats = get_run_stats(run.id)
                     row_data[key] = [{'value': stats.get(key, '')}]
 
         # Normalize values (unwrap single-item lists)
@@ -414,7 +413,7 @@ class DashboardService:
                 )
                 available_formatters = {'percent'}
                 formatting_keys = set(formatting_settings.keys())
-                diff = get_difference(formatting_keys, header_keys)
+                diff = get_difference(formatting_keys, header_keys, ignore='progress')
                 if diff:
                     errors.append(
                         "DASHBOARD_FORMATTING doesn't match DASHBOARD_HEADER, "
