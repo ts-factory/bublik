@@ -3,9 +3,7 @@
 
 import typing
 
-from django.contrib.postgres.fields import JSONField
 from django.db import transaction
-from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -20,20 +18,6 @@ from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.shortcuts import serialize
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, UserRoles
 from bublik.data.serializers import ConfigSerializer
-
-
-class ConfigFilterSet(filters.FilterSet):
-    class Meta:
-        model = Config
-        fields: typing.ClassVar = ['type', 'name', 'is_active', 'version']
-        filter_overrides: typing.ClassVar = {
-            JSONField: {
-                'filter_class': filters.CharFilter,
-                'extra': lambda f: {
-                    'lookup_expr': 'icontains',
-                },
-            },
-        }
 
 
 class ConfigViewSet(ModelViewSet):
