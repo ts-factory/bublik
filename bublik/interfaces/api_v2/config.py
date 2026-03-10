@@ -33,6 +33,15 @@ class ConfigViewSet(ModelViewSet):
     filterset_class = ConfigFilter
     filter_backends: typing.ClassVar[list] = [ProjectFilterBackend, DjangoFilterBackend]
 
+    http_method_names: typing.ClassVar[list[str]] = [
+        'get',
+        'post',
+        'patch',
+        'delete',
+        'head',
+        'options',
+    ]
+
     def get_queryset(self):
         configs = self.filter_queryset(super().get_queryset())
         access_token = self.request.COOKIES.get('access_token')
@@ -65,14 +74,6 @@ class ConfigViewSet(ModelViewSet):
                 return configs | Config.objects.filter(project__isnull=True)
 
         return configs.none()
-
-    @auth_required()
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @auth_required(as_admin=True)
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
 
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
