@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 import typing
 
 from django.db import transaction
@@ -25,6 +27,14 @@ class ConfigViewSet(ModelViewSet):
     serializer_class = ConfigSerializer
     filterset_class = ConfigFilter
     filter_backends: typing.ClassVar[list] = [ProjectFilterBackend, DjangoFilterBackend]
+    http_method_names: typing.ClassVar[list[str]] = [
+        'get',
+        'post',
+        'patch',
+        'delete',
+        'head',
+        'options',
+    ]
 
     def get_queryset(self):
         configs = self.filter_queryset(super().get_queryset())
