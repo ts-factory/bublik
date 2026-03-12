@@ -413,7 +413,7 @@ class DashboardService:
                 )
                 available_formatters = {'percent'}
                 formatting_keys = set(formatting_settings.keys())
-                diff = get_difference(formatting_keys, header_keys, ignore='progress')
+                diff = get_difference(formatting_keys, header_keys, ignore=['progress'])
                 if diff:
                     errors.append(
                         "DASHBOARD_FORMATTING doesn't match DASHBOARD_HEADER, "
