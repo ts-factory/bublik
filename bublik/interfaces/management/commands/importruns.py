@@ -31,6 +31,7 @@ from bublik.core.exceptions import (
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
+from bublik.core.importruns.utils import runtime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
@@ -41,10 +42,6 @@ from bublik.data.models import EventLog, GlobalConfigs, Project
 
 
 logger = get_task_or_server_logger()
-
-
-def runtime(start_time):
-    return (datetime.now() - start_time).total_seconds()
 
 
 def with_path_processing_events(func):

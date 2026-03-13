@@ -54,3 +54,7 @@ def measure_time(prefix: str = ''):
         return wrapper
 
     return decorator
+
+
+def runtime(start_time):
+    return (datetime.now() - start_time).total_seconds()
