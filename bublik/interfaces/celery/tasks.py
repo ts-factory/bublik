@@ -21,9 +21,10 @@ from bublik.interfaces.celery import app
 @after_task_publish.connect()
 def add_received_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = headers['id']
-    body_0_0 = body[0][0] if body[0] else None
+    args = body[0]
+    url = args[0] if args else None
     msg = ' '.join(
-        filter(None, (f'received {sender}', body_0_0, f'-- Celery task ID {task_id}')),
+        filter(None, (f'received {sender}', url, f'-- Celery task ID {task_id}')),
     )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
@@ -35,11 +36,12 @@ def add_received_import_task_event(sender=None, headers=None, body=None, **kwarg
 @task_received.connect()
 def add_started_import_task_event(sender=None, request=None, headers=None, body=None, **kwargs):
     task_id = request.id
-    args = request.args[0] if request.args else None
+    args = request.args
+    url = args[0] if args else None
     msg = ' '.join(
         filter(
             None,
-            (f'started processing {request.name}', args, f'-- Celery task ID {task_id}'),
+            (f'started processing {request.name}', url, f'-- Celery task ID {task_id}'),
         ),
     )
     create_event(
@@ -52,11 +54,12 @@ def add_started_import_task_event(sender=None, request=None, headers=None, body=
 @task_success.connect()
 def add_successful_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = sender.request.id
-    args = sender.request.args[0] if sender.request.args else None
+    args = sender.request.args
+    url = args[0] if args else None
     msg = ' '.join(
         filter(
             None,
-            (f'successful {sender.name}', args, f'-- Celery task ID {task_id}'),
+            (f'successful {sender.name}', url, f'-- Celery task ID {task_id}'),
         ),
     )
     create_event(
@@ -69,13 +72,14 @@ def add_successful_import_task_event(sender=None, headers=None, body=None, **kwa
 @task_failure.connect()
 def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = sender.request.id
-    args = sender.request.args[0] if sender.request.args else None
+    args = sender.request.args
+    url = args[0] if args else None
     msg = ' '.join(
         filter(
             None,
             (
                 f'failed {sender.name}',
-                args,
+                url,
                 f'-- Celery task ID {task_id} -- Error: {kwargs["exception"]}',
             ),
         ),
