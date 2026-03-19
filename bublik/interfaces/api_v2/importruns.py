@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from datetime import datetime
 import json
 import traceback
 
@@ -17,7 +18,7 @@ from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
 from bublik.core.importruns.source.run_traversal import schedule_runs
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import get_current_scheme_host_prefix
-from bublik.core.utils import get_local_log
+from bublik.core.utils import create_import_job, get_local_log
 from bublik.data.models import Project
 
 
@@ -38,25 +39,39 @@ class ImportrunsViewSet(ViewSet):
 
         requesting_host = get_current_scheme_host_prefix(request)
 
-        project_id = request.query_params.get('project')
-        importruns_params = {
-            'url': request.query_params.get('url'),
-            'project_name': (
-                Project.objects.get(id=project_id).name if project_id is not None else None
-            ),
-            'date_from': request.query_params.get('from'),
-            'date_to': request.query_params.get('to'),
-            'force': request.query_params.get('force'),
-        }
+        url = request.query_params.get('url')
+        import_job = create_import_job(url)
 
-        # Schedule Celery tasks
-        tasks_data = schedule_runs(
-            request=request,
-            requesting_host=requesting_host,
-            **importruns_params,
-        )
+        try:
+            project_id = request.query_params.get('project')
+            importruns_params = {
+                'url': url,
+                'project_name': (
+                    Project.objects.get(id=project_id).name if project_id is not None else None
+                ),
+                'date_from': request.query_params.get('from'),
+                'date_to': request.query_params.get('to'),
+                'force': request.query_params.get('force'),
+            }
 
-        return Response(data=tasks_data)
+            # Schedule Celery tasks
+            tasks_data = schedule_runs(
+                request=request,
+                requesting_host=requesting_host,
+                job_id=import_job.id,
+                **importruns_params,
+            )
+
+            return Response(
+                data={
+                    'job_id': import_job.id,
+                    'job_tasks_data': tasks_data,
+                },
+            )
+
+        finally:
+            import_job.finished_at = datetime.now()
+            import_job.save()
 
     @action(detail=False, methods=['get'])
     def log(self, request):

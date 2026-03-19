@@ -6,23 +6,44 @@ import os
 import subprocess
 from urllib.parse import urljoin
 
-from celery.signals import after_task_publish, task_failure, task_received, task_success
+from celery.signals import (
+    after_task_publish,
+    task_failure,
+    task_postrun,
+    task_prerun,
+    task_received,
+    task_success,
+)
 from django.core.management import call_command
 
 from bublik import settings
 from bublik.core.importruns.utils import normalize_importruns_params
 from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
-from bublik.core.utils import create_event
-from bublik.data.models import EventLog, Project, TestIterationResult
+from bublik.core.utils import create_event, get_import_job_task
+from bublik.data.models import EventLog, Project, TaskExecution, TestIterationResult
 from bublik.interfaces.celery import app
 
 
 @after_task_publish.connect()
 def add_received_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = headers['id']
+    TaskExecution.objects.update_or_create(
+        task_id=task_id,
+        defaults={
+            'status': TaskExecution.StatusChoices.RECEIVED,
+        },
+    )
+
     args = body[0]
-    url = args[1] if args else None
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_url=url,
+    )
+
     msg = ' '.join(
         filter(None, (f'received {sender}', url, f'-- Celery task ID {task_id}')),
     )
@@ -30,14 +51,23 @@ def add_received_import_task_event(sender=None, headers=None, body=None, **kwarg
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
 
 
 @task_received.connect()
 def add_started_import_task_event(sender=None, request=None, headers=None, body=None, **kwargs):
     task_id = request.id
+
     args = request.args
-    url = args[1] if args else None
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_url=url,
+    )
+
     msg = ' '.join(
         filter(
             None,
@@ -48,14 +78,34 @@ def add_started_import_task_event(sender=None, request=None, headers=None, body=
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
         msg=msg,
+        job_task_execution=job_task_execution,
+    )
+
+
+@task_prerun.connect()
+def task_started_handler(sender=None, task_id=None, **kwargs):
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.RUNNING,
+        started_at=datetime.now(),
     )
 
 
 @task_success.connect()
 def add_successful_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = sender.request.id
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.SUCCESS,
+    )
+
     args = sender.request.args
-    url = args[1] if args else None
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_url=url,
+    )
+
     msg = ' '.join(
         filter(
             None,
@@ -66,14 +116,25 @@ def add_successful_import_task_event(sender=None, headers=None, body=None, **kwa
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
 
 
 @task_failure.connect()
 def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = sender.request.id
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.FAILURE,
+    )
+
     args = sender.request.args
-    url = args[1] if args else None
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_url=url,
+    )
 
     exception = kwargs['exception']
     error_data = getattr(exception, 'message', type(exception).__name__)
@@ -91,13 +152,20 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.ERR,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
+
+
+@task_postrun.connect()
+def task_finished_handler(sender=None, task_id=None, **kwargs):
+    TaskExecution.objects.filter(task_id=task_id).update(finished_at=datetime.now())
 
 
 @app.task(bind=True, name='import')
 def importruns(
     self,
     requesting_host,
+    job_id,
     run_url,
     project_name,
     date_from,
@@ -136,6 +204,7 @@ def importruns(
         )
 
         import_run(
+            job_id=job_id,
             task_id=task_id,
             **importruns_params,
         )
