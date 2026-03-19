@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 import itertools
 import os
 from typing import TYPE_CHECKING
@@ -217,11 +218,12 @@ def get_same_key_values(test_list, key, extra_condition=None):
     return res
 
 
-def create_event(facility, severity, msg):
+def create_event(facility, severity, msg, job_task_execution):
     event = EventLog.objects.create(
         facility=facility,
         severity=severity,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
     logger.debug(
         'created Event object: '
@@ -231,6 +233,33 @@ def create_event(facility, severity, msg):
         f'severity={event.severity}, '
         f'msg={event.msg}',
     )
+
+
+def create_import_job(init_url):
+    from bublik.data.models import ImportJob
+
+    return ImportJob.objects.create(
+        name=ImportJob.NameChoices.IMPORTRUNS,
+        started_at=datetime.now(),
+        url=init_url,
+    )
+
+
+def get_import_job_task(job_id, task_id=None, run_url=None):
+    from bublik.data.models import JobTaskExecution, JobTaskExecutionResult, TaskExecution
+
+    if task_id is None:
+        return JobTaskExecution.objects.get_or_create(
+            job_id=job_id,
+            task_execution=None,
+        )[0]
+
+    task_execution = TaskExecution.objects.get_or_create(task_id=task_id)[0]
+    return JobTaskExecutionResult.objects.get_or_create(
+        job_id=job_id,
+        task_execution=task_execution,
+        defaults={'url': run_url},
+    )[0]
 
 
 def parse_number(arg_value):

@@ -19,7 +19,7 @@ from bublik.core.exceptions import (
 from bublik.core.importruns.utils import indicate_collision, runtime
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.core.url import fetch_url
-from bublik.core.utils import create_event
+from bublik.core.utils import create_event, get_import_job_task
 from bublik.data.models import EventLog
 from bublik.interfaces.celery import tasks
 
@@ -40,10 +40,14 @@ def with_path_processing_events(func):
             init_url += '/'
             options['url'] = init_url
 
+        job_id = options['job_id']
+        job_task_execution = get_import_job_task(job_id)
+
         create_event(
             facility=EventLog.FacilityChoices.IMPORTRUNS,
             severity=EventLog.SeverityChoices.INFO,
             msg=f'started processing the path {init_url}',
+            job_task_execution=job_task_execution,
         )
 
         try:
@@ -55,6 +59,7 @@ def with_path_processing_events(func):
                     f'finished processing the path {init_url} '
                     f'-- runtime: {runtime(start_time)} sec'
                 ),
+                job_task_execution=job_task_execution,
             )
             return result
         except Exception as e:
@@ -74,6 +79,7 @@ def with_path_processing_events(func):
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.ERR,
                 msg=event_msg,
+                job_task_execution=job_task_execution,
             )
 
             raise
@@ -83,13 +89,14 @@ def with_path_processing_events(func):
 
 def with_run_events(gen_func):
     @wraps(gen_func)
-    def wrapper(*args, **kwargs):
-        for run_url, error in gen_func(*args, **kwargs):
+    def wrapper(self, *args, **kwargs):
+        for run_url, error in gen_func(self, *args, **kwargs):
             if error is None:
                 create_event(
                     facility=EventLog.FacilityChoices.IMPORTRUNS,
                     severity=EventLog.SeverityChoices.INFO,
                     msg=f'discovered run {run_url}',
+                    job_task_execution=self.job_task_execution,
                 )
             else:
                 severity = (
@@ -102,6 +109,7 @@ def with_run_events(gen_func):
                     facility=EventLog.FacilityChoices.IMPORTRUNS,
                     severity=severity,
                     msg=f'skipped subpath {run_url} -- Error: {error_data}',
+                    job_task_execution=self.job_task_execution,
                 )
             yield run_url, error
 
@@ -109,9 +117,10 @@ def with_run_events(gen_func):
 
 
 class HTTPDirectoryTraverser:
-    def __init__(self, url):
+    def __init__(self, url, job_id):
         super().__init__()
         self.url = url
+        self.job_task_execution = get_import_job_task(job_id)
 
     def __find_runs(self, url):
         html = fetch_url(url, quiet_404=True)
@@ -152,10 +161,11 @@ class HTTPDirectoryTraverser:
 def schedule_runs(
     request: Request,
     requesting_host: str,
+    job_id: int,
     **importruns_params,
 ):
     tasks_data = []
-    spear = HTTPDirectoryTraverser(importruns_params.pop('url'))
+    spear = HTTPDirectoryTraverser(importruns_params.pop('url'), job_id)
 
     for run_url, error in spear.find_runs():
         if error is not None:
@@ -171,12 +181,14 @@ def schedule_runs(
 
         task_id = tasks.importruns.delay(
             requesting_host,
+            job_id,
             run_url,
             **importruns_params,
         )
         if indicate_collision(str(task_id), run_url):
             task_id = tasks.importruns.delay(
                 requesting_host,
+                job_id,
                 run_url,
                 **importruns_params,
             )
