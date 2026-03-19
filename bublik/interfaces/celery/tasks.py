@@ -22,7 +22,7 @@ from bublik.interfaces.celery import app
 def add_received_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = headers['id']
     args = body[0]
-    url = args[0] if args else None
+    url = args[1] if args else None
     msg = ' '.join(
         filter(None, (f'received {sender}', url, f'-- Celery task ID {task_id}')),
     )
@@ -37,7 +37,7 @@ def add_received_import_task_event(sender=None, headers=None, body=None, **kwarg
 def add_started_import_task_event(sender=None, request=None, headers=None, body=None, **kwargs):
     task_id = request.id
     args = request.args
-    url = args[0] if args else None
+    url = args[1] if args else None
     msg = ' '.join(
         filter(
             None,
@@ -55,7 +55,7 @@ def add_started_import_task_event(sender=None, request=None, headers=None, body=
 def add_successful_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = sender.request.id
     args = sender.request.args
-    url = args[0] if args else None
+    url = args[1] if args else None
     msg = ' '.join(
         filter(
             None,
@@ -73,7 +73,7 @@ def add_successful_import_task_event(sender=None, headers=None, body=None, **kwa
 def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs):
     task_id = sender.request.id
     args = sender.request.args
-    url = args[0] if args else None
+    url = args[1] if args else None
 
     exception = kwargs['exception']
     error_data = getattr(exception, 'message', type(exception).__name__)
@@ -97,12 +97,12 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
 @app.task(bind=True, name='import')
 def importruns(
     self,
+    requesting_host,
     param_url,
+    param_project_name,
+    param_from,
+    param_to,
     param_force,
-    param_from=None,
-    param_to=None,
-    requesting_host=None,
-    param_project_name=None,
 ):
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
