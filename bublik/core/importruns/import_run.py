@@ -25,8 +25,8 @@ from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import save_url_to_dir
-from bublik.core.utils import create_event
-from bublik.data.models import EventLog, GlobalConfigs, Project
+from bublik.core.utils import create_event, get_import_job_task
+from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, Project
 
 
 logger = get_task_or_server_logger()
@@ -35,8 +35,15 @@ logger = get_task_or_server_logger()
 def with_import_events(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+        job_id = kwargs.get('job_id')
         task_id = kwargs.get('task_id')
         run_url = kwargs.get('run_url')
+
+        job_task_execution = get_import_job_task(
+            job_id=job_id,
+            task_id=task_id,
+            run_url=run_url,
+        )
 
         task_msg = f'Celery task ID {task_id}'
         start_time = datetime.now()
@@ -45,6 +52,7 @@ def with_import_events(func):
             facility=EventLog.FacilityChoices.IMPORTRUNS,
             severity=EventLog.SeverityChoices.INFO,
             msg=f'started import {run_url} -- {task_msg}',
+            job_task_execution=job_task_execution,
         )
 
         try:
@@ -58,6 +66,7 @@ def with_import_events(func):
                     f'-- {task_msg} '
                     f'-- runtime: {runtime(start_time)} sec'
                 ),
+                job_task_execution=job_task_execution,
             )
             return run
 
@@ -72,6 +81,7 @@ def with_import_events(func):
                     f'-- Error: {re.message} '
                     f'-- runtime: {runtime(start_time)} sec'
                 ),
+                job_task_execution=job_task_execution,
             )
             return None
 
@@ -96,6 +106,7 @@ def with_import_events(func):
                     f'-- Error: {error_data} '
                     f'-- runtime: {runtime(start_time)} sec'
                 ),
+                job_task_execution=job_task_execution,
             )
             return None
 
@@ -107,6 +118,7 @@ def with_import_events(func):
 
 @with_import_events
 def import_run(
+    job_id: int,
     task_id: str,
     run_url: str,
     project_name: str | None = None,
@@ -231,6 +243,11 @@ def import_run(
             run_completed,
             force,
         )
+
+        JobTaskExecutionResult.objects.filter(
+            job_id=job_id,
+            task_execution__task_id=task_id,
+        ).update(run_id=run.id)
 
         if not created:
             msg = f'run already exists -- run_id={run.id}'
