@@ -48,21 +48,21 @@ class ImportrunsViewSet(ViewSet):
         requesting_host = get_current_scheme_host_prefix(request)
 
         task_id = tasks.importruns.delay(
+            requesting_host,
             param_url,
-            param_force,
+            param_project_name,
             param_from,
             param_to,
-            requesting_host,
-            param_project_name,
+            param_force,
         )
         if indicate_collision(str(task_id), param_url):
             task_id = tasks.importruns.delay(
+                requesting_host,
                 param_url,
-                param_force,
+                param_project_name,
                 param_from,
                 param_to,
-                requesting_host,
-                param_project_name,
+                param_force,
             )
 
         data = {
