@@ -120,17 +120,16 @@ def importruns(
             f'&force={param_force}&project_name={param_project_name}',
         )
 
-        argv = []
-        if param_from:
-            argv += ['--from', param_from]
-        if param_to:
-            argv += ['--to', param_to]
-        if param_project_name:
+        argv = [param_url, '--task_id', task_id]
+        if param_project_name is not None:
             argv += ['--project_name', param_project_name]
-        if param_force:
+        if param_from is not None:
+            argv += ['--from', param_from]
+        if param_to is not None:
+            argv += ['--to', param_to]
+        if param_force is not None:
             argv += ['--force', param_force]
 
-        argv += ['--task_id', task_id, param_url]
         cmd = ImportRunsCommand()
         parser = cmd.create_parser('manage.py', cmd.help)
 
@@ -139,8 +138,8 @@ def importruns(
 
             logger.info('importruns task started:')
             logger.info(f'[ID]:   {task_id}')
-            logger.info(f'[FROM]: {param_from}')
-            logger.info(f'[TO]:   {param_to}')
+            logger.info(f'[FROM]: {param_from or ""}')
+            logger.info(f'[TO]:   {param_to or ""}')
             logger.info(f'[URL]:  {param_url}')
             logger.info(f'[RUN]:  curl {query_url}')
 

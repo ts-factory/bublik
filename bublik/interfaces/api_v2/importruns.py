@@ -37,32 +37,31 @@ class ImportrunsViewSet(ViewSet):
         Creates a Celery task to import a session from the provided URI.
         '''
 
-        param_url = request.query_params.get('url')
-        param_from = request.query_params.get('from', '').replace('-', '.')
-        param_to = request.query_params.get('to', '').replace('-', '.')
-        param_force = request.query_params.get('force', 'false')
+        requesting_host = get_current_scheme_host_prefix(request)
 
         project_id = request.query_params.get('project')
-        param_project_name = Project.objects.get(id=project_id).name if project_id else None
-
-        requesting_host = get_current_scheme_host_prefix(request)
+        param_from_raw = request.query_params.get('from')
+        param_to_raw = request.query_params.get('to')
+        importruns_params = {
+            'param_url': request.query_params.get('url'),
+            'param_project_name': (
+                Project.objects.get(id=project_id).name if project_id is not None else None
+            ),
+            'param_from': (
+                param_from_raw.replace('-', '.') if param_from_raw is not None else None
+            ),
+            'param_to': param_to_raw.replace('-', '.') if param_to_raw is not None else None,
+            'param_force': request.query_params.get('force'),
+        }
 
         task_id = tasks.importruns.delay(
             requesting_host,
-            param_url,
-            param_project_name,
-            param_from,
-            param_to,
-            param_force,
+            **importruns_params,
         )
-        if indicate_collision(str(task_id), param_url):
+        if indicate_collision(str(task_id), importruns_params['param_url']):
             task_id = tasks.importruns.delay(
                 requesting_host,
-                param_url,
-                param_project_name,
-                param_from,
-                param_to,
-                param_force,
+                **importruns_params,
             )
 
         data = {
