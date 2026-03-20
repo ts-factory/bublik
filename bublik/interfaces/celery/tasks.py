@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from datetime import datetime
 import os
 import subprocess
 from urllib.parse import urljoin
@@ -97,7 +98,7 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
 def importruns(
     self,
     requesting_host,
-    url,
+    run_url,
     project_name,
     date_from,
     date_to,
@@ -110,12 +111,12 @@ def importruns(
     logpath = logger.handlers[0].logpath
 
     # To avoid cyclic dependency between importruns.py and this module
-    from bublik.core.importruns.source.run_traversal import schedule_runs
+    from bublik.core.importruns.import_run import import_run
 
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={date_from}&to={date_to}&url={url}'
+            f'importruns/source/?from={date_from}&to={date_to}&url={run_url}'
             f'&force={force}&project_name={project_name}',
         )
 
@@ -123,21 +124,23 @@ def importruns(
         logger.info(f'[ID]:   {task_id}')
         logger.info(f'[FROM]: {date_from or ""}')
         logger.info(f'[TO]:   {date_to or ""}')
-        logger.info(f'[URL]:  {url}')
+        logger.info(f'[URL]:  {run_url}')
         logger.info(f'[RUN]:  curl {query_url}')
 
         importruns_params = normalize_importruns_params(
-            url=url,
+            run_url=run_url,
             project_name=project_name,
             date_from=date_from,
             date_to=date_to,
             force=force,
         )
 
-        schedule_runs(
+        import_run(
             task_id=task_id,
             **importruns_params,
         )
+
+        return task_id
 
     except Exception as e:
         error_data = getattr(e, 'message', type(e).__name__)
@@ -171,7 +174,7 @@ def importruns(
                     requesting_host,
                     project_id,
                     task_id,
-                    url,
+                    run_url,
                     add_to_message,
                 )
 

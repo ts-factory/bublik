@@ -14,12 +14,11 @@ from rest_framework.viewsets import ViewSet
 
 from bublik.core.cache import RunCache
 from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
-from bublik.core.importruns.utils import indicate_collision
+from bublik.core.importruns.source.run_traversal import schedule_runs
 from bublik.core.logging import get_task_or_server_logger
-from bublik.core.shortcuts import build_absolute_uri, get_current_scheme_host_prefix
+from bublik.core.shortcuts import get_current_scheme_host_prefix
 from bublik.core.utils import get_local_log
 from bublik.data.models import Project
-from bublik.interfaces.celery import tasks
 
 
 logger = get_task_or_server_logger()
@@ -50,22 +49,14 @@ class ImportrunsViewSet(ViewSet):
             'force': request.query_params.get('force'),
         }
 
-        task_id = tasks.importruns.delay(
-            requesting_host,
+        # Schedule Celery tasks
+        tasks_data = schedule_runs(
+            request=request,
+            requesting_host=requesting_host,
             **importruns_params,
         )
-        if indicate_collision(str(task_id), importruns_params['url']):
-            task_id = tasks.importruns.delay(
-                requesting_host,
-                **importruns_params,
-            )
 
-        data = {
-            'celery_task_id': str(task_id),
-            'flower': build_absolute_uri(request, f'flower/task/{task_id}'),
-            'import_log': build_absolute_uri(request, f'importlog/{task_id}'),
-        }
-        return Response(data=data)
+        return Response(data=tasks_data)
 
     @action(detail=False, methods=['get'])
     def log(self, request):

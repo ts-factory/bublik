@@ -29,12 +29,10 @@ from bublik.core.utils import create_event
 from bublik.data.models import EventLog, GlobalConfigs, Project
 
 
-logger = get_task_or_server_logger()
-
-
 def with_import_events(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+        logger = get_task_or_server_logger()
 
         task_id = kwargs.get('task_id')
         run_url = kwargs.get('run_url')
@@ -100,6 +98,9 @@ def with_import_events(func):
             )
             return None
 
+        finally:
+            logger.info(f'completed in [{datetime.now() - start_time}]')
+
     return wrapper
 
 
@@ -112,6 +113,8 @@ def import_run(
     date_to: datetime = datetime.max,
     force: bool = False,
 ):
+    logger = get_task_or_server_logger()
+
     project = Project.objects.get(name=project_name) if project_name is not None else None
     process_dir = None
 
