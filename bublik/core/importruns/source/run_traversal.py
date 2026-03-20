@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 from datetime import datetime
 from functools import wraps
 import re
@@ -13,6 +15,7 @@ from bublik.core.exceptions import (
     RunCompromisedError,
     URLFetchError,
 )
+from bublik.core.importruns.import_run import import_run
 from bublik.core.importruns.utils import runtime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.url import fetch_url
@@ -25,7 +28,7 @@ logger = get_task_or_server_logger()
 
 def with_path_processing_events(func):
     @wraps(func)
-    def wrapper(self, *args, **options):
+    def wrapper(*args, **options):
         start_time = datetime.now()
 
         # Log URLs without a training slash are valid, but they don't pass
@@ -46,7 +49,7 @@ def with_path_processing_events(func):
 
         counter = Counter()
         try:
-            for _run_url in func(self, *args, **options):
+            for _run_url in func(*args, **options):
                 counter.increment()
         except (URLFetchError, RunCompromisedError) as e:
             # Update exception debug details with init url
@@ -124,3 +127,18 @@ class HTTPDirectoryTraverser:
 
     def find_runs(self):
         yield from self.__find_runs(self.url)
+
+
+@with_path_processing_events
+def schedule_runs(
+    task_id: str | None = None,
+    **importruns_params,
+):
+    spear = HTTPDirectoryTraverser(importruns_params.pop('url'))
+    for run_url in spear.find_runs():
+        import_run(
+            run_url=run_url,
+            **importruns_params,
+            task_id=task_id,
+        )
+        yield run_url

@@ -11,11 +11,7 @@ from bublik.core.argparse import (
     parser_type_str_or_none,
     parser_type_url,
 )
-from bublik.core.importruns.import_run import import_run
-from bublik.core.importruns.source.run_traversal import (
-    HTTPDirectoryTraverser,
-    with_path_processing_events,
-)
+from bublik.core.importruns.source.run_traversal import schedule_runs
 from bublik.data.models import Project
 
 
@@ -61,17 +57,12 @@ class Command(BaseCommand):
             help='The name of the project or None (default)',
         )
 
-    @with_path_processing_events
     def handle(self, *args, **options):
-        spear = HTTPDirectoryTraverser(options['url'])
-
-        for run_url in spear.find_runs():
-            import_run(
-                run_url=run_url,
-                project_name=options['project_name'],
-                date_from=options['from'],
-                date_to=options['to'],
-                force=options['force'],
-                task_id=options['task_id'],
-            )
-            yield run_url
+        schedule_runs(
+            url=options['url'],
+            project_name=options['project_name'],
+            date_from=options['from'],
+            date_to=options['to'],
+            force=options['force'],
+            task_id=options['task_id'],
+        )
