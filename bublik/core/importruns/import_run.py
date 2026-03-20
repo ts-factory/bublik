@@ -70,7 +70,6 @@ def with_import_events(func):
             return run
 
         except (RunOutsidePeriodError, RunAlreadyExistsError) as re:
-            logger.warning(f'{re.message}. Ignoring {run_url}')
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.WARNING,
@@ -91,11 +90,6 @@ def with_import_events(func):
             e.debug_details = debug_details
 
             error_data = getattr(e, 'message', type(e).__name__)
-            logger.error(
-                f'Importruns failed: {error_data}',
-                exc_info=e,
-            )
-
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.ERR,
