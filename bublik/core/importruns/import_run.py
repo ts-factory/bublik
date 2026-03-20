@@ -82,7 +82,7 @@ def with_import_events(func):
                 ),
                 job_task_execution=job_task_execution,
             )
-            return None
+            raise
 
         except Exception as e:
             # Update exception debug details with run source url
@@ -107,7 +107,7 @@ def with_import_events(func):
                 ),
                 job_task_execution=job_task_execution,
             )
-            return None
+            raise
 
         finally:
             logger.info(f'completed in [{datetime.now() - start_time}]')
