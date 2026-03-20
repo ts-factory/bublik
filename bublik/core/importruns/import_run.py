@@ -69,30 +69,21 @@ def with_import_events(func):
             )
             return run
 
-        except (RunOutsidePeriodError, RunAlreadyExistsError) as re:
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.WARNING,
-                msg=(
-                    f'failed import {run_url} '
-                    f'-- {task_msg} '
-                    f'-- Error: {re.message} '
-                    f'-- runtime: {runtime(start_time)} sec'
-                ),
-                job_task_execution=job_task_execution,
-            )
-            raise
-
         except Exception as e:
             # Update exception debug details with run source url
             debug_details = getattr(e, 'debug_details', [])
             debug_details.append(f'Run source URL: {run_url}')
             e.debug_details = debug_details
 
+            is_warning_error = isinstance(e, (RunOutsidePeriodError, RunAlreadyExistsError))
             error_data = getattr(e, 'message', type(e).__name__)
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=EventLog.SeverityChoices.ERR,
+                severity=(
+                    EventLog.SeverityChoices.WARNING
+                    if is_warning_error
+                    else EventLog.SeverityChoices.ERR
+                ),
                 msg=(
                     f'failed import {run_url} '
                     f'-- {task_msg} '
