@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 from functools import wraps
 import re
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -15,15 +16,16 @@ from bublik.core.exceptions import (
     RunCompromisedError,
     URLFetchError,
 )
-from bublik.core.importruns.import_run import import_run
-from bublik.core.importruns.utils import runtime
-from bublik.core.logging import get_task_or_server_logger
+from bublik.core.importruns.utils import indicate_collision, runtime
+from bublik.core.shortcuts import build_absolute_uri
 from bublik.core.url import fetch_url
-from bublik.core.utils import Counter, create_event
+from bublik.core.utils import create_event
 from bublik.data.models import EventLog
+from bublik.interfaces.celery import tasks
 
 
-logger = get_task_or_server_logger()
+if TYPE_CHECKING:
+    from rest_framework.request import Request
 
 
 def with_path_processing_events(func):
@@ -38,57 +40,70 @@ def with_path_processing_events(func):
             init_url += '/'
             options['url'] = init_url
 
-        task_id = options['task_id']
-        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
-
         create_event(
             facility=EventLog.FacilityChoices.IMPORTRUNS,
             severity=EventLog.SeverityChoices.INFO,
-            msg=f'started processing the path {init_url} -- {task_msg}',
+            msg=f'started processing the path {init_url}',
         )
 
-        counter = Counter()
         try:
-            for _run_url in func(*args, **options):
-                counter.increment()
-        except (URLFetchError, RunCompromisedError) as e:
-            # Update exception debug details with init url
-            debug_details = getattr(e, 'debug_details', [])
-            debug_details.append(f'Init URL: {init_url}')
-            e.debug_details = debug_details
-
-            event_msg = (
-                f'failed import {init_url} '
-                f'-- {task_msg} '
-                f'-- Error: {e.message} '
-                f'-- runtime: {runtime(start_time)} sec'
-            )
-
-            severity = (
-                EventLog.SeverityChoices.ERR
-                if isinstance(e, URLFetchError)
-                else EventLog.SeverityChoices.WARNING
-            )
-            logger_func = logger.error if isinstance(e, URLFetchError) else logger.warning
-            logger_func(f'Importruns failed: {e.message}. Ignoring: {init_url}', exc_info=e)
-
-            create_event(
-                facility=EventLog.FacilityChoices.IMPORTRUNS,
-                severity=severity,
-                msg=event_msg,
-            )
-        finally:
+            result = func(*args, **options)
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.INFO,
                 msg=(
                     f'finished processing the path {init_url} '
-                    f'-- {task_msg} '
-                    f'-- {counter.counter} sessions were processed '
                     f'-- runtime: {runtime(start_time)} sec'
                 ),
             )
-            logger.info(f'completed in [{datetime.now() - start_time}]')
+            return result
+        except Exception as e:
+            # Update exception debug details with init url
+            debug_details = getattr(e, 'debug_details', [])
+            debug_details.append(f'Init URL: {init_url}')
+            e.debug_details = debug_details
+
+            error_data = getattr(e, 'message', type(e).__name__)
+            event_msg = (
+                f'failed processing the path {init_url} '
+                f'-- Error: {error_data} '
+                f'-- runtime: {runtime(start_time)} sec'
+            )
+
+            create_event(
+                facility=EventLog.FacilityChoices.IMPORTRUNS,
+                severity=EventLog.SeverityChoices.ERR,
+                msg=event_msg,
+            )
+
+            raise
+
+    return wrapper
+
+
+def with_run_events(gen_func):
+    @wraps(gen_func)
+    def wrapper(*args, **kwargs):
+        for run_url, error in gen_func(*args, **kwargs):
+            if error is None:
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=EventLog.SeverityChoices.INFO,
+                    msg=f'discovered run {run_url}',
+                )
+            else:
+                severity = (
+                    EventLog.SeverityChoices.ERR
+                    if isinstance(error, URLFetchError)
+                    else EventLog.SeverityChoices.WARNING
+                )
+                error_data = getattr(error, 'message', type(error).__name__)
+                create_event(
+                    facility=EventLog.FacilityChoices.IMPORTRUNS,
+                    severity=severity,
+                    msg=f'skipped subpath {run_url} -- Error: {error_data}',
+                )
+            yield run_url, error
 
     return wrapper
 
@@ -110,7 +125,7 @@ class HTTPDirectoryTraverser:
             raise RunCompromisedError
 
         if check_run_file('meta_data.json', url):
-            yield url
+            yield url, None
             return
 
         # NOTE: the parser relies on links to directories ending with a slash "/"
@@ -123,22 +138,55 @@ class HTTPDirectoryTraverser:
             a_href = node['href'].strip()
             url_next = urljoin(url + '/', a_href)
 
-            yield from self.__find_runs(url_next)
+            try:
+                yield from self.__find_runs(url_next)
+            except Exception as e:
+                yield url_next, e
 
+    @with_run_events
     def find_runs(self):
         yield from self.__find_runs(self.url)
 
 
 @with_path_processing_events
 def schedule_runs(
-    task_id: str,
+    request: Request,
+    requesting_host: str,
     **importruns_params,
 ):
+    tasks_data = []
     spear = HTTPDirectoryTraverser(importruns_params.pop('url'))
-    for run_url in spear.find_runs():
-        import_run(
-            task_id=task_id,
-            run_url=run_url,
+
+    for run_url, error in spear.find_runs():
+        if error is not None:
+            tasks_data.append(
+                {
+                    'run_url': run_url,
+                    'celery_task_id': None,
+                    'flower': None,
+                    'import_log': None,
+                },
+            )
+            continue
+
+        task_id = tasks.importruns.delay(
+            requesting_host,
+            run_url,
             **importruns_params,
         )
-        yield run_url
+        if indicate_collision(str(task_id), run_url):
+            task_id = tasks.importruns.delay(
+                requesting_host,
+                run_url,
+                **importruns_params,
+            )
+        tasks_data.append(
+            {
+                'run_url': run_url,
+                'celery_task_id': str(task_id),
+                'flower': build_absolute_uri(request, f'flower/task/{task_id}'),
+                'import_log': build_absolute_uri(request, f'importlog/{task_id}'),
+            },
+        )
+
+    return tasks_data
