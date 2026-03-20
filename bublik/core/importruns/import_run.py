@@ -35,7 +35,6 @@ logger = get_task_or_server_logger()
 def with_import_events(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-
         task_id = kwargs.get('task_id')
         run_url = kwargs.get('run_url')
 
@@ -99,6 +98,9 @@ def with_import_events(func):
                 ),
             )
             return None
+
+        finally:
+            logger.info(f'completed in [{datetime.now() - start_time}]')
 
     return wrapper
 
