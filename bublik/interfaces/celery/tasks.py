@@ -7,7 +7,6 @@ from urllib.parse import urljoin
 
 from celery.signals import after_task_publish, task_failure, task_received, task_success
 from django.core.management import call_command
-from django.core.management.base import CommandError
 
 from bublik import settings
 from bublik.core.exceptions import ImportrunsError
@@ -111,6 +110,7 @@ def importruns(
     logpath = logger.handlers[0].logpath
 
     # To avoid cyclic dependency between importruns.py and this module
+    from bublik.core.importruns.source.run_traversal import schedule_runs
     from bublik.interfaces.management.commands.importruns import Command as ImportRunsCommand
 
     try:
@@ -144,16 +144,15 @@ def importruns(
             logger.info(f'[RUN]:  curl {query_url}')
 
             opts_dict = vars(options)
-            url = opts_dict.pop('url')
-            call_command('importruns', url, **opts_dict)
+            schedule_runs(**opts_dict)
 
             return task_id
 
-        except (SystemExit, CommandError) as exc:
+        except SystemExit as se:
             error_msg = 'invalid parameters for importruns command'
             raise ImportrunsError(
                 message=error_msg,
-            ) from exc
+            ) from se
 
     except Exception as e:
         error_data = getattr(e, 'message', type(e).__name__)
