@@ -40,17 +40,13 @@ class ImportrunsViewSet(ViewSet):
         requesting_host = get_current_scheme_host_prefix(request)
 
         project_id = request.query_params.get('project')
-        date_from_raw = request.query_params.get('from')
-        date_to_raw = request.query_params.get('to')
         importruns_params = {
             'url': request.query_params.get('url'),
             'project_name': (
                 Project.objects.get(id=project_id).name if project_id is not None else None
             ),
-            'date_from': (
-                date_from_raw.replace('-', '.') if date_from_raw is not None else None
-            ),
-            'date_to': date_to_raw.replace('-', '.') if date_to_raw is not None else None,
+            'date_from': request.query_params.get('from'),
+            'date_to': request.query_params.get('to'),
             'force': request.query_params.get('force'),
         }
 

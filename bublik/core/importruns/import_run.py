@@ -9,8 +9,6 @@ import os
 import shutil
 import tempfile
 
-import pendulum
-
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import (
@@ -114,9 +112,6 @@ def import_run(
     date_to: datetime = datetime.max,
     force: bool = False,
 ):
-    date_from = pendulum.instance(datetime.combine(date_from, datetime.min.time()))
-    date_to = pendulum.instance(datetime.combine(date_to, datetime.max.time()))
-
     project = Project.objects.get(name=project_name) if project_name is not None else None
     process_dir = None
 
