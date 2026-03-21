@@ -40,25 +40,25 @@ class ImportrunsViewSet(ViewSet):
         requesting_host = get_current_scheme_host_prefix(request)
 
         project_id = request.query_params.get('project')
-        param_from_raw = request.query_params.get('from')
-        param_to_raw = request.query_params.get('to')
+        date_from_raw = request.query_params.get('from')
+        date_to_raw = request.query_params.get('to')
         importruns_params = {
-            'param_url': request.query_params.get('url'),
-            'param_project_name': (
+            'url': request.query_params.get('url'),
+            'project_name': (
                 Project.objects.get(id=project_id).name if project_id is not None else None
             ),
-            'param_from': (
-                param_from_raw.replace('-', '.') if param_from_raw is not None else None
+            'date_from': (
+                date_from_raw.replace('-', '.') if date_from_raw is not None else None
             ),
-            'param_to': param_to_raw.replace('-', '.') if param_to_raw is not None else None,
-            'param_force': request.query_params.get('force'),
+            'date_to': date_to_raw.replace('-', '.') if date_to_raw is not None else None,
+            'force': request.query_params.get('force'),
         }
 
         task_id = tasks.importruns.delay(
             requesting_host,
             **importruns_params,
         )
-        if indicate_collision(str(task_id), importruns_params['param_url']):
+        if indicate_collision(str(task_id), importruns_params['url']):
             task_id = tasks.importruns.delay(
                 requesting_host,
                 **importruns_params,
