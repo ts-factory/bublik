@@ -98,11 +98,11 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
 def importruns(
     self,
     requesting_host,
-    param_url,
-    param_project_name,
-    param_from,
-    param_to,
-    param_force,
+    url,
+    project_name,
+    date_from,
+    date_to,
+    force,
 ):
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
@@ -116,19 +116,19 @@ def importruns(
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}'
-            f'&force={param_force}&project_name={param_project_name}',
+            f'importruns/source/?from={date_from}&to={date_to}&url={url}'
+            f'&force={force}&project_name={project_name}',
         )
 
-        argv = [param_url, '--task_id', task_id]
-        if param_project_name is not None:
-            argv += ['--project_name', param_project_name]
-        if param_from is not None:
-            argv += ['--from', param_from]
-        if param_to is not None:
-            argv += ['--to', param_to]
-        if param_force is not None:
-            argv += ['--force', param_force]
+        argv = [url, '--task_id', task_id]
+        if project_name is not None:
+            argv += ['--project_name', project_name]
+        if date_from is not None:
+            argv += ['--from', date_from]
+        if date_to is not None:
+            argv += ['--to', date_to]
+        if force is not None:
+            argv += ['--force', force]
 
         cmd = ImportRunsCommand()
         parser = cmd.create_parser('manage.py', cmd.help)
@@ -138,9 +138,9 @@ def importruns(
 
             logger.info('importruns task started:')
             logger.info(f'[ID]:   {task_id}')
-            logger.info(f'[FROM]: {param_from or ""}')
-            logger.info(f'[TO]:   {param_to or ""}')
-            logger.info(f'[URL]:  {param_url}')
+            logger.info(f'[FROM]: {date_from or ""}')
+            logger.info(f'[TO]:   {date_to or ""}')
+            logger.info(f'[URL]:  {url}')
             logger.info(f'[RUN]:  curl {query_url}')
 
             opts_dict = vars(options)
@@ -169,12 +169,12 @@ def importruns(
         add_to_message = None
 
         try:
-            errors, project_name = parse_log(
+            errors, log_project_name = parse_log(
                 r'"ERROR"',
                 r'the project name is ([^"]+)',
                 logpath,
             )
-            project_name = project_name or param_project_name
+            project_name = log_project_name or project_name
             project_id = (
                 Project.objects.filter(name=project_name).values_list('id', flat=True).first()
                 if project_name
@@ -187,7 +187,7 @@ def importruns(
                     requesting_host,
                     project_id,
                     task_id,
-                    param_url,
+                    url,
                     add_to_message,
                 )
 
