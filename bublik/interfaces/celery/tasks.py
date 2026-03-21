@@ -9,7 +9,7 @@ from celery.signals import after_task_publish, task_failure, task_received, task
 from django.core.management import call_command
 
 from bublik import settings
-from bublik.core.exceptions import ImportrunsError
+from bublik.core.importruns.utils import normalize_importruns_params
 from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event
@@ -111,7 +111,6 @@ def importruns(
 
     # To avoid cyclic dependency between importruns.py and this module
     from bublik.core.importruns.source.run_traversal import schedule_runs
-    from bublik.interfaces.management.commands.importruns import Command as ImportRunsCommand
 
     try:
         query_url = urljoin(
@@ -120,39 +119,25 @@ def importruns(
             f'&force={force}&project_name={project_name}',
         )
 
-        argv = [url, '--task_id', task_id]
-        if project_name is not None:
-            argv += ['--project_name', project_name]
-        if date_from is not None:
-            argv += ['--from', date_from]
-        if date_to is not None:
-            argv += ['--to', date_to]
-        if force is not None:
-            argv += ['--force', force]
+        logger.info('importruns task started:')
+        logger.info(f'[ID]:   {task_id}')
+        logger.info(f'[FROM]: {date_from or ""}')
+        logger.info(f'[TO]:   {date_to or ""}')
+        logger.info(f'[URL]:  {url}')
+        logger.info(f'[RUN]:  curl {query_url}')
 
-        cmd = ImportRunsCommand()
-        parser = cmd.create_parser('manage.py', cmd.help)
+        importruns_params = normalize_importruns_params(
+            url=url,
+            project_name=project_name,
+            date_from=date_from,
+            date_to=date_to,
+            force=force,
+        )
 
-        try:
-            options = parser.parse_args(argv)
-
-            logger.info('importruns task started:')
-            logger.info(f'[ID]:   {task_id}')
-            logger.info(f'[FROM]: {date_from or ""}')
-            logger.info(f'[TO]:   {date_to or ""}')
-            logger.info(f'[URL]:  {url}')
-            logger.info(f'[RUN]:  curl {query_url}')
-
-            opts_dict = vars(options)
-            schedule_runs(**opts_dict)
-
-            return task_id
-
-        except SystemExit as se:
-            error_msg = 'invalid parameters for importruns command'
-            raise ImportrunsError(
-                message=error_msg,
-            ) from se
+        schedule_runs(
+            **importruns_params,
+            task_id=task_id,
+        )
 
     except Exception as e:
         error_data = getattr(e, 'message', type(e).__name__)
