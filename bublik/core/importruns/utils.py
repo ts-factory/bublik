@@ -5,6 +5,7 @@ from argparse import ArgumentTypeError
 from datetime import datetime
 
 from django.core.files import locks
+import pendulum
 
 from bublik.core.argparse import (
     parser_type_date,
@@ -74,12 +75,22 @@ def normalize_importruns_params(
     date_to=None,
     force=None,
 ):
+    date_from = (
+        parser_type_date(date_from.replace('-', '.')) if date_from is not None else datetime.min
+    )
+    date_from = pendulum.instance(datetime.combine(date_from, datetime.min.time()))
+
+    date_to = (
+        parser_type_date(date_to.replace('-', '.')) if date_to is not None else datetime.max
+    )
+    date_to = pendulum.instance(datetime.combine(date_to, datetime.max.time()))
+
     try:
         return {
             'url': parser_type_url(url),
             'project_name': project_name,
-            'date_from': parser_type_date(date_from) if date_from is not None else datetime.min,
-            'date_to': parser_type_date(date_to) if date_to is not None else datetime.max,
+            'date_from': date_from,
+            'date_to': date_to,
             'force': parser_type_force(force) if force is not None else False,
         }
 
