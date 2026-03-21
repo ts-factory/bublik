@@ -41,7 +41,7 @@ def with_import_events(func):
         task_id = kwargs.get('task_id')
         run_url = kwargs.get('run_url')
 
-        task_msg = f'Celery task ID {task_id}' if task_id else 'No Celery task ID'
+        task_msg = f'Celery task ID {task_id}'
         start_time = datetime.now()
 
         create_event(
@@ -107,12 +107,12 @@ def with_import_events(func):
 
 @with_import_events
 def import_run(
+    task_id: str,
     run_url: str,
     project_name: str | None = None,
     date_from: datetime = datetime.min,
     date_to: datetime = datetime.max,
     force: bool = False,
-    task_id: str | None = None,
 ):
     date_from = pendulum.instance(datetime.combine(date_from, datetime.min.time()))
     date_to = pendulum.instance(datetime.combine(date_to, datetime.max.time()))
