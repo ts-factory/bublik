@@ -135,8 +135,8 @@ def importruns(
         )
 
         schedule_runs(
-            **importruns_params,
             task_id=task_id,
+            **importruns_params,
         )
 
     except Exception as e:

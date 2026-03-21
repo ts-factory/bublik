@@ -131,14 +131,14 @@ class HTTPDirectoryTraverser:
 
 @with_path_processing_events
 def schedule_runs(
-    task_id: str | None = None,
+    task_id: str,
     **importruns_params,
 ):
     spear = HTTPDirectoryTraverser(importruns_params.pop('url'))
     for run_url in spear.find_runs():
         import_run(
+            task_id=task_id,
             run_url=run_url,
             **importruns_params,
-            task_id=task_id,
         )
         yield run_url
