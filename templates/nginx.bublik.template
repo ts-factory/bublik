@@ -33,7 +33,7 @@ server {
     }
 
     location ~ ^$URL_PREFIX/mcp(/|$) {
-        rewrite ^/bublik/(.*)${DOLLAR} /${DOLLAR}1 break;
+        rewrite ^$URL_PREFIX/(.*)${DOLLAR} /${DOLLAR}1 break;
 
         proxy_pass http://127.0.0.1:8001;
 
