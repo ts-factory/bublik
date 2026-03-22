@@ -74,13 +74,16 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
     task_id = sender.request.id
     args = sender.request.args
     url = args[0] if args else None
+
+    exception = kwargs['exception']
+    error_data = getattr(exception, 'message', type(exception).__name__)
     msg = ' '.join(
         filter(
             None,
             (
                 f'failed {sender.name}',
                 url,
-                f'-- Celery task ID {task_id} -- Error: {kwargs["exception"]}',
+                f'-- Celery task ID {task_id} -- Error: {error_data}',
             ),
         ),
     )
