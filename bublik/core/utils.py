@@ -245,7 +245,7 @@ def create_import_job(init_url):
     )
 
 
-def get_import_job_task(job_id, task_id=None, run_url=None):
+def get_import_job_task(job_id, task_id=None, run_source_url=None):
     from bublik.data.models import JobTaskExecution, JobTaskExecutionResult, TaskExecution
 
     if task_id is None:
@@ -258,7 +258,7 @@ def get_import_job_task(job_id, task_id=None, run_url=None):
     return JobTaskExecutionResult.objects.get_or_create(
         job_id=job_id,
         task_execution=task_execution,
-        defaults={'url': run_url},
+        defaults={'url': run_source_url},
     )[0]
 
 

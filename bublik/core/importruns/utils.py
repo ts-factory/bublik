@@ -69,7 +69,7 @@ def runtime(start_time):
 
 
 def normalize_importruns_params(
-    run_url,
+    run_source_url,
     project_name=None,
     date_from=None,
     date_to=None,
@@ -87,7 +87,7 @@ def normalize_importruns_params(
 
     try:
         return {
-            'run_url': parser_type_url(run_url),
+            'run_source_url': parser_type_url(run_source_url),
             'project_name': project_name,
             'date_from': date_from,
             'date_to': date_to,
