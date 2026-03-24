@@ -161,7 +161,7 @@ def task_finished_handler(sender=None, task_id=None, **kwargs):
     TaskExecution.objects.filter(task_id=task_id).update(finished_at=datetime.now())
 
 
-@app.task(bind=True, name='import')
+@app.task(bind=True, name='import', acks_late=True, reject_on_worker_lost=True)
 def importruns(
     self,
     requesting_host,
