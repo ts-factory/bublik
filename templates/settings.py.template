@@ -57,6 +57,10 @@ ENABLE_JSON_LOGS_PROXY = False
 # Set to True when the deployment requires secure HTTP access
 SECURE_HTTP = False
 
+# Analytics configuration
+ANALYTICS_ENABLED = '${ANALYTICS_ENABLED}'.lower() in ('1', 'true', 'yes')
+ANALYTICS_DB_PATH = '${ANALYTICS_DB_PATH}'
+
 ALLOWED_HOSTS = ['*']
 
 # For debug panel. Note, that you might need
@@ -81,6 +85,9 @@ INSTALLED_APPS = [
     'bublik.interfaces',
     'bublik.representation',
 ]
+
+if ANALYTICS_ENABLED:
+    INSTALLED_APPS.append('bublik.analytics')
 
 if not DEBUG:
     # cache SQL queries in non-debug mode
@@ -285,6 +292,13 @@ DATABASES = {
         'PORT': '${DB_PORT}',
     },
 }
+
+if ANALYTICS_ENABLED:
+    DATABASES['analytics'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ANALYTICS_DB_PATH,
+    }
+    DATABASE_ROUTERS = ['bublik.analytics.db_router.AnalyticsRouter']
 
 
 CACHES = {

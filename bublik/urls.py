@@ -44,6 +44,11 @@ api_v2_router.register(
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
 
+if settings.ANALYTICS_ENABLED:
+    from bublik.interfaces.api_v2.analytics import AnalyticsViewSet
+
+    api_v2_router.register(r'analytics', AnalyticsViewSet, 'analytics')
+
 ### URL patterns mounting ###
 urlpatterns = [
     # Built-in

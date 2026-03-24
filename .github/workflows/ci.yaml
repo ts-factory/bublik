@@ -21,6 +21,7 @@ jobs:
             **/*.py
           files_ignore: |
             bublik/data/migrations/**
+            bublik/analytics/migrations/**
 
   format-check:
     name: Check Code Formatting
