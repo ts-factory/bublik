@@ -9,12 +9,6 @@ from bublik.core.url import get_url
 # Basic functions:
 
 
-def modify_msg(msg, run_url=None):
-    if run_url:
-        msg += f', ignoring {run_url}'
-    return msg
-
-
 def check_url(what, required=False, msg=None, logger=None):
     req = get_url(what, raise_for_status=False)
     ok_code = 200
