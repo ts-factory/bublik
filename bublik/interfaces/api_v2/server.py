@@ -3,6 +3,7 @@
 
 import typing
 
+from django.conf import settings
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
@@ -36,5 +37,13 @@ class ServerViewSet(ViewSet):
                     'TAB_TITLE_PREFIX',
                     project_id,
                 ),
+            },
+        )
+
+    @action(detail=False, methods=['get'])
+    def features(self, _request):
+        return Response(
+            {
+                'analytics_enabled': settings.ANALYTICS_ENABLED,
             },
         )
