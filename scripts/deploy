@@ -51,6 +51,10 @@ export DB_PASSWORD="bublik"
 export DB_PORT="5432"
 export DB_HOST="localhost"
 
+# Analytics
+export ANALYTICS_ENABLED="false"
+export ANALYTICS_DB_PATH="${BUBLIK_HOME}/analytics.db"
+
 # Server logs
 export BUBLIK_LOG_PREFIX="bublik-rest"
 export BUBLIK_LOGDIR="${BUBLIK_SRC}/logs"
