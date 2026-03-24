@@ -11,7 +11,7 @@ autopep8==1.4.3
 Babel==2.16.0
 beautifulsoup4==4.7.1
 billiard==4.2.2
-black==24.10.0
+black==26.3.1
 celery==5.5.3
 certifi==2024.8.30
 cffi==2.0.0
@@ -19,8 +19,8 @@ chardet==3.0.4
 click==8.1.2
 colorlog==6.9.0
 coverage==5.3
-cryptography==46.0.5
-deepdiff==8.6.1
+cryptography==46.0.7
+deepdiff==9.0.0
 Dickens==2.0.0
 django-bulk-update==2.2.0
 django-cachalot==2.8.0
@@ -30,12 +30,12 @@ django-filter==25.1
 django-redis==6.0.0
 django-six==1.0.4
 django-static-jquery==2.1.4
-Django==5.2.12
+Django==5.2.13
 djangorestframework-simplejwt
 djangorestframework==3.15.2
 drf-spectacular-sidecar==2024.11.1
 drf-spectacular==0.27.2
-fastmcp==2.14.3
+fastmcp==3.2.0
 flake8==3.9.2
 flower==2.0.1
 flynt==0.64
@@ -83,7 +83,7 @@ pytzdata==2020.1
 PyYAML==6.0.1
 redis==7.1.0
 requests-kerberos==0.15.0
-requests==2.32.4
+requests==2.33.1
 ruff
 shell==1.0.1
 six==1.16.0
@@ -95,7 +95,7 @@ sympy==1.14.0
 syrupy==5.0.0
 toml==0.10.2
 tomli
-tornado==6.5.2
+tornado==6.5.5
 treelib==1.6.1
 unify==0.5
 urllib3==2.6.3
