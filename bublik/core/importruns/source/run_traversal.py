@@ -90,12 +90,12 @@ def with_path_processing_events(func):
 def with_run_events(gen_func):
     @wraps(gen_func)
     def wrapper(self, *args, **kwargs):
-        for run_url, error in gen_func(self, *args, **kwargs):
+        for run_source_url, error in gen_func(self, *args, **kwargs):
             if error is None:
                 create_event(
                     facility=EventLog.FacilityChoices.IMPORTRUNS,
                     severity=EventLog.SeverityChoices.INFO,
-                    msg=f'discovered run {run_url}',
+                    msg=f'discovered run {run_source_url}',
                     job_task_execution=self.job_task_execution,
                 )
             else:
@@ -108,10 +108,10 @@ def with_run_events(gen_func):
                 create_event(
                     facility=EventLog.FacilityChoices.IMPORTRUNS,
                     severity=severity,
-                    msg=f'skipped subpath {run_url} -- Error: {error_data}',
+                    msg=f'skipped subpath {run_source_url} -- Error: {error_data}',
                     job_task_execution=self.job_task_execution,
                 )
-            yield run_url, error
+            yield run_source_url, error
 
     return wrapper
 
@@ -167,11 +167,11 @@ def schedule_runs(
     tasks_data = []
     spear = HTTPDirectoryTraverser(importruns_params.pop('url'), job_id)
 
-    for run_url, error in spear.find_runs():
+    for run_source_url, error in spear.find_runs():
         if error is not None:
             tasks_data.append(
                 {
-                    'run_url': run_url,
+                    'run_source_url': run_source_url,
                     'celery_task_id': None,
                     'flower': None,
                     'import_log': None,
@@ -182,19 +182,19 @@ def schedule_runs(
         task_id = tasks.importruns.delay(
             requesting_host,
             job_id,
-            run_url,
+            run_source_url,
             **importruns_params,
         )
-        if indicate_collision(str(task_id), run_url):
+        if indicate_collision(str(task_id), run_source_url):
             task_id = tasks.importruns.delay(
                 requesting_host,
                 job_id,
-                run_url,
+                run_source_url,
                 **importruns_params,
             )
         tasks_data.append(
             {
-                'run_url': run_url,
+                'run_source_url': run_source_url,
                 'celery_task_id': str(task_id),
                 'flower': build_absolute_uri(request, f'flower/task/{task_id}'),
                 'import_log': build_absolute_uri(request, f'importlog/{task_id}'),

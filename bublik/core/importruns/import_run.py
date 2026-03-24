@@ -36,12 +36,12 @@ def with_import_events(func):
 
         job_id = kwargs.get('job_id')
         task_id = kwargs.get('task_id')
-        run_url = kwargs.get('run_url')
+        run_source_url = kwargs.get('run_source_url')
 
         job_task_execution = get_import_job_task(
             job_id=job_id,
             task_id=task_id,
-            run_url=run_url,
+            run_source_url=run_source_url,
         )
 
         task_msg = f'Celery task ID {task_id}'
@@ -50,7 +50,7 @@ def with_import_events(func):
         create_event(
             facility=EventLog.FacilityChoices.IMPORTRUNS,
             severity=EventLog.SeverityChoices.INFO,
-            msg=f'started import {run_url} -- {task_msg}',
+            msg=f'started import {run_source_url} -- {task_msg}',
             job_task_execution=job_task_execution,
         )
 
@@ -60,7 +60,7 @@ def with_import_events(func):
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=EventLog.SeverityChoices.INFO,
                 msg=(
-                    f'successful import {run_url} '
+                    f'successful import {run_source_url} '
                     f'-- run_id={run.id} '
                     f'-- {task_msg} '
                     f'-- runtime: {runtime(start_time)} sec'
@@ -72,7 +72,7 @@ def with_import_events(func):
         except Exception as e:
             # Update exception debug details with run source url
             debug_details = getattr(e, 'debug_details', [])
-            debug_details.append(f'Run source URL: {run_url}')
+            debug_details.append(f'Run source URL: {run_source_url}')
             e.debug_details = debug_details
 
             is_warning_error = isinstance(e, (RunOutsidePeriodError, RunAlreadyExistsError))
@@ -85,7 +85,7 @@ def with_import_events(func):
                     else EventLog.SeverityChoices.ERR
                 ),
                 msg=(
-                    f'failed import {run_url} '
+                    f'failed import {run_source_url} '
                     f'-- {task_msg} '
                     f'-- Error: {error_data} '
                     f'-- runtime: {runtime(start_time)} sec'
@@ -104,7 +104,7 @@ def with_import_events(func):
 def import_run(
     job_id: int,
     task_id: str,
-    run_url: str,
+    run_source_url: str,
     project_name: str | None = None,
     date_from: datetime = datetime.min,
     date_to: datetime = datetime.max,
@@ -122,7 +122,7 @@ def import_run(
         logger.info(f'downloading and parsing meta_data at {process_dir=}')
 
         # Fetch meta_data.json if available
-        meta_data_saved = save_url_to_dir(run_url, process_dir, 'meta_data.json')
+        meta_data_saved = save_url_to_dir(run_source_url, process_dir, 'meta_data.json')
 
         # Fetch available logs, convert and load JSON log
         log_files = [
@@ -133,13 +133,15 @@ def import_run(
             'raw_log_bundle.tpxz',
         ]
         log_file = next(
-            (f for f in log_files if save_url_to_dir(run_url, process_dir, f)),
+            (f for f in log_files if save_url_to_dir(run_source_url, process_dir, f)),
             None,
         )
         if log_file:
             args = (process_dir, log_file) if log_file == 'bublik.json' else (process_dir,)
             json_data = JSONLog().convert_from_dir(*args)
-            logger.info(f'run logs were downloaded from {os.path.join(run_url, log_file)}')
+            logger.info(
+                f'run logs were downloaded from {os.path.join(run_source_url, log_file)}',
+            )
         else:
             json_data = None
             logger.warning('no logs were downloaded')
@@ -166,7 +168,7 @@ def import_run(
                 project_id=project.id,
             )
             for filename in files_to_try:
-                filename_saved = save_url_to_dir(run_url, process_dir, filename)
+                filename_saved = save_url_to_dir(run_source_url, process_dir, filename)
                 if filename_saved:
                     logger.info(f'Save {filename} for generating metadata')
 
@@ -177,8 +179,8 @@ def import_run(
         logger.info(f'the project name is {project.name}')
 
         # Extract logs base
-        logger.info('downloading run logs: %s', run_url)
-        logs_base, suffix_url = extract_logs_base(run_url, project.id)
+        logger.info('downloading run logs: %s', run_source_url)
+        logs_base, suffix_url = extract_logs_base(run_source_url, project.id)
         if not suffix_url:
             error_msg = (
                 'run URL doesn\'t match any of the logs bases URIs specified '
@@ -214,7 +216,7 @@ def import_run(
                     'RUN_COMPLETE_FILE',
                     project.id,
                 ),
-                run_url,
+                run_source_url,
                 logger,
             )
         else:

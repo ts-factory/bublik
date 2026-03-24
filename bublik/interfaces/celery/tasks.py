@@ -41,7 +41,7 @@ def add_received_import_task_event(sender=None, headers=None, body=None, **kwarg
     job_task_execution = get_import_job_task(
         job_id=job_id,
         task_id=task_id,
-        run_url=url,
+        run_source_url=url,
     )
 
     msg = ' '.join(
@@ -65,7 +65,7 @@ def add_started_import_task_event(sender=None, request=None, headers=None, body=
     job_task_execution = get_import_job_task(
         job_id=job_id,
         task_id=task_id,
-        run_url=url,
+        run_source_url=url,
     )
 
     msg = ' '.join(
@@ -103,7 +103,7 @@ def add_successful_import_task_event(sender=None, headers=None, body=None, **kwa
     job_task_execution = get_import_job_task(
         job_id=job_id,
         task_id=task_id,
-        run_url=url,
+        run_source_url=url,
     )
 
     msg = ' '.join(
@@ -133,7 +133,7 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
     job_task_execution = get_import_job_task(
         job_id=job_id,
         task_id=task_id,
-        run_url=url,
+        run_source_url=url,
     )
 
     exception = kwargs['exception']
@@ -166,7 +166,7 @@ def importruns(
     self,
     requesting_host,
     job_id,
-    run_url,
+    run_source_url,
     project_name,
     date_from,
     date_to,
@@ -184,7 +184,7 @@ def importruns(
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={date_from}&to={date_to}&url={run_url}'
+            f'importruns/source/?from={date_from}&to={date_to}&url={run_source_url}'
             f'&force={force}&project_name={project_name}',
         )
 
@@ -192,11 +192,11 @@ def importruns(
         logger.info(f'[ID]:   {task_id}')
         logger.info(f'[FROM]: {date_from or ""}')
         logger.info(f'[TO]:   {date_to or ""}')
-        logger.info(f'[URL]:  {run_url}')
+        logger.info(f'[URL]:  {run_source_url}')
         logger.info(f'[RUN]:  curl {query_url}')
 
         importruns_params = normalize_importruns_params(
-            run_url=run_url,
+            run_source_url=run_source_url,
             project_name=project_name,
             date_from=date_from,
             date_to=date_to,
@@ -243,7 +243,7 @@ def importruns(
                     requesting_host,
                     project_id,
                     task_id,
-                    run_url,
+                    run_source_url,
                     add_to_message,
                 )
 
