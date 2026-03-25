@@ -66,6 +66,7 @@ pip-tools
 pipdeptree==2.2.1
 pre-commit==3.3.2
 psycopg2-binary==2.9.10
+py-key-value-aio[disk]==0.4.4
 pycodestyle==2.7.0
 pycparser==2.19
 pydot==2.0.0
