@@ -54,8 +54,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         data = DashboardService.get_dashboard_data(
             date,
             project_id,
-            header=self.header,
-            formatting_settings=self.formatting_settings,
+            columns=self.columns,
             sort_config=self.sort,
         )
 
@@ -92,12 +91,12 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             return False
 
         # Load settings (now known to be valid)
-        header = ConfigServices.getattr_from_global(
+        columns_config = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
-            'DASHBOARD_HEADER',
+            'DASHBOARD_COLUMNS',
             project_id,
         )
-        self.header = {item['key']: item['label'] for item in header}
+        self.columns = {item.pop('key'): item for item in columns_config}
         self.date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
@@ -116,21 +115,9 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             project_id,
             default=['start'],
         )
-        self.payload_settings = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'DASHBOARD_PAYLOAD',
-            project_id,
-            default={},
-        )
-        self.formatting_settings = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'DASHBOARD_FORMATTING',
-            project_id,
-            default={'progress': 'percent'},
-        )
 
         # Initialize payload (remains in ViewSet - UI-specific)
-        self.payload(self.payload_settings)
+        self.payload(self.columns)
         self.errors = self.payload.errors
 
         return bool(not self.errors)
@@ -246,7 +233,7 @@ class DashboardPayload:
     handlers_available: typing.ClassVar['dict'] = {
         'go_run': 'Go to Run',
         'go_run_failed': 'Go to Run (Preview NOK)',
-        'go_tree': 'Go to Log',
+        'go_log': 'Go to Log',
         'go_bug': 'Go to Bug',
         'go_source': 'Go to Run Source',
         'go_report': 'Go to Report (Most Recent)',
@@ -257,31 +244,36 @@ class DashboardPayload:
         self.description = {}
         self.errors = []
 
-    def __call__(self, settings):
-        if not self.__match_settings_to_methods(settings.values()):
+    def __call__(self, columns):
+        if not self.__match_settings_to_methods(columns):
             return self.errors
 
-        self.__prepare_handlers(settings)
-        self.__prepare_payload_description(settings)
+        self.__prepare_handlers(columns)
+        self.__prepare_payload_description(columns)
 
         return self
 
-    def __match_settings_to_methods(self, settings):
+    def __match_settings_to_methods(self, columns):
         self.errors = []
-        diff = get_difference(settings, self.handlers_available.keys())
+        payloads = {column.get('payload') for column in columns.values() if 'payload' in column}
+        diff = get_difference(payloads, self.handlers_available.keys())
         if diff:
-            self.errors.append(f"Unknown value(s) in DASHBOARD_PAYLOAD: {', '.join(diff)}")
+            self.errors.append(
+                f"Unknown value(s) in DASHBOARD_COLUMNS payload: {', '.join(diff)}",
+            )
         return bool(not self.errors)
 
-    def __prepare_handlers(self, settings):
-        for key in settings:
-            method = getattr(self, settings[key])
-            self.handlers[key] = method
+    def __prepare_handlers(self, columns):
+        for key, col_settings in columns.items():
+            if 'payload' in col_settings:
+                method = getattr(self, col_settings['payload'])
+                self.handlers[key] = method
 
-    def __prepare_payload_description(self, settings):
+    def __prepare_payload_description(self, columns):
         self.description = {}
-        for key, payload in settings.items():
-            self.description[key] = self.handlers_available[payload]
+        for key, col_settings in columns.items():
+            if 'payload' in col_settings:
+                self.description[key] = self.handlers_available[col_settings['payload']]
 
     def go_run(self, data, run):
         for item in data:
@@ -308,7 +300,7 @@ class DashboardPayload:
             )
         return data
 
-    def go_tree(self, data, run):
+    def go_log(self, data, run):
         for item in data:
             item.update(
                 {
