@@ -83,12 +83,12 @@ def generate_result(
     parent_id = test_iter_res.parent_package.id if test_iter_res.parent_package else None
 
     test_iter_res_info = {
-        'result_id': test.id,
-        'iteration_id': test_iter_res.id,
+        'result_id': test_iter_res.id,
         'exec_seqno': test_iter_res.exec_seqno,
         'parent_id': parent_id,
         'type': test.get_result_type_display(),
-        'name': test_name,
+        'test_id': test.id,
+        'test_name': test_name,
         'period': period_to_str(period),
         'path': path,
         'objective': objectives.get(test_iter_res.id, ''),
