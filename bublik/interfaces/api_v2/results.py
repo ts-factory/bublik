@@ -148,6 +148,7 @@ class ResultViewSet(ModelViewSet):
     def get_queryset(self):
         parent_id = self.request.query_params.get('parent_id')
         test_name = self.request.query_params.get('test_name')
+        start_tir_id = self.request.query_params.get('start_tir_id')
         results = self.request.query_params.get('results')
         result_properties = self.request.query_params.get('result_properties')
         requirements = self.request.query_params.get('requirements')
@@ -155,6 +156,7 @@ class ResultViewSet(ModelViewSet):
         return ResultService.list_results(
             parent_id=parent_id,
             test_name=test_name,
+            start_tir_id=start_tir_id,
             results=results,
             result_properties=result_properties,
             requirements=requirements,
