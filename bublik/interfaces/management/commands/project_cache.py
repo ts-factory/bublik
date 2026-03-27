@@ -16,6 +16,7 @@ class Command(BaseCommand):
     PROJECT_SECTION_CHOICES: ClassVar[set] = {
         'configs',
         'tags',
+        'tests',
     }
 
     def add_arguments(self, parser):
@@ -51,6 +52,8 @@ class Command(BaseCommand):
                     ProjectCache(pid).configs.clear_all()
                 elif data_key == 'tags':
                     ProjectCache(pid).tags.clear_all()
+                elif data_key == 'tests':
+                    ProjectCache(pid).tests.clear_all()
 
     def load_cache(self, project_ids, data_keys):
         for data_key in data_keys:
@@ -63,6 +66,9 @@ class Command(BaseCommand):
             elif data_key == 'tags':
                 for pid in project_ids:
                     ProjectCache(pid).tags.load()
+            elif data_key == 'tests':
+                for pid in project_ids:
+                    ProjectCache(pid).tests.load()
 
     def handle(self, *args, **options):
         try:
