@@ -6,6 +6,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.db.models import Exists, F, OuterRef, Q
 
+from bublik.core.cache import ProjectCache
 from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.exceptions import NotFoundError
 from bublik.core.history.v2.utils import (
@@ -28,8 +29,6 @@ from bublik.data.models import (
     MeasurementResult,
     Meta,
     MetaResult,
-    ResultType,
-    Test,
     TestArgument,
     TestIteration,
     TestIterationResult,
@@ -626,48 +625,9 @@ class HistoryService:
 
     @staticmethod
     def get_test_search_options(project_id: str | None):
-        all_nodes = Test.objects.only('id', 'name', 'parent_id', 'result_type')
-        all_nodes_by_id = {n.id: n for n in all_nodes}
-
-        test_entity = ResultType.conv('test')
-
-        if project_id is not None:
-            project_node_ids = set(
-                TestIterationResult.objects.filter(project_id=project_id)
-                .values_list('iteration__test_id', flat=True)
-                .distinct(),
-            )
-            tests = sorted(
-                (
-                    node
-                    for node in all_nodes_by_id.values()
-                    if node.result_type == test_entity and node.id in project_node_ids
-                ),
-                key=lambda n: n.name,
-            )
-        else:
-            tests = sorted(
-                (node for node in all_nodes_by_id.values() if node.result_type == test_entity),
-                key=lambda n: n.name,
-            )
-
-        seen = set()
-        test_search_options = []
-
-        for test in tests:
-            path = []
-            node = test
-            while node:
-                path.append(node.name)
-                node = all_nodes_by_id.get(node.parent_id)
-            path_str = '/'.join(reversed(path))
-
-            if test.name not in seen:
-                seen.add(test.name)
-                test_search_options.append(test.name)
-
-            if path_str not in seen:
-                seen.add(path_str)
-                test_search_options.append(path_str)
-
-        return test_search_options
+        tests_cache = ProjectCache(project_id).tests
+        test_names_and_paths = tests_cache.get('test_names_and_paths')
+        if test_names_and_paths is not None:
+            return test_names_and_paths
+        tests_cache.load()
+        return tests_cache.get('test_names_and_paths')

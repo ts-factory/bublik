@@ -153,6 +153,10 @@ class ProjectCache:
     def tags(self):
         return _TagsCache(self)
 
+    @property
+    def tests(self):
+        return _TestsCache(self)
+
 
 class _ProjectSectionCache:
     '''
@@ -261,3 +265,57 @@ class _TagsCache(_ProjectSectionCache):
         self.set('important', prepare_tags(important_tags_data))
         self.set('relevant', prepare_tags(relevant_tags_data))
         self.set('all', prepare_tags(tags_data))
+
+
+class _TestsCache(_ProjectSectionCache):
+    SECTION = 'tests'
+    KEY_DATA_CHOICES: ClassVar[set] = {
+        'test_names_and_paths',
+    }
+
+    def load(self):
+        all_nodes = models.Test.objects.only('id', 'name', 'parent_id', 'result_type')
+        all_nodes_by_id = {n.id: n for n in all_nodes}
+
+        test_entity = models.ResultType.conv('test')
+
+        if self._project._project_id is not None:
+            project_node_ids = set(
+                models.TestIterationResult.objects.filter(project_id=self._project._project_id)
+                .values_list('iteration__test_id', flat=True)
+                .distinct(),
+            )
+            tests = sorted(
+                (
+                    node
+                    for node in all_nodes_by_id.values()
+                    if node.result_type == test_entity and node.id in project_node_ids
+                ),
+                key=lambda n: n.name,
+            )
+        else:
+            tests = sorted(
+                (node for node in all_nodes_by_id.values() if node.result_type == test_entity),
+                key=lambda n: n.name,
+            )
+
+        seen = set()
+        test_search_options = []
+
+        for test in tests:
+            path = []
+            node = test
+            while node:
+                path.append(node.name)
+                node = all_nodes_by_id.get(node.parent_id)
+            path_str = '/'.join(reversed(path))
+
+            if test.name not in seen:
+                seen.add(test.name)
+                test_search_options.append(test.name)
+
+            if path_str not in seen:
+                seen.add(path_str)
+                test_search_options.append(path_str)
+
+        self.set('test_names_and_paths', test_search_options)

@@ -15,6 +15,8 @@ from bublik.data.models import (
     Meta,
     MetaResult,
     MetaTest,
+    Project,
+    Test,
     TestIterationResult,
 )
 
@@ -36,6 +38,17 @@ def update_config_cache(sender, instance, **kwargs):
 def delete_config_cache(sender, instance, **kwargs):
     if instance.type == ConfigTypes.GLOBAL and instance.is_active:
         ProjectCache(instance.project_id).configs.delete(instance.name)
+
+
+@receiver(post_save, sender=Test)
+def delete_tests_cache(sender, instance, created, **kwargs):
+    if not created:
+        return
+    ProjectCache(None).tests.clear_all()
+    # Test is created before TestIterationResult, so it's impossible to determine
+    # which projects are affected. Invalidate cache for all projects.
+    for project_id in Project.objects.values_list('id', flat=True):
+        ProjectCache(project_id).tests.clear_all()
 
 
 @receiver(post_delete, sender=Config)
