@@ -17,7 +17,7 @@ from bublik.core.dashboard import DashboardService
 from bublik.core.report.services import ReportService
 from bublik.core.run.external_links import get_sources
 from bublik.core.utils import get_difference
-from bublik.data.models import GlobalConfigs, TestIterationResult
+from bublik.data.models import ConfigTypes, GlobalConfigs, TestIterationResult
 
 
 __all__ = [
@@ -231,12 +231,13 @@ class DashboardPayload:
     '''
 
     handlers_available: typing.ClassVar['dict'] = {
-        'go_run': 'Go to Run',
-        'go_run_failed': 'Go to Run (Preview NOK)',
-        'go_log': 'Go to Log',
-        'go_bug': 'Go to Bug',
-        'go_source': 'Go to Run Source',
-        'go_report': 'Go to Report (Most Recent)',
+        item['const']: item['description']
+        for item in ConfigServices.get_schema(
+            ConfigTypes.GLOBAL,
+            GlobalConfigs.PER_CONF.name,
+        )[
+            'properties'
+        ]['DASHBOARD_COLUMNS']['items']['properties']['payload']['oneOf']
     }
 
     def __init__(self):
