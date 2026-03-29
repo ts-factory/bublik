@@ -41,7 +41,7 @@ flower==2.0.1
 flynt==0.64
 future==1.0.0
 gitdb==4.0.2
-GitPython==3.1.43
+GitPython==3.1.49
 graphviz==0.10.1
 gunicorn==23.0.0
 httplib2==0.22.0
@@ -74,7 +74,7 @@ pyflakes==2.3.1
 pykerberos==1.2.4
 pylint==3.3.8
 pyparsing==3.1.2
-pytest==9.0.2
+pytest==9.0.3
 python-dateutil==2.9.0
 python-json-logger==2.0.7
 python-memcached==1.59
