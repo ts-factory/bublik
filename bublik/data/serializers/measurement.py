@@ -13,9 +13,6 @@ from bublik.data.models import Measurement, MeasurementResult, MeasurementResult
 from bublik.data.serializers.meta import MetaSerializer
 
 
-logger = get_task_or_server_logger()
-
-
 __all__ = [
     'MeasurementResultSerializer',
     'MeasurementSerializer',
@@ -58,6 +55,7 @@ class MeasurementResultCommonSerializer(ModelSerializer):
         return representation
 
     def get_or_create(self):
+        logger = get_task_or_server_logger()
         model = self.Meta.model
         value = self.validated_data.pop('value')
         serial = self.validated_data.pop('serial')

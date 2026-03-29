@@ -27,9 +27,6 @@ from bublik.data.serializers import (
 )
 
 
-logger = get_task_or_server_logger()
-
-
 class MetaData:
     '''
     This class responsibilities are bellow.
@@ -70,6 +67,7 @@ class MetaData:
 
     @staticmethod
     def generate(process_dir, project_name):
+        logger = get_task_or_server_logger()
         logger.info(f'generate meta_data.json at {process_dir}')
         try:
             path_meta_data_script = os.path.join(settings.PER_CONF_DIR, 'generate_metadata.py')
@@ -92,6 +90,8 @@ class MetaData:
         return MetaData.load(os.path.join(process_dir, 'meta_data.json'))
 
     def __check_metadata(self, meta_data):
+        logger = get_task_or_server_logger()
+
         # Check metadata version
         self.version = meta_data.get('version')
         if not self.version or (self.version and self.version > 1):
@@ -203,6 +203,8 @@ class MetaData:
         )
 
     def __preprocess_meta(self, m_data, to_data=False):
+        logger = get_task_or_server_logger()
+
         dashboard_date_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
@@ -232,6 +234,8 @@ class MetaData:
         return reference
 
     def get_or_create_metas(self, run):
+        logger = get_task_or_server_logger()
+
         status_meta = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'RUN_STATUS_META',
@@ -274,6 +278,8 @@ class MetaData:
             )
 
     def force_update_metas(self, run):
+        logger = get_task_or_server_logger()
+
         new = []
         matched = []
 

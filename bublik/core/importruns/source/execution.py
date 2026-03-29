@@ -29,9 +29,6 @@ from bublik.core.run.objects import (
 from bublik.data.models import TestIterationResult
 
 
-logger = get_task_or_server_logger()
-
-
 @measure_time('handling iterations')
 def handle_iterations(run_log, run, project_id, tests_nums_prologues):
     for iteration_data in run_log['iters']:
@@ -167,6 +164,8 @@ def handle_iteration(
 @measure_time('incremental import')
 @transaction.atomic
 def incremental_import(run_log, project_id, meta_data, run_completed, force):
+    logger = get_task_or_server_logger()
+
     handle_iteration.counter = Counter(iter_obj=0, created_iter_obj=0)
 
     run_start = meta_data.run_start

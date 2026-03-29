@@ -10,9 +10,6 @@ from django.conf import settings
 from bublik.core.logging import get_task_or_server_logger
 
 
-logger = get_task_or_server_logger()
-
-
 class ConverterError(Exception):
     '''
     Converter Error exception class that incapsulates internal errors
@@ -46,6 +43,8 @@ class LogConverter:
         raise AssertionError
 
     def convert(self):
+        logger = get_task_or_server_logger()
+
         cmd = self.convert_cmd()
         logger.info('running command: %s', cmd)
 

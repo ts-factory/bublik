@@ -8,10 +8,8 @@ from bublik.core.logging import get_task_or_server_logger
 from bublik.data import models
 
 
-logger = get_task_or_server_logger()
-
-
 def prepare_date(date_str):
+    logger = get_task_or_server_logger()
     try:
         return localize_date(date_str)
     except (ValueError, TypeError):

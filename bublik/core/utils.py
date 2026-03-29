@@ -20,9 +20,6 @@ if TYPE_CHECKING:
     from bublik.data.models import MeasurementResult
 
 
-logger = get_task_or_server_logger()
-
-
 class Counter:
     """It's used in context to templates for counting."""
 
@@ -219,6 +216,7 @@ def get_same_key_values(test_list, extra_condition=None):
 
 
 def create_event(facility, severity, msg, job_task_execution):
+    logger = get_task_or_server_logger()
     event = EventLog.objects.create(
         facility=facility,
         severity=severity,

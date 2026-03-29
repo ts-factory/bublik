@@ -14,9 +14,6 @@ from bublik.core.utils import get_difference
 from bublik.data import models
 
 
-logger = get_task_or_server_logger()
-
-
 class Command(BaseCommand):
     help = '''DELETE, CREATE or UPDATE cached data for runs satisfying the given parameters.
               Cached data for managing can be controlled by --data option.
@@ -74,6 +71,9 @@ class Command(BaseCommand):
             data = options['data']
             action = options['action']
             logger_out = options['logger_out']
+
+            if logger_out:
+                logger = get_task_or_server_logger()
 
             if run_start:
                 query &= Q(start__date__gte=run_start)
