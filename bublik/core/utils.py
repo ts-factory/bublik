@@ -195,7 +195,7 @@ def unordered_group_by(iterable: list[dict | MeasurementResult | ReportPoint], d
     return groups
 
 
-def get_same_key_values(test_list, key, extra_condition=None):
+def get_same_key_values(test_list, extra_condition=None):
 
     # getting keys
     keys = list(test_list[0].keys())
