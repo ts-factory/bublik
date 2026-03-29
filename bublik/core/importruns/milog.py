@@ -171,7 +171,7 @@ class EntryLevel(InstanceLevel, Saver):
 
     def get_measurement(self):
         self.counter['meas_obj'] += 1
-        measure_serializer = serialize(MeasurementSerializer, {'metas': self.metas}, logger)
+        measure_serializer = serialize(MeasurementSerializer, {'metas': self.metas})
         measurement, created = measure_serializer.get_or_create()
         if created:
             self.counter['created_meas_obj'] += 1
@@ -235,7 +235,7 @@ class ViewValueLevel(InstanceLevel, Saver):
             msg = f'More than one result found for {self.parent} for {view_type}'
             raise ValueError(msg)
 
-        view_serializer = serialize(ViewSerializer, {'metas': self.metas}, logger)
+        view_serializer = serialize(ViewSerializer, {'metas': self.metas})
         view, _ = view_serializer.get_or_create()
 
         ChartView.objects.get_or_create(
@@ -320,7 +320,6 @@ class HandlerArtifacts:
         mr_serializer = serialize(
             MetaResultSerializer,
             {'meta': m_data, 'result': self.test_iter_result.id},
-            logger,
         )
         mr_serializer.get_or_create()
 

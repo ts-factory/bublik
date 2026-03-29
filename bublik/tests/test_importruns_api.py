@@ -65,7 +65,7 @@ class ImportrunsTest(APITestCase):
             logger.info(f'Create run (id={run.id})')
 
             m_data = dict(name='import_id', type='import', value=import_id)
-            m_serializer = serialize(MetaSerializer, m_data, logger)
+            m_serializer = serialize(MetaSerializer, m_data)
             meta, _ = m_serializer.get_or_create()
             logger.info(f'Create import meta: {pformat(m_data)}')
 
