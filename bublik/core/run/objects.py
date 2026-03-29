@@ -65,7 +65,6 @@ def add_iteration(test, iteration_params, iteration_hash, parent_iteration, pare
                     arg_serializer = serialize(
                         TestArgumentSerializer,
                         {'name': n, 'value': v},
-                        logger,
                     )
                     arg, _ = arg_serializer.get_or_create()
                     iteration.test_arguments.add(arg)
@@ -172,7 +171,7 @@ def add_iteration_result(
 
 
 def add_meta_result(m_data, mr_data):
-    meta_serializer = serialize(MetaSerializer, m_data, logger)
+    meta_serializer = serialize(MetaSerializer, m_data)
     meta, created = meta_serializer.get_or_create()
     if created:
         categorize_meta(meta)
@@ -182,7 +181,7 @@ def add_meta_result(m_data, mr_data):
 def update_or_create_meta_result(m_data, mr_data):
     meta_head = {f'meta__{k}': m_data[k] for k in {'name', 'type'} & m_data.keys()}
 
-    meta_serializer = serialize(MetaSerializer, m_data, logger)
+    meta_serializer = serialize(MetaSerializer, m_data)
     meta, created = meta_serializer.get_or_create()
     if created:
         categorize_meta(meta)
@@ -190,7 +189,7 @@ def update_or_create_meta_result(m_data, mr_data):
 
 
 def clear_meta_result(m_data, mr_data):
-    meta_serializer = serialize(MetaSerializer, m_data, logger)
+    meta_serializer = serialize(MetaSerializer, m_data)
     meta, _ = meta_serializer.get_or_create()
     MetaResult.objects.filter(meta=meta, **mr_data).delete()
 
@@ -370,7 +369,6 @@ def add_expected_result(
     expectation_serializer = serialize(
         ExpectationSerializer,
         {'expectmeta_set': expect_metas},
-        logger,
     )
     expectation, _ = expectation_serializer.get_or_create()
     expectation.results.add(iteration_result)

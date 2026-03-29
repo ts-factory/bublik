@@ -227,7 +227,7 @@ class MetaData:
             reference_data = {'name': name, 'uri': reference}
             if to_data:
                 return reference_data
-            reference_serializer = serialize(ReferenceSerializer, reference_data, logger)
+            reference_serializer = serialize(ReferenceSerializer, reference_data)
             reference, _ = reference_serializer.get_or_create()
         return reference
 
@@ -253,7 +253,7 @@ class MetaData:
 
             reference = self.__preprocess_meta(m_data)
 
-            meta_serializer = serialize(MetaSerializer, m_data, logger)
+            meta_serializer = serialize(MetaSerializer, m_data)
             meta, created = meta_serializer.get_or_create()
             if created:
                 categorize_meta(meta)
@@ -309,7 +309,7 @@ class MetaData:
                 deleted = deleted.exclude(id=meta_result.id)
             else:
                 mr_data = {'meta': m_data, 'result': run.pk, 'reference': reference_data}
-                mr_serializer = serialize(MetaResultSerializer, mr_data, logger)
+                mr_serializer = serialize(MetaResultSerializer, mr_data)
                 new.append(mr_serializer)
 
         logger.info(

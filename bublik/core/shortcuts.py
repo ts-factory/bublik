@@ -4,7 +4,6 @@
 from urllib.parse import urljoin
 
 from django.conf import settings
-from rest_framework.serializers import ValidationError
 
 
 def get_current_scheme_host_prefix(request):
@@ -22,13 +21,7 @@ def build_absolute_uri(request, endpoint):
     return urljoin(get_current_scheme_host_prefix(request), endpoint.lstrip('/'))
 
 
-def serialize(serializer_class, data, logger=None, **kwargs):
+def serialize(serializer_class, data, **kwargs):
     serializer = serializer_class(data=data, **kwargs)
-    if not serializer.is_valid():
-        if logger:
-            model_name = serializer_class.Meta.model._meta.object_name
-            logger.error(
-                f"can't serialize {model_name} instance: {dict(serializer.initial_data)}",
-            )
-        raise ValidationError(serializer.errors)
+    serializer.is_valid(raise_exception=True)
     return serializer
