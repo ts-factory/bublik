@@ -17,6 +17,11 @@ from bublik.data.models import (
     JobTaskExecutionResult,
     TaskExecution,
 )
+from bublik.interfaces.api_v2.job_task.schemas import job_task_execution_viewset_schema
+from bublik.interfaces.api_v2.job_task.serializers import (
+    JobTaskExecutionListSerializer,
+    JobTaskExecutionRetrieveSerializer,
+)
 
 
 __all__ = ['JobTaskExecutionViewSet']
@@ -37,20 +42,29 @@ class JobTaskExecutionFilterSet(filters.FilterSet):
         fields: typing.ClassVar = []
 
 
+@job_task_execution_viewset_schema
 class JobTaskExecutionViewSet(ListModelMixin, GenericViewSet):
     queryset = JobTaskExecutionService.list_job_task_queryset()
+    serializer_class = JobTaskExecutionListSerializer
     filterset_class = JobTaskExecutionFilterSet
     filter_backends: typing.ClassVar[list] = [DjangoFilterBackend]
 
     def retrieve(self, request, pk=None):
-        return Response(JobTaskExecutionService.get_tasks_by_job(job_id=pk))
+        task_results = JobTaskExecutionService.get_tasks_by_job(job_id=pk)
+        serializer = JobTaskExecutionRetrieveSerializer(task_results, many=True)
+        return Response(serializer.data)
 
     def list(self, request, *args, **kwargs):
         filtered_qs = self.filter_queryset(self.get_queryset())
         task_results = JobTaskExecutionService.list_tasks(filtered_qs)
 
         page = self.paginate_queryset(task_results)
-        if page is not None:
-            return self.get_paginated_response(task_results)
+        serializer = self.get_serializer(
+            page if page is not None else task_results,
+            many=True,
+        )
 
-        return Response(task_results)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+
+        return Response(serializer.data)
