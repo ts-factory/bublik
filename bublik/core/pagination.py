@@ -30,3 +30,21 @@ class DefaultPageNumberPagination(PageNumberPagination):
                 ],
             ),
         )
+
+    def get_paginated_response_schema(self, schema):
+        return {
+            'type': 'object',
+            'required': ['pagination', 'results'],
+            'properties': {
+                'pagination': {
+                    'type': 'object',
+                    'required': ['count', 'next', 'previous'],
+                    'properties': {
+                        'count': {'type': 'integer', 'example': 123},
+                        'next': {'type': 'string', 'nullable': True, 'example': None},
+                        'previous': {'type': 'string', 'nullable': True, 'example': None},
+                    },
+                },
+                'results': schema,
+            },
+        }
