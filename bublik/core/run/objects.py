@@ -32,9 +32,6 @@ from bublik.data.serializers import (
 )
 
 
-logger = get_task_or_server_logger()
-
-
 def add_test(test_name, result_type, parent_test):
     test, _ = Test.objects.get_or_create(
         name=test_name,
@@ -54,6 +51,8 @@ def add_relation(iteration, parent_iteration, depth):
 
 
 def add_iteration(test, iteration_params, iteration_hash, parent_iteration, parent_depth):
+    logger = get_task_or_server_logger()
+
     add_iteration.counter = Counter(created=0)
 
     def process_test():
@@ -268,6 +267,7 @@ def run_status_default(status_key):
 
 
 def set_run_status(run, status_key):
+    logger = get_task_or_server_logger()
     project_id = run.project.id
     status_meta_name = ConfigServices.getattr_from_global(
         GlobalConfigs.PER_CONF.name,
@@ -377,6 +377,8 @@ def add_expected_result(
 
 
 def del_blank_iteration_results(run_id):
+    logger = get_task_or_server_logger()
+
     run_tir = TestIterationResult.objects.filter(
         test_run__id=run_id,
     )

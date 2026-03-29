@@ -8,10 +8,8 @@ from bublik.core.logging import get_task_or_server_logger
 from bublik.data.models import GlobalConfigs
 
 
-logger = get_task_or_server_logger()
-
-
 def prepare_expected_key(key_str, project_id):
+    logger = get_task_or_server_logger()
     for ref in re.findall(r'ref://[^, ]+', key_str):
         ref_type = re.search(r'ref://(.*)/', ref).group(1)
         if ref_type not in ConfigServices.getattr_from_global(

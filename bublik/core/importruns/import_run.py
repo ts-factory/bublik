@@ -29,12 +29,11 @@ from bublik.core.utils import create_event, get_import_job_task
 from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, Project
 
 
-logger = get_task_or_server_logger()
-
-
 def with_import_events(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+        logger = get_task_or_server_logger()
+
         job_id = kwargs.get('job_id')
         task_id = kwargs.get('task_id')
         run_source_url = kwargs.get('run_source_url')
@@ -111,6 +110,8 @@ def import_run(
     date_to: datetime = datetime.max,
     force: bool = False,
 ):
+    logger = get_task_or_server_logger()
+
     project = Project.objects.get(name=project_name) if project_name is not None else None
     process_dir = None
 

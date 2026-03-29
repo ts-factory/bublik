@@ -20,9 +20,6 @@ from bublik.data.models import (
 )
 
 
-logger = get_task_or_server_logger()
-
-
 class Command(BaseCommand):
     '''
     Example of config content handled by the command:
@@ -60,6 +57,8 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def create_and_assign_meta_categories(self, meta_categories, project_id):
+        logger = get_task_or_server_logger()
+
         for category, category_data in meta_categories.items():
             logger.debug(f'[project id={project_id}] item: {{{category}: {category_data}}}')
 
@@ -104,6 +103,8 @@ class Command(BaseCommand):
                     category_obj.metas.add(meta)
 
     def handle(self, *args, **options):
+        logger = get_task_or_server_logger()
+
         start_time = datetime.now()
 
         config_name = GlobalConfigs.META.name

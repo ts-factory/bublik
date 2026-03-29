@@ -25,9 +25,6 @@ from bublik.data.serializers import (
 )
 
 
-logger = get_task_or_server_logger()
-
-
 class Saver:
     '''If a class describes the last level of nesting, it probably wants
     to save data to the database.  This class must be a child of
@@ -328,6 +325,7 @@ class HandlerArtifacts:
             self.handle_artifact(artifact)
 
     def handle_views(self, views):
+        logger = get_task_or_server_logger()
         try:
             for view in views:
                 view_type = view.get('type')
@@ -363,6 +361,7 @@ class HandlerArtifacts:
             logger.error('Failed to process views')
 
     def handle_mi_artifact(self, artifact):
+        logger = get_task_or_server_logger()
         start_time = datetime.now()
         try:
             results = InstanceLevel.pop(artifact, 'results', True)

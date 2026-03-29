@@ -14,9 +14,6 @@ from bublik.core.run.metadata import MetaData
 from bublik.data.models import Meta, MetaCategory, MetaPattern, Project
 
 
-logger = get_task_or_server_logger()
-
-
 def categorize_metas(meta_data: MetaData, project_id) -> None:
     '''
     Checks if all of the received Meta objects have already been categorized -
@@ -24,6 +21,7 @@ def categorize_metas(meta_data: MetaData, project_id) -> None:
     If there is a Meta object that is not in proper MetaCategory.metas -
     the Meta object is added in MetaPattern.categories.metas.
     '''
+    logger = get_task_or_server_logger()
 
     logger.info('Checking what metas are categorized already.')
 

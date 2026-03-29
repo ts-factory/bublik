@@ -10,9 +10,6 @@ from bublik.core.exceptions import URLFetchError
 from bublik.core.logging import get_task_or_server_logger
 
 
-logger = get_task_or_server_logger()
-
-
 SAVE_URL_CHUNK_SIZE = 16384
 
 
@@ -46,6 +43,7 @@ def fetch_url(url_str, quiet_404=False):
 
 
 def save_url_to_fd(url_str, fd_out, quiet_404=False):
+    logger = get_task_or_server_logger()
     try:
         req = get_url(url_str, quiet_404=quiet_404)
         if req is None:
