@@ -26,8 +26,9 @@ class ServerViewSet(ViewSet):
         return Response(data=data)
 
     @action(detail=False, methods=['get'])
-    def tab_title_prefix(self, request):
+    def tab_title_prefix(self, _request):
         project_id = self.request.query_params.get('project_id')
+
         return Response(
             {
                 'tab_title_prefix': ConfigServices.getattr_from_global(
