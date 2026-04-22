@@ -106,6 +106,7 @@ class ResultService:
     def list_results(
         parent_id: int | None = None,
         test_name: str | None = None,
+        start_tir_id: str | None = None,
         results: str | None = None,
         result_properties: str | None = None,
         requirements: str | None = None,
@@ -116,6 +117,7 @@ class ResultService:
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
+            start_tir_id: Filter by the starting ID of a consecutive result sequence
             results: Comma-separated result statuses
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
@@ -160,6 +162,23 @@ class ResultService:
 
         queryset = queryset.filter(queries)
 
+        # filtering by ID to retain consecutive results
+        if start_tir_id:
+            start_tir_id = int(start_tir_id)
+            all_tir_ids = list(queryset.order_by('id').values_list('id', flat=True).distinct())
+
+            if start_tir_id not in all_tir_ids:
+                return models.TestIterationResult.objects.none()
+
+            start = all_tir_ids.index(start_tir_id)
+            target_ids = []
+            for i, tir_id in enumerate(all_tir_ids[start:]):
+                if tir_id != start_tir_id + i:
+                    break
+                target_ids.append(tir_id)
+
+            queryset = queryset.filter(id__in=target_ids)
+
         # result_properties filtering
         if result_properties:
             queryset = queryset.filter_by_result_classification(
@@ -197,6 +216,7 @@ class ResultService:
     def list_results_paginated(
         parent_id: int | None = None,
         test_name: str | None = None,
+        start_tir_id: str | None = None,
         results: str | None = None,
         result_properties: str | None = None,
         requirements: str | None = None,
@@ -209,6 +229,7 @@ class ResultService:
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
+            start_tir_id: Filter by the starting ID of a consecutive result sequence
             results: Comma-separated result statuses
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
@@ -221,6 +242,7 @@ class ResultService:
         queryset = ResultService.list_results(
             parent_id=parent_id,
             test_name=test_name,
+            start_tir_id=start_tir_id,
             results=results,
             result_properties=result_properties,
             requirements=requirements,
