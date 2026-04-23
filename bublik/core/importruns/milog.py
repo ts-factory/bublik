@@ -382,8 +382,15 @@ class HandlerArtifacts:
                 for _, entries_group in groupby(entries, key=entries_by_measurements):
                     serial += 1
                     entries_group = list(entries_group)
-                    values = [entry['value'] for entry in entries_group]
+                    values = []
+                    for entry in entries_group:
+                        if 'values' in entry:
+                            values += entry['values']
+                        else:
+                            values += [entry['value']]
                     entry = entries_group[0]
+                    if 'values' in entry:
+                        del entry['values']
                     entry['value'] = values
                     try:
                         entrylvl = EntryLevel(entry, serial, resultlvl)
