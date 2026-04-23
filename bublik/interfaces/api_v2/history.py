@@ -4,6 +4,7 @@
 from django.core.cache import cache
 from rest_framework.decorators import action
 from rest_framework.mixins import ListModelMixin
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
@@ -76,3 +77,9 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             response_data.update(add_context)
 
         return Response(response_data)
+
+    @action(detail=False, methods=['get'], renderer_classes=[JSONRenderer])
+    def test_search_options(self, request, pk=None):
+        project_id = request.query_params.get('project')
+        test_search_options = HistoryService.get_test_search_options(project_id)
+        return Response(test_search_options)

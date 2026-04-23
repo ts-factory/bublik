@@ -6,6 +6,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.db.models import Exists, F, OuterRef, Q
 
+from bublik.core.cache import ProjectCache
 from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.exceptions import NotFoundError
 from bublik.core.history.v2.utils import (
@@ -621,3 +622,12 @@ class HistoryService:
             'results': response_list,
             'results_ids': list(results_ids),
         }
+
+    @staticmethod
+    def get_test_search_options(project_id: str | None):
+        tests_cache = ProjectCache(project_id).tests
+        test_names_and_paths = tests_cache.get('test_names_and_paths')
+        if test_names_and_paths is not None:
+            return test_names_and_paths
+        tests_cache.load()
+        return tests_cache.get('test_names_and_paths')
