@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.db.models import Count, Q
 from rest_framework.exceptions import ValidationError
 
+from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import NotFoundError
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.run.compromised import (
@@ -263,6 +267,205 @@ class RunService:
         )
         runs_details = generate_runs_details(runs)
         return PaginatedResult.paginate_queryset(runs_details, page, page_size)
+
+    @staticmethod
+    def get_runs_charts(
+        queryset,
+        group_by: str = 'day',
+    ) -> dict:
+        if group_by not in {'day', 'week'}:
+            err_msg = 'group_by must be one of: day, week'
+            raise ValidationError(err_msg)
+
+        runs = list(queryset.values('id', 'start', 'project_id'))
+
+        if not runs:
+            return {'buckets': []}
+
+        run_ids = [run['id'] for run in runs]
+        project_id_by_run_id = {run['id']: run['project_id'] for run in runs}
+        project_ids = {run['project_id'] for run in runs}
+
+        status_meta_name_by_project_id = {
+            project_id: ConfigServices.getattr_from_global(
+                models.GlobalConfigs.PER_CONF.name,
+                'RUN_STATUS_META',
+                project_id,
+            )
+            for project_id in project_ids
+        }
+
+        nok_borders_by_project_id = {
+            project_id: ConfigServices.getattr_from_global(
+                models.GlobalConfigs.PER_CONF.name,
+                'RUN_STATUS_BY_NOK_BORDERS',
+                project_id,
+            )
+            for project_id in project_ids
+        }
+
+        meta_names = {
+            'compromised',
+            'driver_unload',
+        }
+        meta_names.update(
+            status_meta_name
+            for status_meta_name in status_meta_name_by_project_id.values()
+            if status_meta_name
+        )
+
+        run_metas = models.MetaResult.objects.filter(
+            result_id__in=run_ids,
+            meta__name__in=meta_names,
+        ).values(
+            'result_id',
+            'meta__name',
+            'meta__value',
+        )
+
+        run_meta_by_run_id = {}
+
+        for run_meta in run_metas:
+            run_id = run_meta['result_id']
+            meta_name = run_meta['meta__name']
+            meta_value = run_meta['meta__value']
+
+            if run_id not in run_meta_by_run_id:
+                run_meta_by_run_id[run_id] = {}
+
+            run_meta_by_run_id[run_id][meta_name] = meta_value
+
+        buckets_by_date = {}
+        bucket_date_by_run_id = {}
+
+        for run in runs:
+            start = run['start']
+            bucket_date = start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+            if group_by == 'week':
+                bucket_date -= timedelta(days=bucket_date.weekday())
+
+            if bucket_date not in buckets_by_date:
+                buckets_by_date[bucket_date] = []
+
+            buckets_by_date[bucket_date].append(run['id'])
+            bucket_date_by_run_id[run['id']] = bucket_date
+
+        test_stats = (
+            models.TestIterationResult.objects.filter(
+                test_run_id__in=run_ids,
+                iteration__test__result_type=models.ResultType.conv(models.ResultType.TEST),
+            )
+            .values('test_run_id')
+            .annotate(
+                total=Count('id', distinct=True),
+                nok=Count('id', filter=Q(meta_results__meta__type='err'), distinct=True),
+            )
+        )
+
+        tests_by_date = {}
+        tests_by_run_id = {}
+
+        for stat in test_stats:
+            run_id = stat['test_run_id']
+            total = stat['total']
+            nok = stat['nok']
+            ok = total - nok
+            bucket_date = bucket_date_by_run_id[run_id]
+
+            tests_by_run_id[run_id] = {
+                'total': total,
+                'nok': nok,
+                'ok': ok,
+            }
+
+            if bucket_date not in tests_by_date:
+                tests_by_date[bucket_date] = {
+                    'total': 0,
+                    'ok': 0,
+                    'nok': 0,
+                }
+
+            tests_by_date[bucket_date]['total'] += total
+            tests_by_date[bucket_date]['ok'] += ok
+            tests_by_date[bucket_date]['nok'] += nok
+
+        buckets = []
+
+        def make_empty_run_ids_by_status():
+            return {status: [] for status in models.RunConclusion.all()}
+
+        run_ids_by_status_by_date = {}
+
+        for run_id in run_ids:
+            bucket_date = bucket_date_by_run_id[run_id]
+
+            if bucket_date not in run_ids_by_status_by_date:
+                run_ids_by_status_by_date[bucket_date] = make_empty_run_ids_by_status()
+
+            project_id = project_id_by_run_id[run_id]
+            run_metas = run_meta_by_run_id.get(run_id, {})
+            run_tests = tests_by_run_id.get(run_id, {'total': 0, 'nok': 0})
+
+            status_meta_name = status_meta_name_by_project_id[project_id]
+            run_status = run_metas.get(status_meta_name)
+            run_compromised = 'compromised' in run_metas
+            driver_unload = run_metas.get('driver_unload')
+
+            total = run_tests['total']
+            nok = run_tests['nok']
+            unexpected_percent = round(nok / total * 100) if total else 0
+
+            left_border, right_border = nok_borders_by_project_id[project_id]
+
+            if total == 0 or unexpected_percent >= right_border:
+                run_status_by_nok = models.RunStatusByUnexpected.ERROR
+            elif left_border < unexpected_percent < right_border:
+                run_status_by_nok = models.RunStatusByUnexpected.WARNING
+            else:
+                run_status_by_nok = models.RunStatusByUnexpected.SUCCESS
+
+            conclusion, _reason = models.RunConclusion.identify(
+                run_status,
+                run_status_by_nok,
+                unexpected_percent,
+                run_compromised,
+                driver_unload,
+                project_id,
+            )
+
+            run_ids_by_status_by_date[bucket_date][conclusion].append(run_id)
+
+        for bucket_date in sorted(buckets_by_date):
+            tests = tests_by_date.get(
+                bucket_date,
+                {
+                    'ok': 0,
+                    'nok': 0,
+                    'total': 0,
+                },
+            )
+            passrate = round(tests['ok'] * 100 / tests['total'], 2) if tests['total'] else 0
+
+            run_ids_by_status = run_ids_by_status_by_date.get(
+                bucket_date,
+                make_empty_run_ids_by_status(),
+            )
+
+            buckets.append(
+                {
+                    'date': bucket_date,
+                    'tests': {
+                        'ok': tests['ok'],
+                        'nok': tests['nok'],
+                        'total': tests['total'],
+                        'passrate': passrate,
+                    },
+                    'run_ids_by_status': run_ids_by_status,
+                },
+            )
+
+        return {'buckets': buckets}
 
     @staticmethod
     def get_run_requirements(run_id: int) -> list[str]:
