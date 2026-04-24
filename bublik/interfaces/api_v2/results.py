@@ -58,6 +58,11 @@ class RunViewSet(ModelViewSet):
             },
         )
 
+    @action(detail=False, methods=['get'])
+    def charts(self, request):
+        group_by = request.query_params.get('group_by', 'day')
+        return Response(RunService.get_runs_charts(self.get_queryset(), group_by=group_by))
+
     @action(detail=False, methods=['post'])
     def drop_cache(self, request):
         keys = request.data.get('keys')
