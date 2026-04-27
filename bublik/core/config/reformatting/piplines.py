@@ -7,6 +7,7 @@ from bublik.core.config.reformatting.steps import (
     AllowMultipleSeriesArgs,
     BaseReformatStep,
     ImproveMetaStructure,
+    MergeDashboardSettings,
     RemoveUnsupportedAttributes,
     RenameSequencesToOverlayBy,
     SimplifyMetaStructure,
@@ -55,6 +56,7 @@ class PerConfConfigReformatPipeline(ReformatPipeline):
         super().__init__()
         self.add_step(UpdateDashboardHeaderStructure())
         self.add_step(UpdateCSRFTrustedOrigins())
+        self.add_step(MergeDashboardSettings())
 
 
 class ReferencesConfigReformatPipeline(ReformatPipeline):

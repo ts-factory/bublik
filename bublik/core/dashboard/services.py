@@ -28,8 +28,7 @@ class DashboardService:
     def get_dashboard_data(
         date: str,
         project_id: int | None = None,
-        header: dict | None = None,
-        formatting_settings: dict | None = None,
+        columns: dict | None = None,
         sort_config: list | None = None,
     ) -> dict:
         '''
@@ -38,8 +37,8 @@ class DashboardService:
         Args:
             date: Date string in 'yyyy-mm-dd' format
             project_id: Optional project ID to filter by
-            header: Optional header dict mapping keys to labels (fetched from config if None)
-            formatting_settings: Optional dict mapping keys to formatting methods
+            columns: Optional columns dict mapping keys to labels,
+                     payloads and formatters (fetched from config if None)
             sort_config: Optional list of column keys to sort by
 
         Returns:
@@ -49,14 +48,14 @@ class DashboardService:
             UnprocessableEntityError: if date format is invalid or config missing
         '''
 
-        # Get dashboard header configuration (required) if not provided
-        if header is None:
-            header_config = ConfigServices.getattr_from_global(
+        # Get dashboard columns configuration (required) if not provided
+        if columns is None:
+            columns_config = ConfigServices.getattr_from_global(
                 GlobalConfigs.PER_CONF.name,
-                'DASHBOARD_HEADER',
+                'DASHBOARD_COLUMNS',
                 project_id,
             )
-            header = {item['key']: item['label'] for item in header_config}
+            columns = {item.pop('key'): item for item in columns_config}
 
         # Get date meta setting (optional)
         date_meta = ConfigServices.getattr_from_global(
@@ -88,7 +87,7 @@ class DashboardService:
         rows_data = []
         for run in runs:
             conclusion, conclusion_reason = get_run_conclusion(run)
-            row_cells = DashboardService.prepare_row_data(run, header)
+            row_cells = DashboardService.prepare_row_data(run, columns)
             rows_data.append(
                 {
                     'row_cells': row_cells,
@@ -105,9 +104,8 @@ class DashboardService:
                 },
             )
 
-        # Apply formatting if provided
-        if formatting_settings:
-            DashboardService._apply_formatting(rows_data, formatting_settings)
+        # Apply formatting
+        DashboardService.apply_dashboard_formatting(rows_data, columns)
 
         # Apply sorting if provided
         if sort_config:
@@ -116,61 +114,27 @@ class DashboardService:
         return {
             'date': date,
             'rows': rows_data,
-            'header': [{'key': k, 'name': n} for k, n in header.items()],
+            'header': [{'key': k, 'name': lp.get('label') or k} for k, lp in columns.items()],
             'payload': {},  # Simplified for MCP (no URL handlers needed)
         }
 
     @staticmethod
-    def apply_dashboard_formatting(rows_data: list, formatting_settings: dict):
+    def apply_dashboard_formatting(rows_data: list, columns: dict):
         '''
         Apply formatting rules to dashboard row cells.
 
-        This is a public method that validates formatting methods before applying them.
         Available formatters: 'percent'.
 
         Args:
             rows_data: List of row dictionaries with 'row_cells' key
-            formatting_settings: Dict mapping keys to formatting method names
-                                 (e.g., {'progress': 'percent'})
-
-        Raises:
-            UnprocessableEntityError: if unknown formatting method specified
-        '''
-        available_formatters = {'percent'}
-
-        # Validate formatting methods
-        unknown_methods = set(formatting_settings.values()) - available_formatters
-        if unknown_methods:
-            msg = (
-                f"Unknown formatting method(s): {', '.join(unknown_methods)}. "
-                f"Available: {', '.join(available_formatters)}"
-            )
-            raise UnprocessableEntityError(msg)
-
-        for row in rows_data:
-            for key, method_name in formatting_settings.items():
-                if key in row['row_cells']:
-                    cell_data = row['row_cells'][key]
-                    if method_name == 'percent':
-                        DashboardService._format_percent(cell_data)
-
-    @staticmethod
-    def _apply_formatting(rows_data: list, formatting_settings: dict):
-        '''
-        Apply formatting rules to row cells.
-
-        Internal method that does not validate. Use apply_dashboard_formatting()
-        for public access with validation.
-
-        Args:
-            rows_data: List of row dictionaries with 'row_cells' key
-            formatting_settings: Dict mapping keys to formatting method names
+            columns: Columns dict mapping keys to labels, payloads
+                     and formatters
         '''
         for row in rows_data:
-            for key, method_name in formatting_settings.items():
+            for key, col_settings in columns.items():
                 if key in row['row_cells']:
                     cell_data = row['row_cells'][key]
-                    if method_name == 'percent':
+                    if col_settings.get('formatting') == 'percent':
                         DashboardService._format_percent(cell_data)
 
     @staticmethod
@@ -226,13 +190,13 @@ class DashboardService:
                 format_value(item)
 
     @staticmethod
-    def prepare_row_data(run, header):
+    def prepare_row_data(run, columns):
         '''
         Prepare row cells data for a run.
 
         Args:
             run: TestIterationResult instance
-            header: Dictionary mapping column keys to category names
+            columns: Dictionary mapping column keys to column label and payload
 
         Returns:
             Dictionary with row cells data
@@ -249,7 +213,7 @@ class DashboardService:
             metabased_data = list(
                 run.meta_results.select_related('meta')
                 .filter(
-                    meta__category__name__in=header.values(),
+                    meta__category__name__in=columns,
                     meta__category__project_id=run.project.id,
                 )
                 .annotate(category=F('meta__category__name'), value=F('meta__value'))
@@ -261,9 +225,9 @@ class DashboardService:
             row_data = {}
             extended_keys = ['total', 'total_expected', 'progress', 'unexpected']
             stats = get_run_stats(run.id)
-            for key, category in header.items():
+            for key, _col_settings in columns.items():
                 if key not in extended_keys:
-                    row_data[key] = metabased_dict.get(category, [])
+                    row_data[key] = metabased_dict.get(key, [])
                 else:
                     row_data[key] = [{'value': stats.get(key, '')}]
 
@@ -340,17 +304,17 @@ class DashboardService:
 
         # Get header (required setting)
         try:
-            header_config = ConfigServices.getattr_from_global(
+            columns_config = ConfigServices.getattr_from_global(
                 GlobalConfigs.PER_CONF.name,
-                'DASHBOARD_HEADER',
+                'DASHBOARD_COLUMNS',
                 project_id,
             )
-            header = {item['key']: item['label'] for item in header_config}
+            columns = {item.pop('key'): item for item in columns_config}
         except Exception as e:
-            errors.append(f'DASHBOARD_HEADER: {e}')
+            errors.append(f'DASHBOARD_COLUMNS: {e}')
 
         if not errors:
-            header_keys = set(header.keys())
+            columns_keys = set(columns.keys())
 
             # Validate DASHBOARD_RUNS_SORT keys match header
             try:
@@ -361,75 +325,14 @@ class DashboardService:
                     default=['start'],
                 )
                 sort_keys = set(sort_config) - {'start'}  # 'start' is always valid
-                diff = get_difference(sort_keys, header_keys)
+                diff = get_difference(sort_keys, columns_keys)
                 if diff:
                     errors.append(
-                        f"DASHBOARD_RUNS_SORT doesn't match DASHBOARD_HEADER, mismatch: {diff}",
+                        f"DASHBOARD_RUNS_SORT doesn't match DASHBOARD_COLUMNS, "
+                        f"mismatch: {diff}",
                     )
             except Exception as e:
                 errors.append(f'DASHBOARD_RUNS_SORT: {e}')
-
-            # Validate DASHBOARD_PAYLOAD keys match header
-            try:
-                payload_settings = ConfigServices.getattr_from_global(
-                    GlobalConfigs.PER_CONF.name,
-                    'DASHBOARD_PAYLOAD',
-                    project_id,
-                    default={},
-                )
-                available_payload_handlers = {
-                    'go_run',
-                    'go_run_failed',
-                    'go_tree',
-                    'go_bug',
-                    'go_source',
-                    'go_report',
-                }
-                payload_keys = set(payload_settings.keys())
-                diff = get_difference(payload_keys, header_keys)
-                if diff:
-                    errors.append(
-                        f"DASHBOARD_PAYLOAD doesn't match DASHBOARD_HEADER, mismatch: {diff}",
-                    )
-                # Validate payload handler names
-                diff_handlers = get_difference(
-                    payload_settings.values(),
-                    available_payload_handlers,
-                )
-                if diff_handlers:
-                    errors.append(
-                        f"Unknown value(s) in DASHBOARD_PAYLOAD: {', '.join(diff_handlers)}",
-                    )
-            except Exception as e:
-                errors.append(f'DASHBOARD_PAYLOAD: {e}')
-
-            # Validate DASHBOARD_FORMATTING
-            try:
-                formatting_settings = ConfigServices.getattr_from_global(
-                    GlobalConfigs.PER_CONF.name,
-                    'DASHBOARD_FORMATTING',
-                    project_id,
-                    default={'progress': 'percent'},
-                )
-                available_formatters = {'percent'}
-                formatting_keys = set(formatting_settings.keys())
-                diff = get_difference(formatting_keys, header_keys, ignore=['progress'])
-                if diff:
-                    errors.append(
-                        "DASHBOARD_FORMATTING doesn't match DASHBOARD_HEADER, "
-                        f"mismatch: {diff}",
-                    )
-                # Validate formatter method names
-                diff_methods = get_difference(
-                    formatting_settings.values(),
-                    available_formatters,
-                )
-                if diff_methods:
-                    errors.append(
-                        f"Unknown value(s) in DASHBOARD_FORMATTING: {', '.join(diff_methods)}",
-                    )
-            except Exception as e:
-                errors.append(f'DASHBOARD_FORMATTING: {e}')
 
         if errors:
             if raise_on_error:
