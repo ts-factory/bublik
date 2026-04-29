@@ -1,79 +1,150 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from datetime import datetime
 import os
 import subprocess
 from urllib.parse import urljoin
 
-from celery.signals import after_task_publish, task_failure, task_received, task_success
+from celery.signals import (
+    after_task_publish,
+    task_failure,
+    task_postrun,
+    task_prerun,
+    task_received,
+    task_success,
+)
 from django.core.management import call_command
-from django.core.management.base import CommandError
 
 from bublik import settings
-from bublik.core.exceptions import ImportrunsError
+from bublik.core.importruns.utils import normalize_importruns_params
 from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
-from bublik.core.utils import create_event
-from bublik.data.models import EventLog, Project, TestIterationResult
+from bublik.core.utils import create_event, get_import_job_task
+from bublik.data.models import EventLog, Project, TaskExecution, TestIterationResult
 from bublik.interfaces.celery import app
 
 
 @after_task_publish.connect()
 def add_received_import_task_event(sender=None, headers=None, body=None, **kwargs):
-    body_0_0 = body[0][0] if body[0] else None
+    task_id = headers['id']
+    TaskExecution.objects.update_or_create(
+        task_id=task_id,
+        defaults={
+            'status': TaskExecution.StatusChoices.RECEIVED,
+        },
+    )
+
+    args = body[0]
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_source_url=url,
+    )
+
     msg = ' '.join(
-        filter(None, (f'received {sender}', body_0_0, f'-- Celery task ID {headers["id"]}')),
+        filter(None, (f'received {sender}', url, f'-- Celery task ID {task_id}')),
     )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
 
 
 @task_received.connect()
-def add_started_import_task_event(sender=None, headers=None, body=None, **kwargs):
-    request = kwargs['request']
-    args = request.args[0] if request.args else None
+def add_started_import_task_event(sender=None, request=None, headers=None, body=None, **kwargs):
+    task_id = request.id
+
+    args = request.args
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_source_url=url,
+    )
+
     msg = ' '.join(
         filter(
             None,
-            (f'started processing {request.name}', args, f'-- Celery task ID {request.id}'),
+            (f'started processing {request.name}', url, f'-- Celery task ID {task_id}'),
         ),
     )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
         msg=msg,
+        job_task_execution=job_task_execution,
+    )
+
+
+@task_prerun.connect()
+def task_started_handler(sender=None, task_id=None, **kwargs):
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.RUNNING,
+        started_at=datetime.now(),
     )
 
 
 @task_success.connect()
 def add_successful_import_task_event(sender=None, headers=None, body=None, **kwargs):
-    args = sender.request.args[0] if sender.request.args else None
+    task_id = sender.request.id
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.SUCCESS,
+    )
+
+    args = sender.request.args
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_source_url=url,
+    )
+
     msg = ' '.join(
         filter(
             None,
-            (f'successful {sender.name}', args, f'-- Celery task ID {kwargs["result"]}'),
+            (f'successful {sender.name}', url, f'-- Celery task ID {task_id}'),
         ),
     )
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.INFO,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
 
 
 @task_failure.connect()
 def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs):
-    args = sender.request.args[0] if sender.request.args else None
+    task_id = sender.request.id
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.FAILURE,
+    )
+
+    args = sender.request.args
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_source_url=url,
+    )
+
+    exception = kwargs['exception']
+    error_data = getattr(exception, 'message', type(exception).__name__)
     msg = ' '.join(
         filter(
             None,
             (
                 f'failed {sender.name}',
-                args,
-                f'-- Celery task ID {kwargs["task_id"]} -- Error: {kwargs["exception"]}',
+                url,
+                f'-- Celery task ID {task_id} -- Error: {error_data}',
             ),
         ),
     )
@@ -81,18 +152,25 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.ERR,
         msg=msg,
+        job_task_execution=job_task_execution,
     )
 
 
-@app.task(bind=True, name='import')
+@task_postrun.connect()
+def task_finished_handler(sender=None, task_id=None, **kwargs):
+    TaskExecution.objects.filter(task_id=task_id).update(finished_at=datetime.now())
+
+
+@app.task(bind=True, name='import', acks_late=True, reject_on_worker_lost=True)
 def importruns(
     self,
-    param_url,
-    param_force,
-    param_from=None,
-    param_to=None,
-    requesting_host=None,
-    param_project_name=None,
+    requesting_host,
+    job_id,
+    run_source_url,
+    project_name,
+    date_from,
+    date_to,
+    force,
 ):
     task_id = self.request.id
     os.environ['TASK_ID'] = task_id
@@ -101,50 +179,37 @@ def importruns(
     logpath = logger.handlers[0].logpath
 
     # To avoid cyclic dependency between importruns.py and this module
-    from bublik.interfaces.management.commands.importruns import Command as ImportRunsCommand
+    from bublik.core.importruns.import_run import import_run
 
     try:
         query_url = urljoin(
             requesting_host,
-            f'importruns/source/?from={param_from}&to={param_to}&url={param_url}'
-            f'&force={param_force}&project_name={param_project_name}',
+            f'importruns/source/?from={date_from}&to={date_to}&url={run_source_url}'
+            f'&force={force}&project_name={project_name}',
         )
 
-        argv = []
-        if param_from:
-            argv += ['--from', param_from]
-        if param_to:
-            argv += ['--to', param_to]
-        if param_project_name:
-            argv += ['--project_name', param_project_name]
-        if param_force:
-            argv += ['--force', param_force]
+        logger.info('importruns task started:')
+        logger.info(f'[ID]:   {task_id}')
+        logger.info(f'[FROM]: {date_from or ""}')
+        logger.info(f'[TO]:   {date_to or ""}')
+        logger.info(f'[URL]:  {run_source_url}')
+        logger.info(f'[RUN]:  curl {query_url}')
 
-        argv += ['--task_id', task_id, param_url]
-        cmd = ImportRunsCommand()
-        parser = cmd.create_parser('manage.py', cmd.help)
+        importruns_params = normalize_importruns_params(
+            run_source_url=run_source_url,
+            project_name=project_name,
+            date_from=date_from,
+            date_to=date_to,
+            force=force,
+        )
 
-        try:
-            options = parser.parse_args(argv)
+        import_run(
+            job_id=job_id,
+            task_id=task_id,
+            **importruns_params,
+        )
 
-            logger.info('importruns task started:')
-            logger.info(f'[ID]:   {task_id}')
-            logger.info(f'[FROM]: {param_from}')
-            logger.info(f'[TO]:   {param_to}')
-            logger.info(f'[URL]:  {param_url}')
-            logger.info(f'[RUN]:  curl {query_url}')
-
-            opts_dict = vars(options)
-            url = opts_dict.pop('url')
-            call_command('importruns', url, **opts_dict)
-
-            return task_id
-
-        except (SystemExit, CommandError) as exc:
-            error_msg = 'invalid parameters for importruns command'
-            raise ImportrunsError(
-                message=error_msg,
-            ) from exc
+        return task_id
 
     except Exception as e:
         error_data = getattr(e, 'message', type(e).__name__)
@@ -160,12 +225,12 @@ def importruns(
         add_to_message = None
 
         try:
-            errors, project_name = parse_log(
+            errors, log_project_name = parse_log(
                 r'"ERROR"',
                 r'the project name is ([^"]+)',
                 logpath,
             )
-            project_name = project_name or param_project_name
+            project_name = log_project_name or project_name
             project_id = (
                 Project.objects.filter(name=project_name).values_list('id', flat=True).first()
                 if project_name
@@ -178,7 +243,7 @@ def importruns(
                     requesting_host,
                     project_id,
                     task_id,
-                    param_url,
+                    run_source_url,
                     add_to_message,
                 )
 

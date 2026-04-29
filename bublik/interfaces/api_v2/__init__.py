@@ -22,6 +22,7 @@ from .event import ImportEventViewSet
 from .history import HistoryViewSet
 from .importruns import ImportrunsViewSet
 from .index import render_docs, render_react
+from .job_task import JobTaskExecutionViewSet
 from .log import LogViewSet
 from .management import clear_all_runs_stats_cache, local_logs, meta_categorization
 from .measurements import MeasurementViewSet
@@ -46,6 +47,7 @@ __all__ = [
     'HistoryViewSet',
     'ImportEventViewSet',
     'ImportrunsViewSet',
+    'JobTaskExecutionViewSet',
     'LogInView',
     'LogOutView',
     'LogViewSet',

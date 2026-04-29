@@ -44,6 +44,12 @@ class EventLog(models.Model):
         null=False,
         help_text='The severity of the event.',
     )
+    job_task_execution = models.ForeignKey(
+        'JobTaskExecution',
+        null=True,
+        on_delete=models.CASCADE,
+        help_text='The job-task combination this event belongs to.',
+    )
     msg = models.TextField(null=True, help_text='The message forwarded from facility.')
 
     class Meta:
@@ -51,6 +57,7 @@ class EventLog(models.Model):
 
     def __repr__(self):
         return (
-            f'Event(pk={self.pk!r}, timestamp={self.timestamp!r}, facility={self.facility!r}, '
-            f'severity={self.severity!r}, msg={self.msg!r})'
+            f'Event(pk={self.pk!r}, timestamp={self.timestamp!r}, '
+            f'facility={self.facility!r}, severity={self.severity!r}, '
+            f'job_task_execution_id={self.job_task_execution_id!r}, msg={self.msg!r})'
         )

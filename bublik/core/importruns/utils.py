@@ -1,10 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from argparse import ArgumentTypeError
 from datetime import datetime
 
 from django.core.files import locks
+import pendulum
 
+from bublik.core.argparse import (
+    parser_type_date,
+    parser_type_force,
+    parser_type_url,
+)
+from bublik.core.exceptions import ImportrunsError
 from bublik.core.logging import get_task_or_server_logger
 
 
@@ -54,3 +62,39 @@ def measure_time(prefix: str = ''):
         return wrapper
 
     return decorator
+
+
+def runtime(start_time):
+    return (datetime.now() - start_time).total_seconds()
+
+
+def normalize_importruns_params(
+    run_source_url,
+    project_name=None,
+    date_from=None,
+    date_to=None,
+    force=None,
+):
+    date_from = (
+        parser_type_date(date_from.replace('-', '.')) if date_from is not None else datetime.min
+    )
+    date_from = pendulum.instance(datetime.combine(date_from, datetime.min.time()))
+
+    date_to = (
+        parser_type_date(date_to.replace('-', '.')) if date_to is not None else datetime.max
+    )
+    date_to = pendulum.instance(datetime.combine(date_to, datetime.max.time()))
+
+    try:
+        return {
+            'run_source_url': parser_type_url(run_source_url),
+            'project_name': project_name,
+            'date_from': date_from,
+            'date_to': date_to,
+            'force': parser_type_force(force) if force is not None else False,
+        }
+
+    except ArgumentTypeError as exc:
+        raise ImportrunsError(
+            message='invalid parameters for importruns command',
+        ) from exc

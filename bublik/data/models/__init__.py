@@ -25,6 +25,13 @@ from .config import Config, ConfigTypes, GlobalConfigs
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta
+from .job import (
+    ImportJob,
+    Job,
+    JobTaskExecution,
+    JobTaskExecutionResult,
+    TaskExecution,
+)
 from .measurement import (
     ChartView,
     ChartViewType,
@@ -67,6 +74,10 @@ __all__ = [
     'ExpectMeta',
     'Expectation',
     'GlobalConfigs',
+    'ImportJob',
+    'Job',
+    'JobTaskExecution',
+    'JobTaskExecutionResult',
     'Measurement',
     'MeasurementResult',
     'MeasurementResultList',
@@ -82,6 +93,7 @@ __all__ = [
     'RunConclusion',
     'RunStatus',
     'RunStatusByUnexpected',
+    'TaskExecution',
     'Test',
     'TestArgument',
     'TestIteration',
