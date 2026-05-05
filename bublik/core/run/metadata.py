@@ -13,7 +13,7 @@ import pendulum
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import ImportrunsError
-from bublik.core.importruns.utils import measure_time
+from bublik.core.importruns.utils import MeasureTime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.queries import get_or_none
@@ -361,7 +361,7 @@ class MetaData:
                     debug_details=debug_details,
                 )
 
-    @measure_time('processing meta data')
+    @MeasureTime('processing meta data')
     def handle(self, run, force_update=False):
         self.check_if_essential_metas_changed(run)
 

@@ -8,7 +8,7 @@ from django.db.models import Count
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import ImportrunsError
-from bublik.core.importruns.utils import measure_time
+from bublik.core.importruns.utils import MeasureTime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.meta.categorization import categorize_meta
 from bublik.core.run.keys import prepare_expected_key
@@ -193,7 +193,7 @@ def clear_meta_result(m_data, mr_data):
     MetaResult.objects.filter(meta=meta, **mr_data).delete()
 
 
-@measure_time('adding run log')
+@MeasureTime('adding run log')
 def add_run_log(run, source_suffix, logs_base):
     reference, _ = Reference.objects.get_or_create(
         uri=logs_base['uri'][-1],
@@ -205,7 +205,7 @@ def add_run_log(run, source_suffix, logs_base):
     )
 
 
-@measure_time('adding tags')
+@MeasureTime('adding tags')
 def add_tags(run, tags):
     if not tags:
         return
@@ -217,7 +217,7 @@ def add_tags(run, tags):
         )
 
 
-@measure_time('adding import ID')
+@MeasureTime('adding import ID')
 def add_import_id(run, import_id):
     add_meta_result(
         m_data={'name': 'import_id', 'type': 'import', 'value': import_id},
@@ -225,7 +225,7 @@ def add_import_id(run, import_id):
     )
 
 
-@measure_time('setting run count')
+@MeasureTime('setting run count')
 def set_run_count(run, count_name, count_value):
     update_or_create_meta_result(
         m_data={'name': count_name, 'type': 'count', 'value': str(count_value)},
@@ -240,12 +240,12 @@ def set_prologues_counts(iteration, count_name, count_value):
     )
 
 
-@measure_time('clearing run count')
+@MeasureTime('clearing run count')
 def clear_run_count(run, count_name):
     clear_meta_result(m_data={'name': count_name, 'type': 'count'}, mr_data={'result': run})
 
 
-@measure_time('setting run import mode')
+@MeasureTime('setting run import mode')
 def set_run_import_mode(run, import_mode):
     update_or_create_meta_result(
         m_data={'name': 'import_mode', 'type': 'import', 'value': import_mode},

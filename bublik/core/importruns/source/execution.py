@@ -9,7 +9,7 @@ from django.db import transaction
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem
 from bublik.core.importruns.milog import EntryLevel, HandlerArtifacts
-from bublik.core.importruns.utils import measure_time
+from bublik.core.importruns.utils import MeasureTime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.objects import (
     add_expected_result,
@@ -29,7 +29,7 @@ from bublik.core.run.objects import (
 from bublik.data.models import TestIterationResult
 
 
-@measure_time('handling iterations')
+@MeasureTime('handling iterations')
 def handle_iterations(run_log, run, project_id, tests_nums_prologues):
     for iteration_data in run_log['iters']:
         handle_iteration(
@@ -161,7 +161,7 @@ def handle_iteration(
         )
 
 
-@measure_time('incremental import')
+@MeasureTime('incremental import')
 @transaction.atomic
 def incremental_import(run_log, project_id, meta_data, run_completed, force):
     logger = get_task_or_server_logger()
