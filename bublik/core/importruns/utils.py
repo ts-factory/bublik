@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import wraps
 
 from django.core.files import locks
 
@@ -41,21 +42,27 @@ def indicate_collision(task_id, url):
     return status
 
 
-def measure_time(prefix: str = ''):
-    def decorator(func):
+class MeasureTime:
+    def __init__(self, prefix: str = ''):
+        self.prefix = prefix
+
+    def __enter__(self):
+        self.logger = get_task_or_server_logger()
+        self.logger.info(f'{self.prefix} is started')
+        self.start_time = datetime.now()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        elapsed = datetime.now() - self.start_time
+        self.logger.info(f'{self.prefix} is completed in [{elapsed}]')
+
+    def __call__(self, func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
-            logger = get_task_or_server_logger()
-            logger.info(f'{prefix} is started')
-            start_time = datetime.now()
-            try:
+            with MeasureTime(self.prefix):
                 return func(*args, **kwargs)
-            finally:
-                elapsed = datetime.now() - start_time
-                logger.info(f'{prefix} is completed in [{elapsed}]')
 
         return wrapper
-
-    return decorator
 
 
 def runtime(start_time):
