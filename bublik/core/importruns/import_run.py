@@ -9,6 +9,8 @@ import os
 import shutil
 import tempfile
 
+from django.core.management import call_command
+
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import (
@@ -19,7 +21,7 @@ from bublik.core.exceptions import (
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
-from bublik.core.importruns.utils import runtime
+from bublik.core.importruns.utils import MeasureTime, runtime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
@@ -247,6 +249,8 @@ def import_run(
         add_run_log(run, suffix_url, logs_base)
         categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
         prepare_cache_for_completed_run(run)
+        with MeasureTime('fixing timestamps'):
+            call_command('fix_result_timestamps', '-i', run.id)
 
         logger.info(f'run id is {run.id}')
 
