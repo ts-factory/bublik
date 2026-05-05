@@ -93,6 +93,10 @@ class RunCompromisedError(ImportrunsError):
         super().__init__(message, debug_details)
 
 
+class SanityError(BublikServerError):
+    pass
+
+
 class BublikAPIError(BublikError, APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = 'Something went wrong, please try again'
