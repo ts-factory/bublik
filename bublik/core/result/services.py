@@ -146,17 +146,6 @@ class ResultService:
                 errors.append('No tests found by the given test name')
             queries &= Q(iteration__test__in=test_ids, iteration__hash__isnull=False)
 
-        # results/status filtering
-        if results:
-            results_list = results.split(query_delimiter)
-            diff = get_difference(results_list, models.ResultStatus.all_statuses())
-            if diff:
-                errors.append(f'Unknown result results: {diff}')
-            queries &= Q(
-                meta_results__meta__type='result',
-                meta_results__meta__value__in=results_list,
-            )
-
         if errors:
             raise ValidationError(errors)
 
@@ -178,6 +167,20 @@ class ResultService:
                 target_ids.append(tir_id)
 
             queryset = queryset.filter(id__in=target_ids)
+
+        # results/status filtering
+        if results:
+            results_list = results.split(query_delimiter)
+            diff = get_difference(results_list, models.ResultStatus.all_statuses())
+            if diff:
+                errors.append(f'Unknown result results: {diff}')
+            queryset = queryset.filter(
+                meta_results__meta__type='result',
+                meta_results__meta__value__in=results_list,
+            )
+
+        if errors:
+            raise ValidationError(errors)
 
         # result_properties filtering
         if result_properties:
