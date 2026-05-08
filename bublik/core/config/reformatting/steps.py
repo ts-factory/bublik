@@ -425,6 +425,7 @@ class MergeDashboardSettings(BaseReformatStep):
             config.project,
             default={'total': 'go_tree', 'unexpected': 'go_run_failed', 'notes': 'go_bug'},
         )
+        db_runs_sort = config.content.get('DASHBOARD_RUNS_SORT')
 
         schema = ConfigServices.get_schema(
             ConfigTypes.GLOBAL,
@@ -450,9 +451,16 @@ class MergeDashboardSettings(BaseReformatStep):
                     payload = 'go_log'
                 db_header_col['payload'] = payload
             if db_header_col['key'] not in builtin_column_keys:
-                db_header_col['key'] = db_header_col.pop('label')
+                db_key = db_header_col.pop('key')
+                db_label = db_header_col.pop('label')
+                db_header_col['key'] = db_label
+                if db_runs_sort and db_key in db_runs_sort:
+                    db_runs_sort = [db_label if k == db_key else k for k in db_runs_sort]
             db_columns.append(db_header_col)
 
         config.content['DASHBOARD_COLUMNS'] = db_columns
+
+        if db_runs_sort is not None:
+            config.content['DASHBOARD_RUNS_SORT'] = db_runs_sort
 
         return config
