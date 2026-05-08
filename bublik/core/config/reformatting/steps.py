@@ -409,6 +409,13 @@ class MergeDashboardSettings(BaseReformatStep):
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_HEADER',
             config.project,
+            default=[
+                {'key': 'status', 'label': 'Status'},
+                {'key': 'total', 'label': 'Total'},
+                {'key': 'unexpected', 'label': 'NOK'},
+                {'key': 'progress', 'label': 'Progress'},
+                {'key': 'notes', 'label': 'Notes'},
+            ],
         )
         db_payload = config.content.get(
             'DASHBOARD_PAYLOAD',
@@ -416,6 +423,7 @@ class MergeDashboardSettings(BaseReformatStep):
             GlobalConfigs.PER_CONF.name,
             'DASHBOARD_PAYLOAD',
             config.project,
+            default={'total': 'go_tree', 'unexpected': 'go_run_failed', 'notes': 'go_bug'},
         )
 
         schema = ConfigServices.get_schema(
