@@ -396,6 +396,59 @@ class AllowMultipleSeriesArgs(BaseReformatStep):
 
 
 class MergeDashboardSettings(BaseReformatStep):
+    '''
+    Reformat passed global per_conf config content:
+     - merge DASHBOARD_HEADER and DASHBOARD_PAYLOAD into DASHBOARD_COLUMNS,
+     - for non-builtin column keys replace the key with the label value,
+     - update DASHBOARD_RUNS_SORT keys accordingly.
+
+    Example:
+    "DASHBOARD_HEADER": [
+        {
+            "key": "session",
+            "label": "Session"
+        },
+        {
+            "key": "status",
+            "label": "Status"
+        },
+        {
+            "key": "total",
+            "label": "Total"
+        },
+        {
+            "key": "progress",
+            "label": "Progress"
+        }
+    ],
+    "DASHBOARD_PAYLOAD": {
+        "session": "go_run",
+        "total": "go_tree"
+    },
+    "DASHBOARD_RUNS_SORT": ["session", "start"]
+    ->
+    "DASHBOARD_COLUMNS": [
+        {
+            "key": "Session",
+            "payload": "go_run"
+        },
+        {
+            "key": "Status"
+        },
+        {
+            "key": "total",
+            "label": "Total",
+            "payload": "go_log"
+        },
+        {
+            "key": "progress",
+            "label": "Progress",
+            "formatting": "percent"
+        }
+    ],
+    "DASHBOARD_RUNS_SORT": ["Session", "start"]
+    '''
+
     def applied(self, config, **kwargs):
         content = config.content
         return not any(
