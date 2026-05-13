@@ -69,9 +69,9 @@ class MeasurementResultCommonSerializer(ModelSerializer):
             logger.warning(
                 'a new value was obtained from imported logs for the exist '
                 f'{model.__name__} object (id = {mmr.id}). '
-                f'Old value is {mmr.value}. New value is {self.value}.',
+                f'Old value is {mmr.value}. New value is {value}.',
             )
-            mmr.value = self.value
+            mmr.value = value
             mmr.save()
         return mmr, created
 
