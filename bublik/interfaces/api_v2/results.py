@@ -11,7 +11,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
 from bublik.core.result import ResultService
-from bublik.core.run.services import RunService
+from bublik.core.run.services import RunsChartGroupBy, RunService
 from bublik.core.run.stats import (
     generate_results_details,
     generate_runs_details,
@@ -56,6 +56,20 @@ class RunViewSet(ModelViewSet):
                 'pagination': self.paginator.get_pagination(),
                 'results': generate_runs_details(results),
             },
+        )
+
+    @action(detail=False, methods=['get'])
+    def charts(self, request):
+        group_by_value = request.query_params.get('group_by', RunsChartGroupBy.DAY.value)
+
+        try:
+            group_by = RunsChartGroupBy(group_by_value)
+        except ValueError as e:
+            err_msg = f'group_by must be one of: {", ".join(RunsChartGroupBy.values())}'
+            raise ValidationError(err_msg) from e
+
+        return Response(
+            RunService.aggregate_runs_by_period(self.get_queryset(), group_by=group_by),
         )
 
     @action(detail=False, methods=['post'])
