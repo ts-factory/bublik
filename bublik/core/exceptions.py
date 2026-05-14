@@ -33,7 +33,11 @@ def custom_exception_handler(exc, context):
     # to get the standard error response.
     response = exception_handler(exc, context)
 
-    if response is None or getattr(exc, '__cause__', None):
+    if (
+        response is None
+        or getattr(exc, '__cause__', None)
+        or (isinstance(exc, BublikError) and exc.debug_details)
+    ):
         logger.error('Exception occurred:', exc_info=exc)
 
     if response is None:
