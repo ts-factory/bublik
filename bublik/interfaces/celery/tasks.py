@@ -15,9 +15,9 @@ from celery.signals import (
     task_success,
 )
 from django.core.management import call_command
+import pendulum
 
 from bublik import settings
-from bublik.core.importruns.utils import normalize_importruns_params
 from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event, get_import_job_task
@@ -195,18 +195,42 @@ def importruns(
         logger.info(f'[URL]:  {run_source_url}')
         logger.info(f'[RUN]:  curl {query_url}')
 
-        importruns_params = normalize_importruns_params(
-            run_source_url=run_source_url,
-            project_name=project_name,
-            date_from=date_from,
-            date_to=date_to,
-            force=force,
-        )
-
         import_run(
             job_id=job_id,
             task_id=task_id,
-            **importruns_params,
+            run_source_url=run_source_url,
+            project_name=project_name,
+            date_from=(
+                pendulum.instance(
+                    datetime.combine(
+                        pendulum.parse(date_from).date(),
+                        datetime.min.time(),
+                    ),
+                )
+                if date_from
+                else pendulum.instance(
+                    datetime.combine(
+                        datetime.min.date(),
+                        datetime.min.time(),
+                    ),
+                )
+            ),
+            date_to=(
+                pendulum.instance(
+                    datetime.combine(
+                        pendulum.parse(date_to).date(),
+                        datetime.max.time(),
+                    ),
+                )
+                if date_to
+                else pendulum.instance(
+                    datetime.combine(
+                        datetime.max.date(),
+                        datetime.max.time(),
+                    ),
+                )
+            ),
+            force=force,
         )
 
         return task_id

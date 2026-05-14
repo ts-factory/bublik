@@ -20,7 +20,7 @@ from .dashboard import (
 )
 from .eventlog.views import ImportEventViewSet
 from .history import HistoryViewSet
-from .importruns import ImportrunsViewSet
+from .importruns.views import ImportrunsViewSet
 from .index import render_docs, render_react
 from .job_task.views import JobTaskExecutionViewSet
 from .log import LogViewSet

@@ -19,7 +19,7 @@ from bublik.core.importruns.source.run_traversal import schedule_runs
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import get_current_scheme_host_prefix
 from bublik.core.utils import create_import_job, get_local_log
-from bublik.data.models import Project
+from bublik.interfaces.api_v2.importruns.serializers import ImportrunsSerializer
 
 
 logger = get_task_or_server_logger()
@@ -36,27 +36,19 @@ class ImportrunsViewSet(ViewSet):
         '''
         Creates a Celery task to import a session from the provided URI.
         '''
-        url = request.query_params.get('url')
+        serializer = ImportrunsSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+
+        url = serializer.validated_data['url']
         import_job = create_import_job(url)
 
         try:
-            project_id = request.query_params.get('project')
-            importruns_params = {
-                'url': url,
-                'project_name': (
-                    Project.objects.get(id=project_id).name if project_id is not None else None
-                ),
-                'date_from': request.query_params.get('from'),
-                'date_to': request.query_params.get('to'),
-                'force': request.query_params.get('force'),
-            }
-
             # Schedule Celery tasks
             tasks_data = schedule_runs(
                 request=request,
                 requesting_host=get_current_scheme_host_prefix(request),
                 job_id=import_job.id,
-                **importruns_params,
+                **serializer.to_importruns_params(),
             )
 
             return Response(
