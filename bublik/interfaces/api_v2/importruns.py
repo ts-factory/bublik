@@ -36,9 +36,6 @@ class ImportrunsViewSet(ViewSet):
         '''
         Creates a Celery task to import a session from the provided URI.
         '''
-
-        requesting_host = get_current_scheme_host_prefix(request)
-
         url = request.query_params.get('url')
         import_job = create_import_job(url)
 
@@ -57,7 +54,7 @@ class ImportrunsViewSet(ViewSet):
             # Schedule Celery tasks
             tasks_data = schedule_runs(
                 request=request,
-                requesting_host=requesting_host,
+                requesting_host=get_current_scheme_host_prefix(request),
                 job_id=import_job.id,
                 **importruns_params,
             )
