@@ -237,9 +237,9 @@ class ConfigViewSet(ModelViewSet):
         Of all configurations having the same project, type and name, if there are active ones,
         returns active ones, if there are none, returns the latest ones.
         '''
+        queryset = self.filter_queryset(self.get_queryset())
         configs_to_display = (
-            self.get_queryset()
-            .order_by('project', 'type', 'name', '-is_active', '-created')
+            queryset.order_by('project', 'type', 'name', '-is_active', '-created')
             .distinct('project', 'type', 'name')
             .values(
                 'id',
@@ -252,4 +252,4 @@ class ConfigViewSet(ModelViewSet):
                 'created',
             )
         )
-        return Response(configs_to_display)
+        return Response(list(configs_to_display))
