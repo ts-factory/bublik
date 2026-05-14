@@ -11,7 +11,8 @@ from bublik.core.argparse import (
     parser_type_date,
     parser_type_force,
 )
-from bublik.data.models import Project
+from bublik.core.config.services import ConfigServices
+from bublik.data.models import GlobalConfigs, Project
 
 
 class ImportrunsSerializer(serializers.Serializer):
@@ -28,6 +29,30 @@ class ImportrunsSerializer(serializers.Serializer):
         if 'to' in data:
             data['date_to'] = data.pop('to')[0]
         return super().to_internal_value(data)
+
+    def validate_url(self, url):
+        project_id = self.initial_data.get('project')
+        project_ids = (
+            Project.objects.filter(id=project_id)
+            if project_id is not None
+            else Project.objects.all()
+        ).values_list('id', flat=True)
+
+        allowed_uris = set()
+        for pid in project_ids:
+            logs_bases = ConfigServices.getattr_from_global(
+                GlobalConfigs.REFERENCES.name,
+                'LOGS_BASES',
+                pid,
+            )
+            for logs_base in logs_bases:
+                allowed_uris.update(logs_base.get('uri', []))
+
+        if not any(url.startswith(uri) for uri in allowed_uris):
+            msg = 'URL does not match any allowed logs base URI'
+            raise serializers.ValidationError(msg)
+
+        return url
 
     def validate_date_from(self, date_from):
         try:
