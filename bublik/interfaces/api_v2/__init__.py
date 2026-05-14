@@ -13,7 +13,7 @@ from .auth import (
     RegisterView,
 )
 from .comments import TestCommentViewSet
-from .config import ConfigViewSet
+from .config.views import ConfigViewSet
 from .dashboard import (
     DashboardPayload,
     DashboardViewSet,
