@@ -106,7 +106,7 @@ class ResultService:
     def list_results(
         parent_id: int | None = None,
         test_name: str | None = None,
-        start_tir_id: str | None = None,
+        start_exec_seqno: str | None = None,
         results: str | None = None,
         result_properties: str | None = None,
         requirements: str | None = None,
@@ -117,7 +117,9 @@ class ResultService:
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
-            start_tir_id: Filter by the starting ID of a consecutive result sequence
+            start_exec_seqno: Retain only the consecutive sequence of results
+                starting from the specified execution number, based on the global
+                run sequence
             results: Comma-separated result statuses
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
@@ -135,7 +137,8 @@ class ResultService:
 
         # parent_id filtering
         if parent_id:
-            if not get_or_none(models.TestIterationResult.objects, id=parent_id):
+            parent_obj = get_or_none(models.TestIterationResult.objects, id=parent_id)
+            if not parent_obj:
                 errors.append('No test iteration result found by the given parent id')
             queries &= Q(parent_package=parent_id)
 
@@ -151,22 +154,29 @@ class ResultService:
 
         queryset = queryset.filter(queries)
 
-        # filtering by ID to retain consecutive results
-        if start_tir_id:
-            start_tir_id = int(start_tir_id)
-            all_tir_ids = list(queryset.order_by('id').values_list('id', flat=True).distinct())
+        # Retain only results consecutive relative to the global run sequence,
+        # starting from the specified execution number.
+        # A gap is detected when a foreign exec_seqno (belonging to a different test)
+        # appears between two local ones.
+        if start_exec_seqno:
+            start_exec_seqno = int(start_exec_seqno)
 
-            if start_tir_id not in all_tir_ids:
-                return models.TestIterationResult.objects.none()
+            local_seqnos = queryset.values('exec_seqno').distinct()
 
-            start = all_tir_ids.index(start_tir_id)
-            target_ids = []
-            for i, tir_id in enumerate(all_tir_ids[start:]):
-                if tir_id != start_tir_id + i:
-                    break
-                target_ids.append(tir_id)
+            first_foreign = (
+                models.TestIterationResult.objects.filter(
+                    test_run=parent_obj.test_run,
+                    exec_seqno__gte=start_exec_seqno,
+                )
+                .exclude(exec_seqno__in=local_seqnos)
+                .order_by('exec_seqno')
+                .values('exec_seqno')
+                .first()
+            )
 
-            queryset = queryset.filter(id__in=target_ids)
+            queryset = queryset.filter(exec_seqno__gte=start_exec_seqno)
+            if first_foreign is not None:
+                queryset = queryset.filter(exec_seqno__lt=first_foreign['exec_seqno'])
 
         # results/status filtering
         if results:
@@ -219,7 +229,7 @@ class ResultService:
     def list_results_paginated(
         parent_id: int | None = None,
         test_name: str | None = None,
-        start_tir_id: str | None = None,
+        start_exec_seqno: str | None = None,
         results: str | None = None,
         result_properties: str | None = None,
         requirements: str | None = None,
@@ -232,7 +242,9 @@ class ResultService:
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
-            start_tir_id: Filter by the starting ID of a consecutive result sequence
+            start_exec_seqno: Retain only the consecutive sequence of results
+                starting from the specified execution number, based on the global
+                run sequence
             results: Comma-separated result statuses
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
@@ -245,7 +257,7 @@ class ResultService:
         queryset = ResultService.list_results(
             parent_id=parent_id,
             test_name=test_name,
-            start_tir_id=start_tir_id,
+            start_exec_seqno=start_exec_seqno,
             results=results,
             result_properties=result_properties,
             requirements=requirements,
