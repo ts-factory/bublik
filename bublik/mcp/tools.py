@@ -147,7 +147,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
     async def list_results(
         parent_id: int,
         test_name: str,
-        start_tir_id: str,
+        start_exec_seqno: str,
         results: str | None = None,
         result_properties: str | None = None,
         requirements: str | None = None,
@@ -160,7 +160,9 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
-            start_tir_id: Filter by the starting ID of a consecutive result sequence
+            start_exec_seqno: Retain only the consecutive sequence of results
+                starting from the specified execution number, based on the global
+                run sequence
             results: Semicolon-separated result statuses
                 (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
             result_properties: Semicolon-separated result properties
@@ -175,7 +177,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         return await sync_to_async(ResultService.list_results_paginated)(
             parent_id=parent_id,
             test_name=test_name,
-            start_tir_id=start_tir_id,
+            start_exec_seqno=start_exec_seqno,
             results=results,
             result_properties=result_properties,
             requirements=requirements,
