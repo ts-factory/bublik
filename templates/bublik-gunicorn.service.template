@@ -7,7 +7,7 @@ WorkingDirectory=${BUBLIK_SRC}
 ExecStart=${SCRIPTS_DIR}/rungunicorn
 ExecReload=/bin/kill -s HUP $MAINPID
 ExecStop=/bin/kill -s TERM $MAINPID
-PrivateTmp=true
+PrivateTmp=false
 
 [Install]
 WantedBy=default.target
