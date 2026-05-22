@@ -218,7 +218,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         finish_date: str | None = None,
         project_id: int | None = None,
         run_status: str | None = None,
-        run_data: str | None = None,
+        run_metas: str | None = None,
         tag_expr: str | None = None,
         label_expr: str | None = None,
         revision_expr: str | None = None,
@@ -234,7 +234,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             finish_date: Finish date in yyyy-mm-dd format (e.g., '2024-01-31')
             project_id: Optional project ID to filter results
             run_status: Optional run status filter
-            run_data: Semicolon-separated metadata (tags, labels, revisions, branches)
+            run_metas: Semicolon-separated metadata (tags, labels, revisions, branches)
             tag_expr: Tag expression filter (supports boolean logic: &, |, !)
             label_expr: Label expression filter (supports boolean logic: &, |, !)
             revision_expr: Revision expression filter (supports boolean logic: &, |, !)
@@ -250,7 +250,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             finish_date=finish_date,
             project_id=project_id,
             run_status=run_status,
-            run_data=run_data,
+            run_metas=run_metas,
             tag_expr=tag_expr,
             label_expr=label_expr,
             revision_expr=revision_expr,
