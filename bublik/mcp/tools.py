@@ -280,13 +280,18 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         Returns:
             Dictionary with pagination metadata and today's run details
         '''
-        today = date.today().isoformat()
-        queryset = await sync_to_async(RunService.list_runs_queryset)(
-            start_date=today,
-            finish_date=today,
+        date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
             project_id=project_id,
         )
-        runs_details = await sync_to_async(generate_runs_details)(queryset)
+        queryset = (
+            await sync_to_async(RunService.list_runs_by_dashboard_date_queryset)(
+                date=date_str,
+                project_id=project_id,
+            )
+            if date_str
+            else []
+        )
+        runs_details = await sync_to_async(generate_runs_details)(queryset) if date_str else []
         return await sync_to_async(PaginatedResult.paginate_queryset)(
             runs_details,
             page,
