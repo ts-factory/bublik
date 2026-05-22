@@ -13,6 +13,7 @@ from django.db.models import Count, Q
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import NotFoundError
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.run.compromised import (
@@ -474,6 +475,37 @@ class RunService:
             )
 
         return {'buckets': buckets}
+
+    @staticmethod
+    def list_runs_by_dashboard_date_queryset(date: str, project_id: int | None = None):
+        '''
+        Get runs for a dashboard date using the same date source as dashboard data.
+
+        Some installations configure dashboard dates through run metadata instead of
+        the run start timestamp.
+        '''
+        date_meta = ConfigServices.getattr_from_global(
+            models.GlobalConfigs.PER_CONF.name,
+            'DASHBOARD_DATE',
+            project_id,
+        )
+
+        if date_meta:
+            queryset = models.TestIterationResult.objects.filter(
+                test_run__isnull=True,
+                meta_results__meta__name=date_meta,
+                meta_results__meta__value=date,
+            )
+        else:
+            queryset = models.TestIterationResult.objects.filter(
+                test_run__isnull=True,
+                start__date=date_str_to_db(date),
+            )
+
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+
+        return queryset.select_related('project').distinct().order_by('-start')
 
     @staticmethod
     def get_run_requirements(run_id: int) -> list[str]:
