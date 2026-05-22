@@ -13,16 +13,20 @@ from bublik.core.logging import get_task_or_server_logger
 SAVE_URL_CHUNK_SIZE = 16384
 
 
-def get_url(url_str, raise_for_status=True, quiet_404=False):
+def get_url(url_str, raise_for_status=True, quiet_404=False, timeout=None):
     kerberos_auth = HTTPKerberosAuth(mutual_authentication=DISABLED)
-    req = requests.get(url_str, auth=kerberos_auth)
+    request_kwargs = {'auth': kerberos_auth}
+    if timeout is not None:
+        request_kwargs['timeout'] = timeout
+
+    req = requests.get(url_str, **request_kwargs)
 
     # CGI uses 302 status code for auto generated files and
     # requests lib doesn't authenticate on retry.
     # Do retry here when auto generated file is in place.
     not_auth = 401
     if req.status_code == not_auth:
-        req = requests.get(url_str, auth=kerberos_auth)
+        req = requests.get(url_str, **request_kwargs)
 
     if raise_for_status:
         not_found_code = 404

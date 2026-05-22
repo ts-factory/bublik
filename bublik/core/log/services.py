@@ -13,6 +13,7 @@ from rest_framework.exceptions import ValidationError
 from bublik.core.exceptions import BadGatewayError, UnprocessableEntityError
 from bublik.core.result.services import ResultService
 from bublik.core.run.external_links import get_result_log, get_sources
+from bublik.core.url import get_url
 
 
 class LogService:
@@ -114,8 +115,9 @@ class LogService:
             raise UnprocessableEntityError(msg)
 
         try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
+            response = get_url(url, quiet_404=allow_not_found, timeout=30)
+            if response is None:
+                return None
             return response.json()
         except requests.exceptions.HTTPError as re:
             if (
