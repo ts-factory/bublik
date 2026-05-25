@@ -430,6 +430,7 @@ The test iteration identifier (TIN) which is generated during the testing.''',
     )
 
     exec_seqno = models.IntegerField(
+        db_index=True,
         null=True,
         help_text='''\
 The execution sequence number (the actual test ID) which is generated during the testing.''',
