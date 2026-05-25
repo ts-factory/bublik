@@ -113,38 +113,44 @@ def handle_iteration(
         data['err'],
     )
 
-    expected = data.get('expected')
-    if expected:
-        keys = [expected['key']] if 'key' in expected else []
-        notes = [expected['notes']] if 'notes' in expected else []
-        for expected_result in expected['results']:
-            if 'key' in expected_result:
-                keys.append(expected_result['key'])
-            if 'notes' in expected_result:
-                notes.append(expected_result['notes'])
+    with transaction.atomic():
+        # Clear iteration result expectations before adding them, as the fix
+        # for bug #318 may have changed the set of metas identifying an expectation
+        # for the same data, which would cause duplicates on force imports.
+        iteration_result.expectations.clear()
+
+        expected = data.get('expected')
+        if expected:
+            keys = [expected['key']] if 'key' in expected else []
+            notes = [expected['notes']] if 'notes' in expected else []
+            for expected_result in expected['results']:
+                if 'key' in expected_result:
+                    keys.append(expected_result['key'])
+                if 'notes' in expected_result:
+                    notes.append(expected_result['notes'])
+                add_expected_result(
+                    iteration_result,
+                    expected_result['status'],
+                    expected_result.get('verdicts'),
+                    obtained.get('tag_expression'),
+                    keys,
+                    notes,
+                )
+        else:
+            keys = [obtained['key']] if 'key' in obtained else []
+            if 'key' in obtained_result:
+                keys.append(obtained_result['key'])
+            notes = [obtained['notes']] if 'notes' in obtained else []
+            if 'notes' in obtained_result:
+                notes.append(obtained_result['notes'])
             add_expected_result(
                 iteration_result,
-                expected_result['status'],
-                expected_result.get('verdicts'),
+                obtained_result['status'],
+                obtained_result.get('verdicts'),
                 obtained.get('tag_expression'),
                 keys,
                 notes,
             )
-    else:
-        keys = [obtained['key']] if 'key' in obtained else []
-        if 'key' in obtained_result:
-            keys.append(obtained_result['key'])
-        notes = [obtained['notes']] if 'notes' in obtained else []
-        if 'notes' in obtained_result:
-            notes.append(obtained_result['notes'])
-        add_expected_result(
-            iteration_result,
-            obtained_result['status'],
-            obtained_result.get('verdicts'),
-            obtained.get('tag_expression'),
-            keys,
-            notes,
-        )
 
     artifacts = obtained['result'].get('artifacts')
     if artifacts:
