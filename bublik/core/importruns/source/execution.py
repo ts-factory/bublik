@@ -104,10 +104,12 @@ def handle_iteration(
             tests_nums_prologues[plan_id],
         )
 
+    obtained_result = obtained['result']
+
     add_obtained_result(
         iteration_result,
-        obtained['result']['status'],
-        obtained['result'].get('verdicts'),
+        obtained_result['status'],
+        obtained_result.get('verdicts'),
         data['err'],
     )
 
@@ -129,13 +131,19 @@ def handle_iteration(
                 notes,
             )
     else:
+        keys = [obtained['key']] if 'key' in obtained else []
+        if 'key' in obtained_result:
+            keys.append(obtained_result['key'])
+        notes = [obtained['notes']] if 'notes' in obtained else []
+        if 'notes' in obtained_result:
+            notes.append(obtained_result['notes'])
         add_expected_result(
             iteration_result,
-            obtained['result']['status'],
-            obtained['result'].get('verdicts'),
+            obtained_result['status'],
+            obtained_result.get('verdicts'),
             obtained.get('tag_expression'),
-            obtained['result'].get('key'),
-            obtained['result'].get('notes'),
+            keys,
+            notes,
         )
 
     artifacts = obtained['result'].get('artifacts')
