@@ -181,6 +181,25 @@ class ReportService:
         return run_report_configs
 
     @staticmethod
+    def get_most_recent_config_for_run_report(run) -> list[dict]:
+        '''
+        Get the ID of the most recent available report configuration for a run.
+
+        Args:
+            run: TestIterationResult instance
+
+        Returns:
+            ID of the most recent report config if available,
+            otherwise None if no configs exist.
+        '''
+
+        run_report_configs_data = ReportService.get_configs_for_run_report(run)
+        if run_report_configs_data:
+            # get the ID of the most recent applicable config
+            return max(run_report_configs_data, key=lambda cfg_data: cfg_data['id'])['id']
+        return None
+
+    @staticmethod
     def generate_report(run_id: int, config_id: int) -> dict:
         '''
         Generate full report for a run using specified config.
