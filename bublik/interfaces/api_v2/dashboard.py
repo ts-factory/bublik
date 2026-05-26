@@ -328,10 +328,8 @@ class DashboardPayload:
             )
 
     def go_report(self, data, run):
-        run_report_configs_data = ReportService.get_configs_for_run_report(run)
-        if run_report_configs_data:
-            # get the ID of the most recent applicable config
-            cfg_id = max(run_report_configs_data, key=lambda cfg_data: cfg_data['id'])['id']
+        cfg_id = ReportService.get_most_recent_config_for_run_report(run)
+        if cfg_id:
             for item in data:
                 item.update(
                     {
