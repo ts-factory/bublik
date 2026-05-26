@@ -10,6 +10,7 @@ from deepdiff import DeepHash
 from django.conf import settings
 
 from bublik.core.datetime_formatting import get_duration
+from bublik.core.report.services import ReportService
 from bublik.core.run.stats import get_expected_results
 from bublik.core.run.utils import prepare_dates_period
 from bublik.core.utils import key_value_dict_transforming
@@ -45,7 +46,7 @@ def prepare_list_results(
         result_finish = test_result['finish']
 
         # Handle expected result
-        test_result_obj = TestIterationResult.objects.select_related('project').get(
+        test_result_obj = TestIterationResult.objects.select_related('project', 'test_run').get(
             id=result_id,
         )
         expected_results_data = get_expected_results(test_result_obj)
@@ -79,6 +80,9 @@ def prepare_list_results(
             'project_name': test_result_obj.project.name,
             'result_id': result_id,
             'iteration_id': iteration_id,
+            'report_config_id': ReportService.get_most_recent_config_for_run_report(
+                test_result_obj.test_run,
+            ),
         }
 
         results_to_response.append(result)
