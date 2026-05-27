@@ -2,9 +2,11 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
+from functools import lru_cache
 
 from django.conf import settings
 from django.utils import timezone
+import pendulum
 import pytz
 
 
@@ -63,6 +65,15 @@ def get_duration(dt_start, dt_finish):
 
 def utc_ts_to_dt(ts):
     return datetime.fromtimestamp(ts, timezone.get_current_timezone())
+
+
+@lru_cache(maxsize=1)
+def get_run_tz(run):
+    start_timestamp = run.meta_results.get(meta__name='START_TIMESTAMP').meta.value
+    start_timestamp_offset = pendulum.parse(start_timestamp).utcoffset()
+    return (
+        timezone(start_timestamp_offset) if start_timestamp_offset is not None else timezone.utc
+    )
 
 
 def localize_date(date):

@@ -185,11 +185,11 @@ class MetaData:
     def __parse_timestamps(self):
         start_meta = find_dict_in_list({'name': 'START_TIMESTAMP'}, self.metas)
         if start_meta and 'value' in start_meta:
-            self.run_start = pendulum.parse(start_meta['value'])
+            self.run_start = pendulum.parse(start_meta['value']).in_timezone('UTC')
 
         finish_meta = find_dict_in_list({'name': 'FINISH_TIMESTAMP'}, self.metas)
         if finish_meta and 'value' in finish_meta:
-            self.run_finish = pendulum.parse(finish_meta['value'])
+            self.run_finish = pendulum.parse(finish_meta['value']).in_timezone('UTC')
 
     def check_run_period(self, date_from, date_to):
         return not (
