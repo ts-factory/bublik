@@ -2,10 +2,12 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
+from datetime import timezone
 
 from django.core.management import call_command
 from django.db import transaction
 
+from bublik.core.datetime_formatting import get_run_tz, to_db_format
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem
 from bublik.core.importruns.milog import EntryLevel, HandlerArtifacts
@@ -70,10 +72,19 @@ def handle_iteration(
     )
     handle_iteration.counter['created_iter_obj'] += add_iteration.counter['created']
 
+    start_ts, end_ts = (
+        (
+            to_db_format(data[local_ts_key])
+            .replace(tzinfo=get_run_tz(run))
+            .astimezone(timezone.utc)
+        )
+        for local_ts_key in ['start_ts', 'end_ts']
+    )
+
     iteration_result = add_iteration_result(
         project_id,
-        data['start_ts'],
-        data['end_ts'],
+        start_ts,
+        end_ts,
         iteration,
         run,
         parent_package,
