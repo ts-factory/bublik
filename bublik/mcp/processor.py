@@ -8,6 +8,7 @@ Log processor for working with validated JsonLog data.
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, ClassVar
 
 from bublik.mcp.models import (
@@ -21,7 +22,24 @@ from bublik.mcp.models import (
 
 
 if TYPE_CHECKING:
-    from bublik.mcp.models import LogTableData, SnifferContentItem
+    from bublik.mcp.models import LogTableData, LogTimestamp, SnifferContentItem
+
+
+def get_log_timestamp_seconds(timestamp: LogTimestamp) -> float:
+    '''
+    Get Unix timestamp seconds from legacy and numeric JSON log timestamp shapes.
+    '''
+    return timestamp if isinstance(timestamp, float) else timestamp.timestamp
+
+
+def get_log_timestamp_display(timestamp: LogTimestamp) -> str:
+    '''
+    Get formatted display time from legacy and numeric JSON log timestamp shapes.
+    '''
+    if not isinstance(timestamp, float):
+        return timestamp.formatted
+
+    return datetime.fromtimestamp(timestamp, timezone.utc).strftime('%H:%M:%S.%f')[:-3]
 
 
 class LogProcessor:
@@ -524,8 +542,8 @@ class LogProcessor:
                 level=str(level),
                 entity_name=item.entity_name,
                 user_name=item.user_name,
-                timestamp=item.timestamp.formatted,
-                timestamp_raw=item.timestamp.timestamp,
+                timestamp=get_log_timestamp_display(item.timestamp),
+                timestamp_raw=get_log_timestamp_seconds(item.timestamp),
                 content=self._extract_content(item.log_content),
                 content_type=self._get_content_type(item.log_content),
                 depth=depth,

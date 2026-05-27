@@ -214,8 +214,13 @@ class LogContentSnifferPacket(BaseModel):
 
 
 class TimeStamp(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     timestamp: float = Field(..., description='Timestamp in seconds')
     formatted: str = Field(..., description='Formatted timestamp')
+
+
+LogTimestamp = TimeStamp | float
 
 
 LogContent = (
@@ -234,7 +239,7 @@ class LogTableData(BaseModel):
     level: LogLevelSchema
     entity_name: str
     user_name: str
-    timestamp: TimeStamp
+    timestamp: LogTimestamp
     log_content: list[LogContent] = Field(
         ...,
         description='Log content accepts series of blocks for displaying data',
