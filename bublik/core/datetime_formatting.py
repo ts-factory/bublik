@@ -63,8 +63,10 @@ def get_duration(dt_start, dt_finish):
     return str(dt_finish - dt_start)[:-3]
 
 
-def utc_ts_to_dt(ts):
-    return datetime.fromtimestamp(ts, timezone.get_current_timezone())
+def utc_ts_to_dt(ts, tz=None):
+    if tz is None:
+        tz = timezone.get_current_timezone()
+    return datetime.fromtimestamp(ts, tz)
 
 
 @lru_cache(maxsize=1)
