@@ -7,7 +7,7 @@ from datetime import timezone
 from django.core.management import call_command
 from django.db import transaction
 
-from bublik.core.datetime_formatting import get_run_tz, to_db_format
+from bublik.core.datetime_formatting import get_run_tz, to_db_format, utc_ts_to_dt
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem
 from bublik.core.importruns.milog import EntryLevel, HandlerArtifacts
@@ -74,11 +74,13 @@ def handle_iteration(
 
     start_ts, end_ts = (
         (
-            to_db_format(data[local_ts_key])
+            utc_ts_to_dt(data[utc_ts_key], timezone.utc)
+            if utc_ts_key in data
+            else to_db_format(data[local_ts_key])
             .replace(tzinfo=get_run_tz(run))
             .astimezone(timezone.utc)
         )
-        for local_ts_key in ['start_ts', 'end_ts']
+        for utc_ts_key, local_ts_key in [('start_ts_utc', 'start_ts'), ('end_ts_utc', 'end_ts')]
     )
 
     iteration_result = add_iteration_result(
