@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from datetime import datetime
+from datetime import timezone as dt_timezone
 from functools import lru_cache
 
 from django.conf import settings
@@ -74,7 +75,9 @@ def get_run_tz(run):
     start_timestamp = run.meta_results.get(meta__name='START_TIMESTAMP').meta.value
     start_timestamp_offset = pendulum.parse(start_timestamp).utcoffset()
     return (
-        timezone(start_timestamp_offset) if start_timestamp_offset is not None else timezone.utc
+        dt_timezone(start_timestamp_offset)
+        if start_timestamp_offset is not None
+        else dt_timezone.utc
     )
 
 
