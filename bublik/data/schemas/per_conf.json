@@ -156,6 +156,91 @@
             "uniqueItems": true,
             "default": ["Configuration"]
         },
+        "RUN_STATS_COLUMNS_DEFAULT": {
+            "description": "Column names to display by default in the run stats table, in display order",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "oneOf": [
+                    {
+                        "const": "objective",
+                        "title": "Objective",
+                        "description": "Test objective"
+                    },
+                    {
+                        "const": "comments",
+                        "title": "Notes",
+                        "description": "User-provided comment for the test"
+                    },
+                    {
+                        "const": "total",
+                        "title": "Total",
+                        "description": "Total number of iterations"
+                    },
+                    {
+                        "const": "run",
+                        "title": "Run",
+                        "description": "Number of iterations actually run (all except skipped)"
+                    },
+                    {
+                        "const": "total_expected",
+                        "title": "Expected Total",
+                        "description": "Total number of expected iterations"
+                    },
+                    {
+                        "const": "passed",
+                        "title": "Expected Passed",
+                        "description": "Number of iterations that passed as expected"
+                    },
+                    {
+                        "const": "failed",
+                        "title": "Expected Failed",
+                        "description": "Number of iterations that failed as expected"
+                    },
+                    {
+                        "const": "total_unexpected",
+                        "title": "Unexpected Total",
+                        "description": "Total number of unexpected iterations"
+                    },
+                    {
+                        "const": "passed_unexpected",
+                        "title": "Unexpected Passed",
+                        "description": "Number of iterations that passed unexpectedly"
+                    },
+                    {
+                        "const": "failed_unexpected",
+                        "title": "Unexpected Failed",
+                        "description": "Number of iterations that failed unexpectedly"
+                    },
+                    {
+                        "const": "skipped",
+                        "title": "Expected Skipped",
+                        "description": "Number of iterations that were skipped as expected"
+                    },
+                    {
+                        "const": "skipped_unexpected",
+                        "title": "Unexpected Skipped",
+                        "description": "Number of iterations that were skipped unexpectedly"
+                    },
+                    {
+                        "const": "abnormal",
+                        "title": "Abnormal",
+                        "description": "Number of iterations that terminated abnormally"
+                    }
+                ]
+            },
+            "uniqueItems": true,
+            "default": [
+                "run",
+                "passed",
+                "failed",
+                "passed_unexpected",
+                "failed_unexpected",
+                "skipped",
+                "skipped_unexpected",
+                "abnormal"
+            ]
+        },
         "RUN_STATUS_META": {
             "description": "Represents meta name in meta_data.json that defines run status",
             "type": "string",
