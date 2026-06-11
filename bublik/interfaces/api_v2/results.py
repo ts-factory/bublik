@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.core.cache import RunCache
+from bublik.core.config.services import ConfigServices
 from bublik.core.result import ResultService
 from bublik.core.run.services import RunsChartGroupBy, RunService
 from bublik.core.run.stats import (
@@ -17,6 +18,7 @@ from bublik.core.run.stats import (
     generate_runs_details,
 )
 from bublik.core.utils import get_difference
+from bublik.data.models import GlobalConfigs, TestIterationResult
 from bublik.data.serializers import (
     RunCommentSerializer,
     TestIterationResultSerializer,
@@ -98,7 +100,17 @@ class RunViewSet(ModelViewSet):
     @action(detail=True, methods=['get'])
     def stats(self, _request, pk=None):
         requirements = self.request.query_params.get('requirements')
-        return Response({'results': RunService.get_run_stats(pk, requirements)})
+        project_id = TestIterationResult.objects.get(id=pk).project.id
+        return Response(
+            {
+                'results': RunService.get_run_stats(pk, requirements),
+                'default_columns': ConfigServices.getattr_from_global(
+                    GlobalConfigs.PER_CONF.name,
+                    'RUN_STATS_COLUMNS_DEFAULT',
+                    project_id,
+                ),
+            },
+        )
 
     @action(detail=True, methods=['get'])
     def requirements(self, _request, pk=None):
