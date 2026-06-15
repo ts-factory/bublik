@@ -21,11 +21,10 @@ from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
 from bublik.interfaces.api_v2.run.serializers import (
     serialize_paginated_run_summary_results,
-    serialize_run_details,
-    serialize_run_stats_result,
 )
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
+from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, render_run_overview
 
 
 if TYPE_CHECKING:
@@ -54,75 +53,92 @@ def register_tools(mcp: FastMCP):  # noqa: C901
     """
 
     @mcp.tool()
-    async def get_run_details(run_id: int) -> dict:
-        """
-        Get detailed information about a test run.
-
-        Args:
-            run_id: The ID of the test run
-
-        Returns:
-            Dictionary with full run details including metadata, stats, etc.
-        """
-        return serialize_run_details(await sync_to_async(RunService.get_run_details)(run_id))
-
-    @mcp.tool()
-    async def get_run_status(run_id: int) -> str:
-        """
-        Get the status of a test run.
-
-        Args:
-            run_id: The ID of the test run
-
-        Returns:
-            Status string for the run (e.g., 'passed', 'failed', 'skipped')
-        """
-        return await sync_to_async(RunService.get_run_status)(run_id)
-
-    @mcp.tool()
-    async def get_run_stats(
+    async def get_run_overview(
         run_id: int,
         requirements: str | None = None,
-    ) -> dict:
+        unexpected_only: bool = False,
+    ) -> str:
         """
-        Get statistics for a test run.
+        Get a complete Markdown overview of a test run.
+
+        The overview combines run metadata, status, conclusion, source,
+        compromised details, and the aggregate result statistics tree. Each
+        test row includes a Result ID that can be passed to
+        get_run_leaf_results for concrete executions.
 
         Args:
             run_id: The ID of the test run
-            requirements: Optional requirements filter
+            requirements: Optional semicolon-separated requirements filter
+            unexpected_only: Return only test leaves containing unexpected or
+                abnormal results
 
         Returns:
-            Dictionary with run statistics including pass/fail counts
+            Markdown document containing run details and aggregate statistics
         """
-        return serialize_run_stats_result(
-            await sync_to_async(RunService.get_run_stats)(run_id, requirements),
+        details, source, stats = await sync_to_async(
+            lambda: (
+                RunService.get_run_details(run_id),
+                RunService.get_run_source(run_id),
+                RunService.get_run_stats(run_id, requirements),
+            ),
+        )()
+
+        return render_run_overview(
+            details,
+            source,
+            stats,
+            requirements,
+            unexpected_only,
         )
 
     @mcp.tool()
-    async def get_run_source(run_id: int) -> str:
+    async def get_run_leaf_results(
+        leaf_result_id: int,
+        requirements: str | None = None,
+        results: str | None = None,
+        result_properties: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        unexpected_only: bool = False,
+    ) -> str:
         """
-        Get the source URL for a test run.
+        Get paginated executions represented by a test leaf in a run overview.
+
+        Pass a test Result ID shown by get_run_overview, not an individual
+        execution ID. For the common failure-investigation workflow, set
+        unexpected_only to true to return only unexpected or abnormal executions.
+        Use the advanced requirements, results, and result_properties filters to
+        narrow further. requirements composes with unexpected_only; results and
+        result_properties are mutually exclusive with it (they overlap with the
+        unexpected/abnormal classification). With no toggle or filters, all
+        executions represented by the leaf are returned.
 
         Args:
-            run_id: The ID of the test run
+            leaf_result_id: Aggregate test Result ID shown by get_run_overview
+            requirements: Optional semicolon-separated requirement names
+            results: Optional semicolon-separated obtained result statuses
+                (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
+            result_properties: Optional semicolon-separated result properties
+                (e.g., 'expected;unexpected;not_run')
+            page: Page number (default: 1)
+            page_size: Items per page (default: 25, max: 10000)
+            unexpected_only: Return only unexpected or abnormal executions.
+                Can be combined with requirements; cannot be combined with
+                results or result_properties
 
         Returns:
-            Source URL string
+            Markdown table with the matching concrete executions and pagination
         """
-        return await sync_to_async(RunService.get_run_source)(run_id)
-
-    @mcp.tool()
-    async def get_run_compromised(run_id: int) -> bool:
-        """
-        Get the compromised status of a test run.
-
-        Args:
-            run_id: The ID of the test run
-
-        Returns:
-            True if the run is compromised, False otherwise
-        """
-        return await sync_to_async(RunService.get_run_compromised)(run_id)
+        payload = await sync_to_async(_get_run_leaf_results)(
+            leaf_result_id=leaf_result_id,
+            requirements=requirements,
+            results=results,
+            result_properties=result_properties,
+            page=page,
+            page_size=page_size,
+            unexpected_only=unexpected_only,
+        )
+        return render_run_leaf_results(payload)
 
     @mcp.tool()
     async def get_result_details(result_id: int) -> dict:
@@ -149,48 +165,6 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             Dictionary with artifacts and verdicts lists
         """
         return await sync_to_async(ResultService.get_result_artifacts_and_verdicts)(result_id)
-
-    @mcp.tool()
-    async def list_results(
-        parent_id: int,
-        test_name: str,
-        start_exec_seqno: str,
-        results: str | None = None,
-        result_properties: str | None = None,
-        requirements: str | None = None,
-        page: int | None = None,
-        page_size: int | None = None,
-    ) -> dict:
-        """
-        List test results with filtering.
-
-        Args:
-            parent_id: Filter by parent package ID
-            test_name: Filter by test name
-            start_exec_seqno: Retain only the consecutive sequence of results
-                starting from the specified execution number, based on the global
-                run sequence
-            results: Semicolon-separated result statuses
-                (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
-            result_properties: Semicolon-separated result properties
-                (e.g., 'expected;unexpected;not_run')
-            requirements: Semicolon-separated requirement names
-            page: Page number (default: 1)
-            page_size: Items per page (default: 25, max: 10000)
-
-        Returns:
-            Dictionary with pagination metadata and result details
-        """
-        return await sync_to_async(ResultService.list_results_paginated)(
-            parent_id=parent_id,
-            test_name=test_name,
-            start_exec_seqno=start_exec_seqno,
-            results=results,
-            result_properties=result_properties,
-            requirements=requirements,
-            page=page,
-            page_size=page_size,
-        )
 
     # Project tools
 
