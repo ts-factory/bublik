@@ -30,7 +30,8 @@ from .outside_domains import OutsideDomainsViewSet
 from .performance import PerformanceCheckView
 from .project import ProjectViewSet
 from .report import ReportViewSet
-from .results import ResultViewSet, RunViewSet
+from .result.views import ResultViewSet
+from .run.views import RunViewSet
 from .server import ServerViewSet
 from .tree import TreeViewSet
 from .url_shortener import URLShortenerView
