@@ -27,6 +27,17 @@ from bublik.core.run.data import (
     get_tags_by_runs,
     is_result_unexpected,
 )
+from bublik.core.run.dto import (
+    RunCompromisedDetails,
+    RunDetailsResult,
+    RunRevision,
+    RunSpecialCategory,
+    RunStatsComment,
+    RunStatsResult,
+    RunStatsValues,
+    RunSummaryResult,
+    RunSummaryStats,
+)
 from bublik.core.run.filter_expression import filter_by_expression
 from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
 from bublik.data.models import (
@@ -203,9 +214,29 @@ def generate_result(
 
 def get_run_stats_detailed_with_comments(run_id, requirements):
     run_stats = get_run_stats_detailed(run_id, requirements)
+    if run_stats is None:
+        return None
+
     tests_comments = get_tests_comments(run_id)
     add_comments(run_stats, tests_comments)
-    return run_stats
+    return _run_stats_data_to_result(run_stats)
+
+
+def _run_stats_data_to_result(stats_data):
+    return RunStatsResult(
+        result_id=stats_data['result_id'],
+        exec_seqno=stats_data['exec_seqno'],
+        parent_id=stats_data['parent_id'],
+        type=stats_data['type'],
+        test_id=stats_data['test_id'],
+        test_name=stats_data['test_name'],
+        period=stats_data['period'],
+        path=stats_data['path'],
+        objective=stats_data['objective'],
+        children=[_run_stats_data_to_result(child) for child in stats_data.get('children', [])],
+        stats=RunStatsValues(**stats_data['stats']),
+        comments=[RunStatsComment(**comment) for comment in stats_data.get('comments', [])],
+    )
 
 
 def add_comments(node, tests_comments):
@@ -440,14 +471,14 @@ def get_run_stats_summary(run_id):
         tests_total_ok_percent += 1
         tests_total_nok_percent -= 1
 
-    return {
-        'tests_total': tests_total,
-        'tests_total_plan_percent': tests_total_plan_percent,
-        'tests_total_ok': tests_total_ok,
-        'tests_total_ok_percent': tests_total_ok_percent,
-        'tests_total_nok': tests_total_nok,
-        'tests_total_nok_percent': tests_total_nok_percent,
-    }
+    return RunSummaryStats(
+        tests_total=tests_total,
+        tests_total_plan_percent=tests_total_plan_percent,
+        tests_total_ok=tests_total_ok,
+        tests_total_ok_percent=tests_total_ok_percent,
+        tests_total_nok=tests_total_nok,
+        tests_total_nok_percent=tests_total_nok_percent,
+    )
 
 
 def get_expected_results(result):
@@ -655,7 +686,10 @@ def generate_all_run_details(run):
     q = MetaResultsQuery(run_meta_results)
 
     branches = q.metas_query('branch')
-    revisions = build_revision_references(q.revision_related_query(), project.id)
+    revisions = [
+        RunRevision(**revision)
+        for revision in build_revision_references(q.revision_related_query(), project.id)
+    ]
     labels = q.labels_query(category_names, project.id)
     configurations = list(
         key_value_list_transforming(
@@ -664,32 +698,45 @@ def generate_all_run_details(run):
             ],
         ),
     )
-    categories = get_metas_by_category(run_meta_results, category_names, project.id)
-    for category, category_values in categories.items():
-        categories[category] = list(key_value_list_transforming(category_values))
+    categories = [
+        RunSpecialCategory(
+            name=category,
+            values=list(key_value_list_transforming(category_values)),
+        )
+        for category, category_values in get_metas_by_category(
+            run_meta_results,
+            category_names,
+            project.id,
+        ).items()
+    ]
+    compromised_details = get_compromised_details(run)
 
     logger.debug('[run_details]: preparing resulting dict')
-    return {
-        'project_id': project.id,
-        'project_name': project.name,
-        'id': run_id,
-        'start': run.start,
-        'finish': run.finish,
-        'duration': run.duration,
-        'main_package': run.main_package.iteration.test.name if run.main_package else None,
-        'status': get_run_status(run),
-        'status_by_nok': get_run_status_by_nok(run)[0],
-        'compromised': get_compromised_details(run),
-        'conclusion': conclusion,
-        'conclusion_reason': conclusion_reason,
-        'important_tags': important_tags.get(run_id, []),
-        'relevant_tags': relevant_tags.get(run_id, []),
-        'branches': list(key_value_list_transforming(branches)),
-        'revisions': revisions,
-        'labels': list(key_value_list_transforming(labels)),
-        'special_categories': categories,
-        'configuration': configurations[0] if configurations else None,
-    }
+    return RunDetailsResult(
+        project_id=project.id,
+        project_name=project.name,
+        id=run_id,
+        start=run.start,
+        finish=run.finish,
+        duration=run.duration,
+        main_package=run.main_package.iteration.test.name if run.main_package else None,
+        status=get_run_status(run),
+        status_by_nok=get_run_status_by_nok(run)[0],
+        compromised=(
+            RunCompromisedDetails(**compromised_details)
+            if compromised_details is not None
+            else None
+        ),
+        conclusion=conclusion,
+        conclusion_reason=conclusion_reason,
+        important_tags=important_tags.get(run_id, []),
+        relevant_tags=relevant_tags.get(run_id, []),
+        branches=list(key_value_list_transforming(branches)),
+        revisions=revisions,
+        labels=list(key_value_list_transforming(labels)),
+        special_categories=categories,
+        configuration=configurations[0] if configurations else None,
+    )
 
 
 def generate_runs_details(runs):
@@ -701,23 +748,23 @@ def generate_runs_details(runs):
         run_id = run.id
         conclusion, conclusion_reason = get_run_conclusion(run)
         runs_data.append(
-            {
-                'id': run_id,
-                'project_id': run.project.id,
-                'project_name': run.project.name,
-                'start': run.start,
-                'finish': run.finish,
-                'duration': run.duration,
-                'status': get_run_status(run),
-                'status_by_nok': get_run_status_by_nok(run)[0],
-                'compromised': is_run_compromised(run),
-                'conclusion': conclusion,
-                'conclusion_reason': conclusion_reason,
-                'metadata': metadata_by_runs.get(run_id, []),
-                'important_tags': important_tags.get(run_id, []),
-                'relevant_tags': relevant_tags.get(run_id, []),
-                'stats': get_run_stats_summary(run_id),
-            },
+            RunSummaryResult(
+                id=run_id,
+                project_id=run.project.id,
+                project_name=run.project.name,
+                start=run.start,
+                finish=run.finish,
+                duration=run.duration,
+                status=get_run_status(run),
+                status_by_nok=get_run_status_by_nok(run)[0],
+                compromised=is_run_compromised(run),
+                conclusion=conclusion,
+                conclusion_reason=conclusion_reason,
+                metadata=metadata_by_runs.get(run_id, []),
+                important_tags=important_tags.get(run_id, []),
+                relevant_tags=relevant_tags.get(run_id, []),
+                stats=get_run_stats_summary(run_id),
+            ),
         )
 
     return runs_data
