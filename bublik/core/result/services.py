@@ -117,9 +117,9 @@ class ResultService:
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
-            start_exec_seqno: Retain only the consecutive sequence of results
-                starting from the specified execution number, based on the global
-                run sequence
+            start_exec_seqno: Position in the global run execution sequence to start
+                from. Ensures that when the same test is executed multiple times within
+                one parent package, only iterations of the intended execution are returned
             results: Comma-separated result statuses
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
@@ -242,9 +242,9 @@ class ResultService:
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
-            start_exec_seqno: Retain only the consecutive sequence of results
-                starting from the specified execution number, based on the global
-                run sequence
+            start_exec_seqno: Position in the global run execution sequence to start
+                from. Ensures that when the same test is executed multiple times within
+                one parent package, only iterations of the intended execution are returned
             results: Comma-separated result statuses
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
