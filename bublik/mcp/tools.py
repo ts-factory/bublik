@@ -155,14 +155,22 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         page_size: int | None = None,
     ) -> dict:
         '''
-        List test results with filtering.
+        Get test iteration details for a specific test within a parent package.
+
+        Returns a paginated list of test iteration details matching the given test name
+        within the specified parent package. start_exec_seqno defines the position
+        in the global run execution sequence to start from, and stops at the first result
+        belonging to a different test — this prevents iterations from different executions
+        of the same-named test from being mixed together when the parent package contains
+        multiple executions interleaved with other tests (e.g., test1, test2, test1,
+        test2).
 
         Args:
             parent_id: Filter by parent package ID
             test_name: Filter by test name
-            start_exec_seqno: Retain only the consecutive sequence of results
-                starting from the specified execution number, based on the global
-                run sequence
+            start_exec_seqno: Position in the global run execution sequence to start
+                from. Ensures that when the same test is executed multiple times within
+                one parent package, only iterations of the intended execution are returned
             results: Semicolon-separated result statuses
                 (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
             result_properties: Semicolon-separated result properties
