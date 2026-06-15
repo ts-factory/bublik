@@ -19,6 +19,13 @@ from bublik.data.serializers import (
     RunCommentSerializer,
     TestIterationResultSerializer,
 )
+from bublik.interfaces.api_v2.run.serializers import (
+    serialize_mark_run_compromised_result,
+    serialize_run_comment_result,
+    serialize_run_details,
+    serialize_run_stats_result,
+    serialize_run_summary_results,
+)
 
 
 __all__ = [
@@ -51,7 +58,7 @@ class RunViewSet(ModelViewSet):
         return Response(
             {
                 'pagination': self.paginator.get_pagination(),
-                'results': generate_runs_details(results),
+                'results': serialize_run_summary_results(generate_runs_details(results)),
             },
         )
 
@@ -90,15 +97,16 @@ class RunViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def details(self, _request, pk=None):
-        return Response(data=RunService.get_run_details(pk))
+        return Response(data=serialize_run_details(RunService.get_run_details(pk)))
 
     @action(detail=True, methods=['get'])
     def stats(self, _request, pk=None):
         requirements = self.request.query_params.get('requirements')
         project_id = TestIterationResult.objects.get(id=pk).project.id
+        run_stats = RunService.get_run_stats(pk, requirements)
         return Response(
             {
-                'results': RunService.get_run_stats(pk, requirements),
+                'results': serialize_run_stats_result(run_stats),
                 'default_columns': ConfigServices.getattr_from_global(
                     GlobalConfigs.PER_CONF.name,
                     'RUN_STATS_COLUMNS_DEFAULT',
@@ -127,7 +135,11 @@ class RunViewSet(ModelViewSet):
             comment = request.data.get('comment')
             bug_id = request.data.get('bug_id')
             reference_key = request.data.get('reference_key')
-            return Response(RunService.mark_run_compromised(pk, comment, bug_id, reference_key))
+            return Response(
+                serialize_mark_run_compromised_result(
+                    RunService.mark_run_compromised(pk, comment, bug_id, reference_key),
+                ),
+            )
         try:
             RunService.unmark_run_compromised(pk)
             return Response({'message': f'Run {pk} is no longer compromised'})
@@ -148,12 +160,15 @@ class RunViewSet(ModelViewSet):
         if request.method == 'POST':
             content = request.data.get('comment')
             result = RunService.create_run_comment(pk, content)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return Response(
+                serialize_run_comment_result(result),
+                status=status.HTTP_201_CREATED,
+            )
 
         if request.method == 'PUT':
             content = request.data.get('comment')
             result = RunService.create_run_comment(pk, content)
-            return Response(result, status=status.HTTP_200_OK)
+            return Response(serialize_run_comment_result(result), status=status.HTTP_200_OK)
 
         if request.method == 'DELETE':
             RunService.delete_run_comment(pk)

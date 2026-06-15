@@ -19,6 +19,11 @@ from bublik.core.run.services import RunService
 from bublik.core.run.stats import generate_runs_details, get_test_runs
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
+from bublik.interfaces.api_v2.run.serializers import (
+    serialize_paginated_run_summary_results,
+    serialize_run_details,
+    serialize_run_stats_result,
+)
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
 
@@ -59,7 +64,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         Returns:
             Dictionary with full run details including metadata, stats, etc.
         """
-        return await sync_to_async(RunService.get_run_details)(run_id)
+        return serialize_run_details(await sync_to_async(RunService.get_run_details)(run_id))
 
     @mcp.tool()
     async def get_run_status(run_id: int) -> str:
@@ -89,7 +94,9 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         Returns:
             Dictionary with run statistics including pass/fail counts
         """
-        return await sync_to_async(RunService.get_run_stats)(run_id, requirements)
+        return serialize_run_stats_result(
+            await sync_to_async(RunService.get_run_stats)(run_id, requirements),
+        )
 
     @mcp.tool()
     async def get_run_source(run_id: int) -> str:
@@ -257,10 +264,12 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             branch_expr=branch_expr,
         )
         runs_details = await sync_to_async(generate_runs_details)(queryset)
-        return await sync_to_async(PaginatedResult.paginate_queryset)(
-            runs_details,
-            page,
-            page_size,
+        return serialize_paginated_run_summary_results(
+            await sync_to_async(PaginatedResult.paginate_queryset)(
+                runs_details,
+                page,
+                page_size,
+            ),
         )
 
     @mcp.tool()
@@ -292,10 +301,12 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             else []
         )
         runs_details = await sync_to_async(generate_runs_details)(queryset) if date_str else []
-        return await sync_to_async(PaginatedResult.paginate_queryset)(
-            runs_details,
-            page,
-            page_size,
+        return serialize_paginated_run_summary_results(
+            await sync_to_async(PaginatedResult.paginate_queryset)(
+                runs_details,
+                page,
+                page_size,
+            ),
         )
 
     @mcp.tool()
