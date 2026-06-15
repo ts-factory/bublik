@@ -25,7 +25,7 @@ from bublik.data.serializers import (
 )
 
 
-all = [
+__all__ = [
     'RunViewSet',
     'ResultViewSet',
 ]
