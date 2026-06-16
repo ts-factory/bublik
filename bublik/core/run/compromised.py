@@ -37,6 +37,9 @@ def get_compromised_details(run):
             }
         return {
             'status': False,
+            'comment': None,
+            'bug_id': None,
+            'bug_url': None,
         }
     return None
 
