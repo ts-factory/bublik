@@ -1,6 +1,12 @@
 [tool.ruff]
 line-length = 96
 target-version = 'py38'
+# Excluded from both the linter and the formatter: Django migrations are
+# historical artifacts and reformatting them adds noise while hurting
+# `git blame`. force-exclude keeps them excluded even when passed explicitly
+# (e.g. by the pre-commit hook).
+force-exclude = true
+extend-exclude = ['migrations']
 
 [tool.ruff.lint]
 select = [
@@ -80,6 +86,8 @@ select = [
 ignore = [
     # overwriting some variables (seems to be usefull in some cases)
     'PLW2901',
+    # Ruff formatter handles trailing commas.
+    'COM812',
 ]
 exclude = [
     '.env',
@@ -155,7 +163,5 @@ max-branches = 30
 max-statements = 100
 max-returns = 7
 
-[tool.black]
-line-length = 96
-target-version = ['py38']
-skip-string-normalization = true
+[tool.ruff.format]
+quote-style = 'single'

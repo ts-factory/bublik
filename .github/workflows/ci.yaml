@@ -23,26 +23,8 @@ jobs:
             bublik/data/migrations/**
             bublik/analytics/migrations/**
 
-  format-check:
-    name: Check Code Formatting
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    if: ${{ needs.detect-changes.outputs.python_files != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Black
-        run: pip install $(grep '^black==' requirements.txt)
-
-      - name: Run Black in check mode
-        run: |
-          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs black --check --diff
-
-  lint-check:
-    name: Check Code Quality
+  ruff-check:
+    name: Check Python Quality
     needs: detect-changes
     runs-on: ubuntu-latest
     if: ${{ needs.detect-changes.outputs.python_files != '' }}
@@ -53,26 +35,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install Ruff
-        run: pip install ruff
+        run: pip install $(grep '^ruff' requirements.txt)
 
-      - name: Run Ruff
+      - name: Run Ruff formatter in check mode
+        run: |
+          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs ruff format --check --diff
+
+      - name: Run Ruff linter
         run: |
           echo "${{ needs.detect-changes.outputs.python_files }}" | xargs ruff check
-
-  f-string-check:
-    name: Check F-String Usage
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    if: ${{ needs.detect-changes.outputs.python_files != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Flynt
-        run: pip install flynt
-
-      - name: Run Flynt in check mode
-        run: |
-          echo "${{ needs.detect-changes.outputs.python_files }}" | xargs flynt -f
