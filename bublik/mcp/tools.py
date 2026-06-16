@@ -105,7 +105,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
         return await sync_to_async(RunService.get_run_source)(run_id)
 
     @mcp.tool()
-    async def get_run_compromised(run_id: int) -> dict:
+    async def get_run_compromised(run_id: int) -> bool:
         """
         Get the compromised status of a test run.
 
