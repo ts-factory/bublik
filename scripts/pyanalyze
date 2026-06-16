@@ -11,11 +11,9 @@ status=0
 pip show -q pytype && pytype $@
 status=$(( $status | $? ))
 
-# Flake8 checks Python code compliance to PEP8, McCabe complexity and english grammar.
-# Displays the warnings in a per-file, merged output.
-# https://flake8.pycqa.org/en/latest/index.html.
+# Ruff checks Python code style, imports, complexity, and common lint issues.
 #
-pip show -q flake8 && flake8 $@
+pip show -q ruff && ruff check $@
 status=$(( $status | $? ))
 
 # Pyanalize status.

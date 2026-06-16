@@ -42,23 +42,44 @@ For now some documentation can be found in **doc/wiki** here.
 
 # Development
 
-## Pre-commit checkings
+## Pre-commit checks
 
-After initial deploy please run the:
+Pre-commit installs a local Git hook that runs before `git commit` creates a
+commit. In this project, the hook runs Ruff on changed Python files via:
+```
+./scripts/pyformat -c <changed-python-files>
+```
+
+Install the hook once after setting up the repository:
 ```
 pre-commit install
 ```
-This will allow the pre-commit tool to run `./scripts/pyformat -c` before each
-commit.
 
-Please note that you can always disable the pre-commit validation by running:
+After that, every `git commit` will automatically run:
+```
+ruff format --check --diff <changed-python-files>
+ruff check <changed-python-files>
+```
+
+If the hook fails, fix the reported issues and run `git commit` again. To apply
+Ruff formatting and autofixes manually, run:
+```
+./scripts/pyformat <path_to_the_changed_file>
+```
+
+You can run the hook manually for all files with:
+```
+pre-commit run --all-files
+```
+
+You can disable the local hook with:
 ```
 pre-commit uninstall
 ```
 
 ## Checking your changes
 
-You can use pyformat script to check your changes.
+You can use pyformat script to run Ruff formatting and lint checks.
 
 For this you need to run:
 ```
