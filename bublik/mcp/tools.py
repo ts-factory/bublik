@@ -113,7 +113,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             run_id: The ID of the test run
 
         Returns:
-            Dictionary with compromised status data including comment and bug ID
+            True if the run is compromised, False otherwise
         """
         return await sync_to_async(RunService.get_run_compromised)(run_id)
 

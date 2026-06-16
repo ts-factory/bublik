@@ -127,7 +127,7 @@ class RunService:
         return get_sources(run)
 
     @staticmethod
-    def get_run_compromised(run_id: int) -> dict:
+    def get_run_compromised(run_id: int) -> bool:
         """
         Get compromised status for a run.
 
@@ -135,13 +135,13 @@ class RunService:
             run_id: The ID of the test run
 
         Returns:
-            Dictionary with compromised status data
+            True if the run is compromised, False otherwise
         """
         run = RunService.get_run(run_id)
-        compromised_data = is_run_compromised(run)
-        if not compromised_data:
-            compromised_data = {'compromised': False}
-        return compromised_data
+        is_compromised = is_run_compromised(run)
+        if not is_compromised:
+            return False
+        return is_compromised
 
     @staticmethod
     def mark_run_compromised(
