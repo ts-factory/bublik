@@ -70,9 +70,9 @@ def auth_required(as_admin=False):
 
 
 def check_action_permission(action):
-    '''
+    """
     Check if the action requires permission.
-    '''
+    """
 
     def wrapper(func):
         @wraps(func)

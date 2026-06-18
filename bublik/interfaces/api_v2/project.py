@@ -65,14 +65,14 @@ class ProjectViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='badge')
     def badge(self, request, pk=None):
-        '''
+        """
         SVG badge for the latest run of a project.
 
         Query parameters:
             label   (optional) -- left-side text; defaults to project name
             metric  (optional) -- passed | unexpected | total | rate
                                    default shows run conclusion with nok count
-        '''
+        """
         project = self.get_object()
         label = request.query_params.get('label') or project.name
         metric = request.query_params.get('metric', '').lower()

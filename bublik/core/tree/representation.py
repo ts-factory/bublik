@@ -11,13 +11,13 @@ from bublik.data.models import Meta, MetaResult, ResultType, TestIterationResult
 
 
 class Tree(TreeLib):
-    '''The class for tree representation in different formats.'''
+    """The class for tree representation in different formats."""
 
     def to_linear_dict(self, with_data=False):
-        '''
+        """
         Exports the tree in the linear format representing node children
         as an adjacency list.
-        '''
+        """
         adjacency_list = defaultdict(dict)
         if self.nodes:
             for n in self.expand_tree(mode=self.WIDTH):

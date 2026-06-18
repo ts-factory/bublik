@@ -16,9 +16,9 @@ from bublik.data.serializers import ConfigSerializer
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        '''
+        """
         Initialize default required configurations from JSON schemas.
-        '''
+        """
 
         self.stdout.write('Initialize default required configurations if they do not exist:')
         for config in GlobalConfigs.required():

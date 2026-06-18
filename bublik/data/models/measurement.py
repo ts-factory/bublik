@@ -21,10 +21,10 @@ __all__ = [
 
 
 class ChartViewType:
-    '''
+    """
     This class stands for converting a type of measurement reference
     to the one symbol.
-    '''
+    """
 
     AXIS_X = 'axis_x'
     AXIS_Y = 'axis_y'
@@ -48,9 +48,9 @@ class ChartViewType:
 
 
 class Measurement(models.Model):
-    '''
+    """
     The table to describe measurement characteristics.
-    '''
+    """
 
     hashable = ('metas',)
 
@@ -108,9 +108,9 @@ class Measurement(models.Model):
 
 
 class MeasurementResult(models.Model):
-    '''
+    """
     The table to combine measurement results and its measurement characteristics.
-    '''
+    """
 
     measurement = models.ForeignKey(
         Measurement,
@@ -127,8 +127,8 @@ class MeasurementResult(models.Model):
     )
     serial = models.IntegerField(
         default=0,
-        help_text='''\
-Serial number can be used to determine results order.''',
+        help_text="""\
+Serial number can be used to determine results order.""",
     )
 
     class Meta:
@@ -150,10 +150,10 @@ Serial number can be used to determine results order.''',
 
     @property
     def measurement_group_key(self):
-        '''
+        """
         This function returns a tuple containing key information about the measurement,
         which allows grouping the measurement results.
-        '''
+        """
         mm_repr = self.measurement.representation()
         mm_repr.pop('measurement_id')
         mm_repr.pop('comments')
@@ -169,9 +169,9 @@ Serial number can be used to determine results order.''',
 
 
 class MeasurementResultList(models.Model):
-    '''
+    """
     The table to store sequences of measurement results.
-    '''
+    """
 
     measurement = models.ForeignKey(
         Measurement,
@@ -211,9 +211,9 @@ class MeasurementResultList(models.Model):
 
 
 class View(models.Model):
-    '''
+    """
     The table to describe measurement view characteristics.
-    '''
+    """
 
     hashable = ('metas',)
 
@@ -244,9 +244,9 @@ class View(models.Model):
 
 
 class ChartView(models.Model):
-    '''
+    """
     The table to describe views of two measurements on a single graph
-    '''
+    """
 
     view = models.ForeignKey(
         View,

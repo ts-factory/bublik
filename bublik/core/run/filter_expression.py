@@ -280,9 +280,9 @@ class TestRunMetasGroup:
 
 
 def filter_by_expression(filtered_qs, expr_str, expr_type=None):
-    '''
+    """
     Filter passed QuerySet objects according to the passed expressions of the specified type.
-    '''
+    """
 
     if expr_type is None:
         expr_type = 'tag'

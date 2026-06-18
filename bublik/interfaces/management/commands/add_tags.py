@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
-'''
+"""
 This command can be called to add tags to:
 - specified by id run;
 - runs in a specific time range;
@@ -9,7 +9,7 @@ This command can be called to add tags to:
 
 The log_base parameter is required because DB saves only the second part of the
 path to the log. In order to get logs - the url base of log storage is needed.
-'''
+"""
 
 from datetime import datetime, timedelta
 import os
@@ -33,7 +33,7 @@ logger = get_task_or_server_logger()
 
 
 def _get_json_data(url: str) -> dict:
-    '''This methods tries to fetch logs from url.'''
+    """This methods tries to fetch logs from url."""
     process_dir = None
 
     try:
@@ -104,10 +104,10 @@ class Command(BaseCommand):
 
     @staticmethod
     def process_log_and_update_tags(run: TestIterationResult, log_base_url: str) -> None:
-        '''
+        """
         This method parses the log.json, gets tags from there and adds it to
         the given run.
-        '''
+        """
         try:
             log_meta = MetaResult.objects.get(meta__type='log', result=run.pk).meta
         except ObjectDoesNotExist:

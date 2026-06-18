@@ -25,9 +25,9 @@ from bublik.interfaces.api_v2.config.schemas import config_viewset_schema
 
 @config_viewset_schema
 class ConfigViewSet(ModelViewSet):
-    '''
+    """
     API for managing system configurations.
-    '''
+    """
 
     pagination_class = None
     queryset = Config.objects.all()

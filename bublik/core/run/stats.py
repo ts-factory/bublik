@@ -209,7 +209,7 @@ def get_run_stats_detailed_with_comments(run_id, requirements):
 
 
 def add_comments(node, tests_comments):
-    '''
+    """
     Add a list of comments to each node. The comment format is
     {
         'comment_id': <meta_id>,
@@ -218,7 +218,7 @@ def add_comments(node, tests_comments):
         'comment': <meta_value>
     }
     The order of comments is determined by the serial value.
-    '''
+    """
     if node:
         node['comments'] = tests_comments.get(node['test_id'], [])
         node['comments'] = [
@@ -288,7 +288,7 @@ def get_run_stats_detailed(run_id, requirements=None):
 
 
 def get_tests_comments(run_id):
-    '''
+    """
     Return all run test comments in the format
     {
         'test_id': [
@@ -299,7 +299,7 @@ def get_tests_comments(run_id):
             }, ...
         ], ...
     }
-    '''
+    """
     test_ids = list(
         (
             TestIterationResult.objects.filter(test_run=run_id)
@@ -347,10 +347,10 @@ def get_test_runs(
     order_by='-start',
     escape_compromised=True,
 ):
-    '''
+    """
     Get test runs filtered by date and tags with possibility to exclude runs
     which contain `exclude_label` in meta labels.
-    '''
+    """
 
     runs = TestIterationResult.objects.filter(test_run=None)
     if escape_compromised:

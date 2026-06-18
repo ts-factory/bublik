@@ -35,10 +35,10 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
     @method_decorator(never_cache)
     def list(self, request):
-        '''
+        """
         Return dashboard data for one day.
         Route: /api/v2/dashboard/?date=yyyy-mm-dd.
-        '''
+        """
         project_id = request.query_params.get('project')
         if not self.prepare_settings(project_id):
             raise ValidationError(self.errors)
@@ -123,7 +123,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return bool(not self.errors)
 
     def _extract_payload(self, processed):
-        '''
+        """
         Extract payload from processed handler result.
 
         Args:
@@ -131,7 +131,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
         Returns:
             Payload dict or None if no payload found
-        '''
+        """
         if isinstance(processed, list) and processed and 'payload' in processed[0]:
             return processed[0]['payload']
         if isinstance(processed, dict) and 'payload' in processed:
@@ -139,7 +139,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return None
 
     def _prepare_handler_data(self, cell_data):
-        '''
+        """
         Prepare cell data for payload handler consumption.
 
         Payload handlers expect data in specific formats (list of dicts
@@ -151,7 +151,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
         Returns:
             Normalized data structure for payload handler
-        '''
+        """
         if isinstance(cell_data, dict):
             return [cell_data]
         if isinstance(cell_data, list):
@@ -162,7 +162,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         return {'value': cell_data}
 
     def _merge_payload_to_cell(self, row, key, cell_data, processed):
-        '''
+        """
         Merge payload from processed handler result back into cell data.
 
         Args:
@@ -170,7 +170,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             key: Cell key within the row
             cell_data: Original cell data reference
             processed: Processed data from payload handler
-        '''
+        """
         payload = self._extract_payload(processed)
         if not payload:
             return
@@ -186,7 +186,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
                 cell_data[0] = {'value': cell_data[0], 'payload': payload}
 
     def _apply_payload_to_dashboard_data(self, data: dict) -> None:
-        '''
+        """
         Apply payload handlers to dashboard cell data for URL generation.
 
         This is a UI-specific operation that adds navigation URLs to dashboard cells.
@@ -196,7 +196,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         Args:
             data: Dashboard data dictionary with 'rows' key containing row data.
                   Modified in-place to add payload information.
-        '''
+        """
         if not hasattr(self, 'payload') or not self.payload.handlers:
             return
 
@@ -220,7 +220,7 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
 
 class DashboardPayload:
-    '''
+    """
     Wraps dashboard data with the payload defined in DASHBOARD_PAYLOAD.
 
     Payload provides:
@@ -228,7 +228,7 @@ class DashboardPayload:
       to have button-links for chosen columns;
     - per-project system for giving style to rows;
       style is controlled by css classes and can depend on data in rows.
-    '''
+    """
 
     handlers_available: typing.ClassVar['dict'] = {
         item['const']: item['description']

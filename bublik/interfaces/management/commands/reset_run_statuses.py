@@ -12,7 +12,7 @@ from bublik.data import models
 
 
 def define_run_status(run):
-    '''Function to define existing run status'''
+    """Function to define existing run status"""
 
     category_names = ['DL', 'DU', 'Status', 'Notes']
     run_meta_results = run.meta_results.select_related('meta')
@@ -65,9 +65,9 @@ def define_run_status(run):
 
 
 class Command(BaseCommand):
-    help = '''Reset existing run statuses to the one of the following values:
+    help = """Reset existing run statuses to the one of the following values:
               ['DONE', 'ERROR', 'WARNING', 'RUNNING']
-              for runs satisfying the given parameters.'''
+              for runs satisfying the given parameters."""
 
     def add_arguments(self, parser):
         parser.add_argument(

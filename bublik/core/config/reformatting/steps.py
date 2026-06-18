@@ -12,10 +12,10 @@ logger = logging.getLogger('colored')
 
 class BaseReformatStep:
     def apply(self, config, **kwargs):
-        '''
+        """
         Reformats the provided content if it has not been reformatted yet,
         and outputs the execution status. Returns the content.
-        '''
+        """
         try:
             if not self.applied(config, **kwargs):
                 config = self.reformat(config, **kwargs)
@@ -28,25 +28,25 @@ class BaseReformatStep:
             raise err
 
     def applied(self, config, **kwargs):
-        '''
+        """
         Checks whether the step has already been applied.
-        '''
+        """
         msg = 'Subclasses must implement `applied`.'
         raise NotImplementedError(msg)
 
     def reformat(self, config, **kwargs):
-        '''
+        """
         Reformats the provided content.
-        '''
+        """
         msg = 'Subclasses must implement `reformat`.'
         raise NotImplementedError(msg)
 
 
 class UpdateAxisXStructure(BaseReformatStep):
-    '''
+    """
     Reformat passed report config content:
     "axis_x": <str> -> "axis_x": {"arg": <str>}
-    '''
+    """
 
     def applied(self, config, **kwargs):
         content = config.content
@@ -68,12 +68,12 @@ class UpdateAxisXStructure(BaseReformatStep):
 
 
 class UpdateSeqSettingsStructure(BaseReformatStep):
-    '''
+    """
     Reformat passed report config content:
     Add the 'sequences' foreign key for all sequences settings
     (sequence_group_arg, percentage_base_value, sequence_name_conversion).
     Rename 'sequence_name_conversion' to 'arg_vals_labels'.
-    '''
+    """
 
     def applied(self, config, **kwargs):
         content = config.content
@@ -109,11 +109,11 @@ class UpdateSeqSettingsStructure(BaseReformatStep):
 
 
 class UpdateDashboardHeaderStructure(BaseReformatStep):
-    '''
+    """
     Reformat passed global per_conf config content:
     DASHBOARD_HEADER: {<key>: <label>} ->
     DASHBOARD_HEADER: [{"key": <key>, "label": <label>}]
-    '''
+    """
 
     def applied(self, config, **kwargs):
         return not isinstance(config.content.get('DASHBOARD_HEADER'), dict)
@@ -127,11 +127,11 @@ class UpdateDashboardHeaderStructure(BaseReformatStep):
 
 
 class UpdateCSRFTrustedOrigins(BaseReformatStep):
-    '''
+    """
     Reformat passed global per_conf config content:
     CSRF_TRUSTED_ORIGINS: ["http://origin1", "origin2", "https://origin3"] ->
     CSRF_TRUSTED_ORIGINS: ["http://origin1", "https://origin2", "https://origin3"]
-    '''
+    """
 
     def applied(self, config, **kwargs):
         content = config.content
@@ -174,13 +174,13 @@ class RemoveUnsupportedAttributes(BaseReformatStep):
 
 
 class UpdateLogsFormat(BaseReformatStep):
-    '''
+    """
     Reformat passed global references configs content:
     {"LOGS": {"LOGS_BASE": {"uri": ["uri1", "uri2"], "name": "Logs Base"},
     "BUG_KEY": {"uri": ["uri3", "uri4"], "name": "Bugs Base"}},...} ->
     {"LOGS_BASES": [{"uri": ["uri1", "uri2"], "name": "Logs Base"}],
     "ISSUES": {"BUG_KEY": {"uri": ["uri3", "uri4"], "name": "Bugs Base"}}},...}
-    '''
+    """
 
     def applied(self, config, **kwargs):
         return 'LOGS' not in config.content
@@ -204,7 +204,7 @@ class UpdateLogsFormat(BaseReformatStep):
 
 
 class SimplifyMetaStructure(BaseReformatStep):
-    '''
+    """
     Reformat passed global meta configs content:
     [
         {
@@ -228,7 +228,7 @@ class SimplifyMetaStructure(BaseReformatStep):
             "set-patterns": ["LINUX", "linux-.+$"]
         }
     ]
-    '''
+    """
 
     def applied(self, config, **kwargs):
         return not any(
@@ -266,7 +266,7 @@ class SimplifyMetaStructure(BaseReformatStep):
 
 
 class ImproveMetaStructure(BaseReformatStep):
-    '''
+    """
     Reformat global meta config content:
      - remove empty values,
      - split pattern strings into individual elements,
@@ -313,7 +313,7 @@ class ImproveMetaStructure(BaseReformatStep):
             "set-patterns": ["drv", "net_.*$"]
         }
     }
-    '''
+    """
 
     def applied(self, config, **kwargs):
         return isinstance(config.content, dict)
@@ -346,10 +346,10 @@ class ImproveMetaStructure(BaseReformatStep):
 
 
 class RenameSequencesToOverlayBy(BaseReformatStep):
-    '''
+    """
     Reformat passed report config content:
     "sequences": {...} -> "overlay_by": {...}
-    '''
+    """
 
     def applied(self, config, **kwargs):
         content = config.content
@@ -368,11 +368,11 @@ class RenameSequencesToOverlayBy(BaseReformatStep):
 
 
 class AllowMultipleSeriesArgs(BaseReformatStep):
-    '''
+    """
     Reformat passed report config content:
     "overlay_by": {"arg": "pkts", "percentage_base_value": 1} ->
     "overlay_by": [{"arg": "pkts", "percentage_base_value": 1}]
-    '''
+    """
 
     def applied(self, config, **kwargs):
         content = config.content
@@ -396,7 +396,7 @@ class AllowMultipleSeriesArgs(BaseReformatStep):
 
 
 class MergeDashboardSettings(BaseReformatStep):
-    '''
+    """
     Reformat passed global per_conf config content:
      - merge DASHBOARD_HEADER and DASHBOARD_PAYLOAD into DASHBOARD_COLUMNS,
      - for non-builtin column keys replace the key with the label value,
@@ -447,7 +447,7 @@ class MergeDashboardSettings(BaseReformatStep):
         }
     ],
     "DASHBOARD_RUNS_SORT": ["Session", "start"]
-    '''
+    """
 
     def applied(self, config, **kwargs):
         content = config.content

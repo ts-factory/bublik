@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
-'''
+"""
 This script generates a secret key for Django application.
 
 The Django secret key is used to provide cryptographic signing and makes use of this in various
@@ -14,7 +14,7 @@ higher-level features:
 
 To revoke the key, a new secret needs to be generated. All sessions or cookies signed with the
 key will be invalided.
-'''
+"""
 
 import argparse
 import logging

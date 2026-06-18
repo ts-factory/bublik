@@ -24,7 +24,7 @@ EXAMPLES_DIR = TESTS_DIR / 'log_examples'
 
 
 def normalize_dynamic_content(content: str) -> str:
-    '''
+    """
     Normalize dynamic content for stable snapshots.
 
     This function normalizes timestamps and other dynamic values
@@ -35,7 +35,7 @@ def normalize_dynamic_content(content: str) -> str:
 
     Returns:
         Normalized content with stable placeholders
-    '''
+    """
     # Normalize ISO timestamps: 2025-01-15T10:00:00.000Z -> <TIMESTAMP>
     content = re.sub(
         r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z',
@@ -54,15 +54,15 @@ def normalize_dynamic_content(content: str) -> str:
 
 
 class MarkdownSnapshotExtension(SingleFileSnapshotExtension):
-    '''
+    """
     Syrupy extension for markdown snapshot files.
-    '''
+    """
 
     _file_extension = 'md'
     _write_mode = WriteMode.TEXT
 
     def serialize(self, data: str, **_kwargs) -> str:
-        '''
+        """
         Serialize data to markdown format.
 
         Args:
@@ -70,13 +70,13 @@ class MarkdownSnapshotExtension(SingleFileSnapshotExtension):
 
         Returns:
             Serialized markdown string
-        '''
+        """
         return str(data)
 
 
 @pytest.fixture
 def snapshot_md(snapshot: SnapshotAssertion) -> SnapshotAssertion:
-    '''
+    """
     Fixture providing markdown snapshot assertion.
 
     Args:
@@ -84,18 +84,18 @@ def snapshot_md(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 
     Returns:
         Snapshot assertion configured for markdown files
-    '''
+    """
     return snapshot.use_extension(MarkdownSnapshotExtension)
 
 
 @pytest.fixture
 def single_example_log() -> JsonLog:
-    '''
+    """
     Load comprehensive.json for tests.
 
     Returns:
         Validated JsonLog instance
-    '''
+    """
     example_file = EXAMPLES_DIR / 'comprehensive.json'
     if not example_file.exists():
         pytest.skip(f'Example file not found: {example_file}')
@@ -107,7 +107,7 @@ def single_example_log() -> JsonLog:
 
 @pytest.fixture
 def single_processor(single_example_log: JsonLog) -> LogProcessor:
-    '''
+    """
     Create LogProcessor from comprehensive.json.
 
     Args:
@@ -115,5 +115,5 @@ def single_processor(single_example_log: JsonLog) -> LogProcessor:
 
     Returns:
         LogProcessor instance
-    '''
+    """
     return LogProcessor(single_example_log)

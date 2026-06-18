@@ -159,12 +159,12 @@ class ProjectCache:
 
 
 class _ProjectSectionCache:
-    '''
+    """
     Base class for project section caches.
 
     Each section cache stores data under keys like
     'project:{project_id}:{SECTION}:{data_key}'.
-    '''
+    """
 
     SECTION: ClassVar[str] | None = None
     KEY_DATA_CHOICES: ClassVar[set[str]] | None = None
@@ -220,7 +220,7 @@ class _TagsCache(_ProjectSectionCache):
     }
 
     def load(self):
-        '''
+        """
         Populate tags cache for the project.
 
         Each cache entry stores a mapping of meta tag IDs to their string
@@ -235,7 +235,7 @@ class _TagsCache(_ProjectSectionCache):
 
         Value format:
             {meta_id: 'tag_name=tag_value'}
-        '''
+        """
 
         tags = models.Meta.objects.filter(type='tag')
 

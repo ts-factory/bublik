@@ -17,10 +17,10 @@ from bublik.interfaces.api_v2.job_task.serializers import (
 job_task_execution_viewset_schema = extend_schema_view(
     retrieve=extend_schema(
         summary='Get task executions by job',
-        description='''
+        description="""
         Returns a list of task execution results for a given job ID.
         Each entry contains the task status, source URL, Celery task UUID, and linked run ID.
-        ''',
+        """,
         responses={
             200: OpenApiResponse(
                 response=JobTaskExecutionRetrieveSerializer(many=True),
@@ -35,11 +35,11 @@ job_task_execution_viewset_schema = extend_schema_view(
     ),
     list=extend_schema(
         summary='List task executions',
-        description='''
+        description="""
         Returns a paginated list of task execution results with full details:
         timing information, event logs, and an extracted error message for failed tasks.
         Supports filtering by job, run, URL, Celery task UUID, and status.
-        ''',
+        """,
         responses={
             200: OpenApiResponse(
                 response=JobTaskExecutionListSerializer(many=True),

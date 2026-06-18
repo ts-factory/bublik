@@ -41,11 +41,11 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
 
     @check_action_permission('manage_test_comments')
     def create(self, request, *args, **kwargs):
-        '''
+        """
         Add a comment to the Test by creating a MetaTest linking it
         to the retrieved or newly created comment-type Meta in the provided project.
         Request: POST tests/<test_id>/comments/?project=<project_id>.
-        '''
+        """
         test = Test.objects.get(pk=self.kwargs['test_id'])
         project = Project.objects.get(pk=request.query_params.get('project'))
         comment_data = {
@@ -61,12 +61,12 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
 
     @check_action_permission('manage_test_comments')
     def partial_update(self, request, *args, **kwargs):
-        '''
+        """
         Update a test comment by replacing the existing MetaTest linking the Test
         to the old Meta with a new MetaTest linking it to the received or newly
         created Meta with the new value in the same project.
         Request: PATCH tests/<test_id>/comments/<meta_id>/?project=<project_id>.
-        '''
+        """
         metatest = self.get_object()
         upd_test_comment_data = {
             'comment': request.data.get('comment'),
@@ -87,7 +87,7 @@ class TestCommentViewSet(DestroyModelMixin, GenericViewSet):
 
     @check_action_permission('manage_test_comments')
     def destroy(self, request, *args, **kwargs):
-        '''
+        """
         Request: DELETE tests/<test_id>/comments/<meta_id>/?project=<project_id>.
-        '''
+        """
         return super().destroy(request, *args, **kwargs)

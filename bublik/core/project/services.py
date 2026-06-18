@@ -19,27 +19,27 @@ from bublik.data.serializers import ProjectSerializer
 class ProjectService:
     @staticmethod
     def list_projects_queryset():
-        '''
+        """
         Get all projects queryset ordered by ID.
 
         Returns:
             QuerySet of Project objects
-        '''
+        """
         return models.Project.objects.order_by('id')
 
     @staticmethod
     def list_projects() -> list[dict]:
-        '''
+        """
         List all projects.
 
         Returns:
             List of dictionaries with project id and name
-        '''
+        """
         return list(ProjectService.list_projects_queryset().values('id', 'name'))
 
     @staticmethod
     def get_project_instance(project_id: int | str) -> models.Project:
-        '''
+        """
         Get a single project model instance by ID.
 
         Args:
@@ -50,7 +50,7 @@ class ProjectService:
 
         Raises:
             NotFoundError: if project not found
-        '''
+        """
         try:
             return models.Project.objects.get(id=project_id)
         except (ObjectDoesNotExist, TypeError, ValueError) as e:
@@ -59,7 +59,7 @@ class ProjectService:
 
     @staticmethod
     def get_project(project_id: int | str) -> dict:
-        '''
+        """
         Get a single project by ID.
 
         Args:
@@ -70,13 +70,13 @@ class ProjectService:
 
         Raises:
             NotFoundError: if project not found
-        '''
+        """
         project = ProjectService.get_project_instance(project_id)
         return {'id': project.id, 'name': project.name}
 
     @staticmethod
     def create_project(data: dict) -> models.Project:
-        '''
+        """
         Create a project.
 
         Args:
@@ -84,7 +84,7 @@ class ProjectService:
 
         Returns:
             Created Project model instance
-        '''
+        """
         serializer = ProjectSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         return serializer.save()
@@ -95,7 +95,7 @@ class ProjectService:
         data: dict,
         partial: bool = False,
     ) -> models.Project:
-        '''
+        """
         Update a project.
 
         Args:
@@ -108,7 +108,7 @@ class ProjectService:
 
         Raises:
             NotFoundError: if project not found
-        '''
+        """
         project = ProjectService.get_project_instance(project_id)
         serializer = ProjectSerializer(project, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -116,7 +116,7 @@ class ProjectService:
 
     @staticmethod
     def delete_project(project_id: int | str) -> None:
-        '''
+        """
         Delete a project.
 
         Args:
@@ -125,7 +125,7 @@ class ProjectService:
         Raises:
             NotFoundError: if project not found
             ValidationError: if project has linked runs
-        '''
+        """
         project = ProjectService.get_project_instance(project_id)
         if project.testiterationresult_set.exists():
             msg = 'Unable to delete: there are runs linked to this project'
@@ -266,12 +266,12 @@ class ProjectBadgeService:
 
     @staticmethod
     def _text_width(text):
-        '''Return approximate pixel width of text rendered in Verdana 11px.'''
+        """Return approximate pixel width of text rendered in Verdana 11px."""
         return sum(ProjectBadgeService._WIDTHS.get(c, 6.0) for c in text)
 
     @staticmethod
     def render(label, value, color, label_color='#555') -> str:
-        '''Generate an SVG badge matching shields.io flat style.'''
+        """Generate an SVG badge matching shields.io flat style."""
         label_tw = ProjectBadgeService._text_width(label)
         value_tw = ProjectBadgeService._text_width(value)
 
@@ -305,7 +305,7 @@ class ProjectBadgeService:
 
     @staticmethod
     def get_latest_run(project):
-        '''Return the most recent top-level run for the given project, or None.'''
+        """Return the most recent top-level run for the given project, or None."""
         return (
             TestIterationResult.objects.filter(project=project, test_run__isnull=True)
             .order_by('-start')

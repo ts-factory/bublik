@@ -10,18 +10,18 @@ __all__ = [
 
 
 class Reference(models.Model):
-    '''
+    """
     Reference types.
-    '''
+    """
 
     hashable = ('name', 'uri')
 
     name = models.CharField(max_length=64, help_text='The reference type name.')
     uri = models.TextField(
         max_length=128,
-        help_text='''\
+        help_text="""\
 The reference prefix or URI, e.g. https://site.com/path/to/logs,
-https://bugzilla.somebody.com/).''',
+https://bugzilla.somebody.com/).""",
     )
 
     class Meta:

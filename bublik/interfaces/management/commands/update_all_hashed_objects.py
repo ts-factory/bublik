@@ -14,7 +14,7 @@ from bublik.data.serializers import (
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        '''The order of hashed models updating is valuable.'''
+        """The order of hashed models updating is valuable."""
 
         hashed_models = [
             MetaSerializer,

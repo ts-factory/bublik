@@ -18,9 +18,9 @@ __all__ = [
 
 
 class ConfigTypes(models.TextChoices):
-    '''
+    """
     All available configuration types.
-    '''
+    """
 
     GLOBAL = 'global'
     REPORT = 'report'
@@ -32,9 +32,9 @@ class ConfigTypes(models.TextChoices):
 
 
 class GlobalConfigs(Enum):
-    '''
+    """
     All available global configuration names and descriptions.
-    '''
+    """
 
     PER_CONF = ('per_conf', 'The main project configuration')
     REFERENCES = ('references', 'Project references')
@@ -131,9 +131,9 @@ class ConfigManager(models.Manager):
 
 
 class Config(models.Model):
-    '''
+    """
     Configurations.
-    '''
+    """
 
     created = models.DateTimeField(
         auto_now_add=True,

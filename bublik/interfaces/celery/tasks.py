@@ -296,13 +296,13 @@ def meta_categorization(self, project_name):
 
 @app.task(bind=True)
 def run_cache(self, *args, **kwargs):
-    '''This is a wrapper to execute an action in the background.'''
+    """This is a wrapper to execute an action in the background."""
     call_command('run_cache', *args, **kwargs)
 
 
 @app.task(bind=True)
 def update_all_hashed_objects(self):
-    '''This is a wrapper to execute an action in the background.'''
+    """This is a wrapper to execute an action in the background."""
     call_command('update_all_hashed_objects')
 
 

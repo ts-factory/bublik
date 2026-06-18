@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-'''
+"""
 This script brings all import logs to a format close to JSON.
 Logs of the new format are saved in file with the name '{task_id}' (without '.log' extension).
-'''
+"""
 
 import argparse
 import json
@@ -20,9 +20,9 @@ old_logs_extension = '.log'
 
 
 def get_logdirs(av):
-    '''
+    """
     Get a list of files/directories with logs from command line arguments.
-    '''
+    """
 
     parser = argparse.ArgumentParser(
         description='Reformat the import logs from the specified directories '
@@ -37,10 +37,10 @@ def get_logdirs(av):
 
 
 def is_new_format_line(line):
-    '''
+    """
     Check if the passed log line has a new format
     (JSON with the keys 'asctime', 'levelname', 'module', 'message').
-    '''
+    """
 
     try:
         json_line = json.loads(line)
@@ -50,7 +50,7 @@ def is_new_format_line(line):
 
 
 def log_line_parser(line):
-    '''
+    """
     Returns a new format log line corresponding to the passed line.
     Parameter @line is a string that will be converted.
 
@@ -66,7 +66,7 @@ def log_line_parser(line):
 
     Note: For a line that has an output format, the line is returned unchanged.
           For a line corresponding to the line break character, None is returned.
-    '''
+    """
 
     if is_new_format_line(line):
         return line
@@ -106,10 +106,10 @@ def log_line_parser(line):
 
 
 def log_file_converter(logpath):
-    '''
+    """
     Convert logs from the passed file into logs of a new format.
     Write the result to a file with the same name, but without extension.
-    '''
+    """
 
     # check if the log is empty
     if os.path.getsize(logpath) == 0:

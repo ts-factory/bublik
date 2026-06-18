@@ -5,12 +5,12 @@ from bublik.data.models.result import ResultType
 
 
 class PlanItem:
-    '''
+    """
     Description of an execution plan item.
 
     While this class contains enough information to traverse the whole
     execution plan, using a PlanTracker is advised.
-    '''
+    """
 
     def __init__(self, item, parent=None):
         self.id = 0
@@ -57,10 +57,10 @@ class PlanItem:
         return tests_num
 
     def tree_nodes_num(self):
-        '''
+        """
         This function returns the number of nodes in the tree, whose root is
         the current node (self).
-        '''
+        """
         if not self.children:
             return 1
 
@@ -71,11 +71,11 @@ class PlanItem:
         return tree_nodes_num
 
     def tests_num_prologue(self, tests_nums_prologues, plan_id):
-        '''
+        """
         This function returns a dictionary whose keys are the 'plan_id' of the prologues,
         and the values are the number of tests that will be skipped if the prologue
         is skipped or failed.
-        '''
+        """
         if self.has_prologue:
             prologue_tests_num = 0
             for child in self.children:
@@ -99,9 +99,9 @@ class PlanItem:
 
 
 class PlanStackItem:
-    '''
+    """
     This class contains aux data required to traverse the execution plan.
-    '''
+    """
 
     def __init__(self, plan_item):
         self.item = plan_item
@@ -116,7 +116,7 @@ class PlanStackItem:
 
 
 class PlanTracker:
-    '''High-level interface to tracking test execution.'''
+    """High-level interface to tracking test execution."""
 
     def do_nothing(self, x):
         return None
@@ -126,7 +126,7 @@ class PlanTracker:
         self.next_id = 1
 
     def next_event(self):
-        '''Advance one step through the plan.'''
+        """Advance one step through the plan."""
         if len(self.stack) == 0:
             return
 
@@ -144,22 +144,22 @@ class PlanTracker:
             self.stack.append(child)
 
     def peek_event(self):
-        '''Return the next event, do not advance.'''
+        """Return the next event, do not advance."""
         if len(self.stack) == 0:
             return None
 
         return self.stack[-1].item, self.stack[-1].running
 
     def finished(self):
-        '''Has test execution finished according to the plan?'''
+        """Has test execution finished according to the plan?"""
         return self.peek_event() is None
 
     def skip_until(self, target_id, until_start, on_enter=None, on_exit=None):
-        '''
+        """
         Advance through the plan until
             1. (if until_start is True) we are about to enter the target item;
             2. (if until_start is False) we have just exited from the target item.
-        '''
+        """
 
         def reached_goal():
             item, enter = event
@@ -176,7 +176,7 @@ class PlanTracker:
             event = self.peek_event()
 
     def skip_all(self, on_enter=None, on_exit=None):
-        '''Advance through the plan until the end.'''
+        """Advance through the plan until the end."""
         event = self.peek_event()
         while event is not None:
             item, enter = event

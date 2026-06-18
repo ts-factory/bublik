@@ -26,10 +26,10 @@ from bublik.data.serializers import (
 
 
 class Saver:
-    '''If a class describes the last level of nesting, it probably wants
+    """If a class describes the last level of nesting, it probably wants
     to save data to the database.  This class must be a child of
     the Saver class, It should also implement the save() method.
-    '''
+    """
 
     single_measurements: ClassVar[list] = []
     list_measurements: ClassVar[list] = []
@@ -50,10 +50,10 @@ class Saver:
 
 
 class InstanceLevel:
-    '''The MI log consists of several levels of nesting. The nesting level
+    """The MI log consists of several levels of nesting. The nesting level
     is what is inside the parentheses.
     This class is the base class for describing the level.
-    '''
+    """
 
     def __init__(self, data, meta_type):
         self.data = []

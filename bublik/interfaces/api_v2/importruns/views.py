@@ -26,16 +26,16 @@ logger = get_task_or_server_logger()
 
 
 class ImportrunsViewSet(ViewSet):
-    '''
+    """
     ViewSet to import run logs.
-    '''
+    """
 
     @method_decorator(never_cache)
     @action(detail=False, methods=['get', 'post'])
     def source(self, request):
-        '''
+        """
         Creates a Celery task to import a session from the provided URI.
-        '''
+        """
         serializer = ImportrunsSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
@@ -64,10 +64,10 @@ class ImportrunsViewSet(ViewSet):
 
     @action(detail=False, methods=['get'])
     def log(self, request):
-        r'''
+        r"""
         Return import logs in JSON.
         Route: /api/v2/importruns/log/?task_id=<task_id\>.
-        '''
+        """
 
         task_id = request.query_params.get('task_id')
 
@@ -98,7 +98,7 @@ class ImportrunsViewSet(ViewSet):
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
     def init(self, request, format=None):
-        '''Starts live import initializing run. Returns run identifier.'''
+        """Starts live import initializing run. Returns run identifier."""
         try:
             cache = None
             data = json.loads(request.body)
@@ -128,7 +128,7 @@ class ImportrunsViewSet(ViewSet):
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
     def feed(self, request, format=None):
-        '''Accepts chunks of the run tree.'''
+        """Accepts chunks of the run tree."""
         try:
             ctx = None
             cache = None
@@ -181,7 +181,7 @@ class ImportrunsViewSet(ViewSet):
     @method_decorator(never_cache)
     @action(detail=False, methods=['post'], renderer_classes=[JSONRenderer])
     def finish(self, request, format=None):
-        '''Finish a live import session.'''
+        """Finish a live import session."""
         try:
             ctx = None
             cache = None

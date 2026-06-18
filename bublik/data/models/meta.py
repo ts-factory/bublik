@@ -19,18 +19,18 @@ __all__ = [
 
 
 class Meta(models.Model):
-    '''
+    """
     Meta information to mark runs and iteration results in arbitrary way.
-    '''
+    """
 
     hashable = ('name', 'type', 'value', 'comment')
 
     name = models.CharField(max_length=64, null=True, help_text='The meta name.')
     type = models.CharField(
         max_length=64,
-        help_text='''\
+        help_text="""\
 The meta type, enumeration: result, verdict, note, error, tag, label, \
-revision, branch, repo, log, import, count, objective, comment.''',
+revision, branch, repo, log, import, count, objective, comment.""",
         db_index=True,
     )
     value = models.TextField(null=True, blank=True, help_text='The meta value or none.')
@@ -71,9 +71,9 @@ revision, branch, repo, log, import, count, objective, comment.''',
 
 
 class MetaCategory(models.Model):
-    '''
+    """
     Meta priority/category association model
-    '''
+    """
 
     name = models.CharField(
         max_length=64,
@@ -94,9 +94,9 @@ class MetaCategory(models.Model):
     )
     type = models.CharField(
         max_length=64,
-        help_text='''\
+        help_text="""\
 The meta type, enumeration: result, verdict, note, error, tag, label, \
-revision, branch, repo, log, import, count, objective.''',
+revision, branch, repo, log, import, count, objective.""",
     )
     project = models.ForeignKey(
         Project,
@@ -120,9 +120,9 @@ revision, branch, repo, log, import, count, objective.''',
 
 
 class MetaPattern(models.Model):
-    '''
+    """
     Meta pattern
-    '''
+    """
 
     pattern = models.CharField(
         max_length=256,

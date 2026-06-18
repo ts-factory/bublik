@@ -15,9 +15,9 @@ __all__ = [
 
 
 class Expectation(models.Model):
-    '''
+    """
     TRC test expectation instance.
-    '''
+    """
 
     hashable = ('expectmeta_set',)
 
@@ -43,9 +43,9 @@ class Expectation(models.Model):
 
 
 class ExpectMeta(models.Model):
-    '''
+    """
     Expectation metas.
-    '''
+    """
 
     hashable = ('serial', 'meta', 'reference')
 
@@ -63,8 +63,8 @@ class ExpectMeta(models.Model):
     )
     serial = models.IntegerField(
         default=0,
-        help_text='''\
-Serial number of a meta result, can be used to determine verdicts order.''',
+        help_text="""\
+Serial number of a meta result, can be used to determine verdicts order.""",
     )
 
     class Admin:

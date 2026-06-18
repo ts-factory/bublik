@@ -97,9 +97,9 @@ class ConfigSerializer(ModelSerializer):
         return name
 
     def validate_content(self, content):
-        '''
+        """
         Do the preprocessing and validate config content using the appropriate JSON schema.
-        '''
+        """
 
         def ensure_json(config_content):
             if isinstance(config_content, (dict, list)):
@@ -146,11 +146,11 @@ class ConfigSerializer(ModelSerializer):
 
     @classmethod
     def initialize(cls, config_data):
-        '''
+        """
         Used for initializing configurations.
         Sets is_active=True, adds user to the provided config data and
         calls create().
-        '''
+        """
         config_data['is_active'] = True
         serializer = cls(data=config_data, context={'is_system_action': True})
         internal = serializer.to_internal_value(serializer.initial_data)

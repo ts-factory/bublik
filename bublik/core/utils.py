@@ -46,19 +46,19 @@ def key_value_list_transforming(items, delim=settings.KEY_VALUE_DELIMITER):
     for item in items:
         if isinstance(item, dict):
             if all(k in item for k in ('name', 'value')):
-                '''Example: item = { 'name': n, 'value': v }.'''
+                """Example: item = { 'name': n, 'value': v }."""
                 key = item.get('name')
                 value = item.get('value')
             elif 'value' in item:
-                '''Example: item = { 'value': v }.'''
+                """Example: item = { 'value': v }."""
                 key = item.get('value')
                 value = None
             else:
-                '''Example: item = { n: v }.'''
+                """Example: item = { n: v }."""
                 key, value = item.popitem()
 
         elif isinstance(item, tuple):
-            '''Example: item = ( n, v ).'''
+            """Example: item = ( n, v )."""
             key, value = item
 
         else:
@@ -113,10 +113,10 @@ def search_files_in_sub_dirs(basedir, filename):
 
 
 def get_local_log(filename, basedir=settings.MANAGEMENT_COMMANDS_LOG):
-    '''
+    """
     Returns absolute path to the log or raises RunTimeError if
     no one or more than one log file was found.
-    '''
+    """
 
     files = list(search_files_in_sub_dirs(basedir, filename))
 

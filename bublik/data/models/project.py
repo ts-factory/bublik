@@ -11,9 +11,9 @@ __all__ = [
 
 
 class Project(models.Model):
-    '''
+    """
     Projects.
-    '''
+    """
 
     name = models.CharField(
         max_length=64,

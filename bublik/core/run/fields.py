@@ -25,7 +25,7 @@ class TestNameField(fields.CharField):
         self.validators.append(ProhibitNullCharactersValidator())
 
     def to_python(self, value):
-        '''Return a string.'''
+        """Return a string."""
         if value not in self.empty_values:
             try:
                 return get_test_by_full_path(value)

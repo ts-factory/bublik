@@ -15,9 +15,9 @@ from bublik.data import models
 
 
 class Command(BaseCommand):
-    help = '''DELETE, CREATE or UPDATE cached data for runs satisfying the given parameters.
+    help = """DELETE, CREATE or UPDATE cached data for runs satisfying the given parameters.
               Cached data for managing can be controlled by --data option.
-              By default cache action is applyied to all runs.'''
+              By default cache action is applyied to all runs."""
 
     def add_arguments(self, parser):
         parser.add_argument(

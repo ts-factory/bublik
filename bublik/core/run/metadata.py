@@ -28,7 +28,7 @@ from bublik.data.serializers import (
 
 
 class MetaData:
-    '''
+    """
     This class responsibilities are bellow.
     1. Check:
         - metadata version,
@@ -39,7 +39,7 @@ class MetaData:
     3. Control timezone of datetime objects.
     4. Save necessary data to create a TestIterationResult minimal instance.
     5. Get or create / force update run metas.
-    '''
+    """
 
     FMT_META_DATA_GENERATE = '{path_meta_data_script} --path {process_dir} --project {project}'
 

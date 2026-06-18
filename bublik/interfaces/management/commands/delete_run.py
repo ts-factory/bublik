@@ -10,8 +10,8 @@ from bublik.data import models
 
 
 class Command(BaseCommand):
-    help = '''COMPLETELY DELETE all runs satisfying the given parameters.
-              This action CANNOT be UNDONE. Related cache will be also deleted.'''
+    help = """COMPLETELY DELETE all runs satisfying the given parameters.
+              This action CANNOT be UNDONE. Related cache will be also deleted."""
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -34,7 +34,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        '''Delete only runs, not any test iteration result.'''
+        """Delete only runs, not any test iteration result."""
 
         try:
             query = Q()

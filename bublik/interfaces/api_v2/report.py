@@ -23,18 +23,18 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=True, methods=['get'])
     def configs(self, request, pk=None):
-        '''
+        """
         Return a list of active configs that can be used to build a report on the current run.
         Request: GET /api/v2/report/<run_id>/configs
-        '''
+        """
         return Response(
             {'run_report_configs': ReportService.get_configs_for_run_report(self.get_object())},
         )
 
     def retrieve(self, request, pk=None):
-        '''
+        """
         Request: GET /api/v2/report/<run_id>?config=<config_id\\>
-        '''
+        """
         # Check if the config ID has been passed
         report_config_id = request.query_params.get('config')
         if not report_config_id:

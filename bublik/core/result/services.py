@@ -27,7 +27,7 @@ from bublik.data import models
 class ResultService:
     @staticmethod
     def get_result(result_id: int) -> models.TestIterationResult:
-        '''
+        """
         Get a result by ID.
 
         Args:
@@ -38,7 +38,7 @@ class ResultService:
 
         Raises:
             NotFoundError: if result not found
-        '''
+        """
         try:
             return models.TestIterationResult.objects.get(id=result_id)
         except ObjectDoesNotExist as e:
@@ -47,7 +47,7 @@ class ResultService:
 
     @staticmethod
     def get_result_details(result_id: int) -> dict:
-        '''
+        """
         Get full details for a single result.
 
         Args:
@@ -55,7 +55,7 @@ class ResultService:
 
         Returns:
             Dictionary with full result details
-        '''
+        """
 
         result = ResultService.get_result(result_id)
 
@@ -63,7 +63,7 @@ class ResultService:
 
     @staticmethod
     def get_result_measurements(result_id: int) -> dict:
-        '''
+        """
         Get measurements for a result.
 
         Args:
@@ -71,7 +71,7 @@ class ResultService:
 
         Returns:
             Dictionary with run_id, iteration_id, charts, and tables
-        '''
+        """
         result = ResultService.get_result(result_id)
 
         # Get tables
@@ -87,7 +87,7 @@ class ResultService:
 
     @staticmethod
     def get_result_artifacts_and_verdicts(result_id: int) -> dict:
-        '''
+        """
         Get artifacts and verdicts for a result.
 
         Args:
@@ -95,7 +95,7 @@ class ResultService:
 
         Returns:
             Dictionary with artifacts and verdicts lists
-        '''
+        """
         result_metas = models.Meta.objects.filter(metaresult__result__id=result_id)
         return {
             'artifacts': list(result_metas.filter(type='artifact').values()),
@@ -111,7 +111,7 @@ class ResultService:
         result_properties: str | None = None,
         requirements: str | None = None,
     ):
-        '''
+        """
         List results with filtering.
 
         Args:
@@ -129,7 +129,7 @@ class ResultService:
 
         Raises:
             ValidationError: if validation fails
-        '''
+        """
         queries = Q()
         queryset = models.TestIterationResult.objects.filter()
         query_delimiter = settings.QUERY_DELIMITER
@@ -236,7 +236,7 @@ class ResultService:
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        '''
+        """
         List results with filtering and pagination.
 
         Args:
@@ -253,7 +253,7 @@ class ResultService:
 
         Returns:
             Dictionary with pagination metadata and result details
-        '''
+        """
         queryset = ResultService.list_results(
             parent_id=parent_id,
             test_name=test_name,

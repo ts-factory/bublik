@@ -23,7 +23,7 @@ class LogService:
         page: int | None = None,
         request_origin: str | None = None,
     ) -> dict:
-        '''
+        """
         Get JSON log and attachments URLs for a result.
 
         Args:
@@ -36,7 +36,7 @@ class LogService:
 
         Raises:
             UnprocessableEntityError: if result not found or invalid page parameter
-        '''
+        """
         result = ResultService.get_result(result_id)
         run_source_link = get_sources(result)
 
@@ -81,7 +81,7 @@ class LogService:
 
     @staticmethod
     def get_html_log_url(result_id: int) -> str | None:
-        '''
+        """
         Get HTML log URL for a result.
 
         Args:
@@ -92,13 +92,13 @@ class LogService:
 
         Raises:
             UnprocessableEntityError: if result not found
-        '''
+        """
         result = ResultService.get_result(result_id)
         return get_result_log(result)
 
     @staticmethod
     def fetch_log_content(url: str, allow_not_found: bool = True) -> dict | None:
-        '''
+        """
         Fetch JSON content from URL.
 
         Args:
@@ -109,7 +109,7 @@ class LogService:
 
         Raises:
             UnprocessableEntityError: if URL is missing
-        '''
+        """
         if not url:
             msg = 'URL parameter is missing'
             raise UnprocessableEntityError(msg)
@@ -137,7 +137,7 @@ class LogService:
 
     @staticmethod
     def get_log_json(result_id: int, page: int | None = None) -> dict:
-        '''
+        """
         Fetch and return actual JSON log content.
 
         Args:
@@ -152,7 +152,7 @@ class LogService:
 
         Raises:
             UnprocessableEntityError: if result not found or invalid parameters
-        '''
+        """
         # Get URLs (without proxy for direct fetching)
         urls = LogService.get_json_log_urls(result_id, page, request_origin=None)
 

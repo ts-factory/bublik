@@ -18,10 +18,10 @@ logger = logging.getLogger()
 
 class PerformanceCheckView(APIView):
     def get(self, request, *args, **kwargs):
-        '''
+        """
         Return labels, URLs and timeouts for basic views.
         Route: /performance_check.
-        '''
+        """
         views_to_check = [
             'dashboard',
             'runs_list',

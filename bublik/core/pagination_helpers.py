@@ -35,7 +35,7 @@ class PaginatedResult:
         page: int | str | None = None,
         page_size: int | str | None = None,
     ) -> dict:
-        '''
+        """
         Apply pagination to a queryset and return paginated result.
 
         Args:
@@ -48,7 +48,7 @@ class PaginatedResult:
 
         Raises:
             ValidationError: if page/page_size are invalid
-        '''
+        """
         default_page = 1
         default_page_size = 25
         max_page_size = 10000

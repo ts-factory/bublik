@@ -21,7 +21,7 @@ from bublik.data.models import (
 
 
 class Command(BaseCommand):
-    '''
+    """
     Example of config content handled by the command:
     [
         "Configuration": {
@@ -40,7 +40,7 @@ class Command(BaseCommand):
             "set-priority": 10
         }
     ]
-    '''
+    """
 
     help = 'Assign a class and a priority to the metas in the database'
 

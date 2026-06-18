@@ -40,7 +40,7 @@ logger = get_task_or_server_logger()
 
 
 class LiveLogError(Exception):
-    '''Exceptions related to live log import.'''
+    """Exceptions related to live log import."""
 
     def __init__(self, msg, **kwargs):
         self.data = kwargs
@@ -54,28 +54,28 @@ class LiveLogError(Exception):
 
 
 class LLInvalidInputError(LiveLogError):
-    '''User-supplied data is invalid.'''
+    """User-supplied data is invalid."""
 
     STATUS = status.HTTP_400_BAD_REQUEST
 
 
 class LLInternalError(LiveLogError):
-    '''An internal error has occured during request processing.'''
+    """An internal error has occured during request processing."""
 
     STATUS = status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 class LLNotImplementedError(LiveLogError):
-    '''An internal error has occured during request processing.'''
+    """An internal error has occured during request processing."""
 
     STATUS = status.HTTP_501_NOT_IMPLEMENTED
 
 
 class NodeIDConverter:
-    '''
+    """
     Track node ID to TestIterationResult ID mapping for easy artifact
     message processing.
-    '''
+    """
 
     HISTORY_SIZE = 20
 
@@ -95,7 +95,7 @@ class NodeIDConverter:
 
 
 class TestStackItem:
-    '''Description of the currently running entity in Bublik terms.'''
+    """Description of the currently running entity in Bublik terms."""
 
     def __init__(
         self,
@@ -117,10 +117,10 @@ class TestStackItem:
 
 
 class LiveLogContext:
-    '''
+    """
     Context that should be preserved between the heartbeats of TE
     log streaming protocol.
-    '''
+    """
 
     # Additional time to allow a request to reach Bublik
     # (and let Bublik process other tasks)
@@ -234,7 +234,7 @@ class LiveLogContext:
         self.node_conv = NodeIDConverter()
 
     def serialize(self):
-        '''Prepare the stack to be cached, deflate model objects.'''
+        """Prepare the stack to be cached, deflate model objects."""
         if isinstance(self.run, int):
             return
 
@@ -245,7 +245,7 @@ class LiveLogContext:
             item.result = item.result.id
 
     def deserialize(self):
-        '''Inflate model objects after the stack was extracted from cache.'''
+        """Inflate model objects after the stack was extracted from cache."""
         if isinstance(self.run, TestIterationResult):
             return
 
@@ -279,12 +279,12 @@ class LiveLogContext:
         return self.test_stack[-1]
 
     def ts_microstep(self):
-        '''
+        """
         Increase the last timestamp by a microsecond.
 
         This function is used to ensure that all LOST iteration results have
         unique timestamps.
-        '''
+        """
         self.last_ts += timedelta(microseconds=1)
         return self.last_ts
 
@@ -366,11 +366,11 @@ class LiveLogContext:
         return on_item_enter, on_item_exit
 
     def advance_plan(self, target_plan_id, stop_at_start, target_dt):
-        '''
+        """
         Fast-forward test execution state to the point where target_plan_id
         is the plan id of the next expected test_start event (or test_end,
         depending on the value of the stop_at_start parameter).
-        '''
+        """
 
         on_item_enter, on_item_exit = self.plan_skip_handlers()
         if on_item_enter is not None and on_item_exit is not None:
@@ -389,7 +389,7 @@ class LiveLogContext:
                 self.plan_tracker.next_event()
 
     def fatal_error(self):
-        '''Finish the import after a fatal error.'''
+        """Finish the import after a fatal error."""
         # Finish everything that's currently running
         for item in reversed(self.test_stack):
             self.ts_microstep()
@@ -581,7 +581,7 @@ class LiveLogContext:
         self.plan_tracker.next_event()
 
     def feed(self, events):
-        '''Process events produced by TE.'''
+        """Process events produced by TE."""
 
         for event in events:
             if 'type' not in event:
@@ -606,7 +606,7 @@ class LiveLogContext:
                     )
 
     def finish(self, data):
-        '''Initialize import using TE log streaming protocol.'''
+        """Initialize import using TE log streaming protocol."""
         if 'ts' not in data:
             msg = 'timestamp is required'
             raise LLInvalidInputError(msg)
