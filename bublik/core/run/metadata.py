@@ -171,7 +171,7 @@ class MetaData:
         if key_metas_names:
             msg = (
                 "can't identify the run, the following RUN_KEY_METAS are "
-                f"absent in metadata: {','.join(key_metas_names)}"
+                f'absent in metadata: {",".join(key_metas_names)}'
             )
             raise ImportrunsError(message=msg)
 
@@ -251,7 +251,7 @@ class MetaData:
 
             if not name and not value:
                 logger.warning(
-                    f'meta with empty \'name\' and \'value\' can\'t be saved: {m_data}',
+                    f"meta with empty 'name' and 'value' can't be saved: {m_data}",
                 )
                 continue
 
@@ -324,7 +324,7 @@ class MetaData:
         )
 
         logger.info(
-            f"deleted meta results: {list(deleted.values_list('meta__name', 'meta__value'))}",
+            f'deleted meta results: {list(deleted.values_list("meta__name", "meta__value"))}',
         )
 
         deleted.delete()

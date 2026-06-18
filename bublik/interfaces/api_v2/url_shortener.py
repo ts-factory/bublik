@@ -35,8 +35,8 @@ class URLShortenerView(APIView):
         url_head = build_absolute_uri(request, settings.UI_PREFIX)
         if url.find(url_head) != 0:
             logger.error(
-                f'URL validation failed: URL \'{url}\' does not start '
-                f'with expected prefix \'{url_head}\'',
+                f"URL validation failed: URL '{url}' does not start "
+                f"with expected prefix '{url_head}'",
             )
             msg = 'The passed URL has an incorrect prefix'
             raise ValidationError(msg)

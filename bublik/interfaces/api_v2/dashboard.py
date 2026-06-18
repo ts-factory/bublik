@@ -235,9 +235,7 @@ class DashboardPayload:
         for item in ConfigServices.get_schema(
             ConfigTypes.GLOBAL,
             GlobalConfigs.PER_CONF.name,
-        )[
-            'properties'
-        ]['DASHBOARD_COLUMNS']['items']['properties']['payload']['oneOf']
+        )['properties']['DASHBOARD_COLUMNS']['items']['properties']['payload']['oneOf']
     }
 
     def __init__(self):
@@ -260,7 +258,7 @@ class DashboardPayload:
         diff = get_difference(payloads, self.handlers_available.keys())
         if diff:
             self.errors.append(
-                f"Unknown value(s) in DASHBOARD_COLUMNS payload: {', '.join(diff)}",
+                f'Unknown value(s) in DASHBOARD_COLUMNS payload: {", ".join(diff)}',
             )
         return bool(not self.errors)
 

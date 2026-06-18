@@ -142,12 +142,12 @@ class MetaTestSerializer(ModelSerializer):
     def validate(self, attrs):
         test = attrs.get('test')
         if test is None:
-            msg = '\'test\' must be provided in serializer context'
+            msg = "'test' must be provided in serializer context"
             raise serializers.ValidationError(msg)
 
         project = attrs.get('project')
         if project is None:
-            msg = '\'project\' must be provided in serializer context'
+            msg = "'project' must be provided in serializer context"
             raise serializers.ValidationError(msg)
 
         meta_serializer = serialize(MetaSerializer, attrs['meta'])
@@ -188,7 +188,7 @@ class RunCommentSerializer(MetaResultSerializer):
     def validate(self, attrs):
         run = attrs.get('result')
         if run is None:
-            msg = '\'run\' must be provided in serializer context'
+            msg = "'run' must be provided in serializer context"
             raise serializers.ValidationError(msg)
 
         if MetaResult.objects.filter(result=run, meta__type=attrs['meta']['type']).exists():

@@ -251,24 +251,24 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
     if run_log.get('iters') is not None:
         handle_iterations(run_log, run, project_id, tests_nums_prologues)
         logger.info(
-            f"the number of handled iterations is {handle_iteration.counter['iter_obj']}",
+            f'the number of handled iterations is {handle_iteration.counter["iter_obj"]}',
         )
         logger.info(
             'the number of created iteration objects is '
-            f"{handle_iteration.counter['created_iter_obj']}",
+            f'{handle_iteration.counter["created_iter_obj"]}',
         )
         logger.info(
             f'handling measurements during handling iterations took ['
             f'{HandlerArtifacts.handle_meas_time}]',
         )
-        logger.info(f"the number of handled measurements is {EntryLevel.counter['meas_obj']}")
+        logger.info(f'the number of handled measurements is {EntryLevel.counter["meas_obj"]}')
         logger.info(
             'the number of created measurement objects is '
-            f"{EntryLevel.counter['created_meas_obj']}",
+            f'{EntryLevel.counter["created_meas_obj"]}',
         )
         logger.info(
             'the number of created measurement result objects is '
-            f"{EntryLevel.counter['created_meas_res_obj']}",
+            f'{EntryLevel.counter["created_meas_res_obj"]}',
         )
     else:
         logger.info('there is no iterations in this run. Skip handling.')

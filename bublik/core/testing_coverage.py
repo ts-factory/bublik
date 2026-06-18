@@ -182,7 +182,6 @@ class TestingCoverage:
 
         def generate_tables(packages, package_stats):
             with open(self.path_report_content, 'w') as repf:
-
                 repf.write(
                     f'\\lfoot{{Report for the period from {datetime.date(self.start_date)} to '
                     f'{datetime.date(self.finish_date)}}}\n\n',

@@ -204,7 +204,7 @@ class MiLogHandleTest(TestCase):
             self.assertEqual(
                 cv.count(),
                 number,
-                'Invalid number of objects created for the view ' f"named {view_name}'",
+                f"Invalid number of objects created for the view named {view_name}'",
             )
 
         check_number_created_objects('graph1', 3)
@@ -218,7 +218,7 @@ class MiLogHandleTest(TestCase):
             self.assertEqual(
                 cvx.count(),
                 1,
-                'More than one ChartView with ' f"type 'X' was created for {view_name}",
+                f"More than one ChartView with type 'X' was created for {view_name}",
             )
             if measurement_x:
                 self.assertEqual(

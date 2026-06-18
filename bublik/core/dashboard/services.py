@@ -329,7 +329,7 @@ class DashboardService:
                 if diff:
                     errors.append(
                         f"DASHBOARD_RUNS_SORT doesn't match DASHBOARD_COLUMNS, "
-                        f"mismatch: {diff}",
+                        f'mismatch: {diff}',
                     )
             except Exception as e:
                 errors.append(f'DASHBOARD_RUNS_SORT: {e}')

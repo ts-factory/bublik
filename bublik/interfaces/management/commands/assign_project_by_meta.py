@@ -70,8 +70,7 @@ class Command(BaseCommand):
         )
         if runs_with_single_meta_num != runs.count():
             msg = (
-                'Invalid meta name: not all runs are linked '
-                'to exactly one meta with this name.'
+                'Invalid meta name: not all runs are linked to exactly one meta with this name.'
             )
             return False, msg
 

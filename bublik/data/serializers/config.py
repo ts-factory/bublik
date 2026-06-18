@@ -89,7 +89,7 @@ class ConfigSerializer(ModelSerializer):
                 or Project.objects.get(id=config_project).name
             )
             msg = (
-                f'{config_type.capitalize()} configuration \'{name}\' '
+                f"{config_type.capitalize()} configuration '{name}' "
                 f'already exist for {project_name}'
             )
             raise serializers.ValidationError(msg)

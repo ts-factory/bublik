@@ -89,7 +89,7 @@ class TestRunMeta:
                 op = op_correspondings.get(op, {}).get('negation', op)
 
             if op not in op_correspondings:
-                msg = f'Unknown relation value: \'{op}\'. Expected: = / != / < / <= / > / >='
+                msg = f"Unknown relation value: '{op}'. Expected: = / != / < / <= / > / >="
                 raise ValueError(msg)
 
             if expr_type == 'test_argument':
@@ -168,7 +168,7 @@ class TestRunMetasGroup:
     def get_meta_by_alias(self, alias):
         meta = self.metasd.get(alias)
         if not meta:
-            msg = f'Failed to get meta by alias \'{alias}\''
+            msg = f"Failed to get meta by alias '{alias}'"
             raise ValueError(msg)
         return meta
 
@@ -243,8 +243,7 @@ class TestRunMetasGroup:
             else:
                 expected = 'meta_name1 & meta_name2=32'
             msg = (
-                f'Faied to parse expression string \'{expr_str}\'. '
-                f'Expected example: {expected}',
+                f"Faied to parse expression string '{expr_str}'. Expected example: {expected}",
             )
             raise pp.ParseException(msg) from pe
 

@@ -23,7 +23,6 @@ def check_duplicates(config):
 
 
 class Command(BaseCommand):
-
     @transaction.atomic()
     def handle(self, *args, **options):
 

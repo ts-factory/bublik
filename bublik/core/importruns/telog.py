@@ -58,9 +58,7 @@ class LogConverter:
             if proc.wait() != 0:
                 output, error = proc.communicate()
                 logger.error(
-                    f'Failed conversion command: {cmd}\n'
-                    f'Output: {output}\n'
-                    f'Error: {error}',
+                    f'Failed conversion command: {cmd}\nOutput: {output}\nError: {error}',
                 )
                 raise ConverterError(
                     self.log_type,

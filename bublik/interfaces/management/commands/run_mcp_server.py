@@ -23,7 +23,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        self.stdout.write(f"Starting Bublik MCP server on {options['host']}:{options['port']}")
+        self.stdout.write(f'Starting Bublik MCP server on {options["host"]}:{options["port"]}')
 
         mcp = create_mcp_server()
 

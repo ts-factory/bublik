@@ -7,7 +7,6 @@ from django.conf import settings
 
 
 class ServerService:
-
     @staticmethod
     def get_version() -> dict:
         """

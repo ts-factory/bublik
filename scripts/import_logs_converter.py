@@ -156,9 +156,7 @@ def main(av):
 
     except pp.ParseException as pe:
         logging.error(
-            f'Strange log file "{logpath}"!\n'
-            f'Error message: {pe}\n'
-            f'The line: "{pe.line}"',
+            f'Strange log file "{logpath}"!\nError message: {pe}\nThe line: "{pe.line}"',
         )
         return 1
 

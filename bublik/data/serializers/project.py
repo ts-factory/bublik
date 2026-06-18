@@ -7,7 +7,6 @@ from bublik.data.models import Project
 
 
 class ProjectSerializer(ModelSerializer):
-
     class Meta:
         model = Project
         fields = (

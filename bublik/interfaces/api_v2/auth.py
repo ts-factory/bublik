@@ -359,7 +359,7 @@ class AdminViewSet(GenericViewSet):
         user = serializer.create(request.data)
         send_verification_link_mail(request, user)
         return Response(
-            {'message': 'A verification link has been sent to the user\'s email address'},
+            {'message': "A verification link has been sent to the user's email address"},
         )
 
     @auth_required(as_admin=True)

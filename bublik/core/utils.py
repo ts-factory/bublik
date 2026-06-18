@@ -205,7 +205,6 @@ def get_same_key_values(test_list, extra_condition=None):
 
     # iterating each dictionary for similar key's value
     for key in keys:
-
         # using all to check all keys with similar values
         flag = all(test_list[0][key] == ele[key] for ele in test_list)
 

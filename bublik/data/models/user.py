@@ -2,7 +2,8 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 """
 Contains models responsible for saving user data
-'''
+"""
+
 import typing
 
 from django.contrib.auth.base_user import BaseUserManager
