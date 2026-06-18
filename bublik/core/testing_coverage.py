@@ -256,7 +256,7 @@ class TestingCoverage:
         for i, package in enumerate(packages):
             if not package_stats[package] or package_stats[package] == 0:
                 for p in packages:
-                    if p.startswith(packages[i] + '/'):
+                    if p.startswith(packages[i] + '/'):  # noqa: PLR1736
                         packages.remove(package)
 
         generate_tables(packages, package_stats)
