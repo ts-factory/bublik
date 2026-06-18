@@ -8,8 +8,6 @@ from bublik.data.models import (
     ChartView,
     Measurement,
     MeasurementResult,
-    Meta,
-    TestIterationResult,
 )
 from bublik.tests.fake_generator import gen_test_iteration_result_simple
 

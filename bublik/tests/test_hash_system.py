@@ -4,7 +4,6 @@
 import logging
 from pprint import pformat
 
-from deepdiff import DeepHash
 from django.test import TestCase
 
 from bublik.core.hash_system import HashedModelSerializer
@@ -12,9 +11,7 @@ from bublik.core.shortcuts import serialize
 from bublik.data import models
 from bublik.data.serializers import (
     ExpectationSerializer,
-    ExpectMetaReadSerializer,
     MetaSerializer,
-    ReferenceSerializer,
 )
 from bublik.tests.fake_generator import gen_expectation_data, gen_meta_data
 
