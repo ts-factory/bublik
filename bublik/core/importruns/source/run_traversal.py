@@ -127,9 +127,9 @@ class HTTPDirectoryTraverser:
 
         ast = BeautifulSoup(markup=html, features='html.parser')
         if ast.find(
-            lambda t: t.name == 'a'
-            and t.string
-            and t.string.strip().lower() == 'trc_compromised.js',
+            lambda t: (
+                t.name == 'a' and t.string and t.string.strip().lower() == 'trc_compromised.js'
+            ),
         ):
             raise RunCompromisedError
 
@@ -139,10 +139,12 @@ class HTTPDirectoryTraverser:
 
         # NOTE: the parser relies on links to directories ending with a slash "/"
         for node in ast.find_all(
-            lambda t: t.name == 'a'
-            and hasattr(t, 'href')
-            and not re.match(r'(\./)?\.\./?', t['href'])
-            and t['href'].endswith('/'),
+            lambda t: (
+                t.name == 'a'
+                and hasattr(t, 'href')
+                and not re.match(r'(\./)?\.\./?', t['href'])
+                and t['href'].endswith('/')
+            ),
         ):
             a_href = node['href'].strip()
             url_next = urljoin(url + '/', a_href)
