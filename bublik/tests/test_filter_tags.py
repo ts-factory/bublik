@@ -17,7 +17,7 @@ from bublik.data.models import Meta, MetaResult, TestIterationResult
 logger = get_task_or_server_logger()
 
 
-class TestMeta(object):
+class TestMeta:
     def __init__(self, name, value=None, obj=None):
         self.name = str(name)
         self.value = str(value)
@@ -26,8 +26,7 @@ class TestMeta(object):
     def __str__(self):
         if self.value:
             return f'{self.name}={self.value}'
-        else:
-            return self.name
+        return self.name
 
     def __repr__(self):
         return str(self)
