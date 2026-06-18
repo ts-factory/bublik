@@ -91,9 +91,11 @@ def log_line_parser(line):
         + message
     )
     log_line = log_line.setParseAction(
-        lambda t: f'{{"asctime": {json.dumps(t.asctime)}, '
-        f'"levelname": {json.dumps(t.levelname)}, "module": {json.dumps(t.module)}, '
-        f'"message": {json.dumps(t.message)}}}',
+        lambda t: (
+            f'{{"asctime": {json.dumps(t.asctime)}, '
+            f'"levelname": {json.dumps(t.levelname)}, "module": {json.dumps(t.module)}, '
+            f'"message": {json.dumps(t.message)}}}'
+        ),
     )
 
     try:
