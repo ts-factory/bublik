@@ -11,7 +11,7 @@ from bublik.core.tree.representation import path_to_node, tree_representation
 class TreeService:
     @staticmethod
     def get_tree(run_id: int) -> dict:
-        '''
+        """
         Get tree representation of a run.
 
         Args:
@@ -22,7 +22,7 @@ class TreeService:
 
         Raises:
             NotFoundError: if run not found
-        '''
+        """
         result = ResultService.get_result(run_id)
 
         # Try to get cached tree
@@ -51,7 +51,7 @@ class TreeService:
 
     @staticmethod
     def get_tree_path(result_id: int) -> list[int]:
-        '''
+        """
         Get path from root to a specific node.
 
         Args:
@@ -62,6 +62,6 @@ class TreeService:
 
         Raises:
             NotFoundError: if result not found
-        '''
+        """
         result = ResultService.get_result(result_id)
         return path_to_node(result)

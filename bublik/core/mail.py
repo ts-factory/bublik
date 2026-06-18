@@ -21,14 +21,14 @@ def send_importruns_failed_mail(
     source=None,
     add_to_message=None,
 ):
-    '''
+    """
     Sends mails to per-project watchers and Bublik admins.
 
     Parameter @requesting_host is a Bublik host where importruns failed.
     Parameter @item_id can represent either run id or async task id of importruns.
     Parameter @source is a link through a run was imported.
     Parameter @add_to_message is a string added to the default message.
-    '''
+    """
 
     email_from = getattr(settings, 'EMAIL_FROM', None)
     recipients = ConfigServices.getattr_from_global(
@@ -72,9 +72,9 @@ class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
 
 
 def send_verification_link_mail(request, user):
-    '''
+    """
     Sends an email to the user with a link that activates his account when clicked.
-    '''
+    """
     from_email = getattr(settings, 'EMAIL_FROM', None)
 
     email_verification_token = EmailVerificationTokenGenerator()

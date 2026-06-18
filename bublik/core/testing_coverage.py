@@ -61,11 +61,11 @@ class TestingCoverageRow:
 
 
 class TestingCoverage:
-    '''
+    """
     The object contains data of testing coverage structured in dependence on
     specified tags which are considered to be significant. It can be used to
     generate pdf or html reports.
-    '''
+    """
 
     def __init__(
         self,

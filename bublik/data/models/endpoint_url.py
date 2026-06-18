@@ -11,9 +11,9 @@ __all__ = [
 
 
 class EndpointURL(models.Model):
-    '''
+    """
     The endpoints of Bublik URLs and the corresponding hashes used for short URLs.
-    '''
+    """
 
     hashable = (
         'view',

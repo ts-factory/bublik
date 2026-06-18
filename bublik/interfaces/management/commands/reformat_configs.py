@@ -15,9 +15,9 @@ from bublik.data.serializers import ConfigSerializer
 
 class Command(BaseCommand):
     def get_configs(self, options):
-        '''
+        """
         Get a list of configurations filtered by the passed types and names.
-        '''
+        """
         configs = Config.objects.all().order_by(
             'project',
             '-is_active',

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
-'''
+"""
 The database is destined to keep mass automatic testing results.
 In general it is designed to be flexible and keep tests structured in various
 ways. Tests results can have links to different kinds of external or
@@ -19,7 +19,7 @@ A test result path (relatively to the test run):
 
 The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
-'''
+"""
 
 from .config import Config, ConfigTypes, GlobalConfigs
 from .endpoint_url import EndpointURL

@@ -79,14 +79,14 @@ class Command(BaseCommand):
         return True, msg
 
     def get_runs_to_migrate(self, meta_name):
-        '''
+        """
         Returns a queryset of runs for which the name of the linked project
         does not match the value of the meta with the provided name associated with the run.
         Also includes runs that are not yet linked to any project.
 
         This helps identify runs that require project reassignment
         based on the provided meta value.
-        '''
+        """
         self.stdout.write('Checking for runs requiring migration...')
         meta_value_subquery = Meta.objects.filter(
             metaresult__result=OuterRef('pk'),
@@ -110,10 +110,10 @@ class Command(BaseCommand):
         )
 
     def get_or_create_project(self, meta):
-        '''
+        """
         Returns the Project instance with the specified name.
         If such a project does not exist, a new one is created.
-        '''
+        """
         try:
             project = Project.objects.get(name=meta.value)
             self.stdout.write(f'\tProject {meta.value} already exist.')
@@ -130,7 +130,7 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def init_project_configs(self, project, runs_to_migrate):
-        '''
+        """
         Initializes configurations for the given project by copying active configurations
         from the projects associated with the runs being reassigned.
 
@@ -140,7 +140,7 @@ class Command(BaseCommand):
         Only unique configurations (by content) are copied. Conflicting configurations
         are excluded from initialization, and a warning with the conflicting type-name
         pairs is printed.
-        '''
+        """
         project_ids = list(runs_to_migrate.values_list('project', flat=True).distinct())
 
         project_filter = Q()
@@ -197,9 +197,9 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def update_project_test_comments(self, project, runs_to_migrate_ids):
-        '''
+        """
         Extends the test comments of the given project with those linked to the provided runs.
-        '''
+        """
         self.stdout.write('\tMigrate test comments:')
         meta_test_comments = (
             MetaTest.objects.filter(
@@ -226,11 +226,11 @@ class Command(BaseCommand):
         )
 
     def reassign_runs_to_project(self, project, runs_to_migrate_ids):
-        '''
+        """
         Assigns the specified runs and their linked results to the given project.
 
         Processes the update in batches to optimize performance and ensure atomicity.
-        '''
+        """
         self.stdout.write('\tMigrate runs:')
         self.stdout.write(
             f'\tThe number of runs to migrate: {len(runs_to_migrate_ids)}',

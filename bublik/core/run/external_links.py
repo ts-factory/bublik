@@ -65,12 +65,12 @@ def get_sources(result, source=None):
 
 
 def get_result_log(result):
-    '''
+    """
     Returns result source link to log.
 
     Param @result can be either TestIterationResult object or ID
     of a run itself or any test result.
-    '''
+    """
 
     try:
         run_source_link = get_sources(result)
@@ -94,9 +94,9 @@ def get_result_log(result):
 
 
 def get_trc_brief(result):
-    '''
+    """
     Returns result source link to trc-brief.
-    '''
+    """
 
     try:
         run_source_link = get_sources(result)

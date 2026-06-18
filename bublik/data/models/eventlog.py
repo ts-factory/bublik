@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
-'''
+"""
 Contains models responsible for storing data on events happening in Bublik.
-'''
+"""
 
 from django.db import models
 
@@ -11,10 +11,10 @@ __all__ = ['EventLog']
 
 
 class EventLog(models.Model):
-    '''
+    """
     Stores data on events such as start and finish timestamps, facility and
     message.
-    '''
+    """
 
     class FacilityChoices(models.TextChoices):
         IMPORTRUNS = 'importruns'

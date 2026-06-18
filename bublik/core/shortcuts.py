@@ -14,10 +14,10 @@ def get_current_scheme_host_prefix(request):
 
 
 def build_absolute_uri(request, endpoint):
-    '''
+    """
     This is a wrapper for basic request.build_absolute_uri()
     that respects URL_PREFIX.
-    '''
+    """
     return urljoin(get_current_scheme_host_prefix(request), endpoint.lstrip('/'))
 
 

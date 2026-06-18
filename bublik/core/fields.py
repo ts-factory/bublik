@@ -6,8 +6,8 @@ from django import forms
 
 class ModelMultipleChoiceField(forms.ModelMultipleChoiceField):
     def label_from_instance(self, obj):
-        '''
+        """
         This method receives a model object and
         return a string for representing it in the widget.
-        '''
+        """
         return obj.name

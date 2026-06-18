@@ -20,10 +20,10 @@ if TYPE_CHECKING:
 
 
 class ChartViewBuilder:
-    '''
+    """
     Considering the purpose of ChartView model to describe views of two measurements
     on a single graph ChartViewBuilder provides the interface to do this.
-    '''
+    """
 
     REPR_KEYS: typing.ClassVar[list] = [
         'id',
@@ -42,10 +42,10 @@ class ChartViewBuilder:
         self.subtitle = self.get_measurement_chart_label()
 
     def convert_dataset(self):
-        '''
+        """
         Convert the chart dataset from a dictionary list to a list of lists
         (more convinient for UI).
-        '''
+        """
         keys = next(iter(self.dataset)).keys()
         self.dataset = [point.values() for point in self.dataset]
         self.dataset.insert(0, keys)
@@ -60,11 +60,11 @@ class ChartViewBuilder:
         y_meas_res_list: MeasurementResultList,
         x_meas_res_list: MeasurementResultList = None,
     ):
-        '''
+        """
         This method allows you to obtain data for plotting the dependence of the Y measurement
         results on the X measurement results (on the ordinal number of the measurement value
         in the sequence of results in the absence of measurement X).
-        '''
+        """
         axis_x_measurement = x_meas_res_list.measurement if x_meas_res_list else None
         self.axis_x = AxisRepresentationBuilder(axis_x_measurement).to_representation()
         self.axis_y = AxisRepresentationBuilder(self.measurement).to_representation()
@@ -87,12 +87,12 @@ class ChartViewBuilder:
         pass
 
     def by_measurement_results(self, mmrs):
-        '''
+        """
         This method allows you to obtain data for plotting changes in measurement
         results over iterations from the passed range. In addition to the values,
         each point also contains the IDs of the run, result, and iteration in order
         to be able to switch to other views.
-        '''
+        """
         self.axis_x = AxisRepresentationBuilder(
             label='Start of measurement test',
             key='start',
@@ -116,9 +116,9 @@ class ChartViewBuilder:
         return self
 
     def set_merge_key_value(self, merge_mm_key: list[str]):
-        '''
+        """
         Sets the value of the merge key based on the passed measurement attributes.
-        '''
+        """
         measurement_data = self.measurement.representation()
         self.merge_key_value = [
             measurement_data[key] for key in measurement_data if key in merge_mm_key
@@ -157,11 +157,11 @@ class ChartViewBuilder:
 
 
 class ReportRecordBuilder(ChartViewBuilder):
-    '''
+    """
     Objects of this class contain the information necessary to display the passed points
     - the results of the passed measurement - on a chart and/or in a table in accordance
     with the passed configuration.
-    '''
+    """
 
     REPR_KEYS: typing.ClassVar[list] = [
         'type',
@@ -271,10 +271,10 @@ class ReportRecordBuilder(ChartViewBuilder):
 
 
 class ReportRecordDataBuilder:
-    '''
+    """
     This class allows you to get data for building tables and charts
     based on the passed series.
-    '''
+    """
 
     def __init__(self, series):
         self.series = series
@@ -283,9 +283,9 @@ class ReportRecordDataBuilder:
         return {sga: dict(sorted(points.items())) for sga, points in self.series.items()}
 
     def normalize_series(self, axis_x_data):
-        '''
+        """
         Align all series to the same x-axis by filling missing points with empty values.
-        '''
+        """
         for series_arg, series in self.series.items():
             for axis_x_val in set(axis_x_data.get('values', [])) - set(series.keys()):
                 self.series[series_arg][axis_x_val] = {'y_value': None}
@@ -307,9 +307,9 @@ class ReportRecordDataBuilder:
 
 
 class ReportChartBuilder:
-    '''
+    """
     This class describes the report chart.
-    '''
+    """
 
     REPR_KEYS: typing.ClassVar[list] = [
         'warnings',
@@ -337,10 +337,10 @@ class ReportChartBuilder:
         return {axis_x for points in series.values() for axis_x in points}
 
     def get_chart_series(self, series):
-        '''
+        """
         Leave only the points in the series that have the numeric value
         of the x-axis argument.
-        '''
+        """
         return {
             sga: {
                 x: point_data for x, point_data in points.items() if isinstance(x, (int, float))
@@ -361,9 +361,9 @@ class ReportChartBuilder:
 
 
 class ReportTableBuilder:
-    '''
+    """
     This class describes the report table.
-    '''
+    """
 
     REPR_KEYS: typing.ClassVar[list] = [
         'warnings',
@@ -390,18 +390,18 @@ class ReportTableBuilder:
         }
 
     def sort_series(self, series, base_series_label):
-        '''
+        """
         Make the base series first.
-        '''
+        """
         return {
             base_series_label: series[base_series_label],
             **{k: v for k, v in series.items() if k != base_series_label},
         }
 
     def get_percentages(self, series, base_series_label):
-        '''
+        """
         Calculate the gain relative to the base series.
-        '''
+        """
         percentages = {}
         self.formatters = {}
         base_series = series.pop(base_series_label)
@@ -423,9 +423,9 @@ class ReportTableBuilder:
         return percentages
 
     def get_table_series(self, series, base_series_label):
-        '''
+        """
         Add series with percentages.
-        '''
+        """
         table_series = copy.deepcopy(series)
         if base_series_label:
             if base_series_label in series:

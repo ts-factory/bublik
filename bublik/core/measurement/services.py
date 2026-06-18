@@ -172,17 +172,17 @@ def get_measurement_charts(result_id):
 class MeasurementService:
     @staticmethod
     def list_measurements():
-        '''
+        """
         Get all measurements.
 
         Returns:
             QuerySet of Measurement objects with prefetched metas
-        '''
+        """
         return Measurement.objects.prefetch_related('metas').all()
 
     @staticmethod
     def get_measurement(measurement_id: int) -> Measurement:
-        '''
+        """
         Get a measurement by ID.
 
         Args:
@@ -193,7 +193,7 @@ class MeasurementService:
 
         Raises:
             NotFoundError: if measurement not found
-        '''
+        """
         try:
             return Measurement.objects.get(id=measurement_id)
         except ObjectDoesNotExist as e:
@@ -202,7 +202,7 @@ class MeasurementService:
 
     @staticmethod
     def get_trend_charts(result_ids: list[int]) -> list:
-        '''
+        """
         Get measurement trend charts for multiple result IDs.
 
         Groups measurements by measurement_group_key and builds chart representations.
@@ -215,7 +215,7 @@ class MeasurementService:
 
         Raises:
             ValidationError: if result_ids is empty
-        '''
+        """
         if not result_ids:
             msg = 'No result IDs specified'
             raise ValidationError(msg)
@@ -234,7 +234,7 @@ class MeasurementService:
 
     @staticmethod
     def get_measurements_by_result_ids(result_ids: list[int]) -> list[dict]:
-        '''
+        """
         Get measurements with parameters for each result ID.
 
         For each result, includes:
@@ -250,7 +250,7 @@ class MeasurementService:
 
         Raises:
             ValidationError: if result_ids is empty
-        '''
+        """
         if not result_ids:
             msg = 'No result IDs specified'
             raise ValidationError(msg)

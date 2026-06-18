@@ -60,7 +60,7 @@ class JobTaskExecutionService:
 
     @staticmethod
     def _extract_error(event_logs: list[dict]) -> str | None:
-        '''
+        """
         Extract error message from event logs if present.
 
         Args:
@@ -68,7 +68,7 @@ class JobTaskExecutionService:
 
         Returns:
             Extracted error string, or None
-        '''
+        """
         pattern = r'--\s*Error:\s*(.*?)(?:\s*--|$)'
         for event_log in event_logs:
             msg = event_log.get('msg', '')
@@ -78,7 +78,7 @@ class JobTaskExecutionService:
 
     @staticmethod
     def get_tasks_by_job(job_id: int) -> list[TaskSummary]:
-        '''
+        """
         Get all task execution results for a given job ID.
 
         Args:
@@ -89,7 +89,7 @@ class JobTaskExecutionService:
 
         Raises:
             NotFoundError: if no tasks found for the given job
-        '''
+        """
         task_results = list(
             JobTaskExecutionService.list_job_task_queryset()
             .filter(job_id=job_id)
@@ -110,7 +110,7 @@ class JobTaskExecutionService:
 
     @staticmethod
     def list_tasks(filtered_queryset) -> list[TaskExecutionResult]:
-        '''
+        """
         Annotate and return a list of task execution results with
         timing, event logs, and extracted error messages.
 
@@ -122,7 +122,7 @@ class JobTaskExecutionService:
 
         Raises:
             NotFoundError: if no tasks match the given parameters
-        '''
+        """
         task_results = list(
             filtered_queryset.order_by('-id')
             .annotate(

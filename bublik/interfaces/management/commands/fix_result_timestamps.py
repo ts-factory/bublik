@@ -1,4 +1,4 @@
-'''
+"""
 Management command: fix_result_timestamps
 Usage: python manage.py fix_result_timestamps [-i <id> ...] [-f <date>] [-t <date>]
 
@@ -105,7 +105,7 @@ Logging:
       suppressed (terminal_only=True).
     - In a terminal (manage.py): writes to stdout with indentation and colour.
       The first letter of each label is capitalised automatically.
-'''
+"""
 
 from __future__ import annotations
 
@@ -151,7 +151,7 @@ FixStatus = Literal[
 
 
 class RunResult(NamedTuple):
-    '''
+    """
     Categorisation of a single run after the full pipeline.
 
     Attributes:
@@ -165,7 +165,7 @@ class RunResult(NamedTuple):
             was reached.
         error_msg: Human-readable failure description, or None if the run
             succeeded or was skipped (no_data, null_timestamps).
-    '''
+    """
 
     skipped_reason: SkippedReason | None
     midnight_fix_status: FixStatus | None
@@ -179,19 +179,19 @@ class RunResult(NamedTuple):
 
 
 def _get_delta_start(run_start: datetime, first_pkg_start: datetime) -> timedelta:
-    '''
+    """
     Return the largest whole-hour timedelta H such that
     (first_pkg_start - H) >= run_start.
-    '''
+    """
     diff_seconds = (first_pkg_start - run_start).total_seconds()
     return timedelta(hours=math.floor(diff_seconds / 3600))
 
 
 def _get_delta_finish(run_finish: datetime, last_pkg_finish: datetime) -> timedelta:
-    '''
+    """
     Return the smallest whole-hour timedelta H such that
     (last_pkg_finish - H) <= run_finish.
-    '''
+    """
     diff_seconds = (last_pkg_finish - run_finish).total_seconds()
     return timedelta(hours=math.ceil(diff_seconds / 3600))
 
@@ -204,7 +204,7 @@ def _get_delta_finish(run_finish: datetime, last_pkg_finish: datetime) -> timede
 def _children_map(
     run_results: list[TestIterationResult],
 ) -> dict[int, list[TestIterationResult]]:
-    '''
+    """
     Build a parent_pk -> [children] map for the full run tree, with run as
     the virtual root.
 
@@ -214,7 +214,7 @@ def _children_map(
 
     Children lists are sorted by (exec_seqno, pk) to guarantee a stable,
     deterministic traversal order independent of dict insertion order.
-    '''
+    """
     children: dict[int, list[TestIterationResult]] = defaultdict(list)
 
     for result in run_results:
@@ -248,7 +248,7 @@ def _fix_run_tree(
     children_map: dict[int, list[TestIterationResult]],
     changed: set[int],
 ) -> None:
-    '''
+    """
     DFS traversal that fixes midnight-crossing errors in the full run tree.
     run is the virtual root used only for traversal entry and parent_start
     anchoring; its finish is never modified.
@@ -280,10 +280,10 @@ def _fix_run_tree(
     second iteration (when it becomes `prev`), not immediately after
     _visit(first) — the effect is the same because no sibling comparison
     happens before that point.
-    '''
+    """
 
     def _fix_start(node: TestIterationResult, prev_timestamp: datetime) -> None:
-        '''Align node.start with prev_timestamp by +-1 day if the gap is wrong.'''
+        """Align node.start with prev_timestamp by +-1 day if the gap is wrong."""
         if node.start < prev_timestamp:
             node.start += ONE_DAY
             changed.add(node.pk)
@@ -304,7 +304,7 @@ def _fix_run_tree(
                 raise ValueError(msg)
 
     def _fix_finish(node: TestIterationResult, prev_timestamp: datetime) -> None:
-        '''Align node.finish with prev_timestamp by +-1 day if the gap is wrong.'''
+        """Align node.finish with prev_timestamp by +-1 day if the gap is wrong."""
         if node.finish is None:
             return
         if node.finish < prev_timestamp:
@@ -327,12 +327,12 @@ def _fix_run_tree(
                 raise ValueError(msg)
 
     def _fix_self_finish(node: TestIterationResult, is_leaf: bool) -> None:
-        '''
+        """
         Align node.finish with node.start by +-1 day if the gap is wrong.
 
         For leaf nodes: both finish < start and finish - start >= 24h are fixed.
         For non-leaf nodes: only finish < start is fixed.
-        '''
+        """
         if node.finish is None:
             return
         if node.finish < node.start:
@@ -435,7 +435,7 @@ class Command(BaseCommand):
         terminal_only: bool = False,
         logger_only: bool = False,
     ) -> None:
-        '''
+        """
         Route output to the task logger or stdout depending on context.
 
         Writes to the task logger when TASK_ID env var is set (Celery task),
@@ -461,7 +461,7 @@ class Command(BaseCommand):
                            Use for messages that are only meaningful in a task
                            context (e.g. final success confirmation already
                            implied by the terminal status line).
-        '''
+        """
         if os.getenv('TASK_ID') is not None:
             if not terminal_only:
                 msg = f'{label}: {value}' if value else label
@@ -688,7 +688,7 @@ class Command(BaseCommand):
         self.stdout.write('\n=========================================================')
 
     def _fix_run(self, run) -> RunResult:
-        '''
+        """
         Apply both correction stages to one run following the pipeline:
 
           0. Unable-to-process checks (no data, null timestamps).
@@ -706,7 +706,7 @@ class Command(BaseCommand):
         rolled back, so no database writes from Stage 1 persist. A Stage 2
         fix error leaves Stage 1 changes intact unless the final sanity
         check triggers a full rollback.
-        '''
+        """
         run_results = TestIterationResult.objects.filter(test_run_id=run.pk).order_by(
             'exec_seqno',
             'pk',

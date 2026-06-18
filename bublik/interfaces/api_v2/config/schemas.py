@@ -23,12 +23,12 @@ from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 config_viewset_schema = extend_schema_view(
     list=extend_schema(
         summary='List of configurations',
-        description='''
+        description="""
         Returns a list of configurations.
         Of all configurations having the same project, type and name:
         - If there are active ones, returns active ones
         - If there are none, returns the latest ones
-        ''',
+        """,
         responses={
             200: OpenApiResponse(
                 response=ConfigListResponseSerializer,
@@ -39,9 +39,9 @@ config_viewset_schema = extend_schema_view(
     ),
     create=extend_schema(
         summary='Creates new configuration',
-        description='''
+        description="""
         Creates new configuration. Requires administrator's role.
-        ''',
+        """,
         request=ConfigSerializer,
         responses={
             201: OpenApiResponse(
@@ -61,10 +61,10 @@ config_viewset_schema = extend_schema_view(
     ),
     partial_update=extend_schema(
         summary='Partial update configuration',
-        description='''
+        description="""
         Updates a configuration or creates a new version.
         Requires administrator's role.
-        ''',
+        """,
         request=ConfigPartialUpdateRequestSerializer,
         responses={
             200: OpenApiResponse(
@@ -88,9 +88,9 @@ config_viewset_schema = extend_schema_view(
     ),
     destroy=extend_schema(
         summary='Deletes configuration',
-        description='''
+        description="""
         Deletes a configuration. Requires administrator's role.
-        ''',
+        """,
         responses={
             204: OpenApiResponse(
                 description='Configuration was successfully deleted',
@@ -108,9 +108,9 @@ config_viewset_schema = extend_schema_view(
     ),
     get_schema=extend_schema(
         summary='Retrieves configuration schema',
-        description='''
+        description="""
         Retrieves the JSON schema by passed config type and name.
-        ''',
+        """,
         parameters=[
             OpenApiParameter(
                 name='type',
@@ -168,9 +168,9 @@ config_viewset_schema = extend_schema_view(
     ),
     all_versions=extend_schema(
         summary='All versions of configuration',
-        description='''
+        description="""
         Retrieves all versions of passed configurations.
-        ''',
+        """,
         responses={
             200: OpenApiResponse(
                 response=AllVersionsResponseSerializer,
@@ -185,9 +185,9 @@ config_viewset_schema = extend_schema_view(
     ),
     available_types_names=extend_schema(
         summary='Available configuration types and names',
-        description='''
+        description="""
         Returns a reference list of all configuration types and names.
-        ''',
+        """,
         responses={
             200: OpenApiResponse(
                 response=AvailableTypesNamesResponseSerializer,

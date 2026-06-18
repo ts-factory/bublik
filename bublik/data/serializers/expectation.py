@@ -20,11 +20,11 @@ __all__ = [
 
 
 class ExpectMetaReadSerializer(ModelSerializer):
-    '''
+    """
     Allows data validation and forbids instances creation.
     Used for an expectation hash calculation.
     Default values are set only in update() and create().
-    '''
+    """
 
     meta = MetaSerializer(required=True)
     reference = ReferenceSerializer(required=False, default=None, allow_null=True)
@@ -44,7 +44,7 @@ class ExpectMetaReadSerializer(ModelSerializer):
 
 
 class ExpectMetaWriteSerializer(ModelSerializer):
-    '''Used to create ExpectMeta objects with related meta and reference.'''
+    """Used to create ExpectMeta objects with related meta and reference."""
 
     meta = MetaSerializer(required=True)
     reference = ReferenceSerializer(required=False, default=None, allow_null=True)
@@ -74,7 +74,7 @@ class ExpectMetaWriteSerializer(ModelSerializer):
 
 
 class ExpectationSerializer(HashedModelSerializer):
-    '''
+    """
     Allows re-using an expectation object that points to the same metas.
     For this an expectation is hashed based on the related expect metas.
 
@@ -87,7 +87,7 @@ class ExpectationSerializer(HashedModelSerializer):
     The transaction of get_or_create() is atomic to prevent an Expectation
     instance to be created without expect metas if errors occurred
     in its getting or creating process.
-    '''
+    """
 
     expectmeta_set = ExpectMetaReadSerializer(many=True, required=True)
 

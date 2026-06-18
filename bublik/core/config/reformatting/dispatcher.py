@@ -62,9 +62,9 @@ def update_config(reformatted_config):
 
 
 class ConfigReformatStatuses(str, Enum):
-    '''
+    """
     All available config reformatting statuses.
-    '''
+    """
 
     SUCCESS = 'success'
     SKIPPED = 'skipped'

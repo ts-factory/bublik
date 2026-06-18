@@ -34,9 +34,9 @@ __all__ = [
 
 
 class RunStatus:
-    '''
+    """
     This is an interface to describe all run statuses.
-    '''
+    """
 
     DONE = 'DONE'
     RUNNING = 'RUNNING'
@@ -52,9 +52,9 @@ class RunStatus:
 
 
 class RunStatusByUnexpected:
-    '''
+    """
     This is an interface to describe all run statuses depending on unexpected rate.
-    '''
+    """
 
     SUCCESS = 'success'
     WARNING = 'warning'
@@ -83,9 +83,9 @@ class RunStatusByUnexpected:
 
 
 class RunConclusion:
-    '''
+    """
     This is an interface to describe all run conclusions.
-    '''
+    """
 
     OK = 'run-ok'
     RUNNING = 'run-running'
@@ -155,11 +155,11 @@ class RunConclusion:
 
 
 class ResultStatus:
-    '''
+    """
     This is an interface gathering different result statuses to the fixed group.
     Such a system is useful to have one interface for all projects allowing them
     have any result statuses they want just assigning them to the fixed group.
-    '''
+    """
 
     RESULT_STATUSES_BY_GROUPS: ClassVar[dict] = {
         'passed': ['PASSED'],
@@ -203,9 +203,9 @@ class ResultStatus:
 
 
 class ResultType:
-    '''
+    """
     This class stands for converting a type of result to the one symbol.
-    '''
+    """
 
     TEST = 'test'
     SESSION = 'session'
@@ -233,9 +233,9 @@ class ResultType:
 
 
 class Test(models.Model):
-    '''
+    """
     The table contains test names and relations to other tests.
-    '''
+    """
 
     name = models.CharField(max_length=64, help_text='The test name')
 
@@ -243,10 +243,10 @@ class Test(models.Model):
         'self',
         on_delete=models.CASCADE,
         null=True,
-        help_text='''\
+        help_text="""\
     A parent test (package) identifier - can be used to reassemble the test path.
     Note! This path does not include the test and package arguments, it represents
-    only packages path like 'package1/package2/package3/test'.''',
+    only packages path like 'package1/package2/package3/test'.""",
     )
 
     result_type = models.CharField(
@@ -271,9 +271,9 @@ class Test(models.Model):
 
 
 class TestArgument(models.Model):
-    '''
+    """
     Test parameters with possible values.
-    '''
+    """
 
     hashable = ('name', 'value')
 
@@ -292,9 +292,9 @@ class TestArgument(models.Model):
 
 
 class TestIteration(models.Model):
-    '''
+    """
     A test with a determined set of argument values.
-    '''
+    """
 
     test = models.ForeignKey(Test, on_delete=models.CASCADE, help_text='The test identifier.')
 
@@ -318,12 +318,12 @@ class TestIteration(models.Model):
         )
 
     def get_packages(self, package_strip=None, package_ignore=None):
-        '''
+        """
         Get list of all packages from the database ignoring packages listed in
         package_ignore. Packages are returned in string representation
         including path, substring package_strip is dropped form a package
         pathname.
-        '''
+        """
         packages = []
         iterations = TestIteration.objects.filter(hash__isnull=True)
         for iteration in iterations:
@@ -355,13 +355,13 @@ class TestIteration(models.Model):
 
 
 class TestIterationRelation(models.Model):
-    '''
+    """
     The table serves to connect all related test iterations. A test package
     can have test arguments and it is considered to be a test iteration. The
     table is excessive and keeps all parents for each test iteration. In the
     result all parents of a test iteration can be extracted by one request
     to the database.
-    '''
+    """
 
     test_iteration = models.ForeignKey(
         TestIteration,
@@ -394,12 +394,12 @@ class TestIterationRelation(models.Model):
 
 
 class TestIterationResult(models.Model):
-    '''
+    """
     Result of a test iteration execution. Note! a test run (sequence of test
     iteration results) is considered to be another one TestIterationResult
     object. All test iteration results which belong to a test run refer to
     this test run using field test_run.
-    '''
+    """
 
     iteration = models.ForeignKey(
         TestIteration,
@@ -425,27 +425,27 @@ class TestIterationResult(models.Model):
 
     tin = models.IntegerField(
         null=True,
-        help_text='''\
-The test iteration identifier (TIN) which is generated during the testing.''',
+        help_text="""\
+The test iteration identifier (TIN) which is generated during the testing.""",
     )
 
     exec_seqno = models.IntegerField(
         db_index=True,
         null=True,
-        help_text='''\
-The execution sequence number (the actual test ID) which is generated during the testing.''',
+        help_text="""\
+The execution sequence number (the actual test ID) which is generated during the testing.""",
     )
 
     start = models.DateTimeField(
         db_index=True,
-        help_text='''\
-Timestamp of the iteration (or test run) execution start.''',
+        help_text="""\
+Timestamp of the iteration (or test run) execution start.""",
     )
 
     finish = models.DateTimeField(
         null=True,
-        help_text='''\
-Timestamp of the iteration (or test run) execution end.''',
+        help_text="""\
+Timestamp of the iteration (or test run) execution end.""",
     )
 
     project = models.ForeignKey(
@@ -471,21 +471,21 @@ Timestamp of the iteration (or test run) execution end.''',
 
     @cached_property
     def root(self):
-        '''
+        """
         Get root test iteration result from any test iteration result.
         Necessary while test_run of root is None: bug 11428.
-        '''
+        """
         if not self.test_run:
             return self
         return self.test_run
 
     @cached_property
     def main_package(self):
-        '''
+        """
         Get main package of the run from any test iteration result.
         For root test iteration result and main package itself the actual
         main package is returned.
-        '''
+        """
         return (
             TestIterationResult.objects.filter(test_run=self.root, parent_package__isnull=True)
             .order_by('start')
@@ -501,9 +501,9 @@ Timestamp of the iteration (or test run) execution end.''',
 
     @cached_property
     def import_mode(self):
-        '''
+        """
         Get import mode of the run from any test iteration result.
-        '''
+        """
         meta_result = get_or_none(
             MetaResult.objects,
             result=self.root,
@@ -523,9 +523,9 @@ Timestamp of the iteration (or test run) execution end.''',
 
 
 class MetaResult(models.Model):
-    '''
+    """
     The table connects a test iteration results with metadata and references.
-    '''
+    """
 
     meta = models.ForeignKey(Meta, on_delete=models.CASCADE, help_text='A metadata identifier.')
     reference = models.ForeignKey(
@@ -536,13 +536,13 @@ class MetaResult(models.Model):
     )
     ref_index = models.IntegerField(
         null=True,
-        help_text='''\
-A reference index, can be used for example to specify a line in the log.''',
+        help_text="""\
+A reference index, can be used for example to specify a line in the log.""",
     )
     serial = models.IntegerField(
         default=0,
-        help_text='''\
-Serial number of a meta result, can be used to determine verdicts order.''',
+        help_text="""\
+Serial number of a meta result, can be used to determine verdicts order.""",
     )
     result = models.ForeignKey(
         TestIterationResult,
@@ -565,9 +565,9 @@ Serial number of a meta result, can be used to determine verdicts order.''',
 
 
 class MetaTest(models.Model):
-    '''
+    """
     The table connects a test with metadata.
-    '''
+    """
 
     updated = models.DateTimeField(
         auto_now_add=True,

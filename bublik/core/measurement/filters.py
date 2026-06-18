@@ -9,10 +9,10 @@ from bublik.data.models import Measurement, Meta
 
 
 class MeasurementResultFilter(filters.BaseFilterBackend):
-    '''To use this filter, you must define search_fields in the view.
+    """To use this filter, you must define search_fields in the view.
     Only these fields will be filtered. The result field will be filtered
     by default, and you don't need to specify it.
-    '''
+    """
 
     search_field_to_meta_type = {
         'tool': 'tool',

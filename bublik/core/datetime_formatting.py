@@ -11,14 +11,14 @@ import pendulum
 import pytz
 
 
-'''
+"""
 Use these (or create new for upcoming needs) functions
 whenever you need any datetime formattings.
 
 param ds: datetime string.
 param dt: datetime object.
 param date_str: date string.
-'''
+"""
 
 
 DISPLAY = settings.DATETIME_FORMATS['display']

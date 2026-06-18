@@ -18,9 +18,9 @@ from bublik.data.models import (
 
 class Command(BaseCommand):
     def delete_duplicate_mmr(self):
-        '''
+        """
         Delete duplicate MeasurementResult objects.
-        '''
+        """
         self.stdout.write('Delete duplicate MeasurementResult objects:')
         mmr_dups_iterator = (
             MeasurementResult.objects.values('result', 'serial', 'measurement', 'value')
@@ -47,10 +47,10 @@ class Command(BaseCommand):
         )
 
     def move_mmr_sequences(self):
-        '''
+        """
         Find sequences among MeasurementResult objects and move them
         to the MeasurementResultList.
-        '''
+        """
         self.stdout.write('Move measurement result sequences:')
 
         mmrl_start_num = MeasurementResultList.objects.count()
@@ -125,10 +125,10 @@ class Command(BaseCommand):
         )
 
     def delete_incorrect_cv(self):
-        '''
+        """
         Delete type X and Y ChartView objects linking unit measurements to line-graph
         type views.
-        '''
+        """
         self.stdout.write('Delete incorrect ChartView objects:')
 
         deleted_cv_count, _ = (
@@ -157,9 +157,9 @@ class Command(BaseCommand):
         )
 
     def delete_duplicate_cv(self):
-        '''
+        """
         Delete duplicate ChartView objects.
-        '''
+        """
         self.stdout.write('Delete duplicate ChartView objects:')
 
         cv_dups = (
@@ -185,9 +185,9 @@ class Command(BaseCommand):
         )
 
     def delete_unused_views(self):
-        '''
+        """
         Delete View objects that are not referenced by any ChartView object.
-        '''
+        """
         self.stdout.write('Delete unused View objects:')
 
         unused, _ = View.objects.exclude(

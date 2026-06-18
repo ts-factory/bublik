@@ -15,12 +15,12 @@ DEFAULT_HASHER = DeepHash.sha256hex
 
 
 class HashedModelSerializer(ModelSerializer):
-    '''
+    """
     Allows validating and creating hashed instances.
 
     The order of data items as well as its nested list items order
     does not influence the hash produced by DeepHash class.
-    '''
+    """
 
     def hashable_data(self, data):
         hashable_fields = self.Meta.model.hashable
@@ -58,10 +58,10 @@ class HashedModelSerializer(ModelSerializer):
             hashable_obj_data = self.hashable_data(obj_data)
             diff = DeepDiff(hashable_data, hashable_obj_data, ignore_order=True)
             if not diff:
-                '''Just Get the same object'''
+                """Just Get the same object"""
                 return data_hash
 
-            '''
+            """
             This code may be executed in the following cases:
             - creating new object a hash collision occurred;
             - there is a difference between the data passed for validation
@@ -75,7 +75,7 @@ class HashedModelSerializer(ModelSerializer):
                 f"{data_hash}, but it represents different data: {obj_data}."
                 f"The diff is: {diff}. This is {salted_data['salt']} collision."
             )
-            '''
+            """
             salted_data['salt'] = salted_data.get('salt', 0) + 1
 
     def get_or_none(self, **kwargs):

@@ -21,9 +21,9 @@ from bublik.interfaces.signals import categorize_metas_on_config_change, signal_
 
 
 def any_config_file_exists(config_file_names):
-    '''
+    """
     Check the existence of the PER_CONF_DIR directory and the presence of passed files in it.
-    '''
+    """
     config_file_paths = [
         os.path.join(settings.PER_CONF_DIR, config_file_name)
         for config_file_name in config_file_names
@@ -71,9 +71,9 @@ class Command(BaseCommand):
         config_content,
         config_description=None,
     ):
-        '''
+        """
         Create global config object with passed name, description and content.
-        '''
+        """
         configs = Config.objects.filter(
             type=ConfigTypes.GLOBAL,
             name=config_name,

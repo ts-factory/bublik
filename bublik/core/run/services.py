@@ -37,9 +37,9 @@ from bublik.data.serializers import RunCommentSerializer
 
 
 class RunsChartGroupBy(str, Enum):
-    '''
+    """
     Supported periods for grouping runs chart data.
-    '''
+    """
 
     DAY = 'day'
     WEEK = 'week'
@@ -52,7 +52,7 @@ class RunsChartGroupBy(str, Enum):
 class RunService:
     @staticmethod
     def get_run(run_id: int) -> models.TestIterationResult:
-        '''
+        """
         Get a run by ID.
 
         Args:
@@ -63,7 +63,7 @@ class RunService:
 
         Raises:
             NotFoundError: if run not found
-        '''
+        """
         try:
             return models.TestIterationResult.objects.get(id=run_id)
         except ObjectDoesNotExist as e:
@@ -72,7 +72,7 @@ class RunService:
 
     @staticmethod
     def get_run_details(run_id: int) -> dict:
-        '''
+        """
         Get full details for a single run.
 
         Args:
@@ -80,13 +80,13 @@ class RunService:
 
         Returns:
             Dictionary with full run details
-        '''
+        """
         run = RunService.get_run(run_id)
         return generate_all_run_details(run)
 
     @staticmethod
     def get_run_status(run_id: int) -> str:
-        '''
+        """
         Get status string for a run.
 
         Args:
@@ -94,13 +94,13 @@ class RunService:
 
         Returns:
             Status string for the run
-        '''
+        """
         run = RunService.get_run(run_id)
         return get_run_status(run)
 
     @staticmethod
     def get_run_stats(run_id: int, requirements: str | None = None) -> dict:
-        '''
+        """
         Get statistics for a run.
 
         Args:
@@ -109,12 +109,12 @@ class RunService:
 
         Returns:
             Dictionary with run statistics
-        '''
+        """
         return get_run_stats_detailed_with_comments(run_id, requirements)
 
     @staticmethod
     def get_run_source(run_id: int) -> str:
-        '''
+        """
         Get source URL for a run.
 
         Args:
@@ -122,13 +122,13 @@ class RunService:
 
         Returns:
             Source URL string
-        '''
+        """
         run = RunService.get_run(run_id)
         return get_sources(run)
 
     @staticmethod
     def get_run_compromised(run_id: int) -> dict:
-        '''
+        """
         Get compromised status for a run.
 
         Args:
@@ -136,7 +136,7 @@ class RunService:
 
         Returns:
             Dictionary with compromised status data
-        '''
+        """
         run = RunService.get_run(run_id)
         compromised_data = is_run_compromised(run)
         if not compromised_data:
@@ -150,7 +150,7 @@ class RunService:
         bug_id: str | None = None,
         reference_key: str | None = None,
     ) -> dict:
-        '''
+        """
         Mark a run as compromised.
 
         Args:
@@ -164,7 +164,7 @@ class RunService:
 
         Raises:
             ValidationError: if validation fails
-        '''
+        """
         err_msg = validate_compromised_request(run_id, comment, bug_id, reference_key)
         if err_msg:
             raise ValidationError(err_msg)
@@ -177,12 +177,12 @@ class RunService:
 
     @staticmethod
     def unmark_run_compromised(run_id: int) -> None:
-        '''
+        """
         Remove compromised status from a run.
 
         Args:
             run_id: The ID of the test run
-        '''
+        """
         unmark_run_compromised(run_id)
 
     @staticmethod
@@ -197,7 +197,7 @@ class RunService:
         revision_expr: str | None = None,
         branch_expr: str | None = None,
     ):
-        '''
+        """
         Get filtered runs queryset.
 
         Args:
@@ -213,7 +213,7 @@ class RunService:
 
         Returns:
             QuerySet of filtered TestIterationResult objects
-        '''
+        """
 
         queryset = models.TestIterationResult.objects.filter(test_run__isnull=True)
 
@@ -261,7 +261,7 @@ class RunService:
         page: int | None = None,
         page_size: int | None = None,
     ) -> dict:
-        '''
+        """
         List runs filtered by date range and optionally by project.
 
         Args:
@@ -273,7 +273,7 @@ class RunService:
 
         Returns:
             Dictionary with pagination metadata and run detail dictionaries
-        '''
+        """
 
         runs = RunService.list_runs_queryset(
             start_date=start_date,
@@ -288,7 +288,7 @@ class RunService:
         queryset,
         group_by: RunsChartGroupBy = RunsChartGroupBy.DAY,
     ) -> dict:
-        '''
+        """
         Build aggregated chart data for runs.
 
         Args:
@@ -298,7 +298,7 @@ class RunService:
         Returns:
             Dictionary with chart buckets. Each bucket contains bucket date,
             test counters, passrate and run IDs grouped by conclusion.
-        '''
+        """
 
         runs = list(queryset.values('id', 'start', 'project_id'))
 
@@ -478,12 +478,12 @@ class RunService:
 
     @staticmethod
     def list_runs_by_dashboard_date_queryset(date: str, project_id: int | None = None):
-        '''
+        """
         Get runs for a dashboard date using the same date source as dashboard data.
 
         Some installations configure dashboard dates through run metadata instead of
         the run start timestamp.
-        '''
+        """
         date_meta = ConfigServices.getattr_from_global(
             models.GlobalConfigs.PER_CONF.name,
             'DASHBOARD_DATE',
@@ -509,7 +509,7 @@ class RunService:
 
     @staticmethod
     def get_run_requirements(run_id: int) -> list[str]:
-        '''
+        """
         Get requirements for a run.
 
         Args:
@@ -517,7 +517,7 @@ class RunService:
 
         Returns:
             Sorted list of requirement strings
-        '''
+        """
         run = RunService.get_run(run_id)
         return sorted(
             models.Meta.objects.filter(type='requirement', metaresult__result__test_run=run)
@@ -527,7 +527,7 @@ class RunService:
 
     @staticmethod
     def get_nok_distribution(run_id: int) -> dict:
-        '''
+        """
         Get NOK (failure) distribution for a run.
 
         Args:
@@ -535,13 +535,13 @@ class RunService:
 
         Returns:
             Dictionary with NOK distribution data
-        '''
+        """
         run = RunService.get_run(run_id)
         return get_nok_results_distribution(run)
 
     @staticmethod
     def get_run_comment(run_id: int) -> str | None:
-        '''
+        """
         Get comment for a run.
 
         Args:
@@ -552,7 +552,7 @@ class RunService:
 
         Raises:
             ValidationError: if multiple comments found
-        '''
+        """
         run = RunService.get_run(run_id)
         comments = models.MetaResult.objects.filter(meta__type='comment', result=run)
 
@@ -567,7 +567,7 @@ class RunService:
 
     @staticmethod
     def create_run_comment(run_id: int, content: str) -> dict:
-        '''
+        """
         Create or update run comment.
 
         Args:
@@ -576,7 +576,7 @@ class RunService:
 
         Returns:
             Dictionary with comment details
-        '''
+        """
         run = RunService.get_run(run_id)
 
         with transaction.atomic():
@@ -601,7 +601,7 @@ class RunService:
 
     @staticmethod
     def delete_run_comment(run_id: int) -> None:
-        '''
+        """
         Delete run comment.
 
         Args:
@@ -609,7 +609,7 @@ class RunService:
 
         Raises:
             ValidationError: if no comment exists
-        '''
+        """
         run = RunService.get_run(run_id)
         comments = models.MetaResult.objects.filter(meta__type='comment', result=run)
 

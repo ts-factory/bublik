@@ -21,10 +21,10 @@ from bublik.data.serializers import ConfigSerializer
 
 
 def get_common_args(mmrs_test):
-    '''
+    """
     Collect arguments that have the same values for all iterations of the test
     with the passed name within the passed package.
-    '''
+    """
     mmrs_test_ids = mmrs_test.values_list('id', flat=True)
 
     return dict(
@@ -45,9 +45,9 @@ def get_common_args(mmrs_test):
 
 
 def filter_by_axis_y(mmrs_test, axis_y):
-    '''
+    """
     Filter passed measurement results QS by axis y value from config.
-    '''
+    """
     mmrs_test_axis_y = MeasurementResult.objects.none()
     for measurement in axis_y:
         mmrs_test_measurement = mmrs_test.all()
@@ -88,10 +88,10 @@ def filter_by_axis_y(mmrs_test, axis_y):
 
 
 def filter_by_not_show_args(mmrs_test, not_show_args):
-    '''
+    """
     Drop measurement results corresponding to iterations with the passed
     arguments values from the passed measurement results QS.
-    '''
+    """
     not_show_mmrs = MeasurementResult.objects.none()
     for arg, vals in not_show_args.items():
         arg_vals_mmrs = mmrs_test.filter(
@@ -106,7 +106,7 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
 class ReportService:
     @staticmethod
     def get_report_config(config_id: int) -> tuple[Config, dict, dict]:
-        '''
+        """
         Get and validate a report configuration.
 
         Args:
@@ -117,7 +117,7 @@ class ReportService:
 
         Raises:
             NotFoundError: if config not found
-        '''
+        """
         try:
             report_config_obj = Config.objects.get(id=config_id)
         except ObjectDoesNotExist as e:
@@ -138,7 +138,7 @@ class ReportService:
 
     @staticmethod
     def get_configs_for_run_report(run) -> list[dict]:
-        '''
+        """
         Get available report configurations for a run.
 
         Args:
@@ -146,7 +146,7 @@ class ReportService:
 
         Returns:
             List of available report config dictionaries
-        '''
+        """
         iters = TestIterationResult.objects.filter(test_run=run)
         test_names = list(
             iters.filter(iteration__test__result_type=ResultType.conv(ResultType.TEST))
@@ -182,7 +182,7 @@ class ReportService:
 
     @staticmethod
     def get_most_recent_config_for_run_report(run) -> list[dict]:
-        '''
+        """
         Get the ID of the most recent available report configuration for a run.
 
         Args:
@@ -191,7 +191,7 @@ class ReportService:
         Returns:
             ID of the most recent report config if available,
             otherwise None if no configs exist.
-        '''
+        """
 
         run_report_configs_data = ReportService.get_configs_for_run_report(run)
         if run_report_configs_data:
@@ -201,7 +201,7 @@ class ReportService:
 
     @staticmethod
     def generate_report(run_id: int, config_id: int) -> dict:
-        '''
+        """
         Generate full report for a run using specified config.
 
         Args:
@@ -213,7 +213,7 @@ class ReportService:
 
         Raises:
             NotFoundError: if run not found or config not found
-        '''
+        """
         warnings = []
 
         # Get run

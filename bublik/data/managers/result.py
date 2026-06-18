@@ -11,7 +11,7 @@ from bublik.data.models import GlobalConfigs
 from bublik.data.models.meta import Meta
 
 
-'''
+"""
 A custom QuerySet allows to do:
 
 >>> test_self = TestIterationResult.objects.filter(test_run=1)
@@ -23,7 +23,7 @@ It doesn`t have to return a QuerySet.
 [1] https://docs.djangoproject.com/en/dev/topics/db/managers/#custom-managers
 [2] https://docs.djangoproject.com/en/dev/topics/db/managers/#calling-custom-queryset-methods-from-the-manager
 [3] https://docs.djangoproject.com/en/dev/topics/db/managers/#creating-a-manager-with-queryset-methods
-'''
+"""
 
 
 class TestIterationResultQuerySet(QuerySet):
@@ -87,11 +87,11 @@ class TestIterationResultQuerySet(QuerySet):
         return self
 
     def filter_runs_by_date(self, from_d: datetime, to_d: datetime) -> QuerySet:
-        '''
+        """
         This method returns a TestIterationResultsQuerySet which contains
         TestIterationResults which were executed during the specified
         period of time.
-        '''
+        """
 
         return self.filter(start__gte=from_d, start__lte=to_d)
 

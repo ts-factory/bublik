@@ -36,9 +36,9 @@ from bublik.data.models import (
 
 
 class HistoryService:
-    '''
+    """
     Expected number of parts when splitting key:value formatted test arguments.
-    '''
+    """
 
     EXPECTED_KEY_VALUE_PARTS = 2
 
@@ -67,7 +67,7 @@ class HistoryService:
         verdict_expr: str | None = None,
         result_types: str | None = None,
     ):
-        '''
+        """
         Build history queryset with all filters applied.
 
         Args:
@@ -99,7 +99,7 @@ class HistoryService:
 
         Raises:
             NotFoundError: if test name is invalid
-        '''
+        """
         query_delimiter = settings.QUERY_DELIMITER
         test_arg_delimiter = settings.KEY_VALUE_DELIMITER
 
@@ -169,7 +169,7 @@ class HistoryService:
 
     @staticmethod
     def _validate_test_name(test_name: str) -> list[int]:
-        '''
+        """
         Validate test name and return test IDs.
 
         Args:
@@ -180,7 +180,7 @@ class HistoryService:
 
         Raises:
             NotFoundError: if test name is invalid
-        '''
+        """
         test_ids = get_test_ids_by_name(test_name)
         if not test_ids:
             msg = 'Test with the specified name was not found'
@@ -205,7 +205,7 @@ class HistoryService:
         run_properties: str | None,
         query_delimiter: str,
     ) -> tuple[list[int], TestIterationResult]:
-        '''
+        """
         Apply run-level filters and return run IDs and filtered queryset.
 
         Args:
@@ -227,7 +227,7 @@ class HistoryService:
 
         Returns:
             Tuple of (run_ids_list, filtered_runs_queryset)
-        '''
+        """
         # Apply project filter if provided
         if project_id:
             runs_results = runs_results.filter(project_id=project_id)
@@ -282,7 +282,7 @@ class HistoryService:
         query_delimiter: str,
         test_arg_delimiter: str,
     ) -> TestIterationResult:
-        '''
+        """
         Apply iteration-level filters to test results.
 
         Args:
@@ -296,7 +296,7 @@ class HistoryService:
 
         Returns:
             Filtered test results queryset
-        '''
+        """
         # Filter by test name
         test_iterations = TestIteration.objects.filter(test__in=test_ids)
 
@@ -355,7 +355,7 @@ class HistoryService:
         result_types: str | None,
         query_delimiter: str,
     ) -> TestIterationResult:
-        '''
+        """
         Apply result-level filters to test results.
 
         Args:
@@ -369,7 +369,7 @@ class HistoryService:
 
         Returns:
             Filtered test results queryset
-        '''
+        """
         # Filter by result statuses
         if result_statuses:
             result_meta_ids = list(
@@ -416,7 +416,7 @@ class HistoryService:
 
     @staticmethod
     def _finalize_queryset(test_results: TestIterationResult):
-        '''
+        """
         Apply final annotations and ordering to queryset.
 
         Args:
@@ -424,7 +424,7 @@ class HistoryService:
 
         Returns:
             Annotated and ordered queryset
-        '''
+        """
         return (
             test_results.select_related('test_run', 'iteration')
             .annotate(
@@ -453,7 +453,7 @@ class HistoryService:
 
     @staticmethod
     def prepare_results_data(test_results):
-        '''
+        """
         Prepare results data for response.
 
         Args:
@@ -461,7 +461,7 @@ class HistoryService:
 
         Returns:
             Tuple of (data dict, counts dict, runs_ids, iterations_ids, results_ids)
-        '''
+        """
         # Collect IDs
         runs_ids = set()
         iterations_ids = set()
@@ -506,7 +506,7 @@ class HistoryService:
         page_size: int | None = None,
         **filters,
     ) -> dict:
-        '''
+        """
         Get test history (linear format).
 
         Args:
@@ -520,7 +520,7 @@ class HistoryService:
 
         Raises:
             UnprocessableEntityError: if invalid parameters
-        '''
+        """
 
         # Build queryset
         test_results, from_date_obj, to_date_obj = HistoryService.build_history_queryset(
@@ -568,7 +568,7 @@ class HistoryService:
         page_size: int | None = None,
         **filters,
     ) -> dict:
-        '''
+        """
         Get test history grouped by iteration.
 
         Args:
@@ -582,7 +582,7 @@ class HistoryService:
 
         Raises:
             UnprocessableEntityError: if invalid parameters
-        '''
+        """
 
         # Build queryset
         test_results, from_date_obj, to_date_obj = HistoryService.build_history_queryset(

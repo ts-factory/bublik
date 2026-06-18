@@ -6,7 +6,7 @@ from bublik.core.run.data import is_result_unexpected
 from bublik.core.utils import parse_number, unordered_group_by
 
 
-'''
+"""
 The report has four levels of nesting:
 1. Test level. It contains test common arguments and enabled views.
 2. Arguments values level. It contains arguments with their values.
@@ -15,20 +15,20 @@ The report has four levels of nesting:
 4. Record level. It contains records (tables and/or charts with measurement results).
    The points in each record are grouped into series based on the values of specific
    arguments.
-'''
+"""
 
 
 class ReportPoint:
-    '''
+    """
     This class describes the points of records and the function that allows you to group
     them by the value of the passed attribute.
-    '''
+    """
 
     def __init__(self, mmr, common_args, report_config):
-        '''
+        """
         Build the point object based on the measurement result
         according to report config.
-        '''
+        """
         # get test level data
         self.test_name = mmr.result.iteration.test.name
         self.test_config = report_config['tests'][self.test_name]
@@ -90,9 +90,9 @@ class ReportPoint:
         }
 
     def sort_arg_vals(self):
-        '''
+        """
         Sort object argument values according to the configuration.
-        '''
+        """
         records_order = self.test_config['records_order']
         if self.test_config['records_order']:
             args_vals_sorted = {
@@ -105,9 +105,9 @@ class ReportPoint:
 
     @staticmethod
     def by_test_name_sort(by_test_name_points, ordered_test_names):
-        '''
+        """
         Return groups of points by name, sorted according to the configuration.
-        '''
+        """
         by_test_name_points_sorted = {
             test_name: by_test_name_points[test_name]
             for test_name in ordered_test_names
@@ -118,9 +118,9 @@ class ReportPoint:
 
 
 class ReportMeasurementLevel:
-    '''
+    """
     This class describes the report blocks corresponding to the measurements.
-    '''
+    """
 
     def __init__(
         self,
@@ -140,10 +140,10 @@ class ReportMeasurementLevel:
 
 
 class ReportArgsValsLevel:
-    '''
+    """
     This class describes the report blocks corresponding to the test arguments
     and their values.
-    '''
+    """
 
     def __init__(
         self,
@@ -237,9 +237,9 @@ class ReportArgsValsLevel:
 
 
 class ReportTestLevel:
-    '''
+    """
     This class describes the report blocks corresponding to the tests.
-    '''
+    """
 
     def __init__(self, test_name, common_args, test_points, report_config):
         test_config = report_config['tests'][test_name]

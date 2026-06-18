@@ -11,9 +11,9 @@ from bublik.core.logging import get_task_or_server_logger
 
 
 class ConverterError(Exception):
-    '''
+    """
     Converter Error exception class that incapsulates internal errors
-    '''
+    """
 
     def __init__(self, log_type, log_path='', exception='', action='unable to convert'):
         self.action = action
@@ -27,10 +27,10 @@ class ConverterError(Exception):
 
 
 class LogConverter:
-    '''
+    """
     Abstract log converter that converts path_in into path_out
     by executing an external conversion command.
-    '''
+    """
 
     def __init__(self, log_type, path_in=None, path_out=None):
         assert log_type
@@ -75,9 +75,9 @@ class LogConverter:
 
 
 class GZipLog(LogConverter):
-    '''
+    """
     Class to decompress GZip files.
-    '''
+    """
 
     FMT_GZIP_DECOMPRESS = "gzip -d -k '{path_in}' -c > '{path_out}'"
 
@@ -94,9 +94,9 @@ class GZipLog(LogConverter):
 
 
 class BZip2Log(LogConverter):
-    '''
+    """
     Class to decompress BZip2 files.
-    '''
+    """
 
     FMT_BZIP2_DECOMPRESS = "bzip2 -d -k '{path_in}' -c > '{path_out}'"
 
@@ -116,9 +116,9 @@ class BZip2Log(LogConverter):
 
 
 class XZLog(LogConverter):
-    '''
+    """
     Class to decompress XZ files.
-    '''
+    """
 
     FMT_XZ_DECOMPRESS = "xz -d -k '{path_in}' -c > '{path_out}'"
 
@@ -135,10 +135,10 @@ class XZLog(LogConverter):
 
 
 class XMLLog(LogConverter):
-    '''
+    """
     This class keeps a temporary file for XML log and provides interfaces
     to convert this log.
-    '''
+    """
 
     FMT_XML_PARSER = "{path_xml_parser} '{path_in}' > '{path_out}'"
 
@@ -160,10 +160,10 @@ class XMLLog(LogConverter):
 
 
 class RawLog(LogConverter):
-    '''
+    """
     This class keeps a temporary file for raw log and provides interfaces
     to convert this log.
-    '''
+    """
 
     FMT_RGT_CONV = "te-trc-log --mi-meta '{path_in}' '{path_out}'"
 
@@ -179,10 +179,10 @@ class RawLog(LogConverter):
 
 
 class RawLogBundle(LogConverter):
-    '''
+    """
     This class keeps a temporary file for raw log bundle and provides
     interfaces to convert this log.
-    '''
+    """
 
     FMT_RGT_LOG_ORIGINAL = (
         "rgt-log-bundle-get-original --bundle='{path_in}' --raw-log='{path_out}'"
@@ -203,10 +203,10 @@ class RawLogBundle(LogConverter):
 
 
 class JSONLog:
-    '''
+    """
     This class keeps a temporary file for JSON log and provides interfaces
     to unpack and load this log.
-    '''
+    """
 
     def __init__(self, process_dir=None, json_filename='log.json'):
         self.path_json_log = None
