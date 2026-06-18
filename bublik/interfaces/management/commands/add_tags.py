@@ -168,7 +168,7 @@ class Command(BaseCommand):
 
             if options['meta']:
                 logger.info(
-                    f"Updating tags for runs associated with Meta: {options['meta']}.",
+                    f'Updating tags for runs associated with Meta: {options["meta"]}.',
                 )
                 runs = runs.filter_by_run_metas([options['meta']])
 

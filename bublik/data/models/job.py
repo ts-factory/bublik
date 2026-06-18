@@ -16,7 +16,6 @@ __all__ = [
 
 
 class Job(models.Model):
-
     class NameChoices(models.TextChoices):
         IMPORTRUNS = 'importruns'
         META_CATEGORIZATION = 'meta_categorization'
@@ -52,7 +51,6 @@ class Job(models.Model):
 
 
 class ImportJob(Job):
-
     url = models.TextField(null=False)
 
     class Admin:

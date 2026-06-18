@@ -33,7 +33,7 @@ class HashSystemTest(TestCase):
         in case of list - for any iterable.
         """
 
-        logger.info('TEST: Compare hashes of 3 the same dicts ' 'with unordered elements')
+        logger.info('TEST: Compare hashes of 3 the same dicts with unordered elements')
 
         d1 = {1: 3, 0: {0: 0, 1: [0, 1, 2]}}
         d2 = {1: 3, 0: {1: [0, 1, 2], 0: 0}}

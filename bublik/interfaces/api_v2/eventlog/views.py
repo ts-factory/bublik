@@ -92,7 +92,7 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
                 meta_results__meta__type='import',
             )
         except ObjectDoesNotExist:
-            msg = 'Run corresponding to the passed Celery task ID doesn\'t exist'
+            msg = "Run corresponding to the passed Celery task ID doesn't exist"
             raise NotFoundError(msg) from None
 
         return Response(

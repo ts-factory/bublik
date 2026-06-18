@@ -364,7 +364,7 @@ class LogProcessor:
         # Build comprehensive filter description
         filter_parts = []
         if start_line is not None or end_line is not None:
-            filter_parts.append(f"lines {start_line or 'start'}-{end_line or 'end'}")
+            filter_parts.append(f'lines {start_line or "start"}-{end_line or "end"}')
         if levels:
             filter_parts.append(f'levels={levels}')
         if entity_names:

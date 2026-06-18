@@ -63,9 +63,9 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Analytics prune completed: "
-                f"deleted_by_age={result['deleted_by_age']}, "
-                f"deleted_by_cap={result['deleted_by_cap']}, "
-                f"remaining={result['remaining']}",
+                'Analytics prune completed: '
+                f'deleted_by_age={result["deleted_by_age"]}, '
+                f'deleted_by_cap={result["deleted_by_cap"]}, '
+                f'remaining={result["remaining"]}',
             ),
         )

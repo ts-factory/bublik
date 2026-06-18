@@ -228,9 +228,9 @@ class Command(BaseCommand):
                 continue
 
             if reduce(
-                lambda acc, t: acc
-                and t.name in log_gist.tags
-                and log_gist.tags[t.name] == t.value,
+                lambda acc, t: (
+                    acc and t.name in log_gist.tags and log_gist.tags[t.name] == t.value
+                ),
                 tags,
                 True,
             ):

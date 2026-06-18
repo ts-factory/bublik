@@ -185,8 +185,8 @@ def import_run(
         logs_base, suffix_url = extract_logs_base(run_source_url, project.id)
         if not suffix_url:
             error_msg = (
-                'run URL doesn\'t match any of the logs bases URIs specified '
-                'in the project\'s references configuration'
+                "run URL doesn't match any of the logs bases URIs specified "
+                "in the project's references configuration"
             )
             logs_bases = ConfigServices.getattr_from_global(
                 GlobalConfigs.REFERENCES.name,
@@ -203,7 +203,7 @@ def import_run(
         # Filter out runs that don't fit the specified interval
         if not meta_data.check_run_period(date_from, date_to):
             msg = (
-                'run isn\'t satisfy '
+                "run isn't satisfy "
                 f'the period {date_from.to_date_string()} - '
                 f'{date_to.to_date_string()}'
             )

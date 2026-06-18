@@ -43,7 +43,7 @@ def get_compromised_details(run):
 
 def validate_compromised_request(run_id, comment, bug, reference):
     if not run_id:
-        return 'Run id couldn\'t be None.'
+        return "Run id couldn't be None."
 
     if not comment:
         return 'To mark runs as compromised comment is required.'

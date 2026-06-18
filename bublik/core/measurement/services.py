@@ -276,7 +276,7 @@ class MeasurementService:
                 # Unify expected to fail here since
                 # Strings nested within an f-string cannot use the same quote character
                 # as the f-string prior to Python 3.12
-                chart['id'] = f"{test_result.id}_{chart['id']}"
+                chart['id'] = f'{test_result.id}_{chart["id"]}'
                 measurement_series_charts.append(chart)
 
             measurement_series_charts_by_result.append(
