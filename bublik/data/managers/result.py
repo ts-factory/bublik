@@ -59,16 +59,14 @@ class TestIterationResultQuerySet(QuerySet):
 
         # Local imports avoid a circular import: models.result -> managers.result
         # -> (classification / result models) -> models.result.
-        from bublik.data.models.classification import ResultClassification
+        from bublik.core.classification import suppressed_subquery
         from bublik.data.models.result import MetaResult
 
         err = MetaResult.objects.filter(result_id=OuterRef('id'), meta__type='err')
-        suppressed = ResultClassification.objects.filter(
-            result_id=OuterRef('id'),
-            rule__expected=True,
-            rule__issue__state='open',
+        self = self.annotate(
+            _has_err=Exists(err),
+            _suppressed=Exists(suppressed_subquery()),
         )
-        self = self.annotate(_has_err=Exists(err), _suppressed=Exists(suppressed))
 
         # Effectively unexpected = has an err meta AND is not suppressed.
         if 'expected' in properties:

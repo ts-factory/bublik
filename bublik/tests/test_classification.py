@@ -260,3 +260,41 @@ class StatsUnexpectedTest(ClassificationFixtureMixin, TestCase):
         base = TestIterationResult.objects.filter(id__in=[suppressed.id, plain.id])
         ids = set(self._unexpected_qs(base).values_list('id', flat=True))
         self.assertEqual(ids, {plain.id})
+
+
+from django.db.models import Exists
+
+from bublik.core.classification import (
+    SUPPRESSED_RELATION_FILTER,
+    SUPPRESSION_FILTER,
+    suppressed_subquery,
+)
+
+
+class SuppressionHelperTest(ClassificationFixtureMixin, TestCase):
+    def test_predicate_constants(self):
+        self.assertEqual(
+            SUPPRESSION_FILTER,
+            {'rule__expected': True, 'rule__issue__state': 'open'},
+        )
+        self.assertEqual(
+            SUPPRESSED_RELATION_FILTER,
+            {
+                'classifications__rule__expected': True,
+                'classifications__rule__issue__state': 'open',
+            },
+        )
+
+    def test_suppressed_subquery_in_exists(self):
+        project = self.make_project()
+        _run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        _run2, plain = self.make_result(project, err=True)
+
+        rows = dict(
+            TestIterationResult.objects.filter(id__in=[suppressed.id, plain.id])
+            .annotate(_sup=Exists(suppressed_subquery()))
+            .values_list('id', '_sup'),
+        )
+        self.assertTrue(rows[suppressed.id])
+        self.assertFalse(rows[plain.id])

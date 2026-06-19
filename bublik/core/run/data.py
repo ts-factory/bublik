@@ -4,6 +4,7 @@
 from collections import OrderedDict, defaultdict
 
 from bublik.core.cache import ProjectCache
+from bublik.core.classification import SUPPRESSION_FILTER
 from bublik.core.config.services import ConfigServices
 from bublik.core.meta.categorization import (
     get_metas_by_category,
@@ -157,10 +158,5 @@ def is_result_unexpected(result):
     has_err = result.meta_results.filter(meta__type='err').exists()
     if not has_err:
         return False
-    # Effectively expected: stamped by a rule that is `expected` and whose
-    # issue is still open. Such results no longer count as unexpected.
-    suppressed = result.classifications.filter(
-        rule__expected=True,
-        rule__issue__state='open',
-    ).exists()
-    return not suppressed
+    # Effectively expected: stamped by an expected rule on an open issue.
+    return not result.classifications.filter(**SUPPRESSION_FILTER).exists()

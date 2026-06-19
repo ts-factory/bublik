@@ -12,6 +12,7 @@ from django.db.models import Exists, F, OuterRef, Q, Value
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
+from bublik.core.classification import SUPPRESSED_RELATION_FILTER
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
@@ -143,10 +144,7 @@ def generate_result(
             # open issue) from the unexpected set.
             unexpected = (
                 test_iterations.filter(meta_results__meta__type='err')
-                .exclude(
-                    classifications__rule__expected=True,
-                    classifications__rule__issue__state='open',
-                )
+                .exclude(**SUPPRESSED_RELATION_FILTER)
                 .distinct()
             )
 

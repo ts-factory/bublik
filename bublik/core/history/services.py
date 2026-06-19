@@ -7,6 +7,7 @@ from django.conf import settings
 from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, When
 
 from bublik.core.cache import ProjectCache
+from bublik.core.classification import suppressed_subquery
 from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.exceptions import NotFoundError
 from bublik.core.history.v2.utils import (
@@ -33,7 +34,6 @@ from bublik.data.models import (
     TestIteration,
     TestIterationResult,
 )
-from bublik.data.models.classification import ResultClassification
 
 
 class HistoryService:
@@ -434,13 +434,7 @@ class HistoryService:
                 _has_err=Exists(
                     MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err'),
                 ),
-                _suppressed=Exists(
-                    ResultClassification.objects.filter(
-                        result_id=OuterRef('id'),
-                        rule__expected=True,
-                        rule__issue__state='open',
-                    ),
-                ),
+                _suppressed=Exists(suppressed_subquery()),
                 has_error=Case(
                     When(_has_err=True, _suppressed=False, then=Value(True)),
                     default=Value(False),
