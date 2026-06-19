@@ -241,3 +241,22 @@ class HistoryHasErrorTest(ClassificationFixtureMixin, TestCase):
             TestIterationResult.objects.filter(id=result.id),
         ).values('id', 'has_error')
         self.assertEqual(list(annotated), [{'id': result.id, 'has_error': True}])
+
+
+class StatsUnexpectedTest(ClassificationFixtureMixin, TestCase):
+    def _unexpected_qs(self, base):
+        # Mirror of the production expression after this task.
+        return base.filter(meta_results__meta__type='err').exclude(
+            classifications__rule__expected=True,
+            classifications__rule__issue__state='open',
+        ).distinct()
+
+    def test_suppressed_excluded_from_unexpected(self):
+        project = self.make_project()
+        _run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        _run2, plain = self.make_result(project, err=True)
+
+        base = TestIterationResult.objects.filter(id__in=[suppressed.id, plain.id])
+        ids = set(self._unexpected_qs(base).values_list('id', flat=True))
+        self.assertEqual(ids, {plain.id})

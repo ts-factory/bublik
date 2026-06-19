@@ -139,7 +139,16 @@ def generate_result(
             all_skipped = skipped(test_iterations).count()
             all_abnormal = abnormal(test_iterations).count()
 
-            unexpected = test_iterations.filter(meta_results__meta__type='err')
+            # Subtract effectively-expected results (stamped by an expected rule on an
+            # open issue) from the unexpected set.
+            unexpected = (
+                test_iterations.filter(meta_results__meta__type='err')
+                .exclude(
+                    classifications__rule__expected=True,
+                    classifications__rule__issue__state='open',
+                )
+                .distinct()
+            )
 
             passed_unexpected = passed(unexpected).distinct().count()
             failed_unexpected = failed(unexpected).distinct().count()
