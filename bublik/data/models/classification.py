@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
-from typing import ClassVar
-
 from django.conf import settings
 from django.db import models
 
@@ -43,7 +41,7 @@ class StampOrigin(models.TextChoices):
 
 
 # Default `expected` flag suggested by category. Editable per rule.
-_EXPECTED_BY_CATEGORY: ClassVar[dict] = {
+_EXPECTED_BY_CATEGORY = {
     IssueCategory.KNOWN_ISSUE: True,
     IssueCategory.ENV: True,
     IssueCategory.TEST_BUG: True,
