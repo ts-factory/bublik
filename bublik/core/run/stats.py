@@ -8,11 +8,11 @@ from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
-from django.db.models import Exists, F, OuterRef, Q, Value
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, When
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
-from bublik.core.classification import SUPPRESSED_RELATION_FILTER
+from bublik.core.classification import SUPPRESSED_RELATION_FILTER, suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
@@ -561,7 +561,15 @@ def get_nok_results_distribution(run):
             test_run=run,
             iteration__test__result_type=ResultType.conv('test'),
         )
-        .annotate(is_nok=Exists(unexpected_result))
+        .annotate(
+            _has_err=Exists(unexpected_result),
+            _suppressed=Exists(suppressed_subquery()),
+            is_nok=Case(
+                When(_has_err=True, _suppressed=False, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+        )
         .values_list('is_nok', flat=True)
         .order_by('id')
     )

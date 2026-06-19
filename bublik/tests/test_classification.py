@@ -103,6 +103,32 @@ class ClassificationFixtureMixin:
             MetaResult.objects.create(result=result, meta=err_meta, serial=0)
         return run, result
 
+    def _add_result_to_run(self, run, project, *, err=False):
+        from datetime import datetime, timezone
+
+        from bublik.data.models import (
+            Meta,
+            MetaResult,
+            Test,
+            TestIteration,
+            TestIterationResult,
+        )
+
+        test = Test.objects.create(name=self._next_hash('test'), result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash=self._next_hash('iter'))
+        result = TestIterationResult.objects.create(
+            iteration=iteration,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=project,
+        )
+        if err:
+            err_meta = Meta.objects.create(
+                type='err', value='FAILED', hash=self._next_hash('errmeta'),
+            )
+            MetaResult.objects.create(result=result, meta=err_meta, serial=0)
+        return result
+
     def classify(self, result, project, *, expected, issue_state='open'):
         issue = Issue.objects.create(title='cause', state=issue_state)
         rule = IssueRule.objects.create(
@@ -298,3 +324,33 @@ class SuppressionHelperTest(ClassificationFixtureMixin, TestCase):
         )
         self.assertTrue(rows[suppressed.id])
         self.assertFalse(rows[plain.id])
+
+
+from bublik.core.run.stats import get_nok_results_distribution
+
+
+class NokDistributionTest(ClassificationFixtureMixin, TestCase):
+    def test_suppressed_result_is_not_nok(self):
+        project = self.make_project()
+        run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        # second failing result in the SAME run, not suppressed
+        self._add_result_to_run(run, project, err=True)
+
+        is_nok = list(get_nok_results_distribution(run))
+        # one True (plain), one False (suppressed); order is by id
+        self.assertEqual(sorted(is_nok), [False, True])
+
+
+from bublik.core.tree.representation import tree_representation
+
+
+class TreeHasErrorTest(ClassificationFixtureMixin, TestCase):
+    def test_suppressed_node_has_no_error(self):
+        project = self.make_project()
+        _run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+
+        tree = tree_representation(suppressed)
+        node = tree[suppressed.id].data
+        self.assertFalse(node['has_error'])
