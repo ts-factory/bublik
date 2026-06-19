@@ -354,3 +354,50 @@ class TreeHasErrorTest(ClassificationFixtureMixin, TestCase):
         tree = tree_representation(suppressed)
         node = tree[suppressed.id].data
         self.assertFalse(node['has_error'])
+
+
+from bublik.core.cache import RunCache
+from bublik.core.run.stats import get_run_stats
+
+
+class GetRunStatsTest(ClassificationFixtureMixin, TestCase):
+    def test_suppressed_excluded_from_unexpected_count(self):
+        project = self.make_project()
+        run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        self._add_result_to_run(run, project, err=True)  # one still-unexpected
+
+        # The 'run' cache is a shared Redis backend; drop any stale stats_sum
+        # entry left for this run id so get_run_stats recomputes from the DB.
+        del RunCache.by_id(run.id, 'stats_sum').data
+
+        stats = get_run_stats(run.id)
+        self.assertEqual(stats['unexpected'], 1)
+        self.assertEqual(stats['total'], 2)
+
+
+from bublik.core.run.services import RunService
+
+
+class DashboardNokTest(ClassificationFixtureMixin, TestCase):
+    def _nok_for_run(self, run):
+        result = RunService.aggregate_runs_by_period(
+            TestIterationResult.objects.filter(id=run.id),
+        )
+        bucket = next(b for b in result['buckets'] if run.id in self._all_run_ids(b))
+        return bucket['tests']['nok']
+
+    @staticmethod
+    def _all_run_ids(bucket):
+        ids = []
+        for run_ids in bucket['run_ids_by_status'].values():
+            ids.extend(run_ids)
+        return ids
+
+    def test_suppressed_excluded_from_nok_count(self):
+        project = self.make_project()
+        run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        self._add_result_to_run(run, project, err=True)  # one still-unexpected
+
+        self.assertEqual(self._nok_for_run(run), 1)

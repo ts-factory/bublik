@@ -425,7 +425,14 @@ def get_run_stats(run_id):
             iteration__hash__isnull=False,
         )
         stats['total'] = run_results.count()
-        stats['unexpected'] = run_results.filter(meta_results__meta__type='err').count()
+        # Subtract effectively-expected results (stamped by an expected rule on
+        # an open issue) from the unexpected count.
+        stats['unexpected'] = (
+            run_results.filter(meta_results__meta__type='err')
+            .exclude(**SUPPRESSED_RELATION_FILTER)
+            .distinct()
+            .count()
+        )
 
         plan_meta_result = get_or_none(
             MetaResult.objects,
