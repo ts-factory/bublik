@@ -226,3 +226,21 @@ class ResultClassifyViewSet(GenericViewSet):
         from bublik.core.run.data import get_tags_by_runs
         important_by_run, _ = get_tags_by_runs([result.test_run])
         return important_by_run.get(result.test_run_id, [])
+
+
+from bublik.core.run.classification import apply_active_rules_manual
+
+
+class RunApplyRulesViewSet(GenericViewSet):
+    '''POST /runs/<run_id>/apply-rules/?project=<id> - apply active rules to an
+    existing run on demand.'''
+
+    # No queryset/model on this viewset; skip the global auto FilterSet.
+    filter_backends: typing.ClassVar[list] = []
+
+    @check_action_permission('manage_classifications')
+    def create(self, request, *args, **kwargs):
+        run = TestIterationResult.objects.get(pk=self.kwargs['run_id'])
+        created = apply_active_rules_manual(run)
+        invalidate_run_stats([run.id])
+        return Response({'stamps_created': created}, status=status.HTTP_200_OK)

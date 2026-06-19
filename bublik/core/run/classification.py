@@ -80,6 +80,21 @@ def apply_active_rules(run):
     return created
 
 
+def apply_active_rules_manual(run):
+    '''Apply active rules to an existing run on demand (origin='manual_apply').
+    Does not recompute/delete import stamps. Returns stamps created.'''
+    rules = IssueRule.objects.filter(project_id=run.project_id, active=True)
+    created = 0
+    for rule in rules:
+        for result in matching_results(rule, run):
+            _, made = ResultClassification.objects.get_or_create(
+                result=result, rule=rule,
+                defaults={'origin': StampOrigin.MANUAL_APPLY},
+            )
+            created += int(made)
+    return created
+
+
 def runs_for_rule(rule):
     '''Distinct run ids that have stamps for this rule.'''
     return list(

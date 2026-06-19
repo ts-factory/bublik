@@ -50,6 +50,11 @@ api_v2_router.register(
     api_v2.ResultClassifyViewSet,
     basename='results_classify',
 )
+api_v2_router.register(
+    r'runs/(?P<run_id>[0-9]+)/apply-rules',
+    api_v2.RunApplyRulesViewSet,
+    basename='runs_apply_rules',
+)
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet

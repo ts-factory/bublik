@@ -154,3 +154,46 @@ class ClassifyApiTest(APITestCase):
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertFalse(stamp.rule.active)
         self.assertEqual(stamp.origin, StampOrigin.MANUAL_ONEOFF)
+
+
+class ApplyRulesApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        self.run = TestIterationResult.objects.create(
+            iteration=None, test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        test = Test.objects.create(name='t', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        iteration.test_arguments.add(arg)
+        self.result = TestIterationResult.objects.create(
+            iteration=iteration, test_run=self.run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        m = Meta.objects.create(type='verdict', value='boom', hash='vh')
+        MetaResult.objects.create(result=self.result, meta=m, serial=0)
+        issue = Issue.objects.create(title='bug')
+        IssueRule.objects.create(
+            project=self.project, issue=issue, test=test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            parameters={'a': '1'}, verdicts=['boom'],
+        )
+
+    def test_apply_rules_stamps_existing_run(self):
+        url = f'/api/v2/runs/{self.run.id}/apply-rules/?project={self.project.id}'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertEqual(stamp.origin, StampOrigin.MANUAL_APPLY)
