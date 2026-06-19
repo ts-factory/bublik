@@ -13,7 +13,6 @@ from bublik.core.meta.categorization import (
 from bublik.core.utils import key_value_list_transforming
 from bublik.data.models import (
     GlobalConfigs,
-    Meta,
     MetaResult,
     Project,
     TestArgument,
