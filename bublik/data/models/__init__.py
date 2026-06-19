@@ -61,6 +61,16 @@ from .result import (
     TestIterationRelation,
     TestIterationResult,
 )
+from .classification import (
+    Issue,
+    IssueCategory,
+    IssueExt,
+    IssueRule,
+    IssueState,
+    ResultClassification,
+    StampOrigin,
+    default_expected_for,
+)
 from .user import User, UserManager, UserRoles
 
 
@@ -75,6 +85,11 @@ __all__ = [
     'Expectation',
     'GlobalConfigs',
     'ImportJob',
+    'Issue',
+    'IssueCategory',
+    'IssueExt',
+    'IssueRule',
+    'IssueState',
     'Job',
     'JobTaskExecution',
     'JobTaskExecutionResult',
@@ -88,11 +103,13 @@ __all__ = [
     'MetaTest',
     'Project',
     'Reference',
+    'ResultClassification',
     'ResultStatus',
     'ResultType',
     'RunConclusion',
     'RunStatus',
     'RunStatusByUnexpected',
+    'StampOrigin',
     'TaskExecution',
     'Test',
     'TestArgument',
@@ -103,4 +120,5 @@ __all__ = [
     'UserManager',
     'UserRoles',
     'View',
+    'default_expected_for',
 ]
