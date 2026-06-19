@@ -51,3 +51,82 @@ class ClassificationModelTest(TestCase):
             ResultClassification._meta.get_field('result').remote_field.related_name,
             'classifications',
         )
+
+
+from datetime import datetime, timezone
+
+from bublik.data.models import (
+    Meta,
+    MetaResult,
+    Project,
+    Test,
+    TestIteration,
+    TestIterationResult,
+)
+
+
+class ClassificationFixtureMixin:
+    '''Builds a minimal run/result graph and lets a test attach an err meta
+    and/or a classification stamp.'''
+
+    _hash_seq = 0
+
+    @classmethod
+    def _next_hash(cls, prefix):
+        cls._hash_seq += 1
+        return f'{prefix}-{cls._hash_seq}'
+
+    def make_project(self):
+        return Project.objects.create(name=self._next_hash('proj'))
+
+    def make_result(self, project, *, err=False):
+        test = Test.objects.create(name=self._next_hash('test'), result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash=self._next_hash('iter'))
+        run = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=project,
+        )
+        result = TestIterationResult.objects.create(
+            iteration=iteration,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=project,
+        )
+        if err:
+            err_meta = Meta.objects.create(
+                type='err',
+                value='FAILED',
+                hash=self._next_hash('errmeta'),
+            )
+            MetaResult.objects.create(result=result, meta=err_meta, serial=0)
+        return run, result
+
+    def classify(self, result, project, *, expected, issue_state='open'):
+        issue = Issue.objects.create(title='cause', state=issue_state)
+        rule = IssueRule.objects.create(
+            project=project,
+            issue=issue,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=expected,
+            test=result.iteration.test,
+        )
+        return ResultClassification.objects.create(
+            result=result,
+            rule=rule,
+            origin=StampOrigin.MANUAL_ONEOFF,
+        )
+
+
+class FixtureSmokeTest(ClassificationFixtureMixin, TestCase):
+    def test_make_result_with_err(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.assertTrue(result.meta_results.filter(meta__type='err').exists())
+
+    def test_classify_creates_stamp(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.classify(result, project, expected=True)
+        self.assertEqual(result.classifications.count(), 1)
