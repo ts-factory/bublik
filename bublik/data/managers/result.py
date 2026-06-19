@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from django.db.models import Manager, Q, QuerySet
+from django.db.models import Exists, Manager, OuterRef, Q, QuerySet
 
 from bublik.core.config.services import ConfigServices
 from bublik.data.managers.utils import create_metas_query
@@ -57,15 +57,24 @@ class TestIterationResultQuerySet(QuerySet):
         if 'expected' in properties and 'unexpected' in properties:
             return self
 
-        err_meta_ids = list(Meta.objects.filter(type='err').values_list('id', flat=True))
-        err_query = Q(meta_results__meta__in=err_meta_ids)
+        # Local imports avoid a circular import: models.result -> managers.result
+        # -> (classification / result models) -> models.result.
+        from bublik.data.models.classification import ResultClassification
+        from bublik.data.models.result import MetaResult
 
+        err = MetaResult.objects.filter(result_id=OuterRef('id'), meta__type='err')
+        suppressed = ResultClassification.objects.filter(
+            result_id=OuterRef('id'),
+            rule__expected=True,
+            rule__issue__state='open',
+        )
+        self = self.annotate(_has_err=Exists(err), _suppressed=Exists(suppressed))
+
+        # Effectively unexpected = has an err meta AND is not suppressed.
         if 'expected' in properties:
-            self = self.exclude(err_query)
-
-        elif 'unexpected' in properties:
-            self = self.filter(err_query)
-
+            return self.exclude(_has_err=True, _suppressed=False)
+        if 'unexpected' in properties:
+            return self.filter(_has_err=True, _suppressed=False)
         return self
 
     def filter_by_run_metas(self, metas, meta_types=None):

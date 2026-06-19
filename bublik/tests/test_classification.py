@@ -163,3 +163,37 @@ class IsResultUnexpectedTest(ClassificationFixtureMixin, TestCase):
         _run, result = self.make_result(project, err=True)
         self.classify(result, project, expected=True, issue_state='closed')
         self.assertTrue(is_result_unexpected(result))
+
+
+from bublik.data.models import TestIterationResult
+
+
+class FilterByClassificationTest(ClassificationFixtureMixin, TestCase):
+    def _ids(self, qs):
+        return set(qs.values_list('id', flat=True))
+
+    def test_suppressed_result_counts_as_expected(self):
+        project = self.make_project()
+        _run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        _run2, plain_err = self.make_result(project, err=True)
+
+        base = TestIterationResult.objects.filter(
+            id__in=[suppressed.id, plain_err.id],
+        )
+        expected_ids = self._ids(base.filter_by_result_classification(['expected']))
+        unexpected_ids = self._ids(base.filter_by_result_classification(['unexpected']))
+
+        self.assertIn(suppressed.id, expected_ids)
+        self.assertNotIn(suppressed.id, unexpected_ids)
+        self.assertIn(plain_err.id, unexpected_ids)
+        self.assertNotIn(plain_err.id, expected_ids)
+
+    def test_both_properties_returns_all(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        base = TestIterationResult.objects.filter(id=result.id)
+        self.assertEqual(
+            self._ids(base.filter_by_result_classification(['expected', 'unexpected'])),
+            {result.id},
+        )
