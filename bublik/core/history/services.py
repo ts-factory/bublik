@@ -67,6 +67,10 @@ class HistoryService:
         verdict_lookup: str | None = None,
         verdict_expr: str | None = None,
         result_types: str | None = None,
+        categories: str | None = None,
+        issue: str | None = None,
+        explained: str | None = None,
+        untriaged: str | None = None,
     ):
         """
         Build history queryset with all filters applied.
@@ -161,6 +165,10 @@ class HistoryService:
             verdict_expr=verdict_expr,
             result_types=result_types,
             query_delimiter=query_delimiter,
+            categories=categories,
+            issue=issue,
+            explained=explained,
+            untriaged=untriaged,
         )
 
         # Step 7: Finalize queryset
@@ -355,6 +363,10 @@ class HistoryService:
         verdict_expr: str | None,
         result_types: str | None,
         query_delimiter: str,
+        categories: str | None = None,
+        issue: str | None = None,
+        explained: str | None = None,
+        untriaged: str | None = None,
     ) -> TestIterationResult:
         """
         Apply result-level filters to test results.
@@ -412,6 +424,21 @@ class HistoryService:
             test_results = test_results.filter_by_result_classification(
                 result_types.split(query_delimiter),
             )
+
+        if categories:
+            test_results = test_results.filter(
+                classifications__rule__category__in=categories.split(query_delimiter),
+            ).distinct()
+        if issue:
+            test_results = test_results.filter(
+                classifications__rule__issue_id__in=issue.split(query_delimiter),
+            ).distinct()
+        if explained and explained.lower() == 'true':
+            test_results = test_results.filter(classifications__isnull=False).distinct()
+        if untriaged and untriaged.lower() == 'true':
+            test_results = test_results.filter(
+                meta_results__meta__type='err',
+            ).exclude(classifications__isnull=False).distinct()
 
         return test_results
 

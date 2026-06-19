@@ -643,6 +643,25 @@ def generate_results_details(test_results):
             'has_measurements': exist_measurement_results(test_result),
         }
 
+        classifications = list(
+            test_result.classifications.select_related('rule__issue').all(),
+        )
+        data['issues'] = [
+            {
+                'issue_id': c.rule.issue_id,
+                'issue_title': c.rule.issue.title,
+                'issue_state': c.rule.issue.state,
+                'category': c.rule.category,
+                'expected': c.rule.expected,
+                'rule_id': c.rule_id,
+                'origin': c.origin,
+            }
+            for c in classifications
+        ]
+        data['effective_expected'] = any(
+            c.rule.expected and c.rule.issue.state == 'open' for c in classifications
+        )
+
         results_details.append(data)
 
     return results_details
