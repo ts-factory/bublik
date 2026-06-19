@@ -197,3 +197,47 @@ class FilterByClassificationTest(ClassificationFixtureMixin, TestCase):
             self._ids(base.filter_by_result_classification(['expected', 'unexpected'])),
             {result.id},
         )
+
+
+from django.db.models import BooleanField, Case, Exists, OuterRef, Value, When
+
+from bublik.data.models import MetaResult, ResultClassification
+
+
+def annotate_effective_has_error(queryset):
+    '''Mirror of the history service annotation under test.'''
+    err = MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err')
+    suppressed = ResultClassification.objects.filter(
+        result_id=OuterRef('id'),
+        rule__expected=True,
+        rule__issue__state='open',
+    )
+    return queryset.annotate(
+        _has_err=Exists(err),
+        _suppressed=Exists(suppressed),
+    ).annotate(
+        has_error=Case(
+            When(_has_err=True, _suppressed=False, then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        ),
+    )
+
+
+class HistoryHasErrorTest(ClassificationFixtureMixin, TestCase):
+    def test_suppressed_has_error_false(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.classify(result, project, expected=True, issue_state='open')
+        annotated = annotate_effective_has_error(
+            TestIterationResult.objects.filter(id=result.id),
+        ).values('id', 'has_error')
+        self.assertEqual(list(annotated), [{'id': result.id, 'has_error': False}])
+
+    def test_unsuppressed_has_error_true(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        annotated = annotate_effective_has_error(
+            TestIterationResult.objects.filter(id=result.id),
+        ).values('id', 'has_error')
+        self.assertEqual(list(annotated), [{'id': result.id, 'has_error': True}])

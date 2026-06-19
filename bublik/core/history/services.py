@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from django.conf import settings
-from django.db.models import Exists, F, OuterRef, Q
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, When
 
 from bublik.core.cache import ProjectCache
 from bublik.core.datetime_formatting import display_to_date_in_numbers
@@ -33,6 +33,7 @@ from bublik.data.models import (
     TestIteration,
     TestIterationResult,
 )
+from bublik.data.models.classification import ResultClassification
 
 
 class HistoryService:
@@ -430,8 +431,20 @@ class HistoryService:
             .annotate(
                 run_id=F('test_run__id'),
                 iteration_hash=F('iteration__hash'),
-                has_error=Exists(
+                _has_err=Exists(
                     MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err'),
+                ),
+                _suppressed=Exists(
+                    ResultClassification.objects.filter(
+                        result_id=OuterRef('id'),
+                        rule__expected=True,
+                        rule__issue__state='open',
+                    ),
+                ),
+                has_error=Case(
+                    When(_has_err=True, _suppressed=False, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
                 ),
                 is_measurements=Exists(
                     MeasurementResult.objects.filter(result__id=OuterRef('id')),
