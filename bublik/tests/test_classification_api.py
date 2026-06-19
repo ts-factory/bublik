@@ -155,6 +155,13 @@ class ClassifyApiTest(APITestCase):
         self.assertFalse(stamp.rule.active)
         self.assertEqual(stamp.origin, StampOrigin.MANUAL_ONEOFF)
 
+    def test_classify_rejects_bad_category(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url, {'issue': {'title': 'x'}, 'category': 'banana'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
 
 class ApplyRulesApiTest(APITestCase):
     def setUp(self):
@@ -197,3 +204,40 @@ class ApplyRulesApiTest(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertEqual(stamp.origin, StampOrigin.MANUAL_APPLY)
+
+
+class AuthGuardTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Issue, IssueCategory, Project, Test
+
+        self.project = Project.objects.create(name='guard')
+        self.issue = Issue.objects.create(title='bug')
+        self.test = Test.objects.create(name='t', result_type='T')
+        self.rule = IssueRule.objects.create(
+            project=self.project, issue=self.issue, test=self.test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+        )
+
+    def test_unauth_delete_issue_rejected(self):
+        r = self.client.delete(f'/api/v2/issues/{self.issue.id}/?project={self.project.id}')
+        self.assertEqual(r.status_code, 403)
+
+    def test_unauth_patch_issue_rejected(self):
+        r = self.client.patch(
+            f'/api/v2/issues/{self.issue.id}/?project={self.project.id}',
+            {'title': 'x'}, format='json',
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_unauth_patch_rule_rejected(self):
+        r = self.client.patch(
+            f'/api/v2/issue-rules/{self.rule.id}/?project={self.project.id}',
+            {'expected': False}, format='json',
+        )
+        self.assertEqual(r.status_code, 403)
+        self.rule.refresh_from_db()
+        self.assertTrue(self.rule.expected)  # unchanged
+
+    def test_unauth_delete_rule_rejected(self):
+        r = self.client.delete(f'/api/v2/issue-rules/{self.rule.id}/?project={self.project.id}')
+        self.assertEqual(r.status_code, 403)

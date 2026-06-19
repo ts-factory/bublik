@@ -3,19 +3,36 @@
 
 import typing
 
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
 from bublik.core.auth import check_action_permission, get_user_by_access_token
 from bublik.core.run.classification import (
+    _result_param_dict,
+    _result_verdict_set,
+    apply_active_rules_manual,
     invalidate_run_stats,
     runs_for_issue,
     runs_for_rule,
 )
-from bublik.data.models import Issue, IssueRule, IssueState
+from bublik.core.run.data import get_tags_by_runs
+from bublik.data.models import (
+    Issue,
+    IssueCategory,
+    IssueExt,
+    IssueRule,
+    IssueState,
+    Project,
+    ResultClassification,
+    StampOrigin,
+    TestIterationResult,
+    default_expected_for,
+)
 from bublik.data.serializers import IssueRuleSerializer, IssueSerializer
 
 
@@ -57,6 +74,23 @@ class IssueViewSet(ModelViewSet):
         serializer.save(updated_by=_actor(request))
         invalidate_run_stats(runs_for_issue(instance))
         return Response(serializer.data)
+
+    @check_action_permission('manage_classifications')
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=_actor(request))
+        invalidate_run_stats(runs_for_issue(instance))
+        return Response(serializer.data)
+
+    @check_action_permission('manage_classifications')
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        run_ids = runs_for_issue(instance)
+        instance.delete()
+        invalidate_run_stats(run_ids)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'])
     @check_action_permission('manage_classifications')
@@ -109,6 +143,28 @@ class IssueRuleViewSet(ModelViewSet):
         serializer.save(created_by=_actor(request))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @check_action_permission('manage_classifications')
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=_actor(request))
+        invalidate_run_stats(runs_for_rule(instance))
+        return Response(serializer.data)
+
+    @check_action_permission('manage_classifications')
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, partial=True, **kwargs)
+
+    @check_action_permission('manage_classifications')
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        run_ids = runs_for_rule(instance)
+        instance.delete()
+        invalidate_run_stats(run_ids)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['post'])
     @check_action_permission('manage_classifications')
     def deactivate(self, request, *args, **kwargs):
@@ -132,22 +188,6 @@ class IssueRuleViewSet(ModelViewSet):
         return Response(IssueRuleSerializer(rule).data)
 
 
-from rest_framework.viewsets import GenericViewSet
-
-from bublik.core.run.classification import (
-    _result_param_dict,
-    _result_verdict_set,
-)
-from bublik.data.models import (
-    IssueCategory,
-    Project,
-    ResultClassification,
-    StampOrigin,
-    TestIterationResult,
-    default_expected_for,
-)
-
-
 class ResultClassifyViewSet(GenericViewSet):
     '''POST /results/<result_id>/classify/?project=<id>
 
@@ -161,21 +201,32 @@ class ResultClassifyViewSet(GenericViewSet):
 
     @check_action_permission('manage_classifications')
     def create(self, request, *args, **kwargs):
-        result = TestIterationResult.objects.select_related('iteration__test').get(
+        result = get_object_or_404(
+            TestIterationResult.objects.select_related('iteration__test'),
             pk=self.kwargs['result_id'],
         )
-        project = Project.objects.get(pk=request.query_params.get('project'))
+        if not request.query_params.get('project'):
+            raise ValidationError({'project': 'project query param is required'})
+        project = get_object_or_404(Project, pk=request.query_params.get('project'))
         actor = _actor(request)
         body = request.data
 
         issue = self._resolve_issue(body.get('issue'), actor)
 
         category = body.get('category', IssueCategory.TO_INVESTIGATE)
+        if category not in IssueCategory.values:
+            raise ValidationError({'category': f'invalid category: {category!r}'})
+        scope = body.get('scope', 'future')
+        if scope not in ('future', 'oneoff'):
+            raise ValidationError({'scope': f'invalid scope: {scope!r}'})
+
         expected = body.get('expected')
         if expected is None:
             expected = default_expected_for(category)
-        scope = body.get('scope', 'future')
         matcher = body.get('matcher') or {}
+
+        active = scope == 'future'
+        origin = StampOrigin.MANUAL_APPLY if active else StampOrigin.MANUAL_ONEOFF
 
         rule = IssueRule.objects.create(
             project=project,
@@ -183,7 +234,7 @@ class ResultClassifyViewSet(GenericViewSet):
             test=result.iteration.test,
             category=category,
             expected=expected,
-            active=(scope == 'future'),
+            active=active,
             match_parameters=matcher.get('match_parameters', True),
             match_verdicts=matcher.get('match_verdicts', True),
             match_important_tags=matcher.get('match_important_tags', True),
@@ -193,7 +244,6 @@ class ResultClassifyViewSet(GenericViewSet):
             tags=matcher.get('tags', self._capture_tags(result)),
             created_by=actor,
         )
-        origin = StampOrigin.MANUAL_ONEOFF if scope == 'oneoff' else StampOrigin.MANUAL_APPLY
         ResultClassification.objects.get_or_create(
             result=result, rule=rule, defaults={'origin': origin, 'created_by': actor},
         )
@@ -207,7 +257,7 @@ class ResultClassifyViewSet(GenericViewSet):
         if isinstance(issue_data, int) or (
             isinstance(issue_data, str) and str(issue_data).isdigit()
         ):
-            return Issue.objects.get(pk=int(issue_data))
+            return get_object_or_404(Issue, pk=int(issue_data))
         issue_data = issue_data or {}
         issue = Issue.objects.create(
             title=issue_data.get('title', 'Untitled'),
@@ -216,19 +266,14 @@ class ResultClassifyViewSet(GenericViewSet):
         )
         bug_key = issue_data.get('bug_key')
         if bug_key:
-            from bublik.data.models import IssueExt
             ext, _ = IssueExt.objects.get_or_create(key=bug_key)
             issue.issue_ext = ext
             issue.save()
         return issue
 
     def _capture_tags(self, result):
-        from bublik.core.run.data import get_tags_by_runs
         important_by_run, _ = get_tags_by_runs([result.test_run])
         return important_by_run.get(result.test_run_id, [])
-
-
-from bublik.core.run.classification import apply_active_rules_manual
 
 
 class RunApplyRulesViewSet(GenericViewSet):
@@ -240,7 +285,7 @@ class RunApplyRulesViewSet(GenericViewSet):
 
     @check_action_permission('manage_classifications')
     def create(self, request, *args, **kwargs):
-        run = TestIterationResult.objects.get(pk=self.kwargs['run_id'])
+        run = get_object_or_404(TestIterationResult, pk=self.kwargs['run_id'])
         created = apply_active_rules_manual(run)
         invalidate_run_stats([run.id])
         return Response({'stamps_created': created}, status=status.HTTP_200_OK)
