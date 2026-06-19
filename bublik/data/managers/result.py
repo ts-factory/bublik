@@ -57,22 +57,17 @@ class TestIterationResultQuerySet(QuerySet):
         if 'expected' in properties and 'unexpected' in properties:
             return self
 
-        # Local imports avoid a circular import: models.result -> managers.result
-        # -> (classification / result models) -> models.result.
         from bublik.core.classification import suppressed_subquery
         from bublik.data.models.result import MetaResult
 
-        err = MetaResult.objects.filter(result_id=OuterRef('id'), meta__type='err')
-        self = self.annotate(
-            _has_err=Exists(err),
-            _suppressed=Exists(suppressed_subquery()),
-        )
+        has_err = Exists(MetaResult.objects.filter(result_id=OuterRef('id'), meta__type='err'))
+        not_suppressed = ~Exists(suppressed_subquery())
 
         # Effectively unexpected = has an err meta AND is not suppressed.
         if 'expected' in properties:
-            return self.exclude(_has_err=True, _suppressed=False)
+            return self.exclude(has_err, not_suppressed)
         if 'unexpected' in properties:
-            return self.filter(_has_err=True, _suppressed=False)
+            return self.filter(has_err, not_suppressed)
         return self
 
     def filter_by_run_metas(self, metas, meta_types=None):

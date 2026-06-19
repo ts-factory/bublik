@@ -401,3 +401,26 @@ class DashboardNokTest(ClassificationFixtureMixin, TestCase):
         self._add_result_to_run(run, project, err=True)  # one still-unexpected
 
         self.assertEqual(self._nok_for_run(run), 1)
+
+
+class HistoryChainTest(ClassificationFixtureMixin, TestCase):
+    def test_classification_filter_chains_into_finalize(self):
+        from bublik.core.history.services import HistoryService
+        from bublik.data.managers.result import TestIterationResultQuerySet
+
+        project = self.make_project()
+        run, suppressed = self.make_result(project, err=True)
+        self.classify(suppressed, project, expected=True, issue_state='open')
+        plain = self._add_result_to_run(run, project, err=True)
+
+        qs = (
+            TestIterationResultQuerySet(model=TestIterationResult)
+            .filter(id__in=[suppressed.id, plain.id])
+            .filter_by_result_classification(['unexpected'])
+        )
+        # Real production finalize step - must not raise on the chained annotations.
+        rows = {r['id']: r['has_error'] for r in HistoryService._finalize_queryset(qs)}
+
+        # Only the unsuppressed failing result is effectively unexpected.
+        self.assertEqual(set(rows), {plain.id})
+        self.assertTrue(rows[plain.id])
