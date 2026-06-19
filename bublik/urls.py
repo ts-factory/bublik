@@ -43,6 +43,8 @@ api_v2_router.register(
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
+api_v2_router.register(r'issues', api_v2.IssueViewSet, 'issues')
+api_v2_router.register(r'issue-rules', api_v2.IssueRuleViewSet, 'issue-rules')
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet

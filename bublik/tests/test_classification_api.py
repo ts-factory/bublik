@@ -47,3 +47,60 @@ class IssueRuleSerializerTest(TestCase):
         ser.is_valid(raise_exception=True)
         rule = ser.save()
         self.assertFalse(rule.expected)
+
+
+from datetime import datetime, timezone
+
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from bublik.data.models import (
+    ResultClassification,
+    StampOrigin,
+    TestIteration,
+    TestIterationResult,
+)
+
+
+def _auth(client, project):
+    # Write actions use @check_action_permission('manage_classifications'); with no
+    # NOT_PERMISSION_REQUIRED_ACTIONS config in the test DB the action is admin-only,
+    # so authenticate as an admin via the access_token JWT cookie. roles is a scalar
+    # CharField; create_superuser already sets roles=UserRoles.ADMIN.
+    from rest_framework_simplejwt.tokens import AccessToken
+
+    from bublik.data.models import User
+
+    user = User.objects.create_superuser(email=f'a{project.id}@x.io', password='x')
+    client.cookies['access_token'] = str(AccessToken.for_user(user))
+    return user
+
+
+class IssueLifecycleApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Issue, IssueCategory, Project, Test
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        self.issue = Issue.objects.create(title='bug')
+        self.test = Test.objects.create(name='t', result_type='T')
+        self.rule = IssueRule.objects.create(
+            project=self.project, issue=self.issue, test=self.test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+        )
+
+    def test_close_issue_deactivates_rules(self):
+        url = f'/api/v2/issues/{self.issue.id}/close/?project={self.project.id}'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.issue.refresh_from_db()
+        self.rule.refresh_from_db()
+        self.assertEqual(self.issue.state, 'closed')
+        self.assertFalse(self.rule.active)
+
+    def test_deactivate_rule(self):
+        url = f'/api/v2/issue-rules/{self.rule.id}/deactivate/?project={self.project.id}'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.rule.refresh_from_db()
+        self.assertFalse(self.rule.active)
