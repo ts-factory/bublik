@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 
 from django.test import TestCase
 
-from bublik.core.run.classification import apply_active_rules
+from bublik.core.run.classification import (
+    apply_active_rules,
+    runs_for_issue,
+    runs_for_rule,
+)
 from bublik.data.models import (
     Issue,
     IssueCategory,
@@ -143,3 +147,16 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
 
         stamp = ResultClassification.objects.get(result=result)
         self.assertEqual(stamp.origin, StampOrigin.MANUAL_ONEOFF)
+
+
+class CacheTargetingTest(EngineFixtureMixin, TestCase):
+    def test_runs_for_rule_and_issue(self):
+        project = Project.objects.create(name=self._h('p'))
+        run = self.make_run(project)
+        test = Test.objects.create(name=self._h('t'), result_type='T')
+        self.add_result(run, project, test, params={'a': '1'}, verdicts=['boom'], err=True)
+        rule = self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'])
+        apply_active_rules(run)
+
+        self.assertEqual(runs_for_rule(rule), [run.id])
+        self.assertEqual(runs_for_issue(rule.issue), [run.id])

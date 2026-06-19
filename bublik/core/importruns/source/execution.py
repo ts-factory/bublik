@@ -277,6 +277,11 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
     add_tags(run, tags)
     logger.info(f'the number of added tags is {len(tags)}')
 
+    from bublik.core.run.classification import apply_active_rules
+
+    apply_active_rules(run)
+    logger.info(f'applied active classification rules to run {run.id}')
+
     call_command('run_cache', 'delete', '-i', run.id, '--logger_out', True)
 
     return run, True

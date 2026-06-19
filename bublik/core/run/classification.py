@@ -8,6 +8,8 @@ ResultClassification stamps. A rule matches the History-style way - test path
 run-level gate (all results in a run share the run's tags).
 '''
 
+from django.core.management import call_command
+
 from bublik.core.run.data import get_tags_by_runs
 from bublik.data.models import (
     IssueRule,
@@ -76,3 +78,32 @@ def apply_active_rules(run):
             )
             created += int(made)
     return created
+
+
+def runs_for_rule(rule):
+    '''Distinct run ids that have stamps for this rule.'''
+    return list(
+        ResultClassification.objects.filter(rule=rule)
+        .values_list('result__test_run_id', flat=True)
+        .distinct(),
+    )
+
+
+def runs_for_issue(issue):
+    '''Distinct run ids that have stamps for any of this issue's rules.'''
+    return list(
+        ResultClassification.objects.filter(rule__issue=issue)
+        .values_list('result__test_run_id', flat=True)
+        .distinct(),
+    )
+
+
+def invalidate_run_stats(run_ids):
+    '''Drop cached run stats for the given runs so suppression changes show.'''
+    run_ids = [r for r in run_ids if r is not None]
+    if not run_ids:
+        return
+    args = ['run_cache', 'delete']
+    for run_id in run_ids:
+        args += ['-i', run_id]
+    call_command(*args, '--logger_out', True)
