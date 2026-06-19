@@ -155,4 +155,13 @@ def get_verdicts(results):
 
 
 def is_result_unexpected(result):
-    return result.meta_results.filter(meta__in=Meta.objects.filter(type='err')).exists()
+    has_err = result.meta_results.filter(meta__type='err').exists()
+    if not has_err:
+        return False
+    # Effectively expected: stamped by a rule that is `expected` and whose
+    # issue is still open. Such results no longer count as unexpected.
+    suppressed = result.classifications.filter(
+        rule__expected=True,
+        rule__issue__state='open',
+    ).exists()
+    return not suppressed

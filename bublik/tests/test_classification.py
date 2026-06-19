@@ -130,3 +130,36 @@ class FixtureSmokeTest(ClassificationFixtureMixin, TestCase):
         _run, result = self.make_result(project, err=True)
         self.classify(result, project, expected=True)
         self.assertEqual(result.classifications.count(), 1)
+
+
+from bublik.core.run.data import is_result_unexpected
+
+
+class IsResultUnexpectedTest(ClassificationFixtureMixin, TestCase):
+    def test_err_without_stamp_is_unexpected(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.assertTrue(is_result_unexpected(result))
+
+    def test_no_err_is_not_unexpected(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=False)
+        self.assertFalse(is_result_unexpected(result))
+
+    def test_expected_open_issue_suppresses(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.classify(result, project, expected=True, issue_state='open')
+        self.assertFalse(is_result_unexpected(result))
+
+    def test_not_expected_rule_does_not_suppress(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.classify(result, project, expected=False, issue_state='open')
+        self.assertTrue(is_result_unexpected(result))
+
+    def test_closed_issue_does_not_suppress(self):
+        project = self.make_project()
+        _run, result = self.make_result(project, err=True)
+        self.classify(result, project, expected=True, issue_state='closed')
+        self.assertTrue(is_result_unexpected(result))
