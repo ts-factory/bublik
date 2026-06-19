@@ -45,6 +45,11 @@ api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
 api_v2_router.register(r'issues', api_v2.IssueViewSet, 'issues')
 api_v2_router.register(r'issue-rules', api_v2.IssueRuleViewSet, 'issue-rules')
+api_v2_router.register(
+    r'results/(?P<result_id>[0-9]+)/classify',
+    api_v2.ResultClassifyViewSet,
+    basename='results_classify',
+)
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet

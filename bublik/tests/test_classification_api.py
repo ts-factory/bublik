@@ -104,3 +104,53 @@ class IssueLifecycleApiTest(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.rule.refresh_from_db()
         self.assertFalse(self.rule.active)
+
+
+class ClassifyApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Meta, MetaResult, Project, Test, TestArgument
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        run = TestIterationResult.objects.create(
+            iteration=None, test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        test = Test.objects.create(name='t', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        iteration.test_arguments.add(arg)
+        self.result = TestIterationResult.objects.create(
+            iteration=iteration, test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        m = Meta.objects.create(type='verdict', value='boom', hash='vh')
+        MetaResult.objects.create(result=self.result, meta=m, serial=0)
+
+    def test_classify_creates_issue_rule_and_stamp(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(url, {
+            'issue': {'title': 'flaky thing'},
+            'category': 'known-issue',
+            'scope': 'future',
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertEqual(stamp.origin, StampOrigin.MANUAL_APPLY)  # scope=future
+        self.assertTrue(stamp.rule.active)  # scope=future -> active rule
+        self.assertEqual(stamp.rule.category, 'known-issue')
+        self.assertTrue(stamp.rule.expected)  # default for known-issue
+        # matcher prefilled from the result
+        self.assertEqual(stamp.rule.parameters, {'a': '1'})
+        self.assertEqual(set(stamp.rule.verdicts), {'boom'})
+
+    def test_classify_oneoff_is_inactive_rule(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(url, {
+            'issue': {'title': 'one off'}, 'category': 'product-defect', 'scope': 'oneoff',
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertFalse(stamp.rule.active)
+        self.assertEqual(stamp.origin, StampOrigin.MANUAL_ONEOFF)

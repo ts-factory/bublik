@@ -12,7 +12,7 @@ from .auth import (
     RefreshTokenView,
     RegisterView,
 )
-from .classification import IssueRuleViewSet, IssueViewSet
+from .classification import IssueRuleViewSet, IssueViewSet, ResultClassifyViewSet
 from .comments import TestCommentViewSet
 from .config.views import ConfigViewSet
 from .dashboard import (
@@ -63,6 +63,7 @@ __all__ = [
     'RefreshTokenView',
     'RegisterView',
     'ReportViewSet',
+    'ResultClassifyViewSet',
     'ResultViewSet',
     'RunViewSet',
     'ServerViewSet',
