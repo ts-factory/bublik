@@ -17,6 +17,7 @@ from .classification import (
     IssueViewSet,
     ResultClassifyViewSet,
     RunApplyRulesViewSet,
+    RunIssuesViewSet,
 )
 from .comments import TestCommentViewSet
 from .config.views import ConfigViewSet
@@ -71,6 +72,7 @@ __all__ = [
     'ResultClassifyViewSet',
     'ResultViewSet',
     'RunApplyRulesViewSet',
+    'RunIssuesViewSet',
     'RunViewSet',
     'ServerViewSet',
     'TestCommentViewSet',

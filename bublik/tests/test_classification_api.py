@@ -206,6 +206,66 @@ class ApplyRulesApiTest(APITestCase):
         self.assertEqual(stamp.origin, StampOrigin.MANUAL_APPLY)
 
 
+class RunIssuesApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.run = TestIterationResult.objects.create(
+            iteration=None, test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        test = Test.objects.create(name='t', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        iteration.test_arguments.add(arg)
+
+        # Two distinct results in the run, each with an err verdict meta.
+        self.results = []
+        for i in range(2):
+            result = TestIterationResult.objects.create(
+                iteration=iteration, test_run=self.run,
+                start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            )
+            m = Meta.objects.create(type='verdict', value=f'boom{i}', hash=f'vh{i}')
+            MetaResult.objects.create(result=result, meta=m, serial=0)
+            self.results.append(result)
+
+        self.issue = Issue.objects.create(title='flaky thing')
+        self.rule = IssueRule.objects.create(
+            project=self.project, issue=self.issue, test=test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+        )
+        # Stamp BOTH results under the same rule.
+        for result in self.results:
+            ResultClassification.objects.create(
+                result=result, rule=self.rule, origin=StampOrigin.MANUAL_APPLY,
+            )
+
+    def test_run_issues_summary(self):
+        url = f'/api/v2/runs/{self.run.id}/issues/?project={self.project.id}'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        # Bare list, not a paginated wrapper.
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        row = data[0]
+        self.assertEqual(row['issue_id'], self.issue.id)
+        self.assertEqual(row['title'], 'flaky thing')
+        self.assertEqual(row['result_count'], 2)
+        self.assertEqual(row['categories'][0]['category'], 'known-issue')
+        self.assertTrue(row['categories'][0]['expected'])
+
+
 class AuthGuardTest(APITestCase):
     def setUp(self):
         from bublik.data.models import Issue, IssueCategory, Project, Test

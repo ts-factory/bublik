@@ -3,6 +3,7 @@
 
 import typing
 
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -289,3 +290,46 @@ class RunApplyRulesViewSet(GenericViewSet):
         created = apply_active_rules_manual(run)
         invalidate_run_stats([run.id])
         return Response({'stamps_created': created}, status=status.HTTP_200_OK)
+
+
+class RunIssuesViewSet(GenericViewSet):
+    '''GET /runs/<run_id>/issues/ - per-issue summary of classified results in a run.'''
+
+    # Read endpoint; the global AllDjangoFilterBackend breaks on some models.
+    filter_backends: typing.ClassVar[list] = []
+
+    def list(self, request, *args, **kwargs):
+        run_id = self.kwargs['run_id']
+        base = ResultClassification.objects.filter(result__test_run_id=run_id)
+        # Distinct result count per issue (a result may be stamped by several rules).
+        counts = {
+            row['rule__issue_id']: row['c']
+            for row in base.values('rule__issue_id').annotate(c=Count('result_id', distinct=True))
+        }
+        # Issue meta + the (category, expected) pairs seen for it in this run.
+        rows: dict = {}
+        for m in base.values(
+            'rule__issue_id', 'rule__issue__title', 'rule__issue__state',
+            'rule__category', 'rule__expected',
+        ).distinct():
+            iid = m['rule__issue_id']
+            r = rows.setdefault(iid, {
+                'issue_id': iid,
+                'title': m['rule__issue__title'],
+                'state': m['rule__issue__state'],
+                'result_count': counts.get(iid, 0),
+                'categories': [],
+            })
+            r['categories'].append(
+                {'category': m['rule__category'], 'expected': m['rule__expected']},
+            )
+        # Optional external bug reference per issue.
+        keys = dict(
+            Issue.objects.filter(id__in=rows.keys())
+            .exclude(issue_ext__isnull=True)
+            .values_list('id', 'issue_ext__key'),
+        )
+        for iid, r in rows.items():
+            r['bug_key'] = keys.get(iid)
+        data = sorted(rows.values(), key=lambda x: (x['title'] or '').lower())
+        return Response(data)
