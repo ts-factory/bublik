@@ -3,7 +3,7 @@
 
 import typing
 
-from django.db.models import Count
+from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -275,6 +275,63 @@ class ResultClassifyViewSet(GenericViewSet):
     def _capture_tags(self, result):
         important_by_run, _ = get_tags_by_runs([result.test_run])
         return important_by_run.get(result.test_run_id, [])
+
+
+class IssuePickerViewSet(GenericViewSet):
+    '''GET /issues/picker/?project=<id>&search=<q> - typeahead options for the
+    classify popover. No search: top-10 recently-applied issues in the project
+    (by latest stamp). With search: title/bug-key matches. Each option carries a
+    display tag source (key, else category).'''
+
+    filter_backends: typing.ClassVar[list] = []
+
+    def list(self, request, *args, **kwargs):
+        project_id = request.query_params.get('project')
+        search = (request.query_params.get('search') or '').strip()
+
+        if search:
+            issues = list(
+                Issue.objects.filter(rules__project_id=project_id)
+                .filter(Q(title__icontains=search) | Q(issue_ext__key__icontains=search))
+                .select_related('issue_ext')
+                .distinct()
+                .order_by('title')[:20],
+            )
+        else:
+            recent = (
+                ResultClassification.objects.filter(rule__project_id=project_id)
+                .values('rule__issue_id')
+                .annotate(last_used=Max('created_at'))
+                .order_by('-last_used')[:10]
+            )
+            ids = [row['rule__issue_id'] for row in recent]
+            by_id = Issue.objects.filter(id__in=ids).select_related('issue_ext').in_bulk()
+            issues = [by_id[i] for i in ids if i in by_id]
+
+        data = []
+        for issue in issues:
+            latest = (
+                ResultClassification.objects.filter(
+                    rule__issue=issue, rule__project_id=project_id,
+                )
+                .select_related('rule')
+                .order_by('-created_at')
+                .first()
+            )
+            category = (
+                latest.rule.category
+                if latest
+                else issue.rules.filter(project_id=project_id)
+                .values_list('category', flat=True)
+                .first()
+            )
+            data.append({
+                'id': issue.id,
+                'title': issue.title,
+                'key': issue.issue_ext.key if issue.issue_ext_id else None,
+                'category': category,
+            })
+        return Response(data)
 
 
 class RunApplyRulesViewSet(GenericViewSet):

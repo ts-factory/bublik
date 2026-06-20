@@ -369,3 +369,62 @@ class AuthGuardTest(APITestCase):
     def test_unauth_delete_rule_rejected(self):
         r = self.client.delete(f'/api/v2/issue-rules/{self.rule.id}/?project={self.project.id}')
         self.assertEqual(r.status_code, 403)
+
+
+class IssuePickerApiTest(APITestCase):
+    def setUp(self):
+        from datetime import datetime, timezone
+        from bublik.data.models import (
+            Issue, IssueCategory, IssueExt, IssueRule, Project,
+            ResultClassification, StampOrigin, Test, TestIteration,
+            TestIterationResult,
+        )
+        self.project = Project.objects.create(name='pick')
+        test = Test.objects.create(name='t', result_type='T')
+
+        def stamp(issue, when):
+            it = TestIteration.objects.create(test=test, hash=f'h{issue.id}{when}')
+            res = TestIterationResult.objects.create(
+                iteration=it, test_run=None,
+                start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            )
+            rule = IssueRule.objects.create(
+                project=self.project, issue=issue, test=test,
+                category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            )
+            sc = ResultClassification.objects.create(
+                result=res, rule=rule, origin=StampOrigin.MANUAL_ONEOFF,
+            )
+            # created_at is auto_now_add; override to control recency ordering
+            ResultClassification.objects.filter(id=sc.id).update(created_at=when)
+            return rule
+
+        # issue A: older stamp, has a bug key
+        self.a = Issue.objects.create(title='Alpha bug')
+        self.a.issue_ext = IssueExt.objects.create(key='ref://JIRA/ZZZ-9')
+        self.a.save()
+        stamp(self.a, datetime(2026, 1, 1, tzinfo=timezone.utc))
+        # issue B: newer stamp, no key
+        self.b = Issue.objects.create(title='Beta bug')
+        stamp(self.b, datetime(2026, 2, 1, tzinfo=timezone.utc))
+
+    def test_recent_default_ordered_by_latest_stamp(self):
+        from rest_framework import status
+        r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        data = r.json()
+        self.assertEqual([o['id'] for o in data], [self.b.id, self.a.id])  # newest first
+        a = next(o for o in data if o['id'] == self.a.id)
+        self.assertEqual(a['key'], 'ref://JIRA/ZZZ-9')
+        self.assertEqual(a['category'], 'known-issue')
+        b = next(o for o in data if o['id'] == self.b.id)
+        self.assertIsNone(b['key'])
+        self.assertEqual(b['category'], 'known-issue')
+
+    def test_search_matches_title(self):
+        r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}&search=alph')
+        self.assertEqual([o['id'] for o in r.json()], [self.a.id])
+
+    def test_search_matches_bug_key(self):
+        r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}&search=zzz')
+        self.assertEqual([o['id'] for o in r.json()], [self.a.id])

@@ -13,6 +13,7 @@ from .auth import (
     RegisterView,
 )
 from .classification import (
+    IssuePickerViewSet,
     IssueRuleViewSet,
     IssueViewSet,
     ResultClassifyViewSet,
@@ -56,6 +57,7 @@ __all__ = [
     'HistoryViewSet',
     'ImportEventViewSet',
     'ImportrunsViewSet',
+    'IssuePickerViewSet',
     'IssueRuleViewSet',
     'IssueViewSet',
     'JobTaskExecutionViewSet',
