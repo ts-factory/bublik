@@ -333,3 +333,50 @@ class RunIssuesViewSet(GenericViewSet):
             r['bug_key'] = keys.get(iid)
         data = sorted(rows.values(), key=lambda x: (x['title'] or '').lower())
         return Response(data)
+
+
+class RunIssueResultsViewSet(GenericViewSet):
+    '''GET /runs/<run_id>/issues/<issue_id>/results/ - results in a run classified
+    under an issue, each with its run-tree package path.'''
+
+    # Read endpoint; the global AllDjangoFilterBackend breaks on some models.
+    filter_backends: typing.ClassVar[list] = []
+
+    def list(self, request, *args, **kwargs):
+        run_id = self.kwargs['run_id']
+        issue_id = self.kwargs['issue_id']
+        stamps = (
+            ResultClassification.objects.filter(
+                result__test_run_id=run_id, rule__issue_id=issue_id,
+            )
+            .select_related('result__iteration__test')
+            .distinct('result_id')
+            .order_by('result_id')
+        )
+        data = []
+        for stamp in stamps:
+            r = stamp.result
+            # Package path (top-down) from the parent_package chain.
+            path = []
+            node = r.parent_package
+            while node is not None:
+                if node.iteration_id and node.iteration.test_id:
+                    path.append(node.iteration.test.name)
+                node = node.parent_package
+            path.reverse()
+            verdicts = list(
+                r.meta_results.filter(meta__type='verdict')
+                .order_by('serial').values_list('meta__value', flat=True),
+            )
+            obtained = (
+                r.meta_results.filter(meta__type='result')
+                .values_list('meta__value', flat=True).first()
+            )
+            data.append({
+                'result_id': r.id,
+                'name': r.iteration.test.name if r.iteration_id else None,
+                'path': path,
+                'obtained_result': obtained,
+                'verdicts': verdicts,
+            })
+        return Response(data)

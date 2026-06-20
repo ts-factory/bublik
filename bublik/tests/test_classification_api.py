@@ -266,6 +266,74 @@ class RunIssuesApiTest(APITestCase):
         self.assertTrue(row['categories'][0]['expected'])
 
 
+class RunIssueResultsApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.run = TestIterationResult.objects.create(
+            iteration=None, test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+
+        # Package node (a TestIterationResult whose test is a package).
+        pkg_test = Test.objects.create(name='net', result_type='P')
+        pkg_iter = TestIteration.objects.create(test=pkg_test, hash='ph')
+        self.package = TestIterationResult.objects.create(
+            iteration=pkg_iter, test_run=self.run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+
+        # Leaf test result under the package.
+        test = Test.objects.create(name='ana_log', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        iteration.test_arguments.add(arg)
+        self.result = TestIterationResult.objects.create(
+            iteration=iteration, test_run=self.run, parent_package=self.package,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        verdict = Meta.objects.create(type='verdict', value='timeout', hash='vh')
+        MetaResult.objects.create(result=self.result, meta=verdict, serial=0)
+        status_meta = Meta.objects.create(type='result', value='FAILED', hash='rh')
+        MetaResult.objects.create(result=self.result, meta=status_meta, serial=0)
+
+        self.issue = Issue.objects.create(title='flaky thing')
+        self.rule = IssueRule.objects.create(
+            project=self.project, issue=self.issue, test=test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+        )
+        ResultClassification.objects.create(
+            result=self.result, rule=self.rule, origin=StampOrigin.MANUAL_APPLY,
+        )
+
+    def test_run_issue_results_list(self):
+        url = (
+            f'/api/v2/runs/{self.run.id}/issues/{self.issue.id}/results/'
+            f'?project={self.project.id}'
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        # Bare list, not a paginated wrapper.
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        row = data[0]
+        self.assertEqual(row['result_id'], self.result.id)
+        self.assertEqual(row['name'], 'ana_log')
+        self.assertIn('net', row['path'])
+        self.assertEqual(row['verdicts'], ['timeout'])
+        self.assertEqual(row['obtained_result'], 'FAILED')
+
+
 class AuthGuardTest(APITestCase):
     def setUp(self):
         from bublik.data.models import Issue, IssueCategory, Project, Test

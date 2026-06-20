@@ -17,6 +17,7 @@ from .classification import (
     IssueViewSet,
     ResultClassifyViewSet,
     RunApplyRulesViewSet,
+    RunIssueResultsViewSet,
     RunIssuesViewSet,
 )
 from .comments import TestCommentViewSet
@@ -72,6 +73,7 @@ __all__ = [
     'ResultClassifyViewSet',
     'ResultViewSet',
     'RunApplyRulesViewSet',
+    'RunIssueResultsViewSet',
     'RunIssuesViewSet',
     'RunViewSet',
     'ServerViewSet',

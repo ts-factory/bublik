@@ -60,6 +60,11 @@ api_v2_router.register(
     api_v2.RunIssuesViewSet,
     basename='runs_issues',
 )
+api_v2_router.register(
+    r'runs/(?P<run_id>[0-9]+)/issues/(?P<issue_id>[0-9]+)/results',
+    api_v2.RunIssueResultsViewSet,
+    basename='runs_issue_results',
+)
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet
