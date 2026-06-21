@@ -229,6 +229,7 @@ class ResultClassifyViewSet(GenericViewSet):
         active = scope == 'future'
         origin = StampOrigin.MANUAL_APPLY if active else StampOrigin.MANUAL_ONEOFF
 
+        match_all_tags = matcher.get('match_all_tags', False)
         rule = IssueRule.objects.create(
             project=project,
             issue=issue,
@@ -239,10 +240,10 @@ class ResultClassifyViewSet(GenericViewSet):
             match_parameters=matcher.get('match_parameters', True),
             match_verdicts=matcher.get('match_verdicts', True),
             match_important_tags=matcher.get('match_important_tags', True),
-            match_all_tags=matcher.get('match_all_tags', False),
+            match_all_tags=match_all_tags,
             parameters=matcher.get('parameters', _result_param_dict(result)),
             verdicts=matcher.get('verdicts', sorted(_result_verdict_set(result))),
-            tags=matcher.get('tags', self._capture_tags(result)),
+            tags=matcher.get('tags', self._capture_tags(result, all_tags=match_all_tags)),
             created_by=actor,
         )
         ResultClassification.objects.get_or_create(
@@ -272,7 +273,12 @@ class ResultClassifyViewSet(GenericViewSet):
             issue.save()
         return issue
 
-    def _capture_tags(self, result):
+    def _capture_tags(self, result, all_tags=False):
+        # all_tags=True captures important+relevant (the run's full tag set) so a
+        # match_all_tags rule gates on every tag; else important tags only.
+        if all_tags:
+            all_by_run = get_tags_by_runs([result.test_run], not_categorize=True)
+            return all_by_run.get(result.test_run_id, [])
         important_by_run, _ = get_tags_by_runs([result.test_run])
         return important_by_run.get(result.test_run_id, [])
 

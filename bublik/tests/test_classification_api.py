@@ -155,6 +155,33 @@ class ClassifyApiTest(APITestCase):
         self.assertFalse(stamp.rule.active)
         self.assertEqual(stamp.origin, StampOrigin.MANUAL_ONEOFF)
 
+    def test_classify_honors_non_default_matcher(self):
+        from unittest.mock import patch
+
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        with patch(
+            'bublik.interfaces.api_v2.classification.get_tags_by_runs',
+        ) as gt:
+            gt.return_value = {self.result.test_run_id: ['imp', 'rel']}
+            resp = self.client.post(url, {
+                'issue': {'title': 'x'},
+                'category': 'known-issue',
+                'scope': 'future',
+                'matcher': {
+                    'match_parameters': True,
+                    'match_verdicts': False,
+                    'match_important_tags': False,
+                    'match_all_tags': True,
+                },
+            }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertTrue(stamp.rule.match_parameters)
+        self.assertFalse(stamp.rule.match_verdicts)
+        self.assertFalse(stamp.rule.match_important_tags)
+        self.assertTrue(stamp.rule.match_all_tags)
+        self.assertEqual(set(stamp.rule.tags), {'imp', 'rel'})
+
     def test_classify_rejects_bad_category(self):
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
         resp = self.client.post(
@@ -428,3 +455,46 @@ class IssuePickerApiTest(APITestCase):
     def test_search_matches_bug_key(self):
         r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}&search=zzz')
         self.assertEqual([o['id'] for o in r.json()], [self.a.id])
+
+
+from unittest.mock import patch
+
+from bublik.interfaces.api_v2.classification import ResultClassifyViewSet
+
+
+class CaptureTagsTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Project
+
+        self.project = Project.objects.create(name='p')
+        run = TestIterationResult.objects.create(
+            iteration=None, test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+        self.result = TestIterationResult.objects.create(
+            iteration=None, test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+        )
+
+    def test_important_only_by_default(self):
+        view = ResultClassifyViewSet()
+        with patch(
+            'bublik.interfaces.api_v2.classification.get_tags_by_runs',
+        ) as gt:
+            gt.return_value = (
+                {self.result.test_run_id: ['imp']},
+                {self.result.test_run_id: ['rel']},
+            )
+            tags = view._capture_tags(self.result, all_tags=False)
+        self.assertEqual(tags, ['imp'])
+
+    def test_all_tags_includes_relevant(self):
+        view = ResultClassifyViewSet()
+        with patch(
+            'bublik.interfaces.api_v2.classification.get_tags_by_runs',
+        ) as gt:
+            gt.return_value = {self.result.test_run_id: ['imp', 'rel']}
+            tags = view._capture_tags(self.result, all_tags=True)
+        self.assertEqual(set(tags), {'imp', 'rel'})
+        gt.assert_called_once()
+        self.assertTrue(gt.call_args.kwargs.get('not_categorize'))
