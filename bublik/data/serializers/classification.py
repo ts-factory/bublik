@@ -37,11 +37,13 @@ class IssueSerializer(ModelSerializer):
 
 class IssueRuleSerializer(ModelSerializer):
     expected = serializers.BooleanField(required=False)
+    test_name = serializers.CharField(source='test.name', read_only=True)
 
     class Meta:
         model = IssueRule
         fields = (
             'id', 'project', 'issue', 'category', 'expected', 'active', 'test',
+            'test_name',
             'match_parameters', 'match_verdicts', 'match_important_tags',
             'match_all_tags', 'parameters', 'verdicts', 'tags',
             'created_by', 'created_at', 'updated_by', 'updated_at',

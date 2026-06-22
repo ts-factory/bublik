@@ -498,3 +498,73 @@ class CaptureTagsTest(APITestCase):
         self.assertEqual(set(tags), {'imp', 'rel'})
         gt.assert_called_once()
         self.assertTrue(gt.call_args.kwargs.get('not_categorize'))
+
+
+class IssueRuleResultsApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue, IssueCategory, Meta, MetaResult, Project, Test, TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        self.issue = Issue.objects.create(title='bug')
+        self.test = Test.objects.create(name='t', result_type='T')
+
+        def make_run(day):
+            return TestIterationResult.objects.create(
+                iteration=None, test_run=None,
+                start=datetime(2026, 1, day, tzinfo=timezone.utc), project=self.project,
+            )
+
+        def make_result(run, day):
+            iteration = TestIteration.objects.create(test=self.test, hash=f'h{day}')
+            arg, _ = TestArgument.objects.get_or_create(
+                name='a', value='1', defaults={'hash': 'ah'},
+            )
+            iteration.test_arguments.add(arg)
+            r = TestIterationResult.objects.create(
+                iteration=iteration, test_run=run,
+                start=datetime(2026, 1, day, tzinfo=timezone.utc), project=self.project,
+            )
+            m = Meta.objects.create(type='verdict', value=f'boom{day}', hash=f'vh{day}')
+            MetaResult.objects.create(result=r, meta=m, serial=0)
+            return r
+
+        self.rule = IssueRule.objects.create(
+            project=self.project, issue=self.issue, test=self.test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+        )
+        old_run, new_run = make_run(1), make_run(5)
+        self.old_result = make_result(old_run, 1)
+        self.new_result = make_result(new_run, 5)
+        for r in (self.old_result, self.new_result):
+            ResultClassification.objects.create(result=r, rule=self.rule, origin='manual_apply')
+
+        self.other_rule = IssueRule.objects.create(
+            project=self.project, issue=self.issue, test=self.test,
+            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+        )
+        other_result = make_result(make_run(9), 9)
+        ResultClassification.objects.create(
+            result=other_result, rule=self.other_rule, origin='manual_apply',
+        )
+
+    def test_results_newest_run_first_and_scoped_to_rule(self):
+        url = f'/api/v2/issue-rules/{self.rule.id}/results/?project={self.project.id}'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        ids = [row['result_id'] for row in data]
+        self.assertEqual(ids, [self.new_result.id, self.old_result.id])
+        self.assertEqual(data[0]['run_id'], self.new_result.test_run_id)
+        self.assertIn('run_start', data[0])
+        self.assertIn('verdicts', data[0])
+
+    def test_results_respects_limit(self):
+        url = f'/api/v2/issue-rules/{self.rule.id}/results/?project={self.project.id}&limit=1'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['result_id'], self.new_result.id)

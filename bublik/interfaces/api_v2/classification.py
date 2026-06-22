@@ -188,6 +188,50 @@ class IssueRuleViewSet(ModelViewSet):
         invalidate_run_stats(runs_for_rule(rule))
         return Response(IssueRuleSerializer(rule).data)
 
+    @action(detail=True, methods=['get'])
+    def results(self, request, *args, **kwargs):
+        rule = self.get_object()
+        try:
+            limit = int(request.query_params.get('limit', 20))
+        except (TypeError, ValueError):
+            limit = 20
+        limit = max(1, min(limit, 100))
+        # unique(result, rule) -> each result appears once for a rule, so no
+        # distinct needed; order newest run first.
+        stamps = (
+            ResultClassification.objects.filter(rule=rule)
+            .select_related('result__iteration__test', 'result__test_run')
+            .order_by('-result__test_run__start', '-result_id')[:limit]
+        )
+        data = []
+        for stamp in stamps:
+            r = stamp.result
+            path = []
+            node = r.parent_package
+            while node is not None:
+                if node.iteration_id and node.iteration.test_id:
+                    path.append(node.iteration.test.name)
+                node = node.parent_package
+            path.reverse()
+            verdicts = list(
+                r.meta_results.filter(meta__type='verdict')
+                .order_by('serial').values_list('meta__value', flat=True),
+            )
+            obtained = (
+                r.meta_results.filter(meta__type='result')
+                .values_list('meta__value', flat=True).first()
+            )
+            data.append({
+                'result_id': r.id,
+                'run_id': r.test_run_id,
+                'run_start': r.test_run.start if r.test_run_id else None,
+                'name': r.iteration.test.name if r.iteration_id else None,
+                'path': path,
+                'obtained_result': obtained,
+                'verdicts': verdicts,
+            })
+        return Response(data)
+
 
 class ResultClassifyViewSet(GenericViewSet):
     '''POST /results/<result_id>/classify/?project=<id>
