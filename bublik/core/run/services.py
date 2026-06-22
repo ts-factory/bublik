@@ -526,7 +526,7 @@ class RunService:
         )
 
     @staticmethod
-    def get_nok_distribution(run_id: int) -> dict:
+    def get_nok_distribution(run_id: int) -> list[bool]:
         """
         Get NOK (failure) distribution for a run.
 
@@ -534,10 +534,10 @@ class RunService:
             run_id: The ID of the test run
 
         Returns:
-            Dictionary with NOK distribution data
+            List of per-iteration NOK flags
         """
         run = RunService.get_run(run_id)
-        return get_nok_results_distribution(run)
+        return list(get_nok_results_distribution(run))
 
     @staticmethod
     def get_run_comment(run_id: int) -> str | None:
