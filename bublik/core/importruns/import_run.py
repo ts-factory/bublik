@@ -10,11 +10,14 @@ import shutil
 import tempfile
 
 from django.core.management import call_command
+import jsonschema
+from jsonschema import validate
 
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import (
     ImportrunsError,
+    InvalidImportDataError,
     RunAlreadyExistsError,
     RunOutsidePeriodError,
 )
@@ -29,6 +32,7 @@ from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import save_url_to_dir
 from bublik.core.utils import create_event, get_import_job_task
 from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, Project
+from bublik.data.schemas.services import load_schema
 
 
 def with_import_events(func):
@@ -147,6 +151,20 @@ def import_run(
         else:
             json_data = None
             logger.warning('no logs were downloaded')
+
+        # Validate JSON log
+        run_log_schema = load_schema('run_log')
+        if run_log_schema:
+            try:
+                validate(instance=json_data, schema=run_log_schema)
+            except jsonschema.exceptions.ValidationError as jeve:
+                raise InvalidImportDataError(
+                    message='invalid run log format',
+                    debug_details=[
+                        jeve.message,
+                    ],
+                ) from None
+            logger.info('run logs format is valid')
 
         if meta_data_saved:
             # Load meta_data.json

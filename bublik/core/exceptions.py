@@ -93,6 +93,13 @@ class RunCompromisedError(ImportrunsError):
         super().__init__(message, debug_details)
 
 
+class InvalidImportDataError(ImportrunsError):
+    def __init__(self, message='invalid import data', debug_details=None):
+        if debug_details is None:
+            debug_details = []
+        super().__init__(message, debug_details)
+
+
 class SanityError(BublikServerError):
     pass
 
