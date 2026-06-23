@@ -604,3 +604,24 @@ class IssueRuleResultsApiTest(APITestCase):
         data = resp.json()
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]['result_id'], self.new_result.id)
+
+    def test_issue_results_union_across_rules_newest_first(self):
+        # Issue results span both rules: other_result(run day 9) is newest,
+        # then new_result(day 5), then old_result(day 1).
+        url = f'/api/v2/issues/{self.issue.id}/results/?project={self.project.id}'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        ids = [row['result_id'] for row in data]
+        self.assertEqual(len(ids), 3)
+        # newest run (other_rule's day-9 result) leads, then day-5, then day-1
+        self.assertNotIn(ids[0], (self.new_result.id, self.old_result.id))
+        self.assertEqual(ids[1], self.new_result.id)
+        self.assertEqual(ids[2], self.old_result.id)
+        self.assertIn('category', data[0])
+
+    def test_issue_results_respects_limit(self):
+        url = f'/api/v2/issues/{self.issue.id}/results/?project={self.project.id}&limit=2'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        self.assertEqual(len(resp.json()), 2)

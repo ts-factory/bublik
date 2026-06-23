@@ -41,6 +41,50 @@ def _actor(request):
     return get_user_by_access_token(request.COOKIES.get('access_token'))
 
 
+def _clamp_limit(request, default=20, maximum=100):
+    try:
+        limit = int(request.query_params.get('limit', default))
+    except (TypeError, ValueError):
+        limit = default
+    return max(1, min(limit, maximum))
+
+
+def _serialize_classified_result(stamp):
+    '''Flatten a ResultClassification stamp into a result row.
+
+    Includes the matching rule's category/expected so callers that aggregate
+    across rules (per-issue view) can show which rule classified each result.
+    '''
+    r = stamp.result
+    path = []
+    node = r.parent_package
+    while node is not None:
+        if node.iteration_id and node.iteration.test_id:
+            path.append(node.iteration.test.name)
+        node = node.parent_package
+    path.reverse()
+    verdicts = list(
+        r.meta_results.filter(meta__type='verdict')
+        .order_by('serial').values_list('meta__value', flat=True),
+    )
+    obtained = (
+        r.meta_results.filter(meta__type='result')
+        .values_list('meta__value', flat=True).first()
+    )
+    return {
+        'result_id': r.id,
+        'run_id': r.test_run_id,
+        'run_start': r.test_run.start if r.test_run_id else None,
+        'name': r.iteration.test.name if r.iteration_id else None,
+        'path': path,
+        'obtained_result': obtained,
+        'verdicts': verdicts,
+        'rule_id': stamp.rule_id,
+        'category': stamp.rule.category,
+        'expected': stamp.rule.expected,
+    }
+
+
 class IssueViewSet(ModelViewSet):
     serializer_class = IssueSerializer
     queryset = Issue.objects.all().order_by('-created_at')
@@ -121,6 +165,37 @@ class IssueViewSet(ModelViewSet):
         invalidate_run_stats(runs_for_issue(issue))
         return Response(IssueSerializer(issue).data)
 
+    @action(detail=True, methods=['get'])
+    def results(self, request, *args, **kwargs):
+        '''All results classified under this issue, across its rules.
+
+        An issue spans multiple rules/tests, so this unions every rule's
+        stamps into one newest-run-first list. Scoped to a project when given,
+        since rules are per-project.
+        '''
+        issue = self.get_object()
+        limit = _clamp_limit(request)
+        stamps = ResultClassification.objects.filter(rule__issue=issue)
+        project = request.query_params.get('project')
+        if project:
+            stamps = stamps.filter(rule__project_id=project)
+        # unique(result, rule); a result could carry stamps from two of this
+        # issue's rules, so de-dupe by result keeping the newest run.
+        stamps = (
+            stamps.select_related('rule', 'result__iteration__test', 'result__test_run')
+            .order_by('-result__test_run__start', '-result_id')
+        )
+        rows = []
+        seen = set()
+        for stamp in stamps:
+            if stamp.result_id in seen:
+                continue
+            seen.add(stamp.result_id)
+            rows.append(_serialize_classified_result(stamp))
+            if len(rows) >= limit:
+                break
+        return Response(rows)
+
 
 class IssueRuleViewSet(ModelViewSet):
     serializer_class = IssueRuleSerializer
@@ -191,46 +266,15 @@ class IssueRuleViewSet(ModelViewSet):
     @action(detail=True, methods=['get'])
     def results(self, request, *args, **kwargs):
         rule = self.get_object()
-        try:
-            limit = int(request.query_params.get('limit', 20))
-        except (TypeError, ValueError):
-            limit = 20
-        limit = max(1, min(limit, 100))
+        limit = _clamp_limit(request)
         # unique(result, rule) -> each result appears once for a rule, so no
         # distinct needed; order newest run first.
         stamps = (
             ResultClassification.objects.filter(rule=rule)
-            .select_related('result__iteration__test', 'result__test_run')
+            .select_related('rule', 'result__iteration__test', 'result__test_run')
             .order_by('-result__test_run__start', '-result_id')[:limit]
         )
-        data = []
-        for stamp in stamps:
-            r = stamp.result
-            path = []
-            node = r.parent_package
-            while node is not None:
-                if node.iteration_id and node.iteration.test_id:
-                    path.append(node.iteration.test.name)
-                node = node.parent_package
-            path.reverse()
-            verdicts = list(
-                r.meta_results.filter(meta__type='verdict')
-                .order_by('serial').values_list('meta__value', flat=True),
-            )
-            obtained = (
-                r.meta_results.filter(meta__type='result')
-                .values_list('meta__value', flat=True).first()
-            )
-            data.append({
-                'result_id': r.id,
-                'run_id': r.test_run_id,
-                'run_start': r.test_run.start if r.test_run_id else None,
-                'name': r.iteration.test.name if r.iteration_id else None,
-                'path': path,
-                'obtained_result': obtained,
-                'verdicts': verdicts,
-            })
-        return Response(data)
+        return Response([_serialize_classified_result(s) for s in stamps])
 
 
 class ResultClassifyViewSet(GenericViewSet):
