@@ -1,0 +1,864 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/ts-factory/bublik/run_log.schema.json",
+    "type": ["object", "null"],
+    "description": "Full run log schema. Includes iterations, plan, and MI (measurement) logs. Root may be null.",
+    "properties": {
+        "plan": {
+            "$ref": "#/definitions/planItem",
+            "description": "Optional execution plan tree. Used for calculating expected items and test execution percentages."
+        },
+        "iters": {
+            "type": "array",
+            "description": "Root iteration list. Each item is recursive.",
+            "items": {
+                "$ref": "#/definitions/iteration"
+            }
+        },
+        "tags": {
+            "type": "object",
+            "description": "Optional run-level tags (key-value pairs). A null value means the tag is present but carries no associated value.",
+            "additionalProperties": {
+                "type": ["string", "null"]
+            },
+            "examples": [
+                {
+                    "linux-mm": "608",
+                    "i40e": null,
+                    "pci-8086": null,
+                    "pci-sub-8086-0008": null,
+                    "port-DA": null
+                }
+            ]
+        },
+        "start_ts": {
+            "type": "string",
+            "description": "Run-level start timestamp in the local run timezone, format 'YYYY.MM.DD HH:MM:SS.fff' (e.g. '2025.01.12 21:39:12.172').",
+            "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}$"
+        },
+        "start_ts_utc": {
+            "type": "number",
+            "description": "Run-level start timestamp as a Unix timestamp (numeric, UTC)."
+        },
+        "end_ts": {
+            "type": "string",
+            "description": "Run-level finish timestamp in the local run timezone, format 'YYYY.MM.DD HH:MM:SS.fff' (e.g. '2025.01.12 21:39:12.172').",
+            "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}$"
+        },
+        "end_ts_utc": {
+            "type": "number",
+            "description": "Run-level finish timestamp as a Unix timestamp (numeric, UTC)."
+        }
+    },
+    "additionalProperties": false,
+    "required": ["iters"],
+    "definitions": {
+        "planItem": {
+            "type": "object",
+            "title": "Plan Item",
+            "description": "Execution plan node used for calculating expected test counts and test execution percentages.",
+            "$comment": "Traversal order for plan_id assignment: prologue first, then children in listed order, then epilogue last.",
+            "examples": [
+                {
+                    "type": "pkg",
+                    "name": "rss",
+                    "objective": "RSS tests",
+                    "authors": [
+                        {
+                            "name": null,
+                            "email": "Natalia.Rybchenko@tsfactory.com"
+                        }
+                    ],
+                    "children": [
+                        {
+                            "type": "session",
+                            "name": "rss_session",
+                            "prologue": {
+                                "type": "test",
+                                "name": "prologue"
+                            },
+                            "epilogue": {
+                                "type": "test",
+                                "name": "epilogue"
+                            },
+                            "children": [
+                                {
+                                    "type": "test",
+                                    "name": "hash_key_get",
+                                    "iterations": 4
+                                },
+                                {
+                                    "type": "test",
+                                    "name": "rx_rule_tcp_udp",
+                                    "iterations": 48
+                                }
+                            ]
+                        },
+                        {
+                            "type": "test",
+                            "name": "serialno"
+                        }
+                    ]
+                }
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["test", "session", "pkg", "skipped"],
+                    "description": "Node type. 'skipped' excludes the node from the plan tree at build time."
+                },
+                "objective": {
+                    "type": ["string", "null"],
+                    "description": "Node objective (optional)."
+                },
+                "authors": {
+                    "type": "array",
+                    "description": "Node authors (optional).",
+                    "items": {
+                        "$ref": "#/definitions/author"
+                    }
+                },
+                "prologue": {
+                    "$ref": "#/definitions/planItem"
+                },
+                "epilogue": {
+                    "$ref": "#/definitions/planItem"
+                },
+                "keepalive": {
+                    "$ref": "#/definitions/planItem"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/planItem"
+                    }
+                },
+                "iterations": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of times to repeat this node."
+                }
+            },
+            "required": ["name", "type"],
+            "additionalProperties": false
+        },
+        "author": {
+            "type": "object",
+            "title": "Author",
+            "description": "Author entry attached to a plan node.",
+            "properties": {
+                "name": {
+                    "type": ["string", "null"]
+                },
+                "email": {
+                    "type": "string"
+                }
+            },
+            "required": ["name", "email"],
+            "additionalProperties": false
+        },
+        "iteration": {
+            "type": "object",
+            "title": "Iteration",
+            "description": "Recursive iteration node representing test/session/pkg execution.",
+            "examples": [
+                {
+                    "name": "tx_burst_simple",
+                    "type": "test",
+                    "params": {
+                        "env": "VAR.env.peer2peer",
+                        "tmpl": "VAR.tmpl.iut2tst.eth",
+                        "payload_len": "512",
+                        "nb_pkts": "1"
+                    },
+                    "hash": "23422608f6424b199f2e76bfd58b2fb5",
+                    "start_ts": "2026.01.13 06:37:55.051",
+                    "start_ts_utc": 1768286275.051023,
+                    "end_ts": "2026.01.13 06:37:57.594",
+                    "end_ts_utc": 1768286277.59484,
+                    "tin": 0,
+                    "test_id": 4,
+                    "plan_id": 3,
+                    "objective": "Transmit packets using tmpl from the TX queue",
+                    "reqs": [],
+                    "err": "",
+                    "obtained": {
+                        "result": {
+                            "status": "PASSED"
+                        }
+                    },
+                    "path": ["dpdk-ethdev-ts", "usecases", "tx_burst_simple"],
+                    "path_str": "dpdk-ethdev-ts/usecases/tx_burst_simple",
+                    "iters": []
+                },
+                {
+                    "name": "usecases",
+                    "type": "pkg",
+                    "params": {},
+                    "hash": "",
+                    "start_ts": "2026.01.13 06:37:55.049",
+                    "start_ts_utc": 1768286275.049278,
+                    "end_ts": "2026.01.13 07:07:26.114",
+                    "end_ts_utc": 1768288046.11474,
+                    "tin": -1,
+                    "test_id": 3,
+                    "plan_id": 2,
+                    "objective": "Main use cases of the PMD",
+                    "reqs": [],
+                    "err": "Internal error",
+                    "obtained": {
+                        "result": {
+                            "status": "FAILED",
+                            "verdicts": ["Internal error"]
+                        }
+                    },
+                    "expected": {
+                        "results": [
+                            {
+                                "status": "PASSED"
+                            }
+                        ]
+                    },
+                    "path": ["dpdk-ethdev-ts", "usecases"],
+                    "path_str": "dpdk-ethdev-ts/usecases",
+                    "iters": []
+                },
+                {
+                    "name": "ethtool_reset_nic",
+                    "type": "test",
+                    "params": {
+                        "env": "VAR.env.peer2peer",
+                        "flag": "none",
+                        "sock_type": "SOCK_STREAM",
+                        "if_down": "FALSE"
+                    },
+                    "hash": "c8db82badaf1e09f1522ac54e0827aa7",
+                    "start_ts": "2025.12.21 00:29:29.810",
+                    "start_ts_utc": 1766276969.810826,
+                    "end_ts": "2025.12.21 00:29:34.895",
+                    "end_ts_utc": 1766276974.895491,
+                    "tin": 9,
+                    "test_id": 13,
+                    "plan_id": 12,
+                    "objective": "Check what happens when NIC is reset with SIOCETHTOOL.",
+                    "reqs": ["RESET", "X3-ST10", "X3-ET019", "X3-ET020", "IP4", "SOCK_STREAM"],
+                    "err": "",
+                    "obtained": {
+                        "result": {
+                            "status": "SKIPPED",
+                            "verdicts": ["ETHTOOL_RESET is not supported"]
+                        },
+                        "key": "NO-ETHTOOL-RESET",
+                        "notes": "intel/i40e does not support reset via ethtool",
+                        "tag_expression": "i40e"
+                    },
+                    "path": ["net-drv-ts", "basic", "ethtool_reset_nic"],
+                    "path_str": "net-drv-ts/basic/ethtool_reset_nic",
+                    "iters": []
+                }
+            ],
+            "properties": {
+                "name": {
+                    "type": ["string", "null"],
+                    "description": "Test name. If null and type=session, will be replaced with 'session' during import."
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["test", "session", "pkg"],
+                    "description": "Entity type."
+                },
+                "params": {
+                    "type": "object",
+                    "description": "Test parameters used to create TestIteration.",
+                    "additionalProperties": {
+                        "type": ["string", "number", "boolean", "null"]
+                    }
+                },
+                "hash": {
+                    "type": "string",
+                    "description": "Iteration hash. Non-empty MD5 hex digest for test nodes; empty string for session/pkg nodes.",
+                    "$comment": "MD5 hex digest of params: sort args by name, normalise values (collapse whitespace, trim), hash 'name value' pairs in that order. Canonical TE hash, used for TRC matching - must be reproduced exactly."
+                },
+                "start_ts": {
+                    "type": "string",
+                    "description": "Start timestamp in the local run timezone, format 'YYYY.MM.DD HH:MM:SS.fff' (e.g. '2025.01.12 21:39:12.172').",
+                    "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}$"
+                },
+                "start_ts_utc": {
+                    "type": "number",
+                    "description": "Start timestamp as a Unix timestamp (numeric, UTC). Takes precedence over start_ts when both are present."
+                },
+                "end_ts": {
+                    "type": "string",
+                    "description": "Finish timestamp in the local run timezone, format 'YYYY.MM.DD HH:MM:SS.fff' (e.g. '2025.01.12 21:39:12.172').",
+                    "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}$"
+                },
+                "end_ts_utc": {
+                    "type": "number",
+                    "description": "Finish timestamp as a Unix timestamp (numeric, UTC). Takes precedence over end_ts when both are present."
+                },
+                "tin": {
+                    "type": ["integer", "string"],
+                    "description": "Test iteration number."
+                },
+                "test_id": {
+                    "type": ["integer", "string"],
+                    "description": "Execution sequence number.",
+                    "$comment": "Sequential within the run: starts at 1, no gaps, no reuse."
+                },
+                "plan_id": {
+                    "type": "integer",
+                    "description": "Plan node ID. Links iteration to a node in the plan tree.",
+                    "$comment": "Present only when a plan is provided; absent in older logs without one. Assigned based on the per-node iteration counts declared in the plan."
+                },
+                "objective": {
+                    "type": ["string", "null"],
+                    "description": "Test objective."
+                },
+                "reqs": {
+                    "type": "array",
+                    "description": "List of requirement identifiers.",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "err": {
+                    "type": ["string", "null"],
+                    "description": "Error message string."
+                },
+                "obtained": {
+                    "$ref": "#/definitions/obtained",
+                    "description": "Actual execution result."
+                },
+                "expected": {
+                    "$ref": "#/definitions/expected",
+                    "description": "Expected result definition (optional). When absent, the obtained result is used as the expectation."
+                },
+                "measurements": {
+                    "type": "array",
+                    "description": "Parsed MI log objects - NOT raw strings (optional).",
+                    "items": {
+                        "$ref": "#/definitions/miArtifact"
+                    }
+                },
+                "path": {
+                    "type": "array",
+                    "description": "List of node names forming the path to this node, including the node itself (optional).",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "path_str": {
+                    "type": "string",
+                    "description": "Path to this node as a single string, names joined with '/', including the node itself (optional)."
+                },
+                "iters": {
+                    "type": "array",
+                    "description": "Child iterations (empty list for leaf nodes).",
+                    "items": {
+                        "$ref": "#/definitions/iteration"
+                    }
+                }
+            },
+            "required": ["name", "type", "params", "hash", "tin", "test_id", "objective", "reqs", "err", "obtained", "iters"],
+            "allOf": [
+                {
+                    "anyOf": [
+                        {
+                            "required": ["start_ts"]
+                        },
+                        {
+                            "required": ["start_ts_utc"]
+                        }
+                    ]
+                },
+                {
+                    "anyOf": [
+                        {
+                            "required": ["end_ts"]
+                        },
+                        {
+                            "required": ["end_ts_utc"]
+                        }
+                    ]
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "test"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "hash": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "hash": {
+                                "const": ""
+                            }
+                        }
+                    }
+                }
+            ],
+            "additionalProperties": false
+        },
+        "obtained": {
+            "type": "object",
+            "title": "Obtained",
+            "description": "Actual execution result wrapper.",
+            "examples": [
+                {
+                    "result": {
+                        "status": "PASSED"
+                    }
+                },
+                {
+                    "result": {
+                        "status": "FAILED",
+                        "verdicts": ["Failed to process ethtool command"]
+                    }
+                },
+                {
+                    "result": {
+                        "status": "PASSED",
+                        "artifacts": ["Server throughput: 9390.00 Mbps", "Client throughput: 9400.00 Mbps"]
+                    }
+                },
+                {
+                    "result": {
+                        "status": "SKIPPED",
+                        "verdicts": ["ETHTOOL_RESET is not supported"]
+                    },
+                    "key": "NO-ETHTOOL-RESET",
+                    "notes": "intel/i40e does not support reset via ethtool",
+                    "tag_expression": "i40e"
+                }
+            ],
+            "properties": {
+                "result": {
+                    "$ref": "#/definitions/obtainedResult"
+                },
+                "tag_expression": {
+                    "type": "string",
+                    "description": "Tag expression string (optional). Used when building the expected result from obtained data."
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Top-level key for the obtained result (optional). Used when building the expected result from obtained data in absence of an explicit expected block."
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Top-level notes for the obtained result (optional). Used when building the expected result from obtained data in absence of an explicit expected block."
+                }
+            },
+            "required": ["result"],
+            "additionalProperties": false
+        },
+        "obtainedResult": {
+            "type": "object",
+            "title": "Obtained Result",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE"],
+                    "description": "Result status.",
+                    "$comment": "For session/pkg nodes, status is the highest-priority status among descendants, by fixed priority order."
+                },
+                "verdicts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "artifacts": {
+                    "type": "array",
+                    "description": "Artifact strings attached to this result (optional).",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Result key (optional)."
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Result notes (optional)."
+                }
+            },
+            "required": ["status"],
+            "additionalProperties": false
+        },
+        "expected": {
+            "type": "object",
+            "title": "Expected",
+            "description": "Expected result block. When present, its results list is used instead of the obtained result for expectation matching.",
+            "examples": [
+                {
+                    "results": [
+                        {
+                            "status": "PASSED"
+                        }
+                    ]
+                },
+                {
+                    "results": [
+                        {
+                            "status": "PASSED",
+                            "verdicts": ["Current ring sizes RX: 512, TX: 512", "Preset maximums RX: 4096, TX: 4096"]
+                        }
+                    ],
+                    "tag_expression": "i40e"
+                },
+                {
+                    "results": [
+                        {
+                            "status": "PASSED",
+                            "verdicts": ["Sending to a VLAN when no VLANs added: CSAP on IUT captured the packet", "Sending to a VLAN when all VLANs removed: CSAP on IUT captured the packet"]
+                        }
+                    ],
+                    "key": "RX-VLAN-FILTER-NO-VLANS",
+                    "notes": "VLAN filtering is disabled when no VLANs added on i40e",
+                    "tag_expression": "i40e"
+                }
+            ],
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "description": "Top-level expectation key (optional)."
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Top-level expectation notes (optional)."
+                },
+                "tag_expression": {
+                    "type": "string",
+                    "description": "Tag expression for the expectation that TRC selected, among the alternatives applicable to this iteration, based on the current run's tags (optional)."
+                },
+                "results": {
+                    "type": "array",
+                    "description": "List of acceptable expected results. The iteration's obtained result is considered expected if it matches any one of these.",
+                    "items": {
+                        "$ref": "#/definitions/expectedResult"
+                    }
+                }
+            },
+            "required": ["results"],
+            "additionalProperties": false
+        },
+        "expectedResult": {
+            "type": "object",
+            "title": "Expected Result",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE"],
+                    "description": "Expected status.",
+                    "$comment": "For session/pkg nodes, status is the highest-priority status among descendants, by fixed priority order."
+                },
+                "verdicts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Per-result expectation key (optional)."
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Per-result expectation notes (optional)."
+                }
+            },
+            "required": ["status"],
+            "additionalProperties": false
+        },
+        "miArtifact": {
+            "type": "object",
+            "title": "Measurement Artifact",
+            "description": "Measurement (MI log) object. Must be parsed JSON, not a raw string.",
+            "examples": [
+                {
+                    "type": "measurement",
+                    "version": 1,
+                    "tool": "ping",
+                    "results": [
+                        {
+                            "type": "rtt",
+                            "description": "Round trip time in seconds",
+                            "entries": [
+                                {
+                                    "aggr": "min",
+                                    "value": 0.014,
+                                    "base_units": "seconds",
+                                    "multiplier": "1e-3"
+                                },
+                                {
+                                    "aggr": "mean",
+                                    "value": 0.016,
+                                    "base_units": "seconds",
+                                    "multiplier": "1e-3"
+                                },
+                                {
+                                    "aggr": "max",
+                                    "value": 0.069,
+                                    "base_units": "seconds",
+                                    "multiplier": "1e-3"
+                                },
+                                {
+                                    "aggr": "stdev",
+                                    "value": 0.005,
+                                    "base_units": "seconds",
+                                    "multiplier": "1e-3"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "type": "measurement",
+                    "version": 1,
+                    "tool": "iperf",
+                    "results": [
+                        {
+                            "type": "throughput",
+                            "name": "Transfer",
+                            "description": "Transfer",
+                            "entries": [
+                                {
+                                    "aggr": "single",
+                                    "value": 9390000000.0,
+                                    "base_units": "bps",
+                                    "multiplier": "1"
+                                }
+                            ]
+                        }
+                    ],
+                    "keys": {
+                        "tool": "iperf",
+                        "side": "server"
+                    },
+                    "comments": {
+                        "command": "iperf -s -p27911 -i6 "
+                    }
+                }
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "const": "measurement"
+                },
+                "version": {
+                    "oneOf": [
+                        {
+                            "type": "number",
+                            "const": 1
+                        },
+                        {
+                            "type": "string",
+                            "const": "1"
+                        }
+                    ],
+                    "description": "Measurement format version. Accepts the number 1 or the string '1'."
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "Name of the measurement tool (optional)."
+                },
+                "keys": {
+                    "type": "object",
+                    "description": "Measurement key metadata (optional).",
+                    "additionalProperties": {
+                        "type": ["string", "number"]
+                    }
+                },
+                "comments": {
+                    "type": "object",
+                    "description": "Measurement comments (optional).",
+                    "additionalProperties": {
+                        "type": ["string", "number"]
+                    }
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/miResult"
+                    }
+                },
+                "views": {
+                    "type": "array",
+                    "description": "Visualization definitions (optional).",
+                    "items": {
+                        "$ref": "#/definitions/miView"
+                    }
+                }
+            },
+            "required": ["type", "version", "results"],
+            "additionalProperties": false
+        },
+        "miResult": {
+            "type": "object",
+            "title": "Measurement Result",
+            "description": "Measurement result block. Any keys besides 'entries' are treated as descriptive metadata about the measured subject.",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/miEntry"
+                    }
+                }
+            },
+            "required": ["entries"],
+            "additionalProperties": {
+                "type": ["string", "number"]
+            }
+        },
+        "miEntry": {
+            "type": "object",
+            "title": "Measurement Entry",
+            "description": "Measurement entry. Entries are grouped internally by (aggr, base_units, multiplier).",
+            "properties": {
+                "value": {
+                    "description": "Single value or list. Internally normalised to a list during import.",
+                    "oneOf": [
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": ["number", "string"]
+                            }
+                        }
+                    ]
+                },
+                "aggr": {
+                    "type": "string",
+                    "description": "Aggregation type (e.g. 'single', 'mean', 'min', 'max')."
+                },
+                "base_units": {
+                    "type": "string",
+                    "description": "Base unit of measurement (e.g. 'sec', 'byte'); combined with the multiplier prefix for display."
+                },
+                "multiplier": {
+                    "type": "string",
+                    "enum": ["1e-9", "1e-6", "1e-3", "1", "1e+3", "1x1p10", "1e+6", "0x1p20", "1e+9", "0x1p30"],
+                    "description": "Metric/binary prefix code used to derive the display unit prefix (e.g. '1e-3' -> milli/m, '0x1p20' -> mebi/Mi)."
+                }
+            },
+            "required": ["value", "aggr", "base_units", "multiplier"],
+            "additionalProperties": {
+                "type": ["string", "number"]
+            }
+        },
+        "miView": {
+            "type": "object",
+            "title": "Measurement View",
+            "description": "Visualisation definition for measurements.",
+            "examples": [
+                {
+                    "type": "line-graph",
+                    "axis_x": "auto-seqno",
+                    "axis_y": [
+                        {
+                            "name": "Transfer",
+                            "type": "throughput"
+                        }
+                    ]
+                },
+                {
+                    "type": "point",
+                    "value": {
+                        "name": "Transfer",
+                        "type": "throughput"
+                    }
+                }
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["point", "line-graph"]
+                },
+                "value": {
+                    "type": "object",
+                    "description": "Axis/value descriptor for 'point' view type.",
+                    "additionalProperties": {
+                        "type": ["string", "number"]
+                    }
+                },
+                "axis_x": {
+                    "description": "X-axis descriptor for 'line-graph'. May be the string 'auto-seqno' or a key-descriptor object.",
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": ["string", "number"]
+                            }
+                        }
+                    ]
+                },
+                "axis_y": {
+                    "type": "array",
+                    "description": "Y-axis descriptor(s) for 'line-graph'.",
+                    "items": {
+                        "oneOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "object"
+                            }
+                        ]
+                    }
+                }
+            },
+            "required": ["type"],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "point"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": ["value"]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "line-graph"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": ["axis_x"]
+                    }
+                }
+            ],
+            "additionalProperties": {
+                "type": ["string", "number"]
+            }
+        }
+    }
+}
