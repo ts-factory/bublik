@@ -36,7 +36,7 @@ class IssueSerializer(ModelSerializer):
 
 
 class IssueRuleSerializer(ModelSerializer):
-    expected = serializers.BooleanField(required=False)
+    expected = serializers.BooleanField(required=False, allow_null=True)
     test_name = serializers.CharField(source='test.name', read_only=True)
 
     class Meta:

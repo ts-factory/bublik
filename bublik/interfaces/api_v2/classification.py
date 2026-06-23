@@ -265,8 +265,11 @@ class ResultClassifyViewSet(GenericViewSet):
         if scope not in ('future', 'oneoff'):
             raise ValidationError({'scope': f'invalid scope: {scope!r}'})
 
-        expected = body.get('expected')
-        if expected is None:
+        # Respect an explicit disposition incl. null (none); only default when
+        # the key is absent.
+        if 'expected' in body:
+            expected = body['expected']
+        else:
             expected = default_expected_for(category)
         matcher = body.get('matcher') or {}
 

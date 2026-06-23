@@ -160,7 +160,12 @@ class IssueRule(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='issue_rules')
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name='rules')
     category = models.CharField(max_length=32, choices=IssueCategory.choices)
-    expected = models.BooleanField(help_text='Whether matches suppress the unexpected count.')
+    expected = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text='Disposition: True=expected (suppresses), False=unexpected, '
+        'None=none (marker only).',
+    )
     active = models.BooleanField(default=True, help_text='Whether it applies to future imports.')
 
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='issue_rules')

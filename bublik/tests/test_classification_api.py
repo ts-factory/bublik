@@ -189,6 +189,42 @@ class ClassifyApiTest(APITestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
+    def test_classify_expected_none_marks_without_suppressing(self):
+        from bublik.core.classification import SUPPRESSION_FILTER
+
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(url, {
+            'issue': {'title': 'x'}, 'category': 'known-issue',
+            'scope': 'future', 'expected': None,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertIsNone(stamp.rule.expected)
+        self.assertFalse(
+            ResultClassification.objects.filter(
+                result=self.result, **SUPPRESSION_FILTER,
+            ).exists(),
+        )
+
+    def test_classify_expected_false_is_unexpected(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(url, {
+            'issue': {'title': 'y'}, 'category': 'known-issue',
+            'scope': 'future', 'expected': False,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertIs(stamp.rule.expected, False)
+
+    def test_classify_expected_omitted_defaults_from_category(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(url, {
+            'issue': {'title': 'z'}, 'category': 'known-issue', 'scope': 'future',
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertTrue(stamp.rule.expected)
+
 
 class ApplyRulesApiTest(APITestCase):
     def setUp(self):
