@@ -150,7 +150,7 @@ def get_metric_prefix_units(multiplier, base_units):
         '1e-3': ['milli', 'm'],
         '1': ['plain', ''],
         '1e+3': ['kilo', 'k'],
-        '1x1p10': ['kibi', 'Ki'],
+        '0x1p10': ['kibi', 'Ki'],
         '1e+6': ['mega', 'M'],
         '0x1p20': ['mebi', 'Mi'],
         '1e+9': ['giga', 'G'],
