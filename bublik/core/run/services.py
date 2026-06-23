@@ -280,8 +280,12 @@ class RunService:
             finish_date=finish_date,
             project_id=project_id,
         )
-        runs_details = generate_runs_details(runs)
-        return PaginatedResult.paginate_queryset(runs_details, page, page_size)
+        paginated_runs = PaginatedResult.paginate_queryset(runs, page, page_size)
+
+        return {
+            'pagination': paginated_runs['pagination'],
+            'results': generate_runs_details(paginated_runs['results']),
+        }
 
     @staticmethod
     def aggregate_runs_by_period(
