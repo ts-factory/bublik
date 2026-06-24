@@ -470,7 +470,7 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE"],
+                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE", "EMPTY"],
                     "description": "Result status.",
                     "$comment": "For session/pkg nodes, status is the highest-priority status among descendants, by fixed priority order."
                 },
@@ -562,7 +562,7 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE"],
+                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE", "EMPTY"],
                     "description": "Expected status.",
                     "$comment": "For session/pkg nodes, status is the highest-priority status among descendants, by fixed priority order."
                 },

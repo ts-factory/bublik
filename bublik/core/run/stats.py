@@ -71,7 +71,7 @@ def failed(results):
 
 
 def skipped(results):
-    return results.filter(meta_results__meta=Meta.skipped)
+    return results.filter(meta_results__meta__in=Meta.skipped)
 
 
 def abnormal(results):
