@@ -164,7 +164,7 @@ class ResultStatus:
     RESULT_STATUSES_BY_GROUPS: ClassVar[dict] = {
         'passed': ['PASSED'],
         'failed': ['FAILED'],
-        'skipped': ['SKIPPED'],
+        'skipped': ['SKIPPED', 'EMPTY'],
         'abnormal': ['KILLED', 'CORED', 'FAKED', 'INCOMPLETE'],
     }
 

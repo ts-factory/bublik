@@ -60,7 +60,10 @@ revision, branch, repo, log, import, count, objective, comment.""",
 
     @cachedclassproperty
     def skipped(self):
-        return get_or_none(self.objects, type='result', value='SKIPPED')
+        return Meta.objects.filter(
+            type='result',
+            value__in=['SKIPPED', 'EMPTY'],
+        )
 
     @cachedclassproperty
     def abnormal(self):
