@@ -233,28 +233,43 @@ class _TagsCache(_ProjectSectionCache):
             - 'all': all project-related tags with category priority 1-9
               or without a category
 
+        If project_id is None, tags are filtered by the default (project-less)
+        categories; 'relevant' contains all tags not in 'important', and 'all'
+        contains every tag in the database.
+
         Value format:
             {meta_id: 'tag_name=tag_value'}
         """
 
         tags = models.Meta.objects.filter(type='tag')
 
-        important_tags_data = tags.filter(
-            category__priority__range=(1, 3),
-            category__project_id=self._project._project_id,
-        ).order_by('category__priority', 'name')
+        project_id = self._project._project_id
+        if project_id is not None:
+            important_tags_data = tags.filter(
+                category__priority__range=(1, 3),
+                category__project_id=project_id,
+            ).order_by('category__priority', 'name')
 
-        relevant_tags_data = tags.filter(
-            Q(category__priority__range=(4, 9))
-            & Q(category__project_id=self._project._project_id)
-            | Q(category__isnull=True),
-        ).order_by('category__priority', 'name')
+            relevant_tags_data = tags.filter(
+                Q(category__priority__range=(4, 9)) & Q(category__project_id=project_id)
+                | Q(category__isnull=True),
+            ).order_by('category__priority', 'name')
 
-        tags_data = tags.filter(
-            Q(category__priority__range=(1, 9))
-            & Q(category__project_id=self._project._project_id)
-            | Q(category__isnull=True),
-        ).order_by('category__priority', 'name')
+            all_tags_data = tags.filter(
+                Q(category__priority__range=(1, 9)) & Q(category__project_id=project_id)
+                | Q(category__isnull=True),
+            ).order_by('category__priority', 'name')
+        else:
+            important_tags_data = tags.filter(
+                category__priority__range=(1, 3),
+                category__project_id__isnull=True,
+            ).order_by('category__priority', 'name')
+
+            relevant_tags_data = tags.exclude(
+                id__in=important_tags_data,
+            ).order_by('name')
+
+            all_tags_data = tags.order_by('name')
 
         def prepare_tags(tags_data):
             tags = {}
@@ -264,7 +279,7 @@ class _TagsCache(_ProjectSectionCache):
 
         self.set('important', prepare_tags(important_tags_data))
         self.set('relevant', prepare_tags(relevant_tags_data))
-        self.set('all', prepare_tags(tags_data))
+        self.set('all', prepare_tags(all_tags_data))
 
 
 class _TestsCache(_ProjectSectionCache):
