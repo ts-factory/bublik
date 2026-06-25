@@ -85,6 +85,7 @@ class PaginatedResult:
 
         pagination = OrderedDict(
             [
+                ('page', page),
                 ('count', total_count),
                 ('next', f'page={page + 1}' if page < total_pages else None),
                 ('previous', f'page={page - 1}' if page > 1 else None),
