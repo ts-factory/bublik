@@ -127,6 +127,7 @@ class RunSummaryResult:
 
 @dataclass
 class RunListPagination:
+    page: int
     count: int
     next: str | None
     previous: str | None
