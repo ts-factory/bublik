@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import wraps
+import json
 import os
 import shutil
 import tempfile
@@ -167,8 +168,26 @@ def import_run(
             logger.info('run logs format is valid')
 
         if meta_data_saved:
+            meta_data_path = os.path.join(process_dir, 'meta_data.json')
+
+            # Validate meta_data.json
+            meta_data_schema = load_schema('meta_data')
+            if meta_data_schema:
+                with open(meta_data_path) as meta_data_file:
+                    meta_data_json = json.load(meta_data_file)
+                try:
+                    validate(instance=meta_data_json, schema=meta_data_schema)
+                except jsonschema.exceptions.ValidationError as jeve:
+                    raise InvalidImportDataError(
+                        message='invalid meta_data.json format',
+                        debug_details=[
+                            jeve.message,
+                        ],
+                    ) from None
+                logger.info('meta_data.json format is valid')
+
             # Load meta_data.json
-            meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'), project)
+            meta_data = MetaData.load(meta_data_path, project)
         else:
             if project is None:
                 error_msg = (
