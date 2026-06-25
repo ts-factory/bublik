@@ -1,0 +1,50 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/ts-factory/bublik/meta_data.schema.json",
+    "type": "object",
+    "description": "Test run metadata: identifying information (project, configuration), timing, status, provenance (source repositories, revisions, CI parameters), etc.",
+    "properties": {
+        "version": {
+            "description": "Metadata format version. Only version 1 is currently supported.",
+            "const": 1
+        },
+        "metas": {
+            "description": "List of metas describing the run.",
+            "$comment": "Must include a PROJECT meta (unless the project is passed explicitly), a status meta (RUN_STATUS_META, 'RUN_STATUS' by default) and all metas listed in RUN_KEY_METAS (['START_TIMESTAMP', 'CFG'] by default).",
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/definitions/meta" }
+        }
+    },
+    "required": ["version", "metas"],
+    "additionalProperties": false,
+    "definitions": {
+        "meta": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "The meta name.",
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "type": {
+                    "description": "The meta type. Defaults to 'label' if omitted.",
+                    "type": "string",
+                    "enum": ["branch", "revision", "vcs-tag", "timestamp"]
+                },
+                "value": {
+                    "description": "The meta value.",
+                    "type": "string"
+                },
+                "reference": {
+                    "description": "Reference URI associated with this meta.",
+                    "$comment": "Stored separately as a Reference object named after this meta.",
+                    "type": "string",
+                    "maxLength": 128
+                }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+        }
+    }
+}
