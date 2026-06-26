@@ -77,39 +77,39 @@ def get_tags_by_runs(runs, not_categorize=False):
     for run_id, meta_id in meta_qs:
         run_meta_ids_map[run_id].add(meta_id)
 
-    tags_cache_per_project = {}
+    metas_cache_per_project = {}
     for project_id in set(run_project_map.values()):
-        tags_cache = ProjectCache(project_id).tags
-        if not any(tags_cache.get(k) for k in tags_cache.KEY_DATA_CHOICES):
-            tags_cache.load()
-        tags_cache_per_project[project_id] = tags_cache
+        metas_cache = ProjectCache(project_id).metas
+        if not any(metas_cache.get(k) for k in metas_cache.KEY_DATA_CHOICES):
+            metas_cache.load()
+        metas_cache_per_project[project_id] = metas_cache
 
-    al_tags_by_run = {}
+    all_tags_by_run = {}
     important_tags_by_run = {}
     relevant_tags_by_run = {}
 
     for run_id, meta_ids in run_meta_ids_map.items():
-        project_tags_cache = tags_cache_per_project[run_project_map[run_id]]
+        project_metas_cache = metas_cache_per_project[run_project_map[run_id]]
 
         if not_categorize:
-            al_tags_by_run[run_id] = [
+            all_tags_by_run[run_id] = [
                 value
-                for tag_id, value in project_tags_cache.get('all').items()
+                for tag_id, value in project_metas_cache.get('all_tags').items()
                 if tag_id in meta_ids
             ]
         else:
             important_tags_by_run[run_id] = [
                 value
-                for tag_id, value in project_tags_cache.get('important').items()
+                for tag_id, value in project_metas_cache.get('important_tags').items()
                 if tag_id in meta_ids
             ]
             relevant_tags_by_run[run_id] = [
                 value
-                for tag_id, value in project_tags_cache.get('relevant').items()
+                for tag_id, value in project_metas_cache.get('relevant_tags').items()
                 if tag_id in meta_ids
             ]
 
-    return al_tags_by_run if not_categorize else (important_tags_by_run, relevant_tags_by_run)
+    return all_tags_by_run if not_categorize else (important_tags_by_run, relevant_tags_by_run)
 
 
 def get_parameters_by_iterations(iterations):

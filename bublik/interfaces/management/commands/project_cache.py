@@ -15,7 +15,7 @@ class Command(BaseCommand):
     help = 'Delete, create, or update cached project data.'
     PROJECT_SECTION_CHOICES: ClassVar[set] = {
         'configs',
-        'tags',
+        'metas',
         'tests',
     }
 
@@ -50,8 +50,8 @@ class Command(BaseCommand):
             for data_key in data_keys:
                 if data_key == 'configs':
                     ProjectCache(pid).configs.clear_all()
-                elif data_key == 'tags':
-                    ProjectCache(pid).tags.clear_all()
+                elif data_key == 'metas':
+                    ProjectCache(pid).metas.clear_all()
                 elif data_key == 'tests':
                     ProjectCache(pid).tests.clear_all()
 
@@ -63,9 +63,9 @@ class Command(BaseCommand):
                 ]
                 for config_name_project in configs_name_project:
                     ConfigServices.get_global_content_from_cache(*config_name_project)
-            elif data_key == 'tags':
+            elif data_key == 'metas':
                 for pid in project_ids:
-                    ProjectCache(pid).tags.load()
+                    ProjectCache(pid).metas.load()
             elif data_key == 'tests':
                 for pid in project_ids:
                     ProjectCache(pid).tests.load()

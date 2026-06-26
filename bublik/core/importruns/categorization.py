@@ -62,7 +62,7 @@ def categorize_metas(meta_data: MetaData, project_id) -> None:
                 )
                 metapattern.category.metas.add(meta)
 
-    # Since tags are also Meta objects but are processed differently - we need
-    # to update cached tags
-    ProjectCache(project_id).tags.load()
-    logger.info('Update cached tags.')
+    # Metas cache must be reloaded after categorization to reflect updated tags,
+    # branches, revisions, and labels
+    ProjectCache(project_id).metas.load()
+    logger.info('Update metas cache.')
