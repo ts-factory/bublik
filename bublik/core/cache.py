@@ -13,7 +13,7 @@ from django.middleware.cache import CacheMiddleware
 from django.utils.cache import add_never_cache_headers
 
 from bublik.core.run.tests_organization import get_run_root
-from bublik.core.utils import key_value_transforming
+from bublik.core.utils import key_value_list_transforming, key_value_transforming
 from bublik.data import models
 
 
@@ -150,8 +150,8 @@ class ProjectCache:
         return _ConfigsCache(self)
 
     @property
-    def tags(self):
-        return _TagsCache(self)
+    def metas(self):
+        return _MetasCache(self)
 
     @property
     def tests(self):
@@ -211,43 +211,52 @@ class _ConfigsCache(_ProjectSectionCache):
     KEY_DATA_CHOICES: ClassVar[set[str]] = set(models.GlobalConfigs.all())
 
 
-class _TagsCache(_ProjectSectionCache):
-    SECTION = 'tags'
+class _MetasCache(_ProjectSectionCache):
+    SECTION = 'metas'
     KEY_DATA_CHOICES: ClassVar[set] = {
-        'important',
-        'relevant',
-        'all',
+        'important_tags',
+        'relevant_tags',
+        'all_tags',
+        'branches',
+        'revisions',
+        'labels',
     }
 
     def load(self):
         """
-        Populate tags cache for the project.
+        Populate metas cache for the project.
 
         Each cache entry stores a mapping of meta tag IDs to their string
-        representation produced by ``key_value_transforming``.
+        representation produced by `key_value_transforming` for tags, and
+        a list of 'name=value' strings for branches, revisions, and labels.
 
         Cache keys:
-            - 'important': project-related tags with category priority 1-3
-            - 'relevant': project-related tags with category priority 4-9
-              or without a category
-            - 'all': all project-related tags with category priority 1-9
-              or without a category
+            - 'important_tags': project-related tags with category priority 1-3
+            - 'relevant_tags': project-related tags with category priority 4-9
+            or without a category
+            - 'all_tags': all project-related tags with category priority 1-9
+            or without a category
+            - 'branches': project-related branch metas
+            - 'revisions': project-related revision and vcs-tag metas
+            - 'labels': project-related label metas
 
-        If project_id is specified, only tags appearing in that project's
+        If project_id is specified, only metas appearing in that project's
         runs are considered. Tags not categorised for the project (including
         those categorised in other projects) are treated as uncategorised
-        and included in 'relevant' and 'all'. If project_id is None, tags
-        are filtered by the default (project-less) categories; 'relevant'
-        contains all tags not in 'important', and 'all' contains every tag
-        in the database.
+        and included in 'relevant_tags' and 'all_tags'. If project_id is
+        None, tags are filtered by the default (project-less) categories;
+        'relevant_tags' contains all tags not in 'important_tags', and
+        'all_tags' contains every tag in the database.
 
         Value format:
-            {meta_id: 'tag_name=tag_value'}
+            tags: {meta_id: 'tag_name=tag_value'}
+            branches/revisions/labels: ['name=value', ...]
         """
+        project_id = self._project._project_id
 
+        # Tags
         tags = models.Meta.objects.filter(type='tag')
 
-        project_id = self._project._project_id
         if project_id is not None:
             project_tags = tags.filter(
                 metaresult__result__project_id=project_id,
@@ -285,14 +294,42 @@ class _TagsCache(_ProjectSectionCache):
             all_tags_data = tags.order_by('name')
 
         def prepare_tags(tags_data):
-            tags = {}
+            result = {}
             for tag in tags_data:
-                tags[tag.id] = key_value_transforming(tag.name, tag.value)
-            return tags
+                result[tag.id] = key_value_transforming(tag.name, tag.value)
+            return result
 
-        self.set('important', prepare_tags(important_tags_data))
-        self.set('relevant', prepare_tags(relevant_tags_data))
-        self.set('all', prepare_tags(all_tags_data))
+        self.set('important_tags', prepare_tags(important_tags_data))
+        self.set('relevant_tags', prepare_tags(relevant_tags_data))
+        self.set('all_tags', prepare_tags(all_tags_data))
+
+        # Branches, revisions, labels
+        metas = (
+            models.Meta.objects.filter(type__in=['branch', 'revision', 'vcs-tag', 'label'])
+            .exclude(name=None)
+            .order_by('name', 'value')
+        )
+        if project_id is not None:
+            metas = metas.filter(
+                metaresult__result__project_id=project_id,
+                metaresult__result__test_run__isnull=True,
+            )
+        metas = list(metas.values_list('type', 'name', 'value').distinct())
+
+        def prepare_metas(meta_types):
+            return list(
+                key_value_list_transforming(
+                    [
+                        (m_name, m_value)
+                        for m_type, m_name, m_value in metas
+                        if m_type in meta_types
+                    ],
+                )
+            )
+
+        self.set('labels', prepare_metas(['label']))
+        self.set('branches', prepare_metas(['branch']))
+        self.set('revisions', prepare_metas(['revision', 'vcs-tag']))
 
 
 class _TestsCache(_ProjectSectionCache):

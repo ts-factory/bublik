@@ -173,7 +173,7 @@ class Command(BaseCommand):
                         f'[project id={pid}] failed to create and assign meta categories: {e}',
                     )
                 else:
-                    ProjectCache(pid).tags.load()
-                    logger.debug(f'[project id={pid}] tags categories cache was updated')
+                    ProjectCache(pid).metas.load()
+                    logger.debug(f'[project id={pid}] metas categories cache was updated')
 
         logger.debug(f'completed in [{datetime.now() - start_time}]')
