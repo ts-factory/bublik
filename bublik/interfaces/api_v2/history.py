@@ -93,3 +93,8 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             msg = 'No test name specified'
             raise ValidationError(msg)
         return Response(HistoryService.get_params_search_options(project_id, test_name))
+
+    @action(detail=False, methods=['get'], renderer_classes=[JSONRenderer])
+    def metas_search_options(self, request, pk=None):
+        project_id = request.query_params.get('project')
+        return Response(HistoryService.get_metas_search_options(project_id))
