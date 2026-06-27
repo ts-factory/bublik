@@ -3,6 +3,7 @@
 
 from django.core.cache import cache
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import ListModelMixin
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
@@ -83,3 +84,12 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         project_id = request.query_params.get('project')
         test_search_options = HistoryService.get_test_search_options(project_id)
         return Response(test_search_options)
+
+    @action(detail=False, methods=['get'], renderer_classes=[JSONRenderer])
+    def params_search_options(self, request, pk=None):
+        project_id = request.query_params.get('project')
+        test_name = request.query_params.get('test_name')
+        if not test_name:
+            msg = 'No test name specified'
+            raise ValidationError(msg)
+        return Response(HistoryService.get_params_search_options(project_id, test_name))
