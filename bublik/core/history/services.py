@@ -655,3 +655,20 @@ class HistoryService:
             .order_by('name')
             .distinct()
         )
+
+    @staticmethod
+    def get_metas_search_options(project_id: str | None) -> dict:
+        metas_cache = ProjectCache(project_id).metas
+        if not any(metas_cache.get(k) for k in metas_cache.KEY_DATA_CHOICES):
+            metas_cache.load()
+
+        return {
+            'tags': {
+                'important': list(metas_cache.get('important_tags').values()),
+                'relevant': list(metas_cache.get('relevant_tags').values()),
+                'all': list(metas_cache.get('all_tags').values()),
+            },
+            'branches': metas_cache.get('branches'),
+            'revisions': metas_cache.get('revisions'),
+            'labels': metas_cache.get('labels'),
+        }
