@@ -25,6 +25,7 @@ from bublik.core.run.data import (
 from bublik.core.run.filter_expression import filter_by_expression
 from bublik.core.run.tests_organization import get_test_ids_by_name
 from bublik.core.run.utils import prepare_dates_period
+from bublik.core.utils import key_value_list_transforming
 from bublik.data.models import (
     MeasurementResult,
     Meta,
@@ -631,3 +632,26 @@ class HistoryService:
             return test_names_and_paths
         tests_cache.load()
         return tests_cache.get('test_names_and_paths')
+
+    @staticmethod
+    def get_params_search_options(project_id: str | None, test_name: str) -> list:
+        test_ids = get_test_ids_by_name(test_name)
+        if not test_ids:
+            msg = 'Test with the specified name was not found'
+            raise NotFoundError(msg)
+
+        iteration_ids = TestIteration.objects.filter(
+            test__in=test_ids,
+        ).values_list('id', flat=True)
+
+        if project_id:
+            iteration_ids = iteration_ids.filter(
+                testiterationresult__project_id=project_id,
+            ).distinct()
+
+        return key_value_list_transforming(
+            TestArgument.objects.filter(test_iterations__in=iteration_ids)
+            .values_list('name', 'value')
+            .order_by('name')
+            .distinct()
+        )
