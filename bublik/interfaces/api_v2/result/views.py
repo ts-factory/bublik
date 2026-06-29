@@ -11,9 +11,8 @@ from bublik.core.result import ResultService
 from bublik.core.run.stats import (
     generate_results_details,
 )
-from bublik.data.serializers import (
-    TestIterationResultSerializer,
-)
+from bublik.data.serializers import TestIterationResultSerializer
+from bublik.interfaces.api_v2.result.schemas import result_viewset_schema
 
 
 __all__ = [
@@ -21,6 +20,7 @@ __all__ = [
 ]
 
 
+@result_viewset_schema
 class ResultViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
     filter_backends: ClassVar[list] = []
