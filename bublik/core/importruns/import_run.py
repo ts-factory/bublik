@@ -5,16 +5,20 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import wraps
+import json
 import os
 import shutil
 import tempfile
 
 from django.core.management import call_command
+import jsonschema
+from jsonschema import validate
 
 from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import (
     ImportrunsError,
+    InvalidImportDataError,
     RunAlreadyExistsError,
     RunOutsidePeriodError,
 )
@@ -29,6 +33,7 @@ from bublik.core.run.objects import add_import_id, add_run_log
 from bublik.core.url import save_url_to_dir
 from bublik.core.utils import create_event, get_import_job_task
 from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, Project
+from bublik.data.schemas.services import load_schema
 
 
 def with_import_events(func):
@@ -148,9 +153,41 @@ def import_run(
             json_data = None
             logger.warning('no logs were downloaded')
 
+        # Validate JSON log
+        run_log_schema = load_schema('run_log')
+        if run_log_schema:
+            try:
+                validate(instance=json_data, schema=run_log_schema)
+            except jsonschema.exceptions.ValidationError as jeve:
+                raise InvalidImportDataError(
+                    message='invalid run log format',
+                    debug_details=[
+                        jeve.message,
+                    ],
+                ) from None
+            logger.info('run logs format is valid')
+
         if meta_data_saved:
+            meta_data_path = os.path.join(process_dir, 'meta_data.json')
+
+            # Validate meta_data.json
+            meta_data_schema = load_schema('meta_data')
+            if meta_data_schema:
+                with open(meta_data_path) as meta_data_file:
+                    meta_data_json = json.load(meta_data_file)
+                try:
+                    validate(instance=meta_data_json, schema=meta_data_schema)
+                except jsonschema.exceptions.ValidationError as jeve:
+                    raise InvalidImportDataError(
+                        message='invalid meta_data.json format',
+                        debug_details=[
+                            jeve.message,
+                        ],
+                    ) from None
+                logger.info('meta_data.json format is valid')
+
             # Load meta_data.json
-            meta_data = MetaData.load(os.path.join(process_dir, 'meta_data.json'), project)
+            meta_data = MetaData.load(meta_data_path, project)
         else:
             if project is None:
                 error_msg = (
