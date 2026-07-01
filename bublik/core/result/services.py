@@ -96,6 +96,7 @@ class ResultService:
         Returns:
             Dictionary with artifacts and verdicts lists
         """
+        ResultService.get_result(result_id)
         result_metas = models.Meta.objects.filter(metaresult__result__id=result_id)
         return {
             'artifacts': list(result_metas.filter(type='artifact').values()),
