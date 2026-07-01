@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from typing import ClassVar
+
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -14,12 +16,20 @@ from bublik.core.run.stats import (
     generate_runs_details,
 )
 from bublik.core.utils import get_difference
-from bublik.data.models import GlobalConfigs, TestIterationResult
+from bublik.data.models import GlobalConfigs
 from bublik.data.serializers import (
-    RunCommentSerializer,
     TestIterationResultSerializer,
 )
+from bublik.interfaces.api_v2.run.schemas import (
+    create_comment_schema,
+    delete_comment_schema,
+    mark_compromised_schema,
+    run_viewset_schema,
+    unmark_compromised_schema,
+    update_comment_schema,
+)
 from bublik.interfaces.api_v2.run.serializers import (
+    RunCommentRequestSerializer,
     serialize_mark_run_compromised_result,
     serialize_run_comment_result,
     serialize_run_details,
@@ -33,8 +43,10 @@ __all__ = [
 ]
 
 
+@run_viewset_schema
 class RunViewSet(ModelViewSet):
     serializer_class = TestIterationResultSerializer
+    filter_backends: ClassVar[list] = []
 
     def get_queryset(self):
         query_params = self.request.query_params
@@ -102,7 +114,8 @@ class RunViewSet(ModelViewSet):
     @action(detail=True, methods=['get'])
     def stats(self, _request, pk=None):
         requirements = self.request.query_params.get('requirements')
-        project_id = TestIterationResult.objects.get(id=pk).project.id
+        run = RunService.get_run(pk)
+        project_id = run.project.id
         run_stats = RunService.get_run_stats(pk, requirements)
         return Response(
             {
@@ -127,19 +140,25 @@ class RunViewSet(ModelViewSet):
     def status(self, _request, pk=None):
         return Response({'status': RunService.get_run_status(pk)})
 
-    @action(detail=True, methods=['get', 'post', 'delete'])
-    def compromised(self, request, pk=None):
-        if request.method == 'GET':
-            return Response(RunService.get_run_compromised(pk))
-        if request.method == 'POST':
-            comment = request.data.get('comment')
-            bug_id = request.data.get('bug_id')
-            reference_key = request.data.get('reference_key')
-            return Response(
-                serialize_mark_run_compromised_result(
-                    RunService.mark_run_compromised(pk, comment, bug_id, reference_key),
-                ),
-            )
+    @action(detail=True, methods=['get'])
+    def compromised(self, _request, pk=None):
+        return Response(RunService.get_run_compromised(pk))
+
+    @mark_compromised_schema
+    @compromised.mapping.post
+    def mark_compromised(self, request, pk=None):
+        comment = request.data.get('comment')
+        bug_id = request.data.get('bug_id')
+        reference_key = request.data.get('reference_key')
+        return Response(
+            serialize_mark_run_compromised_result(
+                RunService.mark_run_compromised(pk, comment, bug_id, reference_key),
+            ),
+        )
+
+    @unmark_compromised_schema
+    @compromised.mapping.delete
+    def unmark_compromised(self, _request, pk=None):
         try:
             RunService.unmark_run_compromised(pk)
             return Response({'message': f'Run {pk} is no longer compromised'})
@@ -149,29 +168,32 @@ class RunViewSet(ModelViewSet):
 
     @action(
         detail=True,
-        methods=['get', 'post', 'put', 'delete'],
-        serializer_class=RunCommentSerializer,
+        methods=['get'],
+        serializer_class=RunCommentRequestSerializer,
     )
-    def comment(self, request, pk=None):
-        if request.method == 'GET':
-            comment = RunService.get_run_comment(pk)
-            return Response({'comment': comment})
+    def comment(self, _request, pk=None):
+        comment = RunService.get_run_comment(pk)
+        return Response({'comment': comment})
 
-        if request.method == 'POST':
-            content = request.data.get('comment')
-            result = RunService.create_run_comment(pk, content)
-            return Response(
-                serialize_run_comment_result(result),
-                status=status.HTTP_201_CREATED,
-            )
+    @create_comment_schema
+    @comment.mapping.post
+    def create_comment(self, request, pk=None):
+        content = request.data.get('comment')
+        result = RunService.create_run_comment(pk, content)
+        return Response(
+            serialize_run_comment_result(result),
+            status=status.HTTP_201_CREATED,
+        )
 
-        if request.method == 'PUT':
-            content = request.data.get('comment')
-            result = RunService.create_run_comment(pk, content)
-            return Response(serialize_run_comment_result(result), status=status.HTTP_200_OK)
+    @update_comment_schema
+    @comment.mapping.put
+    def update_comment(self, request, pk=None):
+        content = request.data.get('comment')
+        result = RunService.create_run_comment(pk, content)
+        return Response(serialize_run_comment_result(result), status=status.HTTP_200_OK)
 
-        if request.method == 'DELETE':
-            RunService.delete_run_comment(pk)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    @delete_comment_schema
+    @comment.mapping.delete
+    def delete_comment(self, _request, pk=None):
+        RunService.delete_run_comment(pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)
