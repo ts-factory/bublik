@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
-from base64 import b64encode
+from base64 import urlsafe_b64encode
 from hashlib import blake2s
 
 from bublik.core.hash_system import HashedModelSerializer
@@ -17,7 +17,7 @@ def blake2sb64hex(obj):
     if isinstance(obj, str):
         obj = obj.encode('utf-8')
     enc_key = blake2s(obj, digest_size=8).digest()
-    return b64encode(enc_key).decode('utf-8')
+    return urlsafe_b64encode(enc_key).decode('utf-8')
 
 
 class EndpointURLSerializer(HashedModelSerializer):
