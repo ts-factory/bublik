@@ -11,6 +11,7 @@
         "UI_VERSION": {
             "description": "Default UI version",
             "type": "number",
+            "enum": [2],
             "default": 2
         },
         "EMAIL_PROJECT_WATCHERS": {
