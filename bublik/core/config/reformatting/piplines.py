@@ -6,6 +6,7 @@ import logging
 from bublik.core.config.reformatting.steps import (
     AllowMultipleSeriesArgs,
     BaseReformatStep,
+    EnsureSupportedUIVersion,
     ImproveMetaStructure,
     MergeDashboardSettings,
     RemoveUnsupportedAttributes,
@@ -57,6 +58,7 @@ class PerConfConfigReformatPipeline(ReformatPipeline):
         self.add_step(UpdateDashboardHeaderStructure())
         self.add_step(UpdateCSRFTrustedOrigins())
         self.add_step(MergeDashboardSettings())
+        self.add_step(EnsureSupportedUIVersion())
 
 
 class ReferencesConfigReformatPipeline(ReformatPipeline):
