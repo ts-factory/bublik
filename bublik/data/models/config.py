@@ -161,7 +161,8 @@ class Config(models.Model):
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name='config',
         help_text='The user who created the configuration object.',
     )
