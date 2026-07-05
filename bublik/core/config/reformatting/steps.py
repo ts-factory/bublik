@@ -517,3 +517,25 @@ class MergeDashboardSettings(BaseReformatStep):
             config.content['DASHBOARD_RUNS_SORT'] = db_runs_sort
 
         return config
+
+
+class EnsureSupportedUIVersion(BaseReformatStep):
+    """
+    Reformat passed global per_conf config content:
+    Only UI version 2 is supported. Any other value is replaced with 2.
+
+    Example:
+    "UI_VERSION": 1 -> "UI_VERSION": 2
+    """
+
+    SUPPORTED_UI_VERSION = 2
+
+    def applied(self, config, **kwargs):
+        return (
+            'UI_VERSION' not in config.content
+            or config.content['UI_VERSION'] == self.SUPPORTED_UI_VERSION
+        )
+
+    def reformat(self, config, **kwargs):
+        config.content['UI_VERSION'] = self.SUPPORTED_UI_VERSION
+        return config
