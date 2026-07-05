@@ -4,11 +4,11 @@
 from enum import Enum
 from typing import ClassVar
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 
 from bublik.data.models.project import Project
-from bublik.data.models.user import User
 
 
 __all__ = [
@@ -160,7 +160,7 @@ class Config(models.Model):
         help_text='Description of the configuration.',
     )
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='config',
         help_text='The user who created the configuration object.',
