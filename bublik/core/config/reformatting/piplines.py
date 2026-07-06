@@ -6,6 +6,7 @@ import logging
 from bublik.core.config.reformatting.steps import (
     AllowMultipleSeriesArgs,
     BaseReformatStep,
+    CleanupEmptyAxisYEntries,
     EnsureSupportedUIVersion,
     ImproveMetaStructure,
     MergeDashboardSettings,
@@ -50,6 +51,7 @@ class ReportConfigReformatPipeline(ReformatPipeline):
         self.add_step(UpdateSeqSettingsStructure())
         self.add_step(RenameSequencesToOverlayBy())
         self.add_step(AllowMultipleSeriesArgs())
+        self.add_step(CleanupEmptyAxisYEntries())
 
 
 class PerConfConfigReformatPipeline(ReformatPipeline):
