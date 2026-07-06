@@ -62,38 +62,49 @@
                                     "type": "array",
                                     "items": {
                                         "type": "string"
-                                    }
+                                    },
+                                    "minItems": 1
                                 },
                                 "type": {
                                     "type": "array",
                                     "items": {
                                         "type": "string"
-                                    }
+                                    },
+                                    "minItems": 1
                                 },
                                 "name": {
                                     "type": "array",
                                     "items": {
                                         "type": "string"
-                                    }
+                                    },
+                                    "minItems": 1
                                 },
                                 "aggr": {
                                     "type": "array",
                                     "items": {
                                         "type": "string"
-                                    }
+                                    },
+                                    "minItems": 1
                                 },
                                 "keys": {
                                     "type": "object",
+                                    "propertyNames": {
+                                        "minLength": 1
+                                    },
                                     "additionalProperties": {
                                         "type": "array",
                                         "items": {
                                             "type": "string"
-                                        }
-                                    }
+                                        },
+                                        "minItems": 1
+                                    },
+                                    "minProperties": 1
                                 }
                             },
-                            "additionalProperties": false
-                        }
+                            "additionalProperties": false,
+                            "minProperties": 1
+                        },
+                        "minItems": 1
                     },
                     "overlay_by": {
                         "description": "Settings for placing multiple results on the same axes",
