@@ -176,7 +176,6 @@
     },
     "required": [
         "title_content",
-        "test_names_order",
         "tests"
     ],
     "additionalProperties": false
