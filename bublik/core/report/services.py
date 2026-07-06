@@ -257,7 +257,8 @@ class ReportService:
                     'Fix report configuration'
                 )
                 warnings.append(msg)
-                if test_name in report_config['test_names_order']:
+                test_names_order = report_config.get('test_names_order')
+                if test_names_order and test_name in test_names_order:
                     report_config['test_names_order'].remove(test_name)
                 continue
 
@@ -294,7 +295,7 @@ class ReportService:
         # Group points into records
         content = []
         points_by_test_names = unordered_group_by(points, 'test_name')
-        if report_config['test_names_order']:
+        if report_config.get('test_names_order'):
             points_by_test_names = ReportPoint.by_test_name_sort(
                 points_by_test_names,
                 report_config['test_names_order'],
