@@ -223,8 +223,13 @@ class ReportService:
         _, config_data, report_config = ReportService.get_report_config(config_id)
 
         # Get measurement results
-        mmrs_run = MeasurementResult.objects.filter(
-            result__test_run=main_pkg,
+        mmrs_run = (
+            MeasurementResult.objects.filter(result__test_run=main_pkg)
+            .select_related('measurement', 'result__iteration__test')
+            .prefetch_related(
+                'result__iteration__test_arguments',
+                'measurement__metas',
+            )
         )
 
         # Process tests in config
