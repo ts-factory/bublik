@@ -539,3 +539,93 @@ class EnsureSupportedUIVersion(BaseReformatStep):
     def reformat(self, config, **kwargs):
         config.content['UI_VERSION'] = self.SUPPORTED_UI_VERSION
         return config
+
+
+class CleanupEmptyAxisYEntries(BaseReformatStep):
+    """
+    Reformat passed report config content:
+     - drop empty strings from tool/type/name/aggr arrays and keys
+       value arrays inside axis_y items,
+     - drop keys entries with an empty key name,
+     - drop tool/type/name/aggr/keys entries left empty by the above,
+     - drop axis_y items left empty by the above (including items that
+       were already {}),
+     - drop tests whose axis_y is empty, from "tests" and from
+       "test_names_order" (removing "test_names_order" entirely if it
+       ends up empty).
+
+    Example:
+    "tests": {"a": {"axis_y": [{"tool": [""]}, {"type": ["x", ""]}]}, "b": {"axis_y": []}} ->
+    "tests": {"a": {"axis_y": [{"type": ["x"]}]}}
+    """
+
+    def applied(self, config, **kwargs):
+        for test_config_data in config.content.get('tests', {}).values():
+            axis_y = test_config_data.get('axis_y')
+            if not axis_y:
+                return False
+            for measurement in axis_y:
+                if not measurement:
+                    return False
+                for key in ('tool', 'type', 'name', 'aggr'):
+                    vals = measurement.get(key)
+                    if vals is not None and (not vals or any(not v for v in vals)):
+                        return False
+                keys = measurement.get('keys')
+                if keys is not None:
+                    if not keys:
+                        return False
+                    for key_name, key_vals in keys.items():
+                        if not key_name or not key_vals or any(not kv for kv in key_vals):
+                            return False
+        return True
+
+    def reformat(self, config, **kwargs):
+        content = config.content
+
+        for test_config_data in content.get('tests', {}).values():
+            for measurement in test_config_data.get('axis_y') or []:
+                for key in ('tool', 'type', 'name', 'aggr'):
+                    if key in measurement:
+                        measurement[key] = [v for v in measurement[key] if v]
+                        if not measurement[key]:
+                            measurement.pop(key)
+
+                if 'keys' in measurement:
+                    cleaned_keys = {
+                        key_name: [v for v in vals if v]
+                        for key_name, vals in measurement['keys'].items()
+                        if key_name
+                    }
+                    measurement['keys'] = {
+                        key_name: vals for key_name, vals in cleaned_keys.items() if vals
+                    }
+                    if not measurement['keys']:
+                        measurement.pop('keys')
+
+            test_config_data['axis_y'] = [
+                measurement
+                for measurement in test_config_data.get('axis_y') or []
+                if measurement
+            ]
+
+        test_names_order = content.get('test_names_order')
+        empty_tests = [
+            test_name
+            for test_name, test_config_data in content.get('tests', {}).items()
+            if not test_config_data.get('axis_y')
+        ]
+        for test_name in empty_tests:
+            content['tests'].pop(test_name)
+            if test_names_order and test_name in test_names_order:
+                test_names_order.remove(test_name)
+            logger.warning(
+                f'\tSTEP: {self.__class__.__name__}: removed test "{test_name}" '
+                '(empty axis_y - no report possible)',
+            )
+
+        if isinstance(test_names_order, list) and not test_names_order:
+            content.pop('test_names_order')
+
+        config.content = content
+        return config
