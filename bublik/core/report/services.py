@@ -166,10 +166,9 @@ class ReportService:
         run_report_configs = []
         for report_config in active_report_configs:
             report_config_content = report_config.content
-            # skip invalid
-            if 'test_names_order' not in report_config_content:
-                continue
-            report_config_test_names = report_config_content['test_names_order']
+            # a config is applicable to a run if it configures at least
+            # one test that actually ran
+            report_config_test_names = report_config_content.get('tests', {}).keys()
             if set(report_config_test_names).intersection(test_names):
                 run_report_configs.append(
                     model_to_dict(
