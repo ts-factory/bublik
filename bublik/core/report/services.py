@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from django.core.exceptions import ObjectDoesNotExist
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Subquery
 from django.forms.models import model_to_dict
 
 from bublik.core.exceptions import NotFoundError
@@ -12,6 +12,7 @@ from bublik.core.run.services import RunService
 from bublik.core.utils import parse_number, unordered_group_by
 from bublik.data.models import (
     Config,
+    Measurement,
     MeasurementResult,
     TestArgument,
     TestIterationResult,
@@ -44,47 +45,70 @@ def get_common_args(mmrs_test):
     )
 
 
+def _measurement_meta_ids(meta_name, meta_type, meta_values, mmrs_test_meas_ids):
+    """
+    Return the set of measurement ids, limited to mmrs_test_meas_ids, that have
+    a meta name/type with a value from meta_values.
+    """
+    return set(
+        Measurement.objects.filter(
+            id__in=mmrs_test_meas_ids,
+            metas__name=meta_name,
+            metas__type=meta_type,
+            metas__value__in=meta_values,
+        ).values_list('id', flat=True),
+    )
+
+
 def filter_by_axis_y(mmrs_test, axis_y):
     """
     Filter passed measurement results QS by axis y value from config.
     """
-    mmrs_test_axis_y = MeasurementResult.objects.none()
+    if not axis_y:
+        return mmrs_test.none()
+
+    mmrs_test_meas_ids = set(mmrs_test.values_list('measurement_id', flat=True).distinct())
+    if not mmrs_test_meas_ids:
+        return mmrs_test.none()
+
+    axis_y_meas_ids = set()
+
     for measurement in axis_y:
-        mmrs_test_measurement = mmrs_test.all()
+        measurement_ids = []
+
         # filter by tool
         if 'tool' in measurement:
             tools = measurement.pop('tool')
-            mmrs_test_measurement = mmrs_test.filter(
-                measurement__metas__name='tool',
-                measurement__metas__type='tool',
-                measurement__metas__value__in=tools,
+            measurement_ids.append(
+                _measurement_meta_ids('tool', 'tool', tools, mmrs_test_meas_ids)
             )
 
         # filter by keys
         if 'keys' in measurement:
-            meas_key_mmrs = MeasurementResult.objects.none()
             keys_vals = measurement.pop('keys')
+            keys_ids = set()
             for key_name, key_vals in keys_vals.items():
-                meas_key_mmrs_group = mmrs_test_measurement.filter(
-                    measurement__metas__name=key_name,
-                    measurement__metas__type='measurement_key',
-                    measurement__metas__value__in=key_vals,
+                keys_ids |= _measurement_meta_ids(
+                    key_name,
+                    'measurement_key',
+                    key_vals,
+                    mmrs_test_meas_ids,
                 )
-                meas_key_mmrs = meas_key_mmrs.union(meas_key_mmrs_group)
-            mmrs_test_measurement = meas_key_mmrs
+            measurement_ids.append(keys_ids)
 
         # filter by measurement subjects (type, name, aggr)
         for ms, ms_values in measurement.items():
-            mmrs_test_measurement = mmrs_test_measurement.filter(
-                measurement__metas__name=ms,
-                measurement__metas__type='measurement_subject',
-                measurement__metas__value__in=ms_values,
+            measurement_ids.append(
+                _measurement_meta_ids(ms, 'measurement_subject', ms_values, mmrs_test_meas_ids),
             )
-        mmrs_test_axis_y = mmrs_test_axis_y.union(mmrs_test_measurement)
 
-    # the union will be impossible to filter out
-    mmrs_test_axis_y_ids = mmrs_test_axis_y.values_list('id', flat=True)
-    return mmrs_test.filter(id__in=mmrs_test_axis_y_ids)
+        if measurement_ids:
+            axis_y_meas_ids |= set.intersection(*measurement_ids)
+
+    if not axis_y_meas_ids:
+        return mmrs_test.none()
+
+    return mmrs_test.filter(measurement_id__in=axis_y_meas_ids)
 
 
 def filter_by_not_show_args(mmrs_test, not_show_args):
@@ -92,15 +116,18 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
     Drop measurement results corresponding to iterations with the passed
     arguments values from the passed measurement results QS.
     """
-    not_show_mmrs = MeasurementResult.objects.none()
+    if not not_show_args:
+        return mmrs_test
+
+    not_show_args_q = Q()
     for arg, vals in not_show_args.items():
-        arg_vals_mmrs = mmrs_test.filter(
+        arg_vals_mmrs_ids = mmrs_test.filter(
             result__iteration__test_arguments__name=arg,
             result__iteration__test_arguments__value__in=vals,
-        )
-        not_show_mmrs = not_show_mmrs.union(arg_vals_mmrs)
+        ).values('pk')
+        not_show_args_q |= Q(pk__in=Subquery(arg_vals_mmrs_ids))
 
-    return mmrs_test.difference(not_show_mmrs)
+    return mmrs_test.exclude(not_show_args_q)
 
 
 class ReportService:
@@ -234,7 +261,7 @@ class ReportService:
 
         # Process tests in config
         common_args = {}
-        mmrs_report = MeasurementResult.objects.none()
+        report_q = Q()
 
         for test_name, test_config in report_config['tests'].items():
             # Filter by test name
@@ -270,9 +297,13 @@ class ReportService:
             # Collect common args
             common_args[test_name] = get_common_args(mmrs_test)
 
-            mmrs_report = mmrs_report.union(mmrs_test)
+            report_q |= Q(id__in=mmrs_test.values('id'))
 
-        mmrs_report = mmrs_report.order_by('id')
+        mmrs_report = (
+            mmrs_run.filter(report_q).order_by('id')
+            if report_q
+            else MeasurementResult.objects.none()
+        )
 
         # Build report points
         points = []
