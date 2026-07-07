@@ -21,13 +21,11 @@ from bublik.data.models.result import ResultType
 from bublik.data.serializers import ConfigSerializer
 
 
-def get_common_args(mmrs_test):
+def get_common_args(mmrs_test_ids):
     """
     Collect arguments that have the same values for all iterations of the test
     with the passed name within the passed package.
     """
-    mmrs_test_ids = mmrs_test.values_list('id', flat=True)
-
     return dict(
         TestArgument.objects.filter(
             test_iterations__testiterationresult__measurement_results__id__in=mmrs_test_ids,
@@ -62,14 +60,15 @@ def _measurement_meta_ids(meta_name, meta_type, meta_values, mmrs_test_meas_ids)
 
 def filter_by_axis_y(mmrs_test, axis_y):
     """
-    Filter passed measurement results QS by axis y value from config.
+    Filter passed measurement result queryset by axis y value from config.
+    Returns a plain list of ids.
     """
     if not axis_y:
-        return mmrs_test.none()
+        return []
 
     mmrs_test_meas_ids = set(mmrs_test.values_list('measurement_id', flat=True).distinct())
     if not mmrs_test_meas_ids:
-        return mmrs_test.none()
+        return []
 
     axis_y_meas_ids = set()
 
@@ -106,18 +105,20 @@ def filter_by_axis_y(mmrs_test, axis_y):
             axis_y_meas_ids |= set.intersection(*measurement_ids)
 
     if not axis_y_meas_ids:
-        return mmrs_test.none()
+        return []
 
-    return mmrs_test.filter(measurement_id__in=axis_y_meas_ids)
+    return list(
+        mmrs_test.filter(measurement_id__in=axis_y_meas_ids).values_list('id', flat=True),
+    )
 
 
 def filter_by_not_show_args(mmrs_test, not_show_args):
     """
-    Drop measurement results corresponding to iterations with the passed
-    arguments values from the passed measurement results QS.
+    Drop ids of measurement results corresponding to iterations with the
+    passed arguments values. Returns a plain list of ids.
     """
     if not not_show_args:
-        return mmrs_test
+        return list(mmrs_test.values_list('id', flat=True))
 
     not_show_args_q = Q()
     for arg, vals in not_show_args.items():
@@ -127,7 +128,7 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
         ).values('pk')
         not_show_args_q |= Q(pk__in=Subquery(arg_vals_mmrs_ids))
 
-    return mmrs_test.exclude(not_show_args_q)
+    return list(mmrs_test.exclude(not_show_args_q).values_list('id', flat=True))
 
 
 class ReportService:
@@ -266,24 +267,26 @@ class ReportService:
         for test_name, test_config in report_config['tests'].items():
             # Filter by test name
             mmrs_test = mmrs_run.filter(result__iteration__test__name=test_name)
-            if not mmrs_test:
+            mmrs_test_ids = list(mmrs_test.values_list('id', flat=True))
+            if not mmrs_test_ids:
                 continue
 
             # Filter by axis_y
             axis_y = test_config['axis_y']
-            mmrs_test = filter_by_axis_y(mmrs_test, axis_y)
-            if not mmrs_test:
+            mmrs_test_ids = filter_by_axis_y(mmrs_test, axis_y)
+            if not mmrs_test_ids:
                 msg = (
                     f'{test_name} test: no results after filtering by axis_y value. '
                     'Fix report configuration'
                 )
                 warnings.append(msg)
                 continue
+            mmrs_test = mmrs_run.filter(id__in=mmrs_test_ids)
 
             # Filter by not_show_args
             not_show_args = test_config['not_show_args']
-            mmrs_test = filter_by_not_show_args(mmrs_test, not_show_args)
-            if not mmrs_test:
+            mmrs_test_ids = filter_by_not_show_args(mmrs_test, not_show_args)
+            if not mmrs_test_ids:
                 msg = (
                     f'{test_name} test: no results after filtering by not_show_args value. '
                     'Fix report configuration'
@@ -295,9 +298,9 @@ class ReportService:
                 continue
 
             # Collect common args
-            common_args[test_name] = get_common_args(mmrs_test)
+            common_args[test_name] = get_common_args(mmrs_test_ids)
 
-            report_q |= Q(id__in=mmrs_test.values('id'))
+            report_q |= Q(id__in=mmrs_test_ids)
 
         mmrs_report = (
             mmrs_run.filter(report_q).order_by('id')
