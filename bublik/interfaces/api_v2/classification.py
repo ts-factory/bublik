@@ -50,11 +50,11 @@ def _clamp_limit(request, default=20, maximum=100):
 
 
 def _serialize_classified_result(stamp):
-    '''Flatten a ResultClassification stamp into a result row.
+    """Flatten a ResultClassification stamp into a result row.
 
     Includes the matching rule's category/expected so callers that aggregate
     across rules (per-issue view) can show which rule classified each result.
-    '''
+    """
     r = stamp.result
     path = []
     node = r.parent_package
@@ -65,11 +65,11 @@ def _serialize_classified_result(stamp):
     path.reverse()
     verdicts = list(
         r.meta_results.filter(meta__type='verdict')
-        .order_by('serial').values_list('meta__value', flat=True),
+        .order_by('serial')
+        .values_list('meta__value', flat=True),
     )
     obtained = (
-        r.meta_results.filter(meta__type='result')
-        .values_list('meta__value', flat=True).first()
+        r.meta_results.filter(meta__type='result').values_list('meta__value', flat=True).first()
     )
     return {
         'result_id': r.id,
@@ -167,12 +167,12 @@ class IssueViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def results(self, request, *args, **kwargs):
-        '''All results classified under this issue, across its rules.
+        """All results classified under this issue, across its rules.
 
         An issue spans multiple rules/tests, so this unions every rule's
         stamps into one newest-run-first list. Scoped to a project when given,
         since rules are per-project.
-        '''
+        """
         issue = self.get_object()
         limit = _clamp_limit(request)
         stamps = ResultClassification.objects.filter(rule__issue=issue)
@@ -181,10 +181,9 @@ class IssueViewSet(ModelViewSet):
             stamps = stamps.filter(rule__project_id=project)
         # unique(result, rule); a result could carry stamps from two of this
         # issue's rules, so de-dupe by result keeping the newest run.
-        stamps = (
-            stamps.select_related('rule', 'result__iteration__test', 'result__test_run')
-            .order_by('-result__test_run__start', '-result_id')
-        )
+        stamps = stamps.select_related(
+            'rule', 'result__iteration__test', 'result__test_run'
+        ).order_by('-result__test_run__start', '-result_id')
         rows = []
         seen = set()
         for stamp in stamps:
@@ -278,12 +277,12 @@ class IssueRuleViewSet(ModelViewSet):
 
 
 class ResultClassifyViewSet(GenericViewSet):
-    '''POST /results/<result_id>/classify/?project=<id>
+    """POST /results/<result_id>/classify/?project=<id>
 
     Body: {issue: <id> | {title, description?, bug_key?},
            category, expected?, scope: 'future'|'oneoff', matcher?: {...}}
     Creates/links an Issue, creates an IssueRule (active iff scope=future),
-    and stamps the current result.'''
+    and stamps the current result."""
 
     # No queryset/model on this viewset; skip the global auto FilterSet.
     filter_backends: typing.ClassVar[list] = []
@@ -311,10 +310,7 @@ class ResultClassifyViewSet(GenericViewSet):
 
         # Respect an explicit disposition incl. null (none); only default when
         # the key is absent.
-        if 'expected' in body:
-            expected = body['expected']
-        else:
-            expected = default_expected_for(category)
+        expected = body['expected'] if 'expected' in body else default_expected_for(category)
         matcher = body.get('matcher') or {}
 
         active = scope == 'future'
@@ -338,7 +334,9 @@ class ResultClassifyViewSet(GenericViewSet):
             created_by=actor,
         )
         ResultClassification.objects.get_or_create(
-            result=result, rule=rule, defaults={'origin': origin, 'created_by': actor},
+            result=result,
+            rule=rule,
+            defaults={'origin': origin, 'created_by': actor},
         )
         invalidate_run_stats([result.test_run_id])
         return Response(
@@ -375,10 +373,10 @@ class ResultClassifyViewSet(GenericViewSet):
 
 
 class IssuePickerViewSet(GenericViewSet):
-    '''GET /issues/picker/?project=<id>&search=<q> - typeahead options for the
+    """GET /issues/picker/?project=<id>&search=<q> - typeahead options for the
     classify popover. No search: top-10 recently-applied issues in the project
     (by latest stamp). With search: title/bug-key matches. Each option carries a
-    display tag source (key, else category).'''
+    display tag source (key, else category)."""
 
     filter_backends: typing.ClassVar[list] = []
 
@@ -409,7 +407,8 @@ class IssuePickerViewSet(GenericViewSet):
         for issue in issues:
             latest = (
                 ResultClassification.objects.filter(
-                    rule__issue=issue, rule__project_id=project_id,
+                    rule__issue=issue,
+                    rule__project_id=project_id,
                 )
                 .select_related('rule')
                 .order_by('-created_at')
@@ -422,18 +421,20 @@ class IssuePickerViewSet(GenericViewSet):
                 .values_list('category', flat=True)
                 .first()
             )
-            data.append({
-                'id': issue.id,
-                'title': issue.title,
-                'key': issue.issue_ext.key if issue.issue_ext_id else None,
-                'category': category,
-            })
+            data.append(
+                {
+                    'id': issue.id,
+                    'title': issue.title,
+                    'key': issue.issue_ext.key if issue.issue_ext_id else None,
+                    'category': category,
+                }
+            )
         return Response(data)
 
 
 class RunApplyRulesViewSet(GenericViewSet):
-    '''POST /runs/<run_id>/apply-rules/?project=<id> - apply active rules to an
-    existing run on demand.'''
+    """POST /runs/<run_id>/apply-rules/?project=<id> - apply active rules to an
+    existing run on demand."""
 
     # No queryset/model on this viewset; skip the global auto FilterSet.
     filter_backends: typing.ClassVar[list] = []
@@ -447,7 +448,7 @@ class RunApplyRulesViewSet(GenericViewSet):
 
 
 class RunIssuesViewSet(GenericViewSet):
-    '''GET /runs/<run_id>/issues/ - per-issue summary of classified results in a run.'''
+    """GET /runs/<run_id>/issues/ - per-issue summary of classified results in a run."""
 
     # Read endpoint; the global AllDjangoFilterBackend breaks on some models.
     filter_backends: typing.ClassVar[list] = []
@@ -458,22 +459,30 @@ class RunIssuesViewSet(GenericViewSet):
         # Distinct result count per issue (a result may be stamped by several rules).
         counts = {
             row['rule__issue_id']: row['c']
-            for row in base.values('rule__issue_id').annotate(c=Count('result_id', distinct=True))
+            for row in base.values('rule__issue_id').annotate(
+                c=Count('result_id', distinct=True)
+            )
         }
         # Issue meta + the (category, expected) pairs seen for it in this run.
         rows: dict = {}
         for m in base.values(
-            'rule__issue_id', 'rule__issue__title', 'rule__issue__state',
-            'rule__category', 'rule__expected',
+            'rule__issue_id',
+            'rule__issue__title',
+            'rule__issue__state',
+            'rule__category',
+            'rule__expected',
         ).distinct():
             iid = m['rule__issue_id']
-            r = rows.setdefault(iid, {
-                'issue_id': iid,
-                'title': m['rule__issue__title'],
-                'state': m['rule__issue__state'],
-                'result_count': counts.get(iid, 0),
-                'categories': [],
-            })
+            r = rows.setdefault(
+                iid,
+                {
+                    'issue_id': iid,
+                    'title': m['rule__issue__title'],
+                    'state': m['rule__issue__state'],
+                    'result_count': counts.get(iid, 0),
+                    'categories': [],
+                },
+            )
             r['categories'].append(
                 {'category': m['rule__category'], 'expected': m['rule__expected']},
             )
@@ -490,8 +499,8 @@ class RunIssuesViewSet(GenericViewSet):
 
 
 class RunIssueResultsViewSet(GenericViewSet):
-    '''GET /runs/<run_id>/issues/<issue_id>/results/ - results in a run classified
-    under an issue, each with its run-tree package path.'''
+    """GET /runs/<run_id>/issues/<issue_id>/results/ - results in a run classified
+    under an issue, each with its run-tree package path."""
 
     # Read endpoint; the global AllDjangoFilterBackend breaks on some models.
     filter_backends: typing.ClassVar[list] = []
@@ -501,7 +510,8 @@ class RunIssueResultsViewSet(GenericViewSet):
         issue_id = self.kwargs['issue_id']
         stamps = (
             ResultClassification.objects.filter(
-                result__test_run_id=run_id, rule__issue_id=issue_id,
+                result__test_run_id=run_id,
+                rule__issue_id=issue_id,
             )
             .select_related('result__iteration__test')
             .distinct('result_id')
@@ -520,17 +530,21 @@ class RunIssueResultsViewSet(GenericViewSet):
             path.reverse()
             verdicts = list(
                 r.meta_results.filter(meta__type='verdict')
-                .order_by('serial').values_list('meta__value', flat=True),
+                .order_by('serial')
+                .values_list('meta__value', flat=True),
             )
             obtained = (
                 r.meta_results.filter(meta__type='result')
-                .values_list('meta__value', flat=True).first()
+                .values_list('meta__value', flat=True)
+                .first()
             )
-            data.append({
-                'result_id': r.id,
-                'name': r.iteration.test.name if r.iteration_id else None,
-                'path': path,
-                'obtained_result': obtained,
-                'verdicts': verdicts,
-            })
+            data.append(
+                {
+                    'result_id': r.id,
+                    'name': r.iteration.test.name if r.iteration_id else None,
+                    'path': path,
+                    'obtained_result': obtained,
+                    'verdicts': verdicts,
+                }
+            )
         return Response(data)

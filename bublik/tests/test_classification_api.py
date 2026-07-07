@@ -25,12 +25,18 @@ class IssueRuleSerializerTest(TestCase):
         project = Project.objects.create(name='p')
         issue = Issue.objects.create(title='bug')
         test = Test.objects.create(name='t', result_type='T')
-        ser = IssueRuleSerializer(data={
-            'project': project.id, 'issue': issue.id, 'test': test.id,
-            'category': IssueCategory.KNOWN_ISSUE,
-            # expected omitted -> should default True for known-issue
-            'parameters': {'a': '1'}, 'verdicts': ['boom'], 'tags': [],
-        })
+        ser = IssueRuleSerializer(
+            data={
+                'project': project.id,
+                'issue': issue.id,
+                'test': test.id,
+                'category': IssueCategory.KNOWN_ISSUE,
+                # expected omitted -> should default True for known-issue
+                'parameters': {'a': '1'},
+                'verdicts': ['boom'],
+                'tags': [],
+            }
+        )
         ser.is_valid(raise_exception=True)
         rule = ser.save()
         self.assertTrue(rule.expected)
@@ -39,11 +45,18 @@ class IssueRuleSerializerTest(TestCase):
         project = Project.objects.create(name='p')
         issue = Issue.objects.create(title='bug')
         test = Test.objects.create(name='t', result_type='T')
-        ser = IssueRuleSerializer(data={
-            'project': project.id, 'issue': issue.id, 'test': test.id,
-            'category': IssueCategory.KNOWN_ISSUE, 'expected': False,
-            'parameters': {}, 'verdicts': [], 'tags': [],
-        })
+        ser = IssueRuleSerializer(
+            data={
+                'project': project.id,
+                'issue': issue.id,
+                'test': test.id,
+                'category': IssueCategory.KNOWN_ISSUE,
+                'expected': False,
+                'parameters': {},
+                'verdicts': [],
+                'tags': [],
+            }
+        )
         ser.is_valid(raise_exception=True)
         rule = ser.save()
         self.assertFalse(rule.expected)
@@ -85,8 +98,12 @@ class IssueLifecycleApiTest(APITestCase):
         self.issue = Issue.objects.create(title='bug')
         self.test = Test.objects.create(name='t', result_type='T')
         self.rule = IssueRule.objects.create(
-            project=self.project, issue=self.issue, test=self.test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
         )
 
     def test_close_issue_deactivates_rules(self):
@@ -113,27 +130,37 @@ class ClassifyApiTest(APITestCase):
         self.project = Project.objects.create(name='p')
         self.user = _auth(self.client, self.project)
         run = TestIterationResult.objects.create(
-            iteration=None, test_run=None,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         test = Test.objects.create(name='t', result_type='T')
         iteration = TestIteration.objects.create(test=test, hash='h1')
-        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
         iteration.test_arguments.add(arg)
         self.result = TestIterationResult.objects.create(
-            iteration=iteration, test_run=run,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=iteration,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         m = Meta.objects.create(type='verdict', value='boom', hash='vh')
         MetaResult.objects.create(result=self.result, meta=m, serial=0)
 
     def test_classify_creates_issue_rule_and_stamp(self):
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
-        resp = self.client.post(url, {
-            'issue': {'title': 'flaky thing'},
-            'category': 'known-issue',
-            'scope': 'future',
-        }, format='json')
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'flaky thing'},
+                'category': 'known-issue',
+                'scope': 'future',
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
 
         stamp = ResultClassification.objects.get(result=self.result)
@@ -147,9 +174,15 @@ class ClassifyApiTest(APITestCase):
 
     def test_classify_oneoff_is_inactive_rule(self):
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
-        resp = self.client.post(url, {
-            'issue': {'title': 'one off'}, 'category': 'product-defect', 'scope': 'oneoff',
-        }, format='json')
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'one off'},
+                'category': 'product-defect',
+                'scope': 'oneoff',
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertFalse(stamp.rule.active)
@@ -163,17 +196,21 @@ class ClassifyApiTest(APITestCase):
             'bublik.interfaces.api_v2.classification.get_tags_by_runs',
         ) as gt:
             gt.return_value = {self.result.test_run_id: ['imp', 'rel']}
-            resp = self.client.post(url, {
-                'issue': {'title': 'x'},
-                'category': 'known-issue',
-                'scope': 'future',
-                'matcher': {
-                    'match_parameters': True,
-                    'match_verdicts': False,
-                    'match_important_tags': False,
-                    'match_all_tags': True,
+            resp = self.client.post(
+                url,
+                {
+                    'issue': {'title': 'x'},
+                    'category': 'known-issue',
+                    'scope': 'future',
+                    'matcher': {
+                        'match_parameters': True,
+                        'match_verdicts': False,
+                        'match_important_tags': False,
+                        'match_all_tags': True,
+                    },
                 },
-            }, format='json')
+                format='json',
+            )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertTrue(stamp.rule.match_parameters)
@@ -185,7 +222,9 @@ class ClassifyApiTest(APITestCase):
     def test_classify_rejects_bad_category(self):
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
         resp = self.client.post(
-            url, {'issue': {'title': 'x'}, 'category': 'banana'}, format='json',
+            url,
+            {'issue': {'title': 'x'}, 'category': 'banana'},
+            format='json',
         )
         self.assertEqual(resp.status_code, 400)
 
@@ -193,34 +232,53 @@ class ClassifyApiTest(APITestCase):
         from bublik.core.classification import SUPPRESSION_FILTER
 
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
-        resp = self.client.post(url, {
-            'issue': {'title': 'x'}, 'category': 'known-issue',
-            'scope': 'future', 'expected': None,
-        }, format='json')
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'x'},
+                'category': 'known-issue',
+                'scope': 'future',
+                'expected': None,
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertIsNone(stamp.rule.expected)
         self.assertFalse(
             ResultClassification.objects.filter(
-                result=self.result, **SUPPRESSION_FILTER,
+                result=self.result,
+                **SUPPRESSION_FILTER,
             ).exists(),
         )
 
     def test_classify_expected_false_is_unexpected(self):
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
-        resp = self.client.post(url, {
-            'issue': {'title': 'y'}, 'category': 'known-issue',
-            'scope': 'future', 'expected': False,
-        }, format='json')
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'y'},
+                'category': 'known-issue',
+                'scope': 'future',
+                'expected': False,
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertIs(stamp.rule.expected, False)
 
     def test_classify_expected_omitted_defaults_from_category(self):
         url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
-        resp = self.client.post(url, {
-            'issue': {'title': 'z'}, 'category': 'known-issue', 'scope': 'future',
-        }, format='json')
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'z'},
+                'category': 'known-issue',
+                'scope': 'future',
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
         stamp = ResultClassification.objects.get(result=self.result)
         self.assertTrue(stamp.rule.expected)
@@ -241,24 +299,35 @@ class ApplyRulesApiTest(APITestCase):
         self.project = Project.objects.create(name='p')
         self.user = _auth(self.client, self.project)
         self.run = TestIterationResult.objects.create(
-            iteration=None, test_run=None,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         test = Test.objects.create(name='t', result_type='T')
         iteration = TestIteration.objects.create(test=test, hash='h1')
-        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
         iteration.test_arguments.add(arg)
         self.result = TestIterationResult.objects.create(
-            iteration=iteration, test_run=self.run,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=iteration,
+            test_run=self.run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         m = Meta.objects.create(type='verdict', value='boom', hash='vh')
         MetaResult.objects.create(result=self.result, meta=m, serial=0)
         issue = Issue.objects.create(title='bug')
         IssueRule.objects.create(
-            project=self.project, issue=issue, test=test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
-            parameters={'a': '1'}, verdicts=['boom'],
+            project=self.project,
+            issue=issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+            parameters={'a': '1'},
+            verdicts=['boom'],
         )
 
     def test_apply_rules_stamps_existing_run(self):
@@ -283,20 +352,26 @@ class RunIssuesApiTest(APITestCase):
 
         self.project = Project.objects.create(name='p')
         self.run = TestIterationResult.objects.create(
-            iteration=None, test_run=None,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         test = Test.objects.create(name='t', result_type='T')
         iteration = TestIteration.objects.create(test=test, hash='h1')
-        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
         iteration.test_arguments.add(arg)
 
         # Two distinct results in the run, each with an err verdict meta.
         self.results = []
         for i in range(2):
             result = TestIterationResult.objects.create(
-                iteration=iteration, test_run=self.run,
-                start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+                iteration=iteration,
+                test_run=self.run,
+                start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                project=self.project,
             )
             m = Meta.objects.create(type='verdict', value=f'boom{i}', hash=f'vh{i}')
             MetaResult.objects.create(result=result, meta=m, serial=0)
@@ -304,13 +379,19 @@ class RunIssuesApiTest(APITestCase):
 
         self.issue = Issue.objects.create(title='flaky thing')
         self.rule = IssueRule.objects.create(
-            project=self.project, issue=self.issue, test=test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            project=self.project,
+            issue=self.issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
         )
         # Stamp BOTH results under the same rule.
         for result in self.results:
             ResultClassification.objects.create(
-                result=result, rule=self.rule, origin=StampOrigin.MANUAL_APPLY,
+                result=result,
+                rule=self.rule,
+                origin=StampOrigin.MANUAL_APPLY,
             )
 
     def test_run_issues_summary(self):
@@ -343,26 +424,35 @@ class RunIssueResultsApiTest(APITestCase):
 
         self.project = Project.objects.create(name='p')
         self.run = TestIterationResult.objects.create(
-            iteration=None, test_run=None,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
 
         # Package node (a TestIterationResult whose test is a package).
         pkg_test = Test.objects.create(name='net', result_type='P')
         pkg_iter = TestIteration.objects.create(test=pkg_test, hash='ph')
         self.package = TestIterationResult.objects.create(
-            iteration=pkg_iter, test_run=self.run,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=pkg_iter,
+            test_run=self.run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
 
         # Leaf test result under the package.
         test = Test.objects.create(name='ana_log', result_type='T')
         iteration = TestIteration.objects.create(test=test, hash='h1')
-        arg, _ = TestArgument.objects.get_or_create(name='a', value='1', defaults={'hash': 'ah'})
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
         iteration.test_arguments.add(arg)
         self.result = TestIterationResult.objects.create(
-            iteration=iteration, test_run=self.run, parent_package=self.package,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=iteration,
+            test_run=self.run,
+            parent_package=self.package,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         verdict = Meta.objects.create(type='verdict', value='timeout', hash='vh')
         MetaResult.objects.create(result=self.result, meta=verdict, serial=0)
@@ -371,11 +461,17 @@ class RunIssueResultsApiTest(APITestCase):
 
         self.issue = Issue.objects.create(title='flaky thing')
         self.rule = IssueRule.objects.create(
-            project=self.project, issue=self.issue, test=test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            project=self.project,
+            issue=self.issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
         )
         ResultClassification.objects.create(
-            result=self.result, rule=self.rule, origin=StampOrigin.MANUAL_APPLY,
+            result=self.result,
+            rule=self.rule,
+            origin=StampOrigin.MANUAL_APPLY,
         )
 
     def test_run_issue_results_list(self):
@@ -405,8 +501,12 @@ class AuthGuardTest(APITestCase):
         self.issue = Issue.objects.create(title='bug')
         self.test = Test.objects.create(name='t', result_type='T')
         self.rule = IssueRule.objects.create(
-            project=self.project, issue=self.issue, test=self.test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
         )
 
     def test_unauth_delete_issue_rejected(self):
@@ -416,14 +516,16 @@ class AuthGuardTest(APITestCase):
     def test_unauth_patch_issue_rejected(self):
         r = self.client.patch(
             f'/api/v2/issues/{self.issue.id}/?project={self.project.id}',
-            {'title': 'x'}, format='json',
+            {'title': 'x'},
+            format='json',
         )
         self.assertEqual(r.status_code, 403)
 
     def test_unauth_patch_rule_rejected(self):
         r = self.client.patch(
             f'/api/v2/issue-rules/{self.rule.id}/?project={self.project.id}',
-            {'expected': False}, format='json',
+            {'expected': False},
+            format='json',
         )
         self.assertEqual(r.status_code, 403)
         self.rule.refresh_from_db()
@@ -438,25 +540,41 @@ class IssuePickerApiTest(APITestCase):
     def setUp(self):
         from datetime import datetime, timezone
         from bublik.data.models import (
-            Issue, IssueCategory, IssueExt, IssueRule, Project,
-            ResultClassification, StampOrigin, Test, TestIteration,
+            Issue,
+            IssueCategory,
+            IssueExt,
+            IssueRule,
+            Project,
+            ResultClassification,
+            StampOrigin,
+            Test,
+            TestIteration,
             TestIterationResult,
         )
+
         self.project = Project.objects.create(name='pick')
         test = Test.objects.create(name='t', result_type='T')
 
         def stamp(issue, when):
             it = TestIteration.objects.create(test=test, hash=f'h{issue.id}{when}')
             res = TestIterationResult.objects.create(
-                iteration=it, test_run=None,
-                start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+                iteration=it,
+                test_run=None,
+                start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                project=self.project,
             )
             rule = IssueRule.objects.create(
-                project=self.project, issue=issue, test=test,
-                category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+                project=self.project,
+                issue=issue,
+                test=test,
+                category=IssueCategory.KNOWN_ISSUE,
+                expected=True,
+                active=True,
             )
             sc = ResultClassification.objects.create(
-                result=res, rule=rule, origin=StampOrigin.MANUAL_ONEOFF,
+                result=res,
+                rule=rule,
+                origin=StampOrigin.MANUAL_ONEOFF,
             )
             # created_at is auto_now_add; override to control recency ordering
             ResultClassification.objects.filter(id=sc.id).update(created_at=when)
@@ -473,6 +591,7 @@ class IssuePickerApiTest(APITestCase):
 
     def test_recent_default_ordered_by_latest_stamp(self):
         from rest_framework import status
+
         r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}')
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         data = r.json()
@@ -504,12 +623,16 @@ class CaptureTagsTest(APITestCase):
 
         self.project = Project.objects.create(name='p')
         run = TestIterationResult.objects.create(
-            iteration=None, test_run=None,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
         self.result = TestIterationResult.objects.create(
-            iteration=None, test_run=run,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=self.project,
+            iteration=None,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
         )
 
     def test_important_only_by_default(self):
@@ -539,7 +662,13 @@ class CaptureTagsTest(APITestCase):
 class IssueRuleResultsApiTest(APITestCase):
     def setUp(self):
         from bublik.data.models import (
-            Issue, IssueCategory, Meta, MetaResult, Project, Test, TestArgument,
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
         )
 
         self.project = Project.objects.create(name='p')
@@ -549,27 +678,37 @@ class IssueRuleResultsApiTest(APITestCase):
 
         def make_run(day):
             return TestIterationResult.objects.create(
-                iteration=None, test_run=None,
-                start=datetime(2026, 1, day, tzinfo=timezone.utc), project=self.project,
+                iteration=None,
+                test_run=None,
+                start=datetime(2026, 1, day, tzinfo=timezone.utc),
+                project=self.project,
             )
 
         def make_result(run, day):
             iteration = TestIteration.objects.create(test=self.test, hash=f'h{day}')
             arg, _ = TestArgument.objects.get_or_create(
-                name='a', value='1', defaults={'hash': 'ah'},
+                name='a',
+                value='1',
+                defaults={'hash': 'ah'},
             )
             iteration.test_arguments.add(arg)
             r = TestIterationResult.objects.create(
-                iteration=iteration, test_run=run,
-                start=datetime(2026, 1, day, tzinfo=timezone.utc), project=self.project,
+                iteration=iteration,
+                test_run=run,
+                start=datetime(2026, 1, day, tzinfo=timezone.utc),
+                project=self.project,
             )
             m = Meta.objects.create(type='verdict', value=f'boom{day}', hash=f'vh{day}')
             MetaResult.objects.create(result=r, meta=m, serial=0)
             return r
 
         self.rule = IssueRule.objects.create(
-            project=self.project, issue=self.issue, test=self.test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
         )
         old_run, new_run = make_run(1), make_run(5)
         self.old_result = make_result(old_run, 1)
@@ -578,12 +717,18 @@ class IssueRuleResultsApiTest(APITestCase):
             ResultClassification.objects.create(result=r, rule=self.rule, origin='manual_apply')
 
         self.other_rule = IssueRule.objects.create(
-            project=self.project, issue=self.issue, test=self.test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=True,
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
         )
         other_result = make_result(make_run(9), 9)
         ResultClassification.objects.create(
-            result=other_result, rule=self.other_rule, origin='manual_apply',
+            result=other_result,
+            rule=self.other_rule,
+            origin='manual_apply',
         )
 
     def test_results_newest_run_first_and_scoped_to_rule(self):

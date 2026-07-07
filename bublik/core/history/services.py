@@ -355,7 +355,7 @@ class HistoryService:
         return test_results.filter(iteration__in=test_iteration_ids)
 
     @staticmethod
-    def _apply_result_filters(
+    def _apply_result_filters(  # noqa: PLR0913
         test_results: TestIterationResult,
         result_statuses: str | None,
         verdict: str | None,
@@ -436,9 +436,13 @@ class HistoryService:
         if explained and explained.lower() == 'true':
             test_results = test_results.filter(classifications__isnull=False).distinct()
         if untriaged and untriaged.lower() == 'true':
-            test_results = test_results.filter(
-                meta_results__meta__type='err',
-            ).exclude(classifications__isnull=False).distinct()
+            test_results = (
+                test_results.filter(
+                    meta_results__meta__type='err',
+                )
+                .exclude(classifications__isnull=False)
+                .distinct()
+            )
 
         return test_results
 

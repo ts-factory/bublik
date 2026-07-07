@@ -35,21 +35,28 @@ class EngineFixtureMixin:
 
     def make_run(self, project):
         return TestIterationResult.objects.create(
-            iteration=None, test_run=None,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=project,
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=project,
         )
 
     def add_result(self, run, project, test, *, params=None, verdicts=(), err=False):
         iteration = TestIteration.objects.create(test=test, hash=self._h('iter'))
         for name, value in (params or {}).items():
             from bublik.data.models import TestArgument
+
             arg, _ = TestArgument.objects.get_or_create(
-                name=name, value=value, defaults={'hash': self._h('arg')},
+                name=name,
+                value=value,
+                defaults={'hash': self._h('arg')},
             )
             iteration.test_arguments.add(arg)
         result = TestIterationResult.objects.create(
-            iteration=iteration, test_run=run,
-            start=datetime(2026, 1, 1, tzinfo=timezone.utc), project=project,
+            iteration=iteration,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=project,
         )
         if err:
             m = Meta.objects.create(type='err', value='FAILED', hash=self._h('err'))
@@ -59,16 +66,35 @@ class EngineFixtureMixin:
             MetaResult.objects.create(result=result, meta=m, serial=i)
         return result
 
-    def make_rule(self, project, test, *, params=None, verdicts=None, active=True,
-                  match_parameters=True, match_verdicts=True,
-                  match_important_tags=False, match_all_tags=False, tags=None):
+    def make_rule(
+        self,
+        project,
+        test,
+        *,
+        params=None,
+        verdicts=None,
+        active=True,
+        match_parameters=True,
+        match_verdicts=True,
+        match_important_tags=False,
+        match_all_tags=False,
+        tags=None,
+    ):
         issue = Issue.objects.create(title='cause')
         return IssueRule.objects.create(
-            project=project, issue=issue, test=test,
-            category=IssueCategory.KNOWN_ISSUE, expected=True, active=active,
-            match_parameters=match_parameters, match_verdicts=match_verdicts,
-            match_important_tags=match_important_tags, match_all_tags=match_all_tags,
-            parameters=params or {}, verdicts=verdicts or [], tags=tags or [],
+            project=project,
+            issue=issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=active,
+            match_parameters=match_parameters,
+            match_verdicts=match_verdicts,
+            match_important_tags=match_important_tags,
+            match_all_tags=match_all_tags,
+            parameters=params or {},
+            verdicts=verdicts or [],
+            tags=tags or [],
         )
 
 
@@ -77,7 +103,9 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
         project = Project.objects.create(name=self._h('p'))
         run = self.make_run(project)
         test = Test.objects.create(name=self._h('t'), result_type='T')
-        result = self.add_result(run, project, test, params={'a': '1'}, verdicts=['boom'], err=True)
+        result = self.add_result(
+            run, project, test, params={'a': '1'}, verdicts=['boom'], err=True
+        )
         self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'])
 
         apply_active_rules(run)
@@ -89,7 +117,9 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
         project = Project.objects.create(name=self._h('p'))
         run = self.make_run(project)
         test = Test.objects.create(name=self._h('t'), result_type='T')
-        result = self.add_result(run, project, test, params={'a': '2'}, verdicts=['boom'], err=True)
+        result = self.add_result(
+            run, project, test, params={'a': '2'}, verdicts=['boom'], err=True
+        )
         self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'])
 
         apply_active_rules(run)
@@ -100,7 +130,9 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
         project = Project.objects.create(name=self._h('p'))
         run = self.make_run(project)
         test = Test.objects.create(name=self._h('t'), result_type='T')
-        result = self.add_result(run, project, test, params={'a': '1'}, verdicts=['other'], err=True)
+        result = self.add_result(
+            run, project, test, params={'a': '1'}, verdicts=['other'], err=True
+        )
         self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'])
 
         apply_active_rules(run)
@@ -111,7 +143,9 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
         project = Project.objects.create(name=self._h('p'))
         run = self.make_run(project)
         test = Test.objects.create(name=self._h('t'), result_type='T')
-        result = self.add_result(run, project, test, params={'a': '1'}, verdicts=['boom'], err=True)
+        result = self.add_result(
+            run, project, test, params={'a': '1'}, verdicts=['boom'], err=True
+        )
         self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'], active=False)
 
         apply_active_rules(run)
@@ -122,7 +156,9 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
         project = Project.objects.create(name=self._h('p'))
         run = self.make_run(project)
         test = Test.objects.create(name=self._h('t'), result_type='T')
-        result = self.add_result(run, project, test, params={'a': '1'}, verdicts=['boom'], err=True)
+        result = self.add_result(
+            run, project, test, params={'a': '1'}, verdicts=['boom'], err=True
+        )
         rule = self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'])
 
         apply_active_rules(run)
@@ -137,10 +173,14 @@ class ApplyActiveRulesTest(EngineFixtureMixin, TestCase):
         project = Project.objects.create(name=self._h('p'))
         run = self.make_run(project)
         test = Test.objects.create(name=self._h('t'), result_type='T')
-        result = self.add_result(run, project, test, params={'a': '1'}, verdicts=['boom'], err=True)
+        result = self.add_result(
+            run, project, test, params={'a': '1'}, verdicts=['boom'], err=True
+        )
         rule = self.make_rule(project, test, params={'a': '1'}, verdicts=['boom'], active=False)
         ResultClassification.objects.create(
-            result=result, rule=rule, origin=StampOrigin.MANUAL_ONEOFF,
+            result=result,
+            rule=rule,
+            origin=StampOrigin.MANUAL_ONEOFF,
         )
 
         apply_active_rules(run)  # rule inactive; manual stamp must survive

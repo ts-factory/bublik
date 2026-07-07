@@ -28,9 +28,17 @@ class IssueSerializer(ModelSerializer):
     class Meta:
         model = Issue
         fields = (
-            'id', 'title', 'description', 'state', 'issue_ext',
-            'created_by', 'created_at', 'updated_by', 'updated_at',
-            'closed_by', 'closed_at',
+            'id',
+            'title',
+            'description',
+            'state',
+            'issue_ext',
+            'created_by',
+            'created_at',
+            'updated_by',
+            'updated_at',
+            'closed_by',
+            'closed_at',
         )
         read_only_fields = (*_AUDIT, 'closed_by', 'closed_at', 'issue_ext')
 
@@ -42,12 +50,27 @@ class IssueRuleSerializer(ModelSerializer):
     class Meta:
         model = IssueRule
         fields = (
-            'id', 'project', 'issue', 'category', 'expected', 'active', 'test',
+            'id',
+            'project',
+            'issue',
+            'category',
+            'expected',
+            'active',
+            'test',
             'test_name',
-            'match_parameters', 'match_verdicts', 'match_important_tags',
-            'match_all_tags', 'parameters', 'verdicts', 'tags',
-            'created_by', 'created_at', 'updated_by', 'updated_at',
-            'deactivated_by', 'deactivated_at',
+            'match_parameters',
+            'match_verdicts',
+            'match_important_tags',
+            'match_all_tags',
+            'parameters',
+            'verdicts',
+            'tags',
+            'created_by',
+            'created_at',
+            'updated_by',
+            'updated_at',
+            'deactivated_by',
+            'deactivated_at',
         )
         read_only_fields = (*_AUDIT, 'deactivated_by', 'deactivated_at')
 

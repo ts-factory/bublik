@@ -52,15 +52,15 @@ _EXPECTED_BY_CATEGORY = {
 
 
 def default_expected_for(category):
-    '''Suggested `expected` flag for a category (see spec 3.3).'''
+    """Suggested `expected` flag for a category (see spec 3.3)."""
     return _EXPECTED_BY_CATEGORY.get(category, False)
 
 
 class IssueExt(models.Model):
-    '''
+    """
     Cache of an external tracker bug. Key is set at triage; status/title are
     populated by the later issue-tracker connector (1b), null until then.
-    '''
+    """
 
     key = models.CharField(
         max_length=256,
@@ -98,10 +98,10 @@ class IssueExt(models.Model):
 
 
 class Issue(models.Model):
-    '''
+    """
     The cause identity. Global (cross-project), dedup point. Carries no
     classification - category and expected live on the rule.
-    '''
+    """
 
     issue_ext = models.OneToOneField(
         IssueExt,
@@ -152,10 +152,10 @@ class Issue(models.Model):
 
 
 class IssueRule(models.Model):
-    '''
+    """
     The triage decision: classification (category + expected) plus the matcher
     and lifecycle flag. Per-project, points at a global Issue.
-    '''
+    """
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='issue_rules')
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name='rules')
@@ -166,7 +166,9 @@ class IssueRule(models.Model):
         help_text='Disposition: True=expected (suppresses), False=unexpected, '
         'None=none (marker only).',
     )
-    active = models.BooleanField(default=True, help_text='Whether it applies to future imports.')
+    active = models.BooleanField(
+        default=True, help_text='Whether it applies to future imports.'
+    )
 
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='issue_rules')
     match_parameters = models.BooleanField(default=True)
@@ -213,10 +215,10 @@ class IssueRule(models.Model):
 
 
 class ResultClassification(models.Model):
-    '''
+    """
     Per-result stamp produced by applying a rule. Issue, category and expected
     are read through `rule`.
-    '''
+    """
 
     result = models.ForeignKey(
         TestIterationResult,

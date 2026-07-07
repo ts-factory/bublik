@@ -21,7 +21,10 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 """
 
-from .config import Config, ConfigTypes, GlobalConfigs
+# isort would hoist `.classification` above `.eventlog`, but classification.py
+# triggers the core.config->cache->utils->EventLog chain at import time, so it
+# must be imported after EventLog to avoid a partial-init circular import.
+from .config import Config, ConfigTypes, GlobalConfigs  # noqa: I001
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta

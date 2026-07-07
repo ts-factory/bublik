@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
-'''
+"""
 Single source of truth for classification "suppression": a failed result is
 effectively expected (and must not count as unexpected) when it has a
 ResultClassification stamp whose rule is `expected` and whose issue is `open`.
-'''
+"""
 
 from django.db.models import OuterRef
 
@@ -23,8 +23,8 @@ SUPPRESSED_RELATION_FILTER = {
 
 
 def suppressed_subquery(outer_field='id'):
-    '''ResultClassification rows that suppress the outer result's
-    unexpectedness. Use inside Exists(): `Exists(suppressed_subquery())`.'''
+    """ResultClassification rows that suppress the outer result's
+    unexpectedness. Use inside Exists(): `Exists(suppressed_subquery())`."""
     return ResultClassification.objects.filter(
         result_id=OuterRef(outer_field),
         **SUPPRESSION_FILTER,

@@ -44,21 +44,24 @@ class TestIterationResultQuerySet(QuerySet):
         )
         compromised_query = Q(meta_results__meta__in=compromised_meta_ids)
 
+        qs = self
         if ('compromised' in properties) ^ ('notcompromised' in properties):
             if 'compromised' in properties:
-                self = self.filter(compromised_query)
+                qs = qs.filter(compromised_query)
 
             if 'notcompromised' in properties:
-                self = self.exclude(compromised_query)
+                qs = qs.exclude(compromised_query)
 
-        return self
+        return qs
 
     def filter_by_result_classification(self, properties):
         if 'expected' in properties and 'unexpected' in properties:
             return self
 
-        from bublik.core.classification import suppressed_subquery
-        from bublik.data.models.result import MetaResult
+        # Imported lazily: bublik.core.classification imports data models,
+        # which import this manager -> a top-level import would be circular.
+        from bublik.core.classification import suppressed_subquery  # noqa: PLC0415
+        from bublik.data.models.result import MetaResult  # noqa: PLC0415
 
         has_err = Exists(MetaResult.objects.filter(result_id=OuterRef('id'), meta__type='err'))
         not_suppressed = ~Exists(suppressed_subquery())
@@ -84,9 +87,10 @@ class TestIterationResultQuerySet(QuerySet):
             return self.model.objects.none()
 
         # Apply filter by run metas
+        qs = self
         for meta in metas_filter:
-            self = self.filter(meta_results__meta=meta)
-        return self
+            qs = qs.filter(meta_results__meta=meta)
+        return qs
 
     def filter_runs_by_date(self, from_d: datetime, to_d: datetime) -> QuerySet:
         """

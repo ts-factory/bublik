@@ -66,8 +66,8 @@ from bublik.data.models import (
 
 
 class ClassificationFixtureMixin:
-    '''Builds a minimal run/result graph and lets a test attach an err meta
-    and/or a classification stamp.'''
+    """Builds a minimal run/result graph and lets a test attach an err meta
+    and/or a classification stamp."""
 
     _hash_seq = 0
 
@@ -124,7 +124,9 @@ class ClassificationFixtureMixin:
         )
         if err:
             err_meta = Meta.objects.create(
-                type='err', value='FAILED', hash=self._next_hash('errmeta'),
+                type='err',
+                value='FAILED',
+                hash=self._next_hash('errmeta'),
             )
             MetaResult.objects.create(result=result, meta=err_meta, serial=0)
         return result
@@ -231,7 +233,7 @@ from bublik.data.models import MetaResult, ResultClassification
 
 
 def annotate_effective_has_error(queryset):
-    '''Mirror of the history service annotation under test.'''
+    """Mirror of the history service annotation under test."""
     err = MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err')
     suppressed = ResultClassification.objects.filter(
         result_id=OuterRef('id'),
@@ -272,10 +274,14 @@ class HistoryHasErrorTest(ClassificationFixtureMixin, TestCase):
 class StatsUnexpectedTest(ClassificationFixtureMixin, TestCase):
     def _unexpected_qs(self, base):
         # Mirror of the production expression after this task.
-        return base.filter(meta_results__meta__type='err').exclude(
-            classifications__rule__expected=True,
-            classifications__rule__issue__state='open',
-        ).distinct()
+        return (
+            base.filter(meta_results__meta__type='err')
+            .exclude(
+                classifications__rule__expected=True,
+                classifications__rule__issue__state='open',
+            )
+            .distinct()
+        )
 
     def test_suppressed_excluded_from_unexpected(self):
         project = self.make_project()
