@@ -65,9 +65,9 @@ class Measurement(models.Model):
         db_table = 'bublik_measurement'
 
     def get_multiplier(self):
-        meta = self.metas.get(name='multiplier')
-        if meta:
-            return meta.value
+        for m in self.metas.all():
+            if m.name == 'multiplier':
+                return m.value
         return None
 
     def representation(self):
