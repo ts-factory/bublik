@@ -17,6 +17,11 @@ from .expectation import (
     ExpectMetaReadSerializer,
     ExpectMetaWriteSerializer,
 )
+from .issue import (
+    IssueExtSerializer,
+    IssueRuleSerializer,
+    IssueSerializer,
+)
 from .measurement import (
     MeasurementResultListSerializer,
     MeasurementResultSerializer,
@@ -45,6 +50,9 @@ __all__ = [
     'ExpectMetaReadSerializer',
     'ExpectMetaWriteSerializer',
     'ExpectationSerializer',
+    'IssueExtSerializer',
+    'IssueRuleSerializer',
+    'IssueSerializer',
     'MeasurementResultListSerializer',
     'MeasurementResultSerializer',
     'MeasurementSerializer',
