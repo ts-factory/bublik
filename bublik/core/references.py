@@ -3,9 +3,6 @@
 
 import re
 
-from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs
-
 
 REF_CORE = r'ref://([^/\s]+)/([^\s,]+)'
 REF_PATTERN = re.compile(REF_CORE)
@@ -30,6 +27,11 @@ def resolve_ref(ref, project_id=None):
     if not match:
         return None
     ref_type, ref_tail = match.group(1), match.group(2)
+
+    # Imported lazily: data models use REF_CORE from this module, so a top-level
+    # import of the models (directly or via ConfigServices) would be circular.
+    from bublik.core.config.services import ConfigServices  # noqa: PLC0415
+    from bublik.data.models import GlobalConfigs  # noqa: PLC0415
 
     logs = ConfigServices.getattr_from_global(
         GlobalConfigs.REFERENCES.name, 'ISSUES', project_id
