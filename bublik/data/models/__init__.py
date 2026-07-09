@@ -25,6 +25,16 @@ from .config import Config, ConfigTypes, GlobalConfigs
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta
+from .issue import (
+    Issue,
+    IssueCategory,
+    IssueExt,
+    IssueRule,
+    IssueState,
+    RuleResult,
+    RuleResultOrigin,
+    default_expected_for,
+)
 from .job import (
     ImportJob,
     Job,
@@ -75,6 +85,11 @@ __all__ = [
     'Expectation',
     'GlobalConfigs',
     'ImportJob',
+    'Issue',
+    'IssueCategory',
+    'IssueExt',
+    'IssueRule',
+    'IssueState',
     'Job',
     'JobTaskExecution',
     'JobTaskExecutionResult',
@@ -90,6 +105,8 @@ __all__ = [
     'Reference',
     'ResultStatus',
     'ResultType',
+    'RuleResult',
+    'RuleResultOrigin',
     'RunConclusion',
     'RunStatus',
     'RunStatusByUnexpected',
@@ -103,4 +120,5 @@ __all__ = [
     'UserManager',
     'UserRoles',
     'View',
+    'default_expected_for',
 ]
