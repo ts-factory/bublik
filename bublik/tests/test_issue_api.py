@@ -255,3 +255,29 @@ class IssueListTest(IssueApiDataMixin, APITestCase):
         assert [rule['id'] for rule in response.data['results']] == list(
             models.IssueRule.objects.order_by('created_at', '-id').values_list('id', flat=True),
         )
+
+
+@data.isolated_caches
+class ApplyRulesApiTest(IssueApiDataMixin, APITestCase):
+    def setUp(self):
+        data.rule(data.issue(self.project), self.tree.ping)
+
+    def test_judged_by_the_project_of_the_run(self):
+        url = self._url('runs-apply-rules', self.run_row.id)
+        with data.allow_without_login(self.other_project.id):
+            response = self.client.post(f'{url}?project={self.other_project.id}')
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not models.RuleResult.objects.exists()
+
+    def test_adds_missing_stamps(self):
+        data.login(self.client, self.admin)
+        url = self._url('runs-apply-rules', self.run_row.id)
+        response = self.client.post(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == {'stamps_created': 1}
+        assert self.client.post(url).data == {'stamps_created': 0}
+
+    def test_a_result_is_not_a_run(self):
+        data.login(self.client, self.admin)
+        response = self.client.post(self._url('runs-apply-rules', self.ping_failed.id))
+        assert response.status_code == status.HTTP_404_NOT_FOUND
