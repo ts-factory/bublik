@@ -257,6 +257,14 @@ class RunChartsResponseSerializer(serializers.Serializer):
     buckets = RunChartBucketSerializer(many=True)
 
 
+class EmptySerializer(serializers.Serializer):
+    """No request body expected."""
+
+
+class ApplyRulesResponseSerializer(serializers.Serializer):
+    stamps_created = serializers.IntegerField()
+
+
 def serialize_run_compromised_details(
     compromised: RunCompromisedDetails | None,
 ):
