@@ -9,8 +9,10 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from bublik.core.auth import check_action_permission, get_user_by_access_token
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
+from bublik.core.run.classification import ClassificationService
 from bublik.core.run.services import RunsChartGroupBy, RunService
 from bublik.core.run.stats import (
     generate_runs_details,
@@ -29,6 +31,8 @@ from bublik.interfaces.api_v2.run.schemas import (
     update_comment_schema,
 )
 from bublik.interfaces.api_v2.run.serializers import (
+    ApplyRulesResponseSerializer,
+    EmptySerializer,
     RunCommentRequestSerializer,
     serialize_mark_run_compromised_result,
     serialize_run_comment_result,
@@ -197,3 +201,18 @@ class RunViewSet(ModelViewSet):
     def delete_comment(self, _request, pk=None):
         RunService.delete_run_comment(pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='apply_rules',
+        serializer_class=EmptySerializer,
+    )
+    @check_action_permission('manage_issues')
+    def apply_rules(self, request, pk=None):
+        run = RunService.get_run(pk)
+        actor = get_user_by_access_token(request.COOKIES.get('access_token'))
+        created = ClassificationService.apply_active_rules_manual(run, actor=actor)
+        RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
+        data = ApplyRulesResponseSerializer({'stamps_created': created}).data
+        return Response(data)
