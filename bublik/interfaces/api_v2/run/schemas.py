@@ -5,6 +5,7 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_
 
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.run.serializers import (
+    ApplyRulesResponseSerializer,
     DropCacheRequestSerializer,
     DropCacheResponseSerializer,
     MarkRunCompromisedRequestSerializer,
@@ -220,6 +221,33 @@ run_viewset_schema = extend_schema_view(
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Multiple comments were found for the run',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Run was not found',
+            ),
+        },
+        tags=[RUN_TAG],
+    ),
+    apply_rules=extend_schema(
+        summary='Apply active classification rules to a run',
+        description="""
+        Applies the project's active IssueRules to an already-imported run on
+        demand. Existing RuleResult stamps are never removed, so calling this
+        repeatedly on the same run is safe.
+        """,
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response=ApplyRulesResponseSerializer,
+                description='Active rules were successfully applied to the run',
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'The user is not authenticated, or is authenticated but lacks '
+                    'admin privileges required to manage classifications'
+                ),
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
