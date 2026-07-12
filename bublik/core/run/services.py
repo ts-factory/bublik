@@ -9,9 +9,10 @@ from enum import Enum
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from rest_framework.exceptions import ValidationError
 
+from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import NotFoundError
@@ -388,7 +389,17 @@ class RunService:
             .values('test_run_id')
             .annotate(
                 total=Count('id', distinct=True),
-                nok=Count('id', filter=Q(meta_results__meta__type='err'), distinct=True),
+                nok=Count(
+                    'id',
+                    filter=Exists(
+                        models.MetaResult.objects.filter(
+                            result_id=OuterRef('id'),
+                            meta__type='err',
+                        ),
+                    )
+                    & ~Exists(suppressed_subquery()),
+                    distinct=True,
+                ),
             )
         )
 
