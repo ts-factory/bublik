@@ -4,6 +4,8 @@
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
+from bublik.data.models import IssueCategory, IssueState, RuleResultOrigin
+
 
 class ResultListQuerySerializer(serializers.Serializer):
     parent_id = serializers.IntegerField(required=False)
@@ -30,6 +32,20 @@ class ObtainedResultSerializer(serializers.Serializer):
     verdicts = serializers.ListField(child=serializers.CharField())
 
 
+class ResultIssueSerializer(serializers.Serializer):
+    """One RuleResult stamp on a result - see build_rule_result_info()."""
+
+    issue_id = serializers.IntegerField()
+    issue_title = serializers.CharField()
+    issue_state = serializers.ChoiceField(choices=IssueState.choices)
+    bug_key = serializers.CharField(allow_null=True)
+    bug_url = serializers.CharField(allow_null=True)
+    category = serializers.ChoiceField(choices=IssueCategory.choices)
+    expected = serializers.BooleanField(allow_null=True)
+    rule_id = serializers.IntegerField()
+    origin = serializers.ChoiceField(choices=RuleResultOrigin.choices)
+
+
 class ResultDetailsSerializer(serializers.Serializer):
     name = serializers.CharField()
     path = serializers.CharField(allow_null=True)
@@ -47,6 +63,8 @@ class ResultDetailsSerializer(serializers.Serializer):
     requirements = serializers.ListField(child=serializers.CharField())
     has_error = serializers.BooleanField()
     has_measurements = serializers.BooleanField()
+    issues = ResultIssueSerializer(many=True)
+    effective_expected = serializers.BooleanField()
 
 
 @extend_schema_serializer(many=False)
