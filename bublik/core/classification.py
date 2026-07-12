@@ -5,10 +5,13 @@ from __future__ import annotations
 
 from django.db.models import BooleanField, ExpressionWrapper, OuterRef, Prefetch, Q, TextChoices
 
-from bublik.data.models import IssueRule, IssueState
+from bublik.data.models import IssueRule, IssueState, RuleResult
 
 
 SUPPRESSION_FILTER = {'issue_rule__expected': True, 'issue_rule__issue__state': IssueState.OPEN}
+SUPPRESSED_RELATION_FILTER = {
+    f'rule_results__{key}': value for key, value in SUPPRESSION_FILTER.items()
+}
 RULE_SUPPRESSION_FILTER = {
     key.removeprefix('issue_rule__'): value for key, value in SUPPRESSION_FILTER.items()
 }
@@ -141,3 +144,11 @@ def active_rules_prefetch():
         .order_by('id'),
         to_attr='_active_rules_cache',
     )
+
+
+def suppressed_subquery(outer_field='id'):
+    """
+    RuleResult rows suppressing the outer result's unexpectedness.
+    Use inside Exists(): Exists(suppressed_subquery()).
+    """
+    return RuleResult.objects.filter(result_id=OuterRef(outer_field), **SUPPRESSION_FILTER)
