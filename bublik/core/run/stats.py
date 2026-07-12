@@ -7,10 +7,22 @@ from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
-from django.db.models import Exists, F, OuterRef, Q, Value, prefetch_related_objects
+from django.db.models import (
+    BooleanField,
+    Case,
+    Exists,
+    F,
+    OuterRef,
+    Prefetch,
+    Q,
+    Value,
+    When,
+    prefetch_related_objects,
+)
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
+from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
@@ -43,6 +55,7 @@ from bublik.data.models import (
     MetaResult,
     MetaTest,
     ResultType,
+    RuleResult,
     RunConclusion,
     RunStatusByUnexpected,
     TestIterationResult,
@@ -136,7 +149,13 @@ def generate_result(
             all_skipped = skipped(test_iterations).count()
             all_abnormal = abnormal(test_iterations).count()
 
-            unexpected = test_iterations.filter(meta_results__meta__type='err')
+            # Subtract effectively-expected results (stamped by an expected rule
+            # on an open issue) from the unexpected set.
+            unexpected = (
+                test_iterations.filter(meta_results__meta__type='err')
+                .exclude(Exists(suppressed_subquery()))
+                .distinct()
+            )
 
             passed_unexpected = passed(unexpected).distinct().count()
             failed_unexpected = failed(unexpected).distinct().count()
@@ -415,7 +434,14 @@ def get_run_stats(run_id):
             iteration__hash__isnull=False,
         )
         stats['total'] = run_results.count()
-        stats['unexpected'] = run_results.filter(meta_results__meta__type='err').count()
+        # Subtract effectively-expected results (stamped by an expected rule on
+        # an open issue) from the unexpected count.
+        stats['unexpected'] = (
+            run_results.filter(meta_results__meta__type='err')
+            .exclude(Exists(suppressed_subquery()))
+            .distinct()
+            .count()
+        )
 
         plan_meta_result = get_or_none(
             MetaResult.objects,
@@ -540,7 +566,17 @@ def get_nok_results_distribution(run):
             test_run=run,
             iteration__test__result_type=ResultType.conv('test'),
         )
-        .annotate(is_nok=Exists(unexpected_result))
+        .annotate(
+            _has_err=Exists(unexpected_result),
+            # Only the stamps of this run: unscoped, Postgres hashes every
+            # suppressing stamp of the database to answer it.
+            _suppressed=Exists(suppressed_subquery().filter(result__test_run=run)),
+            is_nok=Case(
+                When(_has_err=True, _suppressed=False, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+        )
         .values_list('is_nok', flat=True)
         .order_by('id')
     )
@@ -558,6 +594,10 @@ def generate_results_details(test_results):
         'iteration__test_arguments',
         'expectations__expectmeta_set__meta',
         'meta_results__meta',
+        Prefetch(
+            'rule_results',
+            queryset=RuleResult.objects.select_related('issue_rule__issue'),
+        ),
     )
     with_measurements = set(
         MeasurementResult.objects.filter(
@@ -630,7 +670,10 @@ def generate_results_details(test_results):
             'parameters': parameters_list,
             'comments': comments,
             'requirements': requirements,
-            'has_error': has_err,
+            # An error is not unexpected when an expected rule on an open issue
+            # suppresses it.
+            'has_error': has_err
+            and not any(rr.is_suppressing for rr in test_result.rule_results.all()),
             'has_measurements': result_id in with_measurements,
         }
 

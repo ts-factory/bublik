@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
+from django.db.models import Exists, Q
 from rest_framework.exceptions import ValidationError
 
+from bublik.core.classification import suppressed_subquery
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
@@ -49,8 +50,10 @@ def _list_unexpected_or_abnormal_results(
         start_exec_seqno=start_exec_seqno,
         requirements=requirements,
     )
+    # An error counts unless it is classified as expected, as in the run statistics.
     queryset = queryset.filter(
-        Q(meta_results__meta__type='err') | Q(meta_results__meta__in=models.Meta.abnormal),
+        (Q(meta_results__meta__type='err') & ~Exists(suppressed_subquery()))
+        | Q(meta_results__meta__in=models.Meta.abnormal),
     )
     result_details = generate_results_details(queryset)
     return PaginatedResult.paginate_queryset(result_details, page, page_size)
