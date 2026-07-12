@@ -49,6 +49,21 @@ class RunObtainedResult(BaseModel):
     verdicts: list[str]
 
 
+class RunLeafResultIssue(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    issue_id: int
+    issue_title: str
+    issue_state: str
+    bug_key: str | None
+    bug_url: str | None
+    category: str
+    expected: bool | None
+    rule_result_id: int
+    rule_id: int
+    origin: str
+
+
 class RunLeafResult(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -68,6 +83,8 @@ class RunLeafResult(BaseModel):
     requirements: list[str]
     has_error: bool
     has_measurements: bool
+    issues: list[RunLeafResultIssue]
+    effective_expected: bool
     classification: Literal['expected', 'unexpected']
 
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from bublik.core.run.dto import RuleResultInfo
+
 
 @dataclass
 class HistoryCountsDTO:
@@ -61,6 +63,7 @@ class HistoryResultDTO:
     result_id: int
     iteration_id: int
     report_config_id: int | None
+    issues: list[RuleResultInfo]
 
     @classmethod
     def from_data(cls, data: dict) -> HistoryResultDTO:
@@ -89,6 +92,7 @@ class HistoryResultDTO:
             result_id=data['result_id'],
             iteration_id=data['iteration_id'],
             report_config_id=data['report_config_id'],
+            issues=[RuleResultInfo(**issue) for issue in data['issues']],
         )
 
 
