@@ -9,9 +9,10 @@ from enum import Enum
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, Q
 from rest_framework.exceptions import ValidationError
 
+from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import NotFoundError
@@ -380,16 +381,24 @@ class RunService:
             buckets_by_date[bucket_date].append(run['id'])
             bucket_date_by_run_id[run['id']] = bucket_date
 
-        test_stats = (
-            models.TestIterationResult.objects.filter(
-                test_run_id__in=run_ids,
-                iteration__test__result_type=models.ResultType.conv(models.ResultType.TEST),
-            )
+        test_results = models.TestIterationResult.objects.filter(
+            test_run_id__in=run_ids,
+            iteration__test__result_type=models.ResultType.conv(models.ResultType.TEST),
+        )
+        test_stats = test_results.values('test_run_id').annotate(
+            total=Count('id', distinct=True),
+            nok=Count('id', filter=Q(meta_results__meta__type='err'), distinct=True),
+        )
+        # The failures suppressed by classification are counted on their own
+        # and subtracted: checked inside the count above, the suppression makes
+        # the planner's estimate grow so much that it compiles the query (JIT),
+        # which takes longer than running it.
+        suppressed_by_run_id = dict(
+            test_results.filter(meta_results__meta__type='err')
+            .filter(Exists(suppressed_subquery()))
             .values('test_run_id')
-            .annotate(
-                total=Count('id', distinct=True),
-                nok=Count('id', filter=Q(meta_results__meta__type='err'), distinct=True),
-            )
+            .annotate(suppressed=Count('id', distinct=True))
+            .values_list('test_run_id', 'suppressed'),
         )
 
         tests_by_date = {}
@@ -398,7 +407,7 @@ class RunService:
         for stat in test_stats:
             run_id = stat['test_run_id']
             total = stat['total']
-            nok = stat['nok']
+            nok = stat['nok'] - suppressed_by_run_id.get(run_id, 0)
             ok = total - nok
             bucket_date = bucket_date_by_run_id[run_id]
 
