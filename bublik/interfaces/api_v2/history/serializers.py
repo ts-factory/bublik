@@ -4,6 +4,8 @@
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
+from bublik.interfaces.api_v2.result.serializers import ResultIssueSerializer
+
 
 class HistoryListQuerySerializer(serializers.Serializer):
     test_name = serializers.CharField(help_text='Name of the test')
@@ -116,6 +118,7 @@ class HistoryResultSerializer(serializers.Serializer):
     result_id = serializers.IntegerField()
     iteration_id = serializers.IntegerField()
     report_config_id = serializers.IntegerField(allow_null=True)
+    issues = ResultIssueSerializer(many=True)
 
 
 class HistoryVerdictResultSerializer(serializers.Serializer):

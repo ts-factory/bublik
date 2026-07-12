@@ -3,8 +3,12 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from dataclasses import asdict
+
 from django.db.models import BooleanField, ExpressionWrapper, OuterRef, Prefetch, Q, TextChoices
 
+from bublik.core.run.dto import RuleResultInfo
 from bublik.data.models import IssueRule, IssueState, RuleResult
 
 
@@ -150,3 +154,50 @@ def active_rules_prefetch():
         .order_by('id'),
         to_attr='_active_rules_cache',
     )
+
+
+def build_rule_result_info(rule_result) -> RuleResultInfo:
+    """
+    Build a display-oriented view of a RuleResult stamp.
+
+    Args:
+        rule_result: A RuleResult instance
+
+    Returns:
+        RuleResultInfo with the classification details for display
+    """
+    rule = rule_result.issue_rule
+    return RuleResultInfo(
+        issue_id=rule.issue_id,
+        issue_title=rule.issue.title,
+        issue_state=rule.issue.state,
+        bug_key=rule.issue.bug_key,
+        bug_url=rule.issue.bug_url,
+        category=rule.category,
+        expected=rule.expected,
+        rule_result_id=rule_result.id,
+        rule_id=rule.id,
+        origin=rule_result.origin,
+    )
+
+
+def build_issues_by_result(result_ids) -> dict[int, list[dict]]:
+    """
+    Build the 'issues' lists for TestIterationResults, for API display.
+
+    Args:
+        result_ids: IDs of the TestIterationResults to build the lists for
+
+    Returns:
+        Dict mapping a result ID to the list of classification dicts, one per
+        RuleResult stamped on that result; results without stamps are absent
+    """
+    rule_results = RuleResult.objects.filter(result_id__in=result_ids).select_related(
+        'issue_rule__issue',
+    )
+    issues_by_result = defaultdict(list)
+    for rule_result in rule_results:
+        issues_by_result[rule_result.result_id].append(
+            asdict(build_rule_result_info(rule_result))
+        )
+    return issues_by_result
