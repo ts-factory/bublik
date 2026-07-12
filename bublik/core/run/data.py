@@ -3,7 +3,10 @@
 
 from collections import OrderedDict, defaultdict
 
+from django.db.models import Exists
+
 from bublik.core.cache import ProjectCache
+from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.meta.categorization import (
     get_metas_by_category,
@@ -13,7 +16,6 @@ from bublik.core.meta.categorization import (
 from bublik.core.utils import key_value_list_transforming
 from bublik.data.models import (
     GlobalConfigs,
-    Meta,
     MetaResult,
     Project,
     TestArgument,
@@ -155,4 +157,9 @@ def get_verdicts(results):
 
 
 def is_result_unexpected(result):
-    return result.meta_results.filter(meta__in=Meta.objects.filter(type='err')).exists()
+    # An error that is not suppressed by an expected rule on an open issue.
+    return (
+        TestIterationResult.objects.filter(pk=result.pk, meta_results__meta__type='err')
+        .exclude(Exists(suppressed_subquery()))
+        .exists()
+    )
