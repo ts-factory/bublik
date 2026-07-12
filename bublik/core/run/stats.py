@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 from collections import OrderedDict
+from dataclasses import asdict
 import json
 
 from django.conf import settings
@@ -11,7 +12,11 @@ from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, 
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
-from bublik.core.classification import SUPPRESSED_RELATION_FILTER, suppressed_subquery
+from bublik.core.classification import (
+    SUPPRESSED_RELATION_FILTER,
+    build_rule_result_info,
+    suppressed_subquery,
+)
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
@@ -612,6 +617,18 @@ def generate_results_details(test_results):
         parameters = OrderedDict(sorted(parameters.items()))
         parameters_list = key_value_dict_transforming(parameters)
 
+        # Classifications stamped on this result: needed both to list them for
+        # display and to compute effective_expected (suppressed by an expected
+        # rule on an open issue).
+        rule_results = list(
+            test_result.rule_results.select_related('issue_rule__issue__issue_ext').all(),
+        )
+        issues = [asdict(build_rule_result_info(rr)) for rr in rule_results]
+        effective_expected = any(
+            rr.issue_rule.expected and rr.issue_rule.issue.state == 'open'
+            for rr in rule_results
+        )
+
         data = {
             'name': iteration.test.name,
             'result_id': result_id,
@@ -628,6 +645,8 @@ def generate_results_details(test_results):
             'requirements': requirements,
             'has_error': is_result_unexpected(test_result),
             'has_measurements': exist_measurement_results(test_result),
+            'issues': issues,
+            'effective_expected': effective_expected,
         }
 
         results_details.append(data)

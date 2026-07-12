@@ -143,3 +143,16 @@ class RunListResult:
 class RunCommentResult:
     id: int
     comment: str
+
+
+@dataclass
+class RuleResultInfo:
+    issue_id: int
+    issue_title: str
+    issue_state: str
+    bug_key: str | None
+    bug_url: str | None
+    category: str
+    expected: bool | None
+    rule_id: int
+    origin: str
