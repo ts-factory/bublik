@@ -4,6 +4,7 @@
 from collections import OrderedDict, defaultdict
 
 from bublik.core.cache import ProjectCache
+from bublik.core.classification import SUPPRESSION_FILTER
 from bublik.core.config.services import ConfigServices
 from bublik.core.meta.categorization import (
     get_metas_by_category,
@@ -13,7 +14,6 @@ from bublik.core.meta.categorization import (
 from bublik.core.utils import key_value_list_transforming
 from bublik.data.models import (
     GlobalConfigs,
-    Meta,
     MetaResult,
     Project,
     TestArgument,
@@ -155,4 +155,8 @@ def get_verdicts(results):
 
 
 def is_result_unexpected(result):
-    return result.meta_results.filter(meta__in=Meta.objects.filter(type='err')).exists()
+    has_err = result.meta_results.filter(meta__type='err').exists()
+    if not has_err:
+        return False
+    # Suppressed by an expected rule on an open issue.
+    return not result.rule_results.filter(**SUPPRESSION_FILTER).exists()
