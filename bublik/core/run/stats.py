@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 from collections import OrderedDict
+from dataclasses import asdict
 import json
 
 from django.conf import settings
@@ -22,7 +23,7 @@ from django.db.models import (
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
-from bublik.core.classification import suppressed_subquery
+from bublik.core.classification import build_rule_result_info, suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
@@ -596,7 +597,7 @@ def generate_results_details(test_results):
         'meta_results__meta',
         Prefetch(
             'rule_results',
-            queryset=RuleResult.objects.select_related('issue_rule__issue'),
+            queryset=RuleResult.objects.select_related('issue_rule__issue').order_by('id'),
         ),
     )
     with_measurements = set(
@@ -606,6 +607,9 @@ def generate_results_details(test_results):
     )
     test_ids = {tr.iteration.test_id for tr in test_results if tr.iteration}
     test_paths = build_test_paths(test_ids)
+    # Resolved once per issue rather than once per stamp (see
+    # build_rule_result_info()).
+    bug_urls = {}
 
     # Gather all results details
     results_details = []
@@ -655,6 +659,13 @@ def generate_results_details(test_results):
         parameters = OrderedDict(sorted(parameters.items()))
         parameters_list = key_value_dict_transforming(parameters)
 
+        # Classifications stamped on this result: needed both to list them for
+        # display and to compute effective_expected (suppressed by an expected
+        # rule on an open issue).
+        rule_results = list(test_result.rule_results.all())
+        issues = [asdict(build_rule_result_info(rr, bug_urls)) for rr in rule_results]
+        effective_expected = any(rr.is_suppressing for rr in rule_results)
+
         data = {
             'name': iteration.test.name if iteration else None,
             'path': test_paths.get(iteration.test_id, '') if iteration else None,
@@ -670,11 +681,10 @@ def generate_results_details(test_results):
             'parameters': parameters_list,
             'comments': comments,
             'requirements': requirements,
-            # An error is not unexpected when an expected rule on an open issue
-            # suppresses it.
-            'has_error': has_err
-            and not any(rr.is_suppressing for rr in test_result.rule_results.all()),
+            'has_error': has_err and not effective_expected,
             'has_measurements': result_id in with_measurements,
+            'issues': issues,
+            'effective_expected': effective_expected,
         }
 
         results_details.append(data)
