@@ -5,6 +5,8 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_
 
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.result.serializers import (
+    ClassifyRequestSerializer,
+    ClassifyResponseSerializer,
     ResultArtifactsAndVerdictsResponseSerializer,
     ResultListQuerySerializer,
     ResultListResponseSerializer,
@@ -86,6 +88,42 @@ result_viewset_schema = extend_schema_view(
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Result was not found',
+            ),
+        },
+        tags=[RESULT_TAG],
+    ),
+    classify=extend_schema(
+        summary='Classify a result',
+        description="""
+        Finds/creates an Issue, creates an IssueRule (active iff scope=future,
+        with a captured matcher defaulting to this result's own parameters,
+        verdicts, and tags), and stamps the result with a RuleResult.
+        """,
+        request=ClassifyRequestSerializer,
+        responses={
+            201: OpenApiResponse(
+                response=ClassifyResponseSerializer,
+                description='The result was successfully classified',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'Classification request validation failed (invalid category/scope, '
+                    'or invalid issue data such as a missing title or bug key conflict)'
+                ),
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'The user is not authenticated, or is authenticated but lacks '
+                    'admin privileges required to manage classifications'
+                ),
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'The result was not found, or the referenced issue ID does not exist'
+                ),
             ),
         },
         tags=[RESULT_TAG],
