@@ -510,8 +510,12 @@ class IssueRuleSerializer(ModelSerializer):
 
         Checked when a rule is created, and when a matcher field changes (a
         field sent with its current value is not a change): then the whole
-        matcher is checked against the resulting issue and test.
+        matcher is checked against the resulting issue and test. Not checked
+        when the context says `matcher_checked`: the matcher was taken from
+        results that are in the database (see classify).
         """
+        if self.context.get('matcher_checked'):
+            return
         if self.instance is not None and not any(
             field in attrs and attrs[field] != getattr(self.instance, field)
             for field in _MATCHER_FIELDS
