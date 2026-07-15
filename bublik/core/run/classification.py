@@ -468,3 +468,23 @@ class ClassificationService:
             ]
 
         return issue_summaries
+
+    @staticmethod
+    def run_issue_results(run: models.TestIterationResult, issue_id: int):
+        """
+        Results in a run classified under a specific issue.
+
+        Args:
+            run: The run to search
+            issue_id: The issue to filter by
+
+        Returns:
+            QuerySet of TestIterationResult, for generate_results_details() -
+            same shape and ordering as the plain /results/ listing.
+        """
+        return (
+            models.TestIterationResult.objects.filter(test_run=run)
+            .stamped_under([issue_id])
+            .distinct()
+            .order_by('-start', 'id')
+        )
