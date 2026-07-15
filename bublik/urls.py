@@ -43,6 +43,8 @@ api_v2_router.register(
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
+api_v2_router.register(r'issues', api_v2.IssueViewSet, 'issues')
+api_v2_router.register(r'issue_rules', api_v2.IssueRuleViewSet, 'issue_rules')
 
 if settings.AI_CHAT_ENABLED:
     from bublik.interfaces.api_v2.ai_chat_thread import AiChatThreadViewSet
