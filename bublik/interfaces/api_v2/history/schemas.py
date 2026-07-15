@@ -33,7 +33,10 @@ history_viewset_schema = extend_schema_view(
             ),
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Test name is missing or pagination parameters are invalid',
+                description=(
+                    'Test name is missing, or pagination or classification '
+                    'filter parameters are invalid'
+                ),
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
@@ -56,7 +59,10 @@ history_viewset_schema = extend_schema_view(
             ),
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Test name is missing or pagination parameters are invalid',
+                description=(
+                    'Test name is missing, or pagination or classification '
+                    'filter parameters are invalid'
+                ),
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
