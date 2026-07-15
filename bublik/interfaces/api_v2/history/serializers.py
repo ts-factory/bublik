@@ -59,6 +59,22 @@ class HistoryListQuerySerializer(serializers.Serializer):
         required=False,
         help_text='Semicolon-separated expected or unexpected values',
     )
+    categories = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated issue rule categories',
+    )
+    issue = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated issue IDs',
+    )
+    explained = serializers.CharField(
+        required=False,
+        help_text='true to keep only results with at least one classification',
+    )
+    untriaged = serializers.CharField(
+        required=False,
+        help_text='true to keep only failed results with no classification at all',
+    )
 
 
 class HistoryProjectQuerySerializer(serializers.Serializer):
