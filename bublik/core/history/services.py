@@ -46,6 +46,7 @@ class HistoryService:
     @staticmethod
     def build_history_queryset(  # noqa: PLR0913
         test_name: str,
+        *,
         project_id: int | None = None,
         run_ids: str | None = None,
         from_date: str | None = None,
@@ -190,6 +191,7 @@ class HistoryService:
 
     @staticmethod
     def _apply_run_filters(  # noqa: PLR0913
+        *,
         runs_results: TestIterationResult,
         from_date_obj,
         to_date_obj,
