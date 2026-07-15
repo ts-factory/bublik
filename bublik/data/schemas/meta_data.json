@@ -30,7 +30,7 @@
                 "type": {
                     "description": "The meta type. Defaults to 'label' if omitted.",
                     "type": "string",
-                    "enum": ["branch", "revision", "vcs-tag", "timestamp"]
+                    "enum": ["branch", "revision", "vcs-tag", "timestamp", "logs"]
                 },
                 "value": {
                     "description": "The meta value.",
