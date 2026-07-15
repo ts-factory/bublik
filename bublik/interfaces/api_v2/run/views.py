@@ -34,6 +34,7 @@ from bublik.interfaces.api_v2.run.serializers import (
     ApplyRulesResponseSerializer,
     EmptySerializer,
     RunCommentRequestSerializer,
+    RunIssueSummarySerializer,
     serialize_mark_run_compromised_result,
     serialize_run_comment_result,
     serialize_run_details,
@@ -215,4 +216,13 @@ class RunViewSet(ModelViewSet):
         created = ClassificationService.apply_active_rules_manual(run, actor=actor)
         RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
         data = ApplyRulesResponseSerializer({'stamps_created': created}).data
+        return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='issues', pagination_class=None)
+    def issues(self, request, pk=None):
+        run = RunService.get_run(pk)
+        data = RunIssueSummarySerializer(
+            ClassificationService.run_issues_summary(run),
+            many=True,
+        ).data
         return Response(data)

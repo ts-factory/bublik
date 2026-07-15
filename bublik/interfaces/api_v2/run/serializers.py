@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from rest_framework import serializers
 
+from bublik.data.models import IssueCategory, IssueState
+
 
 if TYPE_CHECKING:
     from bublik.core.run.dto import (
@@ -263,6 +265,21 @@ class EmptySerializer(serializers.Serializer):
 
 class ApplyRulesResponseSerializer(serializers.Serializer):
     stamps_created = serializers.IntegerField()
+
+
+class RunIssueCategorySerializer(serializers.Serializer):
+    category = serializers.ChoiceField(choices=IssueCategory.choices)
+    expected = serializers.BooleanField(allow_null=True)
+
+
+class RunIssueSummarySerializer(serializers.Serializer):
+    issue_id = serializers.IntegerField()
+    title = serializers.CharField()
+    state = serializers.ChoiceField(choices=IssueState.choices)
+    bug_key = serializers.CharField(allow_null=True)
+    bug_url = serializers.CharField(allow_null=True)
+    result_count = serializers.IntegerField()
+    categories = RunIssueCategorySerializer(many=True)
 
 
 def serialize_run_compromised_details(

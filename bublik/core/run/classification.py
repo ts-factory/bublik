@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 from django.db import transaction
+from django.db.models import Count
 
+from bublik.core.references import resolve_ref
 from bublik.core.run.data import get_tags_by_runs
 from bublik.data import models
 
@@ -213,3 +215,64 @@ class ClassificationService:
             .values_list('result__test_run_id', flat=True)
             .distinct(),
         )
+
+    @staticmethod
+    def run_issues_summary(run: models.TestIterationResult) -> list[dict]:
+        """
+        Per-issue summary of classified results in a run.
+
+        Args:
+            run: The run to summarize
+
+        Returns:
+            List of dicts, one per issue with at least one stamp in this run:
+            issue_id, title, state, bug_key, result_count (distinct results
+            stamped under this issue in this run), and the (category,
+            expected) pairs seen for it here.
+        """
+        base = models.RuleResult.objects.filter(result__test_run=run)
+
+        # Distinct result count per issue (a result may carry stamps from
+        # several of the issue's rules).
+        counts = {
+            row['issue_rule__issue_id']: row['c']
+            for row in base.values('issue_rule__issue_id').annotate(
+                c=Count('result_id', distinct=True),
+            )
+        }
+
+        rows: dict = {}
+        for m in base.values(
+            'issue_rule__issue_id',
+            'issue_rule__issue__title',
+            'issue_rule__issue__state',
+            'issue_rule__category',
+            'issue_rule__expected',
+        ).distinct():
+            issue_id = m['issue_rule__issue_id']
+            row = rows.setdefault(
+                issue_id,
+                {
+                    'issue_id': issue_id,
+                    'title': m['issue_rule__issue__title'],
+                    'state': m['issue_rule__issue__state'],
+                    'result_count': counts.get(issue_id, 0),
+                    'categories': [],
+                },
+            )
+            row['categories'].append(
+                {'category': m['issue_rule__category'], 'expected': m['issue_rule__expected']},
+            )
+
+        bug_keys = dict(
+            models.Issue.objects.filter(id__in=rows.keys())
+            .exclude(issue_ext__isnull=True)
+            .values_list('id', 'issue_ext__key'),
+        )
+        for issue_id, row in rows.items():
+            bug_key = bug_keys.get(issue_id)
+            row['bug_key'] = bug_key
+            resolved = resolve_ref(bug_key, run.project_id) if bug_key else None
+            row['bug_url'] = resolved[2] if resolved else None
+
+        return sorted(rows.values(), key=lambda x: (x['title'] or '').lower())
