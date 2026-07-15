@@ -3,6 +3,8 @@
 
 from rest_framework import serializers
 
+from bublik.interfaces.api_v2.run.serializers import RunIssueRuleSerializer
+
 
 class ActionResultSerializer(serializers.Serializer):
     requested = serializers.IntegerField()
@@ -57,3 +59,19 @@ class IssueRuleListQuerySerializer(serializers.Serializer):
     )
     created_after = serializers.DateField(required=False)
     created_before = serializers.DateField(required=False)
+
+
+class IssuePickerQuerySerializer(serializers.Serializer):
+    project = serializers.IntegerField(required=False)
+    search = serializers.CharField(required=False)
+    state = serializers.CharField(required=False)
+    test = serializers.CharField(required=False)
+
+
+class IssuePickerOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    state = serializers.CharField()
+    bug_key = serializers.CharField(allow_null=True)
+    bug_url = serializers.CharField(allow_null=True)
+    rules = RunIssueRuleSerializer(many=True)
