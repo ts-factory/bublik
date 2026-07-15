@@ -38,3 +38,15 @@ class IssueRuleListQuerySerializer(serializers.Serializer):
     )
     created_after = serializers.DateField(required=False)
     created_before = serializers.DateField(required=False)
+
+
+class IssuePickerQuerySerializer(serializers.Serializer):
+    project = serializers.IntegerField(required=False)
+    search = serializers.CharField(required=False)
+
+
+class IssuePickerOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    key = serializers.CharField(allow_null=True)
+    category = serializers.CharField(allow_null=True)

@@ -5,26 +5,31 @@ import typing
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, Max, Prefetch, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
 from bublik.core.auth import check_action_permission, get_user_by_access_token
 from bublik.core.cache import RunCache
 from bublik.core.datetime_formatting import parse_date_param
 from bublik.core.run.classification import ClassificationService
-from bublik.data.models import Issue, IssueRule, IssueState
+from bublik.data.models import Issue, IssueRule, IssueState, RuleResult
 from bublik.data.serializers import IssueRuleSerializer, IssueSerializer
 from bublik.interfaces.api_v2.issue.schemas import (
+    issue_picker_viewset_schema,
     issue_rule_viewset_schema,
     issue_viewset_schema,
 )
-from bublik.interfaces.api_v2.issue.serializers import ActionResultSerializer
+from bublik.interfaces.api_v2.issue.serializers import (
+    ActionResultSerializer,
+    IssuePickerOptionSerializer,
+)
 
 
 def _actor(request):
@@ -317,3 +322,65 @@ class IssueRuleViewSet(ModelViewSet):
             ClassificationService.runs_for_rules(updated_ids),
         )
         return Response(_action_summary(ids, existing_ids, updated_ids))
+
+
+@issue_picker_viewset_schema
+class IssuePickerViewSet(GenericViewSet):
+    filter_backends: typing.ClassVar[list] = []
+    renderer_classes: typing.ClassVar[list] = [JSONRenderer]
+    serializer_class = IssuePickerOptionSerializer
+
+    def list(self, request, *args, **kwargs):
+        project_id = request.query_params.get('project')
+        search = (request.query_params.get('search') or '').strip()
+
+        issues_qs = Issue.objects.all()
+        if project_id:
+            issues_qs = issues_qs.filter(project_id=project_id)
+
+        if search:
+            issues = list(
+                issues_qs.filter(
+                    Q(title__icontains=search) | Q(bug_key__icontains=search),
+                ).order_by('title')[:20],
+            )
+        else:
+            recent_qs = RuleResult.objects.all()
+            if project_id:
+                recent_qs = recent_qs.filter(issue_rule__issue__project_id=project_id)
+            recent = (
+                recent_qs.values('issue_rule__issue_id')
+                .annotate(last_used=Max('created_at'))
+                .order_by('-last_used')[:10]
+            )
+            ids = [row['issue_rule__issue_id'] for row in recent]
+            by_id = Issue.objects.filter(id__in=ids).in_bulk()
+            issues = [by_id[i] for i in ids if i in by_id]
+
+        data = []
+        for issue in issues:
+            latest = (
+                RuleResult.objects.filter(issue_rule__issue=issue)
+                .select_related('issue_rule')
+                .order_by('-created_at')
+                .first()
+            )
+            category = (
+                latest.issue_rule.category
+                if latest
+                else IssueRule.objects.filter(issue=issue)
+                .values_list('category', flat=True)
+                .first()
+            )
+
+            data.append(
+                {
+                    'id': issue.id,
+                    'title': issue.title,
+                    'key': issue.bug_key,
+                    'category': category,
+                },
+            )
+
+        serializer = self.get_serializer(data, many=True)
+        return Response(serializer.data)
