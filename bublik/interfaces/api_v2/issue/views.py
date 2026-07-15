@@ -6,7 +6,7 @@ import typing
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Exists, F, IntegerField, OuterRef, Subquery
+from django.db.models import Count, Exists, F, IntegerField, Max, OuterRef, Q, Subquery
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,8 +14,9 @@ from django_filters.utils import translate_validation
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
 from bublik.core.auth import check_action_permission_for_projects, get_user_by_access_token
 from bublik.core.cache import RunCache
@@ -26,20 +27,24 @@ from bublik.core.classification import (
     active_rules_prefetch,
     any_rule_subquery,
     disposition_query,
+    effect_for,
     rules_state_query,
 )
 from bublik.core.filter_backends import StableOrderingFilter
 from bublik.core.run.classification import ClassificationService
+from bublik.core.run.tests_organization import get_test_ids_by_name
 from bublik.data.models import Issue, IssueCategory, IssueRule, IssueState, RuleResult
 from bublik.data.serializers import IssueRuleSerializer, IssueSerializer
 from bublik.interfaces.api_v2.issue.filters import IssueFilterSet, IssueRuleFilterSet
 from bublik.interfaces.api_v2.issue.schemas import (
+    issue_picker_viewset_schema,
     issue_rule_viewset_schema,
     issue_viewset_schema,
 )
 from bublik.interfaces.api_v2.issue.serializers import (
     ActionResultSerializer,
     BulkIdsRequestSerializer,
+    IssuePickerOptionSerializer,
 )
 
 
@@ -479,3 +484,80 @@ class IssueRuleViewSet(ModelViewSet):
             ClassificationService.runs_for_rules(updated_ids),
         )
         return Response(_action_summary(ids, existing_ids, updated_ids))
+
+
+@issue_picker_viewset_schema
+class IssuePickerViewSet(GenericViewSet):
+    filter_backends: typing.ClassVar[list] = []
+    pagination_class = None
+    renderer_classes: typing.ClassVar[list] = [JSONRenderer]
+    serializer_class = IssuePickerOptionSerializer
+
+    def list(self, request, *args, **kwargs):
+        project_id = request.query_params.get('project')
+        search = (request.query_params.get('search') or '').strip()
+        state = request.query_params.get('state')
+        test_param = (request.query_params.get('test') or '').strip()
+
+        issues_qs = Issue.objects.all()
+        if project_id:
+            issues_qs = issues_qs.filter(project_id=project_id)
+        if state:
+            states = state.split(settings.QUERY_DELIMITER)
+            if any(s not in IssueState.values for s in states):
+                msg = f'Expected any of: {", ".join(IssueState.values)}.'
+                raise ValidationError({'state': msg})
+            issues_qs = issues_qs.filter(state__in=states)
+        if test_param:
+            test_ids = (
+                [int(test_param)]
+                if test_param.isascii() and test_param.isdecimal()
+                else get_test_ids_by_name(test_param)
+            )
+            issues_qs = issues_qs.filter(rules__test_id__in=test_ids).distinct()
+
+        if search:
+            issues = list(
+                issues_qs.filter(
+                    Q(title__icontains=search) | Q(bug_key__icontains=search),
+                )
+                .prefetch_related(active_rules_prefetch())
+                .order_by('title')[:20],
+            )
+        else:
+            recent = (
+                RuleResult.objects.filter(issue_rule__issue__in=issues_qs)
+                .values('issue_rule__issue_id')
+                .annotate(last_used=Max('created_at'))
+                .order_by('-last_used')[:10]
+            )
+            ids = [row['issue_rule__issue_id'] for row in recent]
+            by_id = (
+                Issue.objects.filter(id__in=ids)
+                .prefetch_related(active_rules_prefetch())
+                .in_bulk()
+            )
+            issues = [by_id[i] for i in ids if i in by_id]
+
+        data = [
+            {
+                'id': issue.id,
+                'title': issue.title,
+                'bug_key': issue.bug_key,
+                'state': issue.state,
+                'bug_url': issue.bug_url,
+                'rules': [
+                    {
+                        'rule_id': rule.id,
+                        'category': rule.category,
+                        'expected': rule.expected,
+                        'effect': effect_for(rule.is_suppressed, rule.expected, issue.state),
+                    }
+                    for rule in issue._active_rules_cache
+                ],
+            }
+            for issue in issues
+        ]
+
+        serializer = self.get_serializer(data, many=True)
+        return Response(serializer.data)
