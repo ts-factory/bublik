@@ -10,6 +10,7 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.report.services import ReportService
 from bublik.data.models import TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
+from bublik.interfaces.api_v2.report.schemas import report_viewset_schema
 from bublik.interfaces.api_v2.report.serializers import (
     ReportConfigListResponseSerializer,
     ReportRetrieveResponseSerializer,
@@ -21,6 +22,7 @@ __all__ = [
 ]
 
 
+@report_viewset_schema
 class ReportViewSet(RetrieveModelMixin, GenericViewSet):
     queryset = TestIterationResult.objects.all()
     serializer_class = TestIterationResultSerializer
