@@ -69,6 +69,10 @@ class HistoryService:
         verdict_lookup: str | None = None,
         verdict_expr: str | None = None,
         result_types: str | None = None,
+        categories: str | None = None,
+        issue: str | None = None,
+        explained: str | None = None,
+        untriaged: str | None = None,
     ):
         """
         Build history queryset with all filters applied.
@@ -96,6 +100,10 @@ class HistoryService:
             verdict_lookup: Verdict lookup type ('regex', 'string', 'none')
             verdict_expr: Verdict filter expression
             result_types: Comma-separated result types ('expected', 'unexpected')
+            categories: Comma-separated IssueRule categories (e.g., 'known-issue,flaky')
+            issue: Comma-separated Issue IDs
+            explained: 'true' to keep only results with at least one classification
+            untriaged: 'true' to keep only failed results with no classification at all
 
         Returns:
             Tuple of (queryset, from_date_obj, to_date_obj)
@@ -163,6 +171,10 @@ class HistoryService:
             verdict_expr=verdict_expr,
             result_types=result_types,
             query_delimiter=query_delimiter,
+            categories=categories,
+            issue=issue,
+            explained=explained,
+            untriaged=untriaged,
         )
 
         # Step 7: Finalize queryset
@@ -350,7 +362,8 @@ class HistoryService:
         return test_results.filter(iteration__in=test_iteration_ids)
 
     @staticmethod
-    def _apply_result_filters(
+    def _apply_result_filters(  # noqa: PLR0913
+        *,
         test_results: TestIterationResult,
         result_statuses: str | None,
         verdict: str | None,
@@ -358,6 +371,10 @@ class HistoryService:
         verdict_expr: str | None,
         result_types: str | None,
         query_delimiter: str,
+        categories: str | None = None,
+        issue: str | None = None,
+        explained: str | None = None,
+        untriaged: str | None = None,
     ) -> TestIterationResult:
         """
         Apply result-level filters to test results.
@@ -370,6 +387,10 @@ class HistoryService:
             verdict_expr: Verdict filter expression
             result_types: Comma-separated result types
             query_delimiter: Delimiter for splitting multi-value strings
+            categories: Comma-separated IssueRule categories to filter by
+            issue: Comma-separated Issue IDs to filter by
+            explained: 'true' to keep only results with at least one classification
+            untriaged: 'true' to keep only failed results with no classification at all
 
         Returns:
             Filtered test results queryset
@@ -414,6 +435,30 @@ class HistoryService:
         if result_types:
             test_results = test_results.filter_by_result_classification(
                 result_types.split(query_delimiter),
+            )
+
+        # Filter by classification category
+        if categories:
+            test_results = test_results.filter(
+                rule_results__issue_rule__category__in=categories.split(query_delimiter),
+            ).distinct()
+
+        # Filter by issue ID
+        if issue:
+            test_results = test_results.filter(
+                rule_results__issue_rule__issue_id__in=issue.split(query_delimiter),
+            ).distinct()
+
+        # Filter by presence of any classification
+        if explained and explained.lower() == 'true':
+            test_results = test_results.filter(rule_results__isnull=False).distinct()
+
+        # Filter by absence of classification on failed results
+        if untriaged and untriaged.lower() == 'true':
+            test_results = (
+                test_results.filter(meta_results__meta__type='err')
+                .exclude(rule_results__isnull=False)
+                .distinct()
             )
 
         return test_results
