@@ -9,7 +9,7 @@ from enum import Enum
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.classification import suppressed_subquery

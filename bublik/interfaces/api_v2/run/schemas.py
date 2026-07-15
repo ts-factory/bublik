@@ -16,6 +16,8 @@ from bublik.interfaces.api_v2.run.serializers import (
     RunCommentResponseSerializer,
     RunCommentValueResponseSerializer,
     RunDetailsResponseSerializer,
+    RunIssuesQuerySerializer,
+    RunIssueSummarySerializer,
     RunListItemSerializer,
     RunListQuerySerializer,
     RunRequirementsResponseSerializer,
@@ -248,6 +250,31 @@ run_viewset_schema = extend_schema_view(
                     'The user is not authenticated, or is authenticated but lacks '
                     'admin privileges required to manage classifications'
                 ),
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Run was not found',
+            ),
+        },
+        tags=[RUN_TAG],
+    ),
+    issues=extend_schema(
+        summary='Get run issues summary',
+        description="""
+        Returns a per-issue summary of classified results in a run: issue
+        title, description, state, external bug key, distinct result count,
+        and the rules (category, expected, effect) that stamped a result
+        here.
+        """,
+        parameters=[RunIssuesQuerySerializer],
+        responses={
+            200: OpenApiResponse(
+                response=RunIssueSummarySerializer(many=True),
+                description='Run issues summary was successfully retrieved',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Issue filter validation failed',
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,

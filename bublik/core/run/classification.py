@@ -3,8 +3,13 @@
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import transaction
+from django.db.models import BooleanField, Count, ExpressionWrapper, Q
+from rest_framework.exceptions import ValidationError
 
+from bublik.core.classification import SUPPRESSION_FILTER, Effect, effect_for
+from bublik.core.references import resolve_ref
 from bublik.core.run.data import get_tags_by_runs
 from bublik.data import models
 
@@ -216,3 +221,160 @@ class ClassificationService:
             .values_list('result__test_run_id', flat=True)
             .distinct(),
         )
+
+    @staticmethod
+    def run_issues_summary(run: models.TestIterationResult) -> list[dict]:
+        """
+        Per-issue summary of classified results in a run.
+
+        Args:
+            run: The run to summarize
+
+        Returns:
+            List of dicts, one per issue with at least one stamp in this run:
+            issue_id, title, description, state, bug_key, bug_url,
+            result_count (distinct results stamped under this issue in this
+            run), and `rules` - one entry per issue_rule that stamped a
+            result here (rule_id, category, expected, effect).
+        """
+        run_rule_results = models.RuleResult.objects.filter(result__test_run=run).annotate(
+            is_suppressed=ExpressionWrapper(
+                Q(**SUPPRESSION_FILTER),
+                output_field=BooleanField(),
+            ),
+        )
+
+        # Distinct result count per issue (a result may carry stamps from
+        # several of the issue's rules).
+        result_counts = {
+            rrr['issue_rule__issue_id']: rrr['result_count']
+            for rrr in run_rule_results.values('issue_rule__issue_id').annotate(
+                result_count=Count('result_id', distinct=True),
+            )
+        }
+
+        issues_by_id: dict = {}
+        for rrr in (
+            run_rule_results.values(
+                'issue_rule_id',
+                'issue_rule__issue_id',
+                'issue_rule__issue__title',
+                'issue_rule__issue__description',
+                'issue_rule__issue__state',
+                'issue_rule__issue__bug_key',
+                'issue_rule__category',
+                'issue_rule__expected',
+                'is_suppressed',
+            )
+            .order_by('issue_rule_id')
+            .distinct()
+        ):
+            issue_id = rrr['issue_rule__issue_id']
+            issue_summary = issues_by_id.setdefault(
+                issue_id,
+                {
+                    'issue_id': issue_id,
+                    'title': rrr['issue_rule__issue__title'],
+                    'description': rrr['issue_rule__issue__description'],
+                    'state': rrr['issue_rule__issue__state'],
+                    'bug_key': rrr['issue_rule__issue__bug_key'],
+                    'rules': [],
+                    'result_count': result_counts.get(issue_id, 0),
+                },
+            )
+            issue_summary['rules'].append(
+                {
+                    'rule_id': rrr['issue_rule_id'],
+                    'category': rrr['issue_rule__category'],
+                    'expected': rrr['issue_rule__expected'],
+                    'effect': effect_for(
+                        rrr['is_suppressed'],
+                        rrr['issue_rule__expected'],
+                        rrr['issue_rule__issue__state'],
+                    ),
+                },
+            )
+
+        for issue_summary in issues_by_id.values():
+            bug_key = issue_summary['bug_key']
+            resolved = resolve_ref(bug_key, run.project_id) if bug_key else None
+            issue_summary['bug_url'] = resolved[2] if resolved else None
+
+        return sorted(issues_by_id.values(), key=lambda x: (x['title'] or '').lower())
+
+    @staticmethod
+    def filter_issues_summary(
+        issue_summaries: list[dict],
+        search: str | None = None,
+        state: str | None = None,
+        category: str | None = None,
+        effect: str | None = None,
+    ) -> list[dict]:
+        """
+        Filter the output of run_issues_summary() by title/bug_key search,
+        issue state, rule category, and rule effect.
+
+        Applied to the already-built summary, not pushed into the queryset
+        that builds it - result_count and rules there are counted against
+        every stamp in the run, and filtering earlier would change what
+        those numbers mean.
+
+        Args:
+            issue_summaries: Output of run_issues_summary()
+            search: Optional title/bug_key substring match
+            state: Optional `;`-list of issue states to keep
+            category: Optional `;`-list of rule categories - an issue summary
+                is kept if any of its rules has one of them
+            effect: Optional `;`-list of rule effects - an issue summary is
+                kept if any of its rules has one of them
+
+        Returns:
+            The filtered issue summaries
+
+        Raises:
+            ValidationError: if state/category/effect carries an unknown value
+        """
+        if search:
+            needle = search.strip().lower()
+            if needle:
+                issue_summaries = [
+                    issue_summary
+                    for issue_summary in issue_summaries
+                    if needle in (issue_summary['title'] or '').lower()
+                    or needle in (issue_summary['bug_key'] or '').lower()
+                ]
+
+        if state:
+            states = state.split(settings.QUERY_DELIMITER)
+            if any(s not in models.IssueState.values for s in states):
+                msg = f'Expected any of: {", ".join(models.IssueState.values)}.'
+                raise ValidationError({'state': msg})
+            issue_summaries = [
+                issue_summary
+                for issue_summary in issue_summaries
+                if issue_summary['state'] in states
+            ]
+
+        if category:
+            categories = category.split(settings.QUERY_DELIMITER)
+            if any(c not in models.IssueCategory.values for c in categories):
+                msg = f'Expected any of: {", ".join(models.IssueCategory.values)}.'
+                raise ValidationError({'category': msg})
+            issue_summaries = [
+                issue_summary
+                for issue_summary in issue_summaries
+                if any(rule['category'] in categories for rule in issue_summary['rules'])
+            ]
+
+        if effect:
+            effects = effect.split(settings.QUERY_DELIMITER)
+            if any(e not in Effect.values for e in effects):
+                msg = f'Expected any of: {", ".join(Effect.values)}.'
+                raise ValidationError({'effect': msg})
+            issue_summaries = [
+                issue_summary
+                for issue_summary in issue_summaries
+                if any(rule['effect'] in effects for rule in issue_summary['rules'])
+            ]
+
+        return issue_summaries

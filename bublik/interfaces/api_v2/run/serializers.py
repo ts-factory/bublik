@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING
 
 from rest_framework import serializers
 
+from bublik.core.classification import Effect
+from bublik.data.models import IssueCategory, IssueState
+
 
 if TYPE_CHECKING:
     from bublik.core.run.dto import (
@@ -263,6 +266,31 @@ class EmptySerializer(serializers.Serializer):
 
 class ApplyRulesResponseSerializer(serializers.Serializer):
     stamps_created = serializers.IntegerField()
+
+
+class RunIssueRuleSerializer(serializers.Serializer):
+    rule_id = serializers.IntegerField()
+    category = serializers.ChoiceField(choices=IssueCategory.choices)
+    expected = serializers.BooleanField(allow_null=True)
+    effect = serializers.ChoiceField(choices=Effect.choices)
+
+
+class RunIssuesQuerySerializer(serializers.Serializer):
+    search = serializers.CharField(required=False)
+    state = serializers.CharField(required=False)
+    category = serializers.CharField(required=False)
+    effect = serializers.CharField(required=False)
+
+
+class RunIssueSummarySerializer(serializers.Serializer):
+    issue_id = serializers.IntegerField()
+    title = serializers.CharField()
+    description = serializers.CharField(allow_null=True, allow_blank=True)
+    state = serializers.ChoiceField(choices=IssueState.choices)
+    bug_key = serializers.CharField(allow_null=True)
+    bug_url = serializers.CharField(allow_null=True)
+    result_count = serializers.IntegerField()
+    rules = RunIssueRuleSerializer(many=True)
 
 
 def serialize_run_compromised_details(
