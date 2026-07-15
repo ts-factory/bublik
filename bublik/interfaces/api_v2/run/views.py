@@ -15,6 +15,7 @@ from bublik.core.config.services import ConfigServices
 from bublik.core.run.classification import ClassificationService
 from bublik.core.run.services import RunsChartGroupBy, RunService
 from bublik.core.run.stats import (
+    generate_results_details,
     generate_runs_details,
 )
 from bublik.core.utils import get_difference
@@ -226,3 +227,14 @@ class RunViewSet(ModelViewSet):
             many=True,
         ).data
         return Response(data)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path=r'issues/(?P<issue_id>[0-9]+)/results',
+        pagination_class=None,
+    )
+    def issue_results(self, request, pk=None, issue_id=None):
+        run = RunService.get_run(pk)
+        results = ClassificationService.run_issue_results(run, issue_id)
+        return Response({'results': generate_results_details(results)})

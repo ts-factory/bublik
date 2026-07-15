@@ -277,3 +277,21 @@ class ClassificationService:
             row['bug_url'] = resolved[2] if resolved else None
 
         return sorted(rows.values(), key=lambda x: (x['title'] or '').lower())
+
+    @staticmethod
+    def run_issue_results(run: models.TestIterationResult, issue_id: int):
+        """
+        Results in a run classified under a specific issue.
+
+        Args:
+            run: The run to search
+            issue_id: The issue to filter by
+
+        Returns:
+            QuerySet of TestIterationResult, for generate_results_details() -
+            same shape as the plain /results/ listing.
+        """
+        return models.TestIterationResult.objects.filter(
+            test_run=run,
+            rule_results__issue_rule__issue_id=issue_id,
+        ).distinct()
