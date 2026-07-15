@@ -60,3 +60,13 @@ class RunIssuesApiTest(APITestCase):
                 params,
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST, params
+
+    def test_results_of_an_issue_in_the_run(self):
+        response = self.client.get(
+            reverse('api-v2:runs-issue-results', args=[self.run_row.id, self.loss.id]),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        rows = response.data['results']
+        assert [row['result_id'] for row in rows] == [self.second.id, self.first.id]
+        assert {row['path'] for row in rows} == {'suite/net/ping'}
+        assert all(row['effective_expected'] for row in rows)
