@@ -314,6 +314,13 @@ class LiveLogContext:
         # To avoid cyclic dependency between run.actions and this module
         from bublik.core.run.actions import prepare_cache_for_completed_run
 
+        # Lazy import, as in the regular import: a top-level one would pull
+        # core.run.classification in during bublik.data.models init.
+        from bublik.core.run.classification import ClassificationService  # noqa: PLC0415
+
+        # Before the run's data is cached, so that the cache counts the
+        # results the rules suppress.
+        ClassificationService.apply_rules_after_import(self.run)
         prepare_cache_for_completed_run(self.run)
 
     @staticmethod

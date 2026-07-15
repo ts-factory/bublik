@@ -1,8 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
-from django.test import TestCase
+from unittest import mock
 
+from django.test import TestCase
+from django.utils import timezone
+
+from bublik.core.importruns.live.context import LiveLogContext
+from bublik.core.importruns.source import execution
 from bublik.core.run.classification import ClassificationService
 from bublik.data import models
 from bublik.tests import classification_data as data
@@ -148,3 +153,106 @@ class ApplyRulesOnDemandTest(ClassificationDataMixin, TestCase):
         data.rule(closed, self.tree.ping)
         assert self._apply() == 0
         assert self._stamps() == set()
+
+
+@data.isolated_caches
+class ApplyRulesOnImportTest(ClassificationDataMixin, TestCase):
+    def _import(self):
+        return ClassificationService.apply_active_rules(self.run_row)
+
+    def test_recomputes_the_import_stamps_of_active_rules(self):
+        rule = data.rule(self.issue, self.tree.ping, parameters={'env': 'HW'})
+        # A stamp the rule no longer fits goes, the one it fits is made again.
+        data.stamp(self.vm_failed, rule, IMPORT)
+        assert self._import() == 1
+        assert self._stamps() == {(self.hw_failed.id, rule.id, IMPORT)}
+        assert self._import() == 1
+        assert self._stamps() == {(self.hw_failed.id, rule.id, IMPORT)}
+
+    def test_keeps_manual_stamps_and_stamps_of_deactivated_rules(self):
+        active = data.rule(self.issue, self.tree.ping, parameters={'env': 'HW'})
+        deactivated = data.rule(self.issue, self.tree.ping, active=False)
+        data.stamp(self.vm_failed, active, MANUAL)
+        data.stamp(self.vm_failed, deactivated, IMPORT)
+        self._import()
+        assert self._stamps() == {
+            (self.vm_failed.id, active.id, MANUAL),
+            (self.vm_failed.id, deactivated.id, IMPORT),
+            (self.hw_failed.id, active.id, IMPORT),
+        }
+
+    def test_a_failing_rule_keeps_its_stamps(self):
+        broken = data.rule(self.issue, self.tree.ping)
+        data.stamp(self.vm_failed, broken, IMPORT)
+        models.IssueRule.objects.filter(id=broken.id).update(parameters='x')
+        good = data.rule(self.issue, self.tree.reset)
+        with self.assertLogs('bublik.server', level='ERROR'):
+            assert self._import() == 1
+        assert self._stamps() == {
+            (self.vm_failed.id, broken.id, IMPORT),
+            (self.reset_failed.id, good.id, IMPORT),
+        }
+
+    def test_a_failure_does_not_fail_the_import(self):
+        data.rule(self.issue, self.tree.ping)
+        failing = mock.patch.object(
+            ClassificationService,
+            'match_rules',
+            side_effect=RuntimeError('boom'),
+        )
+        with self.assertLogs('bublik.server', level='ERROR'), failing:
+            ClassificationService.apply_rules_after_import(self.run_row)
+        assert self._stamps() == set()
+
+
+@data.isolated_caches
+class ClassifyOnImportTest(TestCase):
+    """
+    Both imports, regular and live, classify the run they have imported,
+    before its cache is prepared, so that the cache counts the results the
+    rules suppress.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.project = models.Project.objects.create(name='proj')
+
+    def _calls(self, cache_target):
+        calls = mock.Mock()
+        calls.attach_mock(
+            mock.patch.object(ClassificationService, 'apply_rules_after_import').start(),
+            'classify',
+        )
+        calls.attach_mock(mock.patch(cache_target).start(), 'cache')
+        self.addCleanup(mock.patch.stopall)
+        return calls
+
+    def test_regular_import(self):
+        calls = self._calls('bublik.core.importruns.source.execution.call_command')
+        now = timezone.now()
+        meta_data = mock.Mock(run_start=now, run_finish=now)
+        # A new run without a plan or iterations: only the steps around them run.
+        mock.patch.object(execution, 'identify_run', return_value=None).start()
+        for name in ('set_run_import_mode', 'clear_run_count', 'add_tags'):
+            mock.patch.object(execution, name).start()
+        run, _ = execution.incremental_import(
+            {'iters': None},
+            self.project.id,
+            meta_data,
+            run_completed=True,
+            force=False,
+        )
+        assert calls.mock_calls == [
+            mock.call.classify(run),
+            mock.call.cache('run_cache', 'delete', '-i', run.id, '--logger_out', True),
+        ]
+
+    def test_live_import(self):
+        calls = self._calls('bublik.core.run.actions.prepare_cache_for_completed_run')
+        run = data.run(self.project)
+        context = LiveLogContext.__new__(LiveLogContext)
+        context.run = run
+        context.last_ts = run.start
+        with mock.patch('bublik.core.importruns.live.context.set_run_status'):
+            context.finish_run('run-ok')
+        assert calls.mock_calls == [mock.call.classify(run), mock.call.cache(run)]

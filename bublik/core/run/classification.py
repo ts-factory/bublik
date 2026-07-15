@@ -207,6 +207,60 @@ class ClassificationService:
         return len(stamps)
 
     @staticmethod
+    def apply_active_rules(run: models.TestIterationResult) -> int:
+        """
+        Recompute import-origin RuleResult stamps for a run from the project's
+        active rules. Idempotent: for each rule that is active now, drops its
+        previous origin='import' stamps and rebuilds them, so a stamp that no
+        longer fits its rule goes away. The stamps of deactivated rules and the
+        manual stamps (manual_persistent / manual_oneoff) are never touched.
+        Only the rules of open issues apply: closing an issue deactivates its
+        rules. A rule that fails to apply is logged and skipped (its stamps
+        stay as they were), so one broken rule can't block the others.
+
+        Args:
+            run: The run to (re)apply active rules to, typically right after import
+
+        Returns:
+            Number of RuleResult stamps created
+        """
+        with transaction.atomic():
+            matches = ClassificationService.match_rules(
+                ClassificationService.active_rules_for(run),
+                run,
+            )
+            # Only the rules matched without failing: a failing rule keeps the
+            # stamps it has.
+            models.RuleResult.objects.filter(
+                result__test_run=run,
+                origin=models.RuleResultOrigin.IMPORT,
+                issue_rule_id__in=list(matches),
+            ).delete()
+            return ClassificationService.create_stamps(
+                matches,
+                run,
+                models.RuleResultOrigin.IMPORT,
+            )
+
+    @staticmethod
+    def apply_rules_after_import(run: models.TestIterationResult) -> None:
+        """
+        Classify a run's results as the last step of its import, regular or
+        live, by applying the project's active rules (see apply_active_rules).
+        Best-effort: a failure is logged with its traceback and doesn't fail
+        the import.
+
+        Args:
+            run: The run just imported
+        """
+        logger = get_task_or_server_logger()
+        try:
+            stamps_created = ClassificationService.apply_active_rules(run)
+            logger.info(f'the number of classification stamps applied is {stamps_created}')
+        except Exception:
+            logger.exception('failed to apply classification rules during import, continuing')
+
+    @staticmethod
     def apply_active_rules_manual(
         run: models.TestIterationResult,
         actor: models.User | None = None,
