@@ -282,6 +282,14 @@ class RunIssueSummarySerializer(serializers.Serializer):
     categories = RunIssueCategorySerializer(many=True)
 
 
+class RunIssueResultSerializer(serializers.Serializer):
+    result_id = serializers.IntegerField()
+    name = serializers.CharField(allow_null=True)
+    path = serializers.ListField(child=serializers.CharField())
+    obtained_result = serializers.CharField(allow_null=True)
+    verdicts = serializers.ListField(child=serializers.CharField())
+
+
 def serialize_run_compromised_details(
     compromised: RunCompromisedDetails | None,
 ):

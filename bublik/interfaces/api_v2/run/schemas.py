@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.run.serializers import (
@@ -16,6 +21,7 @@ from bublik.interfaces.api_v2.run.serializers import (
     RunCommentResponseSerializer,
     RunCommentValueResponseSerializer,
     RunDetailsResponseSerializer,
+    RunIssueResultSerializer,
     RunIssueSummarySerializer,
     RunListItemSerializer,
     RunListQuerySerializer,
@@ -268,6 +274,33 @@ run_viewset_schema = extend_schema_view(
             200: OpenApiResponse(
                 response=RunIssueSummarySerializer(many=True),
                 description='Run issues summary was successfully retrieved',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Run was not found',
+            ),
+        },
+        tags=[RUN_TAG],
+    ),
+    issue_results=extend_schema(
+        summary='Get run results for an issue',
+        description="""
+        Returns the results in a run classified under a specific issue,
+        each with its package path in the run tree, obtained result, and
+        verdicts.
+        """,
+        parameters=[
+            OpenApiParameter(
+                name='issue_id',
+                type=int,
+                location=OpenApiParameter.PATH,
+                description='The ID of the issue to filter results by.',
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=RunIssueResultSerializer(many=True),
+                description='Run issue results were successfully retrieved',
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,

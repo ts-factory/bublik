@@ -34,6 +34,7 @@ from bublik.interfaces.api_v2.run.serializers import (
     ApplyRulesResponseSerializer,
     EmptySerializer,
     RunCommentRequestSerializer,
+    RunIssueResultSerializer,
     RunIssueSummarySerializer,
     serialize_mark_run_compromised_result,
     serialize_run_comment_result,
@@ -223,6 +224,20 @@ class RunViewSet(ModelViewSet):
         run = RunService.get_run(pk)
         data = RunIssueSummarySerializer(
             ClassificationService.run_issues_summary(run),
+            many=True,
+        ).data
+        return Response(data)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path=r'issues/(?P<issue_id>[0-9]+)/results',
+        pagination_class=None,
+    )
+    def issue_results(self, request, pk=None, issue_id=None):
+        run = RunService.get_run(pk)
+        data = RunIssueResultSerializer(
+            ClassificationService.run_issue_results(run, issue_id),
             many=True,
         ).data
         return Response(data)

@@ -276,3 +276,59 @@ class ClassificationService:
             row['bug_url'] = resolved[2] if resolved else None
 
         return sorted(rows.values(), key=lambda x: (x['title'] or '').lower())
+
+    @staticmethod
+    def run_issue_results(run: models.TestIterationResult, issue_id: int) -> list[dict]:
+        """
+        Results in a run classified under a specific issue, with their
+        package path in the run tree.
+
+        Args:
+            run: The run to search
+            issue_id: The issue to filter by
+
+        Returns:
+            List of dicts: result_id, name, path (top-down package names),
+            obtained_result, verdicts
+        """
+        stamps = (
+            models.RuleResult.objects.filter(
+                result__test_run=run,
+                issue_rule__issue_id=issue_id,
+            )
+            .select_related('result__iteration__test')
+            .distinct('result_id')
+            .order_by('result_id')
+        )
+
+        data = []
+        for stamp in stamps:
+            result = stamp.result
+            path = []
+            node = result.parent_package
+            while node is not None:
+                if node.iteration_id and node.iteration.test_id:
+                    path.append(node.iteration.test.name)
+                node = node.parent_package
+            path.reverse()
+
+            verdicts = list(
+                result.meta_results.filter(meta__type='verdict')
+                .order_by('serial')
+                .values_list('meta__value', flat=True),
+            )
+            obtained = (
+                result.meta_results.filter(meta__type='result')
+                .values_list('meta__value', flat=True)
+                .first()
+            )
+            data.append(
+                {
+                    'result_id': result.id,
+                    'name': result.iteration.test.name if result.iteration_id else None,
+                    'path': path,
+                    'obtained_result': obtained,
+                    'verdicts': verdicts,
+                },
+            )
+        return data
