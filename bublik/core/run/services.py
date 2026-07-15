@@ -73,7 +73,7 @@ class RunService:
             NotFoundError: if run not found
         """
         try:
-            return models.TestIterationResult.objects.get(id=run_id)
+            return models.TestIterationResult.objects.get(id=run_id, test_run_id__isnull=True)
         except ObjectDoesNotExist as e:
             msg = f'Run {run_id} not found'
             raise NotFoundError(msg) from e
