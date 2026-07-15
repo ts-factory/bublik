@@ -4,17 +4,20 @@
 import typing
 
 from django.db import transaction
+from django.db.models import Max, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
 from bublik.core.auth import check_action_permission, get_user_by_access_token
 from bublik.core.cache import RunCache
 from bublik.core.run.classification import ClassificationService
-from bublik.data.models import Issue, IssueRule, IssueState
+from bublik.data.models import Issue, IssueRule, IssueState, RuleResult
 from bublik.data.serializers import IssueRuleSerializer, IssueSerializer
+from bublik.interfaces.api_v2.issue.serializers import IssuePickerOptionSerializer
 
 
 def _actor(request):
@@ -178,3 +181,65 @@ class IssueRuleViewSet(ModelViewSet):
             ClassificationService.runs_for_rule(rule),
         )
         return Response(IssueRuleSerializer(rule).data)
+
+
+class IssuePickerViewSet(GenericViewSet):
+    filter_backends: typing.ClassVar[list] = []
+    renderer_classes: typing.ClassVar[list] = [JSONRenderer]
+    serializer_class = IssuePickerOptionSerializer
+
+    def list(self, request, *args, **kwargs):
+        project_id = request.query_params.get('project')
+        search = (request.query_params.get('search') or '').strip()
+
+        if search:
+            issues_qs = Issue.objects.all()
+            if project_id:
+                issues_qs = issues_qs.filter(rules__project_id=project_id)
+            issues = list(
+                issues_qs.filter(
+                    Q(title__icontains=search) | Q(issue_ext__key__icontains=search)
+                )
+                .select_related('issue_ext')
+                .distinct()
+                .order_by('title')[:20],
+            )
+        else:
+            recent_qs = RuleResult.objects.all()
+            if project_id:
+                recent_qs = recent_qs.filter(issue_rule__project_id=project_id)
+            recent = (
+                recent_qs.values('issue_rule__issue_id')
+                .annotate(last_used=Max('created_at'))
+                .order_by('-last_used')[:10]
+            )
+            ids = [row['issue_rule__issue_id'] for row in recent]
+            by_id = Issue.objects.filter(id__in=ids).select_related('issue_ext').in_bulk()
+            issues = [by_id[i] for i in ids if i in by_id]
+
+        data = []
+        for issue in issues:
+            latest_qs = RuleResult.objects.filter(issue_rule__issue=issue)
+            if project_id:
+                latest_qs = latest_qs.filter(issue_rule__project_id=project_id)
+            latest = latest_qs.select_related('issue_rule').order_by('-created_at').first()
+
+            category_qs = issue.rules.all()
+            if project_id:
+                category_qs = category_qs.filter(project_id=project_id)
+            category = (
+                latest.issue_rule.category
+                if latest
+                else category_qs.values_list('category', flat=True).first()
+            )
+            data.append(
+                {
+                    'id': issue.id,
+                    'title': issue.title,
+                    'key': issue.issue_ext.key if issue.issue_ext_id else None,
+                    'category': category,
+                },
+            )
+
+        serializer = self.get_serializer(data, many=True)
+        return Response(serializer.data)
