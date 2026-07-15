@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from django.db import transaction
+
 from bublik.core.run.data import get_tags_by_runs
 from bublik.data import models
 
@@ -111,6 +113,38 @@ class ClassificationService:
                 continue
             matched.append(result)
         return matched
+
+    @staticmethod
+    def apply_active_rules(run: models.TestIterationResult) -> int:
+        """
+        Recompute import-origin RuleResult stamps for a run from the project's
+        active rules. Idempotent: drops previous origin='import' stamps for this
+        run, then rebuilds them from the current set of active rules. Manual
+        stamps (manual_persistent / manual_oneoff) are never touched.
+
+        Args:
+            run: The run to (re)apply active rules to, typically right after import
+
+        Returns:
+            Number of RuleResult stamps created
+        """
+        with transaction.atomic():
+            models.RuleResult.objects.filter(
+                result__test_run=run,
+                origin=models.RuleResultOrigin.IMPORT,
+            ).delete()
+
+            rules = models.IssueRule.objects.filter(project_id=run.project_id, active=True)
+            created = 0
+            for rule in rules:
+                for result in ClassificationService.matching_results(rule, run):
+                    _, made = models.RuleResult.objects.get_or_create(
+                        result=result,
+                        issue_rule=rule,
+                        defaults={'origin': models.RuleResultOrigin.IMPORT},
+                    )
+                    created += int(made)
+        return created
 
     @staticmethod
     def apply_active_rules_manual(
