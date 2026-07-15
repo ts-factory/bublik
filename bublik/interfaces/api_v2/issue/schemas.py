@@ -10,6 +10,8 @@ from bublik.interfaces.api_v2.issue.serializers import (
     BulkIdsRequestSerializer,
     IssueFacetsSerializer,
     IssueListQuerySerializer,
+    IssuePickerOptionSerializer,
+    IssuePickerQuerySerializer,
     IssueRuleFacetsSerializer,
     IssueRuleListQuerySerializer,
 )
@@ -341,5 +343,28 @@ issue_rule_viewset_schema = extend_schema_view(
             ),
         },
         tags=[ISSUE_RULE_TAG],
+    ),
+)
+
+
+issue_picker_viewset_schema = extend_schema_view(
+    list=extend_schema(
+        summary='List issue picker options',
+        description="""
+        Returns compact issue options for a selection widget: up to 20
+        title/bug-key matches for the given search text, or the 10 most
+        recently used issues (by latest classified result) when no search
+        text is given. Optionally scoped to a project, to issue states and to
+        the issues having a rule for a given test.
+        """,
+        parameters=[IssuePickerQuerySerializer],
+        responses={
+            200: IssuePickerOptionSerializer(many=True),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='An unknown issue state was given',
+            ),
+        },
+        tags=[ISSUE_TAG],
     ),
 )
