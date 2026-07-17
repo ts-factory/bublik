@@ -10,8 +10,8 @@ from bublik.data.models import GlobalConfigs
 
 def prepare_expected_key(key_str, project_id):
     logger = get_task_or_server_logger()
-    for ref in re.findall(r'ref://[^, ]+', key_str):
-        ref_type = re.search(r'ref://(.*)/', ref).group(1)
+    for match in re.finditer(r'ref://([^/\s]+)/([\w\-/:]+)', key_str):
+        ref_type = match.group(1)
         if ref_type not in ConfigServices.getattr_from_global(
             GlobalConfigs.REFERENCES.name,
             'ISSUES',

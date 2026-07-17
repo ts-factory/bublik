@@ -508,19 +508,17 @@ def get_expected_results(result):
         if meta_expect_results.exists():
             key_string = meta_expect_results.first().meta.name
 
-            for ref in re.findall(r'ref://[^, ]+', key_string):
+            for match in re.finditer(r'ref://([^/\s]+)/([\w\-/:]+)', key_string):
+                ref = match.group(0)
+                ref_type, ref_tail = match.group(1), match.group(2)
+
                 # Add the information that is before the first ref
                 key_info_part = key_string.partition(ref)[0]
                 if key_info_part:
-                    key_part = {'name': key_info_part, 'url': None}
-                    expected_result['keys'].append(key_part)
-
-                # Parse the ref
-                ref_type, ref_tail = re.search(r'ref://(.*)/(.*)', ref).group(1, 2)
+                    expected_result['keys'].append({'name': key_info_part, 'url': None})
 
                 # Forming the ref name
-                ref_name = f'{ref_type}:{ref_tail}'
-                key_part = {'name': ref_name, 'url': None}
+                key_part = {'name': f'{ref_type}:{ref_tail}', 'url': None}
 
                 # Form the link address, if possible
                 logs = ConfigServices.getattr_from_global(
@@ -529,9 +527,7 @@ def get_expected_results(result):
                     result.project.id,
                 )
                 if ref_type in logs and ref_tail:
-                    ref_uri = logs[ref_type]['uri']
-                    ref_url = f'{ref_uri}{ref_tail}'
-                    key_part['url'] = ref_url
+                    key_part['url'] = f'{logs[ref_type]["uri"]}{ref_tail}'
 
                 expected_result['keys'].append(key_part)
 
@@ -540,8 +536,7 @@ def get_expected_results(result):
 
             # Add what is left in the key string
             if key_string:
-                key_part = {'name': key_string, 'url': None}
-                expected_result['keys'].append(key_part)
+                expected_result['keys'].append({'name': key_string, 'url': None})
 
         expected_results.append(expected_result)
     return expected_results
