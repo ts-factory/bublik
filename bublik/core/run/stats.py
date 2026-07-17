@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 from collections import OrderedDict
 import json
-import re
 
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
@@ -21,6 +20,7 @@ from bublik.core.measurement.services import exist_measurement_results
 from bublik.core.meta.categorization import get_metas_by_category
 from bublik.core.meta.match_references import build_revision_references
 from bublik.core.queries import MetaResultsQuery, get_or_none
+from bublik.core.references import REF_PATTERN, resolve_ref
 from bublik.core.run.compromised import get_compromised_details, is_run_compromised
 from bublik.core.run.data import (
     get_metadata_by_runs,
@@ -508,28 +508,20 @@ def get_expected_results(result):
         if meta_expect_results.exists():
             key_string = meta_expect_results.first().meta.name
 
-            for match in re.finditer(r'ref://([^/\s]+)/([\w\-/:]+)', key_string):
+            for match in REF_PATTERN.finditer(key_string):
                 ref = match.group(0)
-                ref_type, ref_tail = match.group(1), match.group(2)
-
                 # Add the information that is before the first ref
                 key_info_part = key_string.partition(ref)[0]
                 if key_info_part:
-                    expected_result['keys'].append({'name': key_info_part, 'url': None})
+                    key_part = {'name': key_info_part, 'url': None}
+                    expected_result['keys'].append(key_part)
 
-                # Forming the ref name
-                key_part = {'name': f'{ref_type}:{ref_tail}', 'url': None}
-
-                # Form the link address, if possible
-                logs = ConfigServices.getattr_from_global(
-                    GlobalConfigs.REFERENCES.name,
-                    'ISSUES',
-                    result.project.id,
-                )
-                if ref_type in logs and ref_tail:
-                    key_part['url'] = f'{logs[ref_type]["uri"]}{ref_tail}'
-
-                expected_result['keys'].append(key_part)
+                resolved = resolve_ref(ref, result.project.id)
+                if resolved is not None:
+                    ref_type, ref_tail, url = resolved
+                    expected_result['keys'].append(
+                        {'name': f'{ref_type}:{ref_tail}', 'url': url}
+                    )
 
                 # Trim the key string by the current ref
                 key_string = key_string.partition(ref)[2]
