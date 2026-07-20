@@ -118,8 +118,13 @@ class CompactionConfig(_Base):
     """
 
     enabled: bool = True
-    # Fraction of the model's context window that triggers compaction.
+    # Fraction of the model's context window that triggers compaction. Only
+    # used for models whose output limit is unknown; otherwise the trigger is
+    # `context - reserved`, which leaves exactly enough room for the reply.
     threshold: float = 0.8
+    # Tokens held back for the model's reply. Defaults to the model's own
+    # output limit, capped at `DEFAULT_RESERVED`.
+    reserved: int | None = None
     # How many trailing messages are always kept verbatim (the split point
     # may move further back to keep tool call/return pairs intact).
     keep_recent: int = 8

@@ -362,6 +362,11 @@
                     "type": "integer",
                     "minimum": 1,
                     "default": 8
+                },
+                "reserved": {
+                    "description": "Tokens held back for the model reply when deciding whether to compact. Defaults to the model output limit, capped at 20000. Compaction triggers once the conversation exceeds `context limit - reserved`.",
+                    "type": "integer",
+                    "minimum": 0
                 }
             },
             "additionalProperties": false
