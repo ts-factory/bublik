@@ -31,14 +31,15 @@ from uuid import UUID
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from pydantic_ai.capabilities.process_history import ProcessHistory
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from bublik.ai import run_store
 from bublik.ai.access import resolve_user, user_may_access_thread
-from bublik.ai.agent import build_agent
-from bublik.ai.compaction import make_usage_reporter
+from bublik.ai.agent import build_agent, build_model
+from bublik.ai.compaction import Compactor, make_usage_reporter
 from bublik.ai.config import (
     ModelRequestError,
     config_fingerprint,
@@ -153,8 +154,23 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
 
     deps = ChatDeps(thread_id=thread_id, user_id=user.id, run_id=run_id)
 
+    # Per-run context machinery (see bublik.ai.compaction): the compactor
+    # rides the run's capabilities so the lru-cached agent stays shared, and
+    # the usage reporter rides on_complete. Both are inert when the model's
+    # context window is unknown.
     context_limit = _model_entry.limit.context if _model_entry.limit else None
+    summarizer_model = None
+    if config.compaction.enabled and context_limit:
+        # Same config/credential path as build_agent above, which already
+        # succeeded -- so this cannot introduce a new user-facing failure.
+        summarizer_model = await sync_to_async(build_model)(provider, model)
+    compactor = Compactor(
+        config=config.compaction,
+        context_limit=context_limit,
+        summarizer_model=summarizer_model,
+    )
     options = RunOptions(
+        capabilities=(ProcessHistory(compactor),),
         on_complete=make_usage_reporter(thread_id, provider, model, context_limit),
     )
     spawn_run(adapter, agent, run_id, deps, options)
