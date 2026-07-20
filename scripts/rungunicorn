@@ -14,7 +14,8 @@ gunicorn \
   --log-file "${BUBLIK_LOG}" \
   --access-logfile "${BUBLIK_ACCESS_LOG}" \
   --log-level info \
+  --worker-class uvicorn_worker.UvicornWorker \
   --worker-tmp-dir "${TMPDIR}" \
   --pid "${BUBLIK_GUNICORN_PID_PATH}" \
   --name "${BUBLIK_WEB_NAME}" \
-    bublik.wsgi:application
+    bublik.asgi:application
