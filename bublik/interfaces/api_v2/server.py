@@ -45,5 +45,6 @@ class ServerViewSet(ViewSet):
         return Response(
             {
                 'analytics_enabled': settings.ANALYTICS_ENABLED,
+                'chat_enabled': settings.AI_CHAT_ENABLED,
             },
         )

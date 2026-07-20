@@ -42,8 +42,12 @@ api_v2_router.register(
     basename='tests_comments',
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
-api_v2_router.register(r'chat/threads', api_v2.AiChatThreadViewSet, 'chat-threads')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
+
+if settings.AI_CHAT_ENABLED:
+    from bublik.interfaces.api_v2.ai_chat_thread import AiChatThreadViewSet
+
+    api_v2_router.register(r'chat/threads', AiChatThreadViewSet, 'chat-threads')
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet

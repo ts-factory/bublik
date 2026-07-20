@@ -3,8 +3,9 @@
 
 import uuid
 
+from django.test import SimpleTestCase
 from django.test.utils import override_settings
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 import fakeredis
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -12,6 +13,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from bublik.ai import run_store
 from bublik.data.models import AiChatThread, User
+from bublik.tests.urlconf import ReloadUrlconfMixin, reload_urlconf
 
 
 _LOCMEM = {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}
@@ -21,8 +23,11 @@ _LOCMEM = {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}
 _DUMMY = {'BACKEND': 'django.core.cache.backends.dummy.DummyCache'}
 
 
-@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
-class AiChatThreadsApiTest(APITestCase):
+@override_settings(
+    AI_CHAT_ENABLED=True,
+    CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM},
+)
+class AiChatThreadsApiTest(ReloadUrlconfMixin, APITestCase):
     def setUp(self):
         run_store._sredis = fakeredis.FakeRedis(decode_responses=True)
         self.user = User.objects.create_user(email='a@example.com', password='pw12345!')
@@ -154,3 +159,16 @@ class AiChatThreadsApiTest(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         thread.refresh_from_db()
         self.assertEqual(thread.context_state, {'context_tokens': 5000, 'summary': 's'})
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class AiChatDisabledUrlsTest(SimpleTestCase):
+    """With the assistant turned off the REST routes must not exist at all."""
+
+    def test_chat_thread_routes_are_not_registered(self):
+        with override_settings(AI_CHAT_ENABLED=False), reload_urlconf():
+            self.assertRaises(NoReverseMatch, reverse, 'api-v2:chat-threads-list')
+
+    def test_chat_thread_routes_are_registered_when_enabled(self):
+        with override_settings(AI_CHAT_ENABLED=True), reload_urlconf():
+            self.assertEqual(reverse('api-v2:chat-threads-list'), '/api/v2/chat/threads/')
