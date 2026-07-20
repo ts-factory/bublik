@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from .ai_chat_thread import AiChatThreadDetailSerializer, AiChatThreadListSerializer
 from .auth import (
     PasswordResetSerializer,
     RegisterSerializer,
@@ -39,6 +40,8 @@ from .result import (
 
 
 __all__ = [
+    'AiChatThreadDetailSerializer',
+    'AiChatThreadListSerializer',
     'ConfigSerializer',
     'EndpointURLSerializer',
     'EventLogSerializer',

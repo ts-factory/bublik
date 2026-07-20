@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from .ai_chat_thread import AiChatThreadViewSet
 from .auth import (
     ActivateView,
     AdminViewSet,
@@ -40,6 +41,7 @@ from .url_shortener import URLShortenerView
 __all__ = [
     'ActivateView',
     'AdminViewSet',
+    'AiChatThreadViewSet',
     'ConfigViewSet',
     'DashboardPayload',
     'DashboardViewSet',
