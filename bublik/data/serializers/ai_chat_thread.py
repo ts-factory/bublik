@@ -46,8 +46,11 @@ class AiChatThreadDetailSerializer(ModelSerializer):
     # reloaded client shows a background-response indicator while it is present.
     active_run_id = SerializerMethodField()
     latest_run_status = SerializerMethodField()
-    # Seeds the UI context meter with the latest server-recorded usage.
+    # Last known context occupancy + compaction status, maintained server-side by
+    # bublik.ai.compaction (never client-writable: derived, not a model field in
+    # the writable set). Seeds the UI's context meter on thread load.
     context_usage = SerializerMethodField()
+
     class Meta:
         model = AiChatThread
         fields = (
@@ -86,4 +89,7 @@ class AiChatThreadDetailSerializer(ModelSerializer):
             'compacted': bool(summary),
             'covered_count': state.get('covered_count'),
             'compacted_at': state.get('compacted_at'),
+            # The provider's own token breakdown, for diagnosing gateways whose
+            # reported usage does not match what was actually sent.
+            'raw_usage': state.get('raw_usage'),
         }
