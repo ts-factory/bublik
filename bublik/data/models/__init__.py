@@ -21,6 +21,7 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 """
 
+from .ai_chat_thread import AiChatThread
 from .config import Config, ConfigTypes, GlobalConfigs
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
@@ -65,6 +66,7 @@ from .user import User, UserManager, UserRoles
 
 
 __all__ = [
+    'AiChatThread',
     'ChartView',
     'ChartViewType',
     'Config',
