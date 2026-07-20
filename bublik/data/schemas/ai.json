@@ -1,0 +1,394 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "description": "AI chat models and providers configuration. Field names align with models.dev.",
+    "definitions": {
+        "model": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "Model id sent to the provider (mirrors models.dev Model.id)",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "name": {
+                    "description": "Human-readable model name shown in the UI (mirrors models.dev Model.name); filled from models.dev when omitted",
+                    "type": "string"
+                },
+                "limit": {
+                    "description": "Token limits (mirrors models.dev Limit)",
+                    "type": "object",
+                    "properties": {
+                        "context": {
+                            "description": "Maximum context window size in tokens",
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "output": {
+                            "description": "Maximum output tokens; applied to the agent's model settings",
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "modalities": {
+                    "description": "Supported input/output modalities (mirrors models.dev Modalities)",
+                    "type": "object",
+                    "properties": {
+                        "input": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "output": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "tool_call": {
+                    "description": "Whether the model supports tool/function calling",
+                    "type": "boolean"
+                },
+                "reasoning": {
+                    "description": "Whether the model supports reasoning/thinking. Reasoning models expose pydantic-ai's unified effort levels (minimal/low/medium/high/xhigh, default medium) in the UI; the levels themselves are not configurable.",
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "id"
+            ],
+            "additionalProperties": false
+        },
+        "mcp_server": {
+            "type": "object",
+            "description": "A remote MCP server exposed to the chat assistant over Streamable HTTP",
+            "properties": {
+                "id": {
+                    "description": "Unique server identifier; also used as the tool-name prefix so remote tools do not collide with built-in Bublik tools",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "url": {
+                    "description": "Base URL of the remote MCP server's Streamable HTTP endpoint (e.g. https://api.githubcopilot.com/mcp/)",
+                    "type": "string",
+                    "format": "uri"
+                },
+                "headers": {
+                    "description": "HTTP headers sent with every request to the server. A header value may embed one or more source-qualified ${env:AI_NAME} or ${settings:AI_NAME} placeholders; only AI_-prefixed names are honoured. The author writes the full header key and scheme, so any scheme works, e.g. \"Authorization\": \"Bearer ${env:AI_GITHUB_AUTH_TOKEN}\". Static header values pass through unchanged. If any complete placeholder is invalid or unresolved, the server is skipped with a logged warning.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "id",
+                "url"
+            ],
+            "additionalProperties": false
+        }
+    },
+    "properties": {
+        "providers": {
+            "description": "LLM providers available to the chat assistant",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "description": "Unique provider identifier used in the chat request and models.dev lookup. Select from known models.dev providers or use any string for custom gateways.",
+                        "anyOf": [
+                            {
+                                "enum": [
+                                    "302ai",
+                                    "abacus",
+                                    "abliteration-ai",
+                                    "aihubmix",
+                                    "alibaba",
+                                    "alibaba-cn",
+                                    "alibaba-coding-plan",
+                                    "alibaba-coding-plan-cn",
+                                    "amazon-bedrock",
+                                    "ambient",
+                                    "anthropic",
+                                    "atomic-chat",
+                                    "auriko",
+                                    "azure",
+                                    "azure-cognitive-services",
+                                    "bailing",
+                                    "baseten",
+                                    "berget",
+                                    "cerebras",
+                                    "chutes",
+                                    "clarifai",
+                                    "claudinio",
+                                    "cloudferro-sherlock",
+                                    "cloudflare-ai-gateway",
+                                    "cloudflare-workers-ai",
+                                    "cohere",
+                                    "cortecs",
+                                    "databricks",
+                                    "deepinfra",
+                                    "deepseek",
+                                    "digitalocean",
+                                    "dinference",
+                                    "drun",
+                                    "evroc",
+                                    "fastrouter",
+                                    "firepass",
+                                    "fireworks-ai",
+                                    "friendli",
+                                    "frogbot",
+                                    "github-copilot",
+                                    "github-models",
+                                    "gitlab",
+                                    "gmicloud",
+                                    "google",
+                                    "google-vertex",
+                                    "google-vertex-anthropic",
+                                    "groq",
+                                    "helicone",
+                                    "hpc-ai",
+                                    "huggingface",
+                                    "iflowcn",
+                                    "inception",
+                                    "inference",
+                                    "io-net",
+                                    "jiekou",
+                                    "kilo",
+                                    "kimi-for-coding",
+                                    "kuae-cloud-coding-plan",
+                                    "lilac",
+                                    "llama",
+                                    "llmgateway",
+                                    "lmstudio",
+                                    "lucidquery",
+                                    "meganova",
+                                    "minimax",
+                                    "minimax-cn",
+                                    "minimax-cn-coding-plan",
+                                    "minimax-coding-plan",
+                                    "mistral",
+                                    "mixlayer",
+                                    "moark",
+                                    "modelscope",
+                                    "moonshotai",
+                                    "moonshotai-cn",
+                                    "morph",
+                                    "nano-gpt",
+                                    "nearai",
+                                    "nebius",
+                                    "neuralwatt",
+                                    "nova",
+                                    "novita-ai",
+                                    "nvidia",
+                                    "ollama-cloud",
+                                    "openai",
+                                    "opencode",
+                                    "opencode-go",
+                                    "openrouter",
+                                    "orcarouter",
+                                    "ovhcloud",
+                                    "perplexity",
+                                    "perplexity-agent",
+                                    "poe",
+                                    "privatemode-ai",
+                                    "qihang-ai",
+                                    "qiniu-ai",
+                                    "regolo-ai",
+                                    "requesty",
+                                    "routing-run",
+                                    "sap-ai-core",
+                                    "sarvam",
+                                    "scaleway",
+                                    "siliconflow",
+                                    "siliconflow-cn",
+                                    "stackit",
+                                    "stepfun",
+                                    "stepfun-ai",
+                                    "submodel",
+                                    "synthetic",
+                                    "tencent-coding-plan",
+                                    "tencent-tokenhub",
+                                    "the-grid-ai",
+                                    "togetherai",
+                                    "umans-ai-coding-plan",
+                                    "upstage",
+                                    "v0",
+                                    "venice",
+                                    "vercel",
+                                    "vivgrid",
+                                    "vultr",
+                                    "wafer.ai",
+                                    "wandb",
+                                    "xai",
+                                    "xiaomi",
+                                    "xiaomi-token-plan-ams",
+                                    "xiaomi-token-plan-cn",
+                                    "xiaomi-token-plan-sgp",
+                                    "xpersona",
+                                    "zai",
+                                    "zai-coding-plan",
+                                    "zenmux",
+                                    "zhipuai",
+                                    "zhipuai-coding-plan"
+                                ],
+                                "description": "Known models.dev provider"
+                            },
+                            {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Custom gateway provider ID"
+                            }
+                        ]
+                    },
+                    "type": {
+                        "description": "Provider protocol / pydantic-ai provider name. Either a native pydantic-ai provider (delegated to pydantic_ai.models.infer_model) or 'gateway/<upstream>' (Pydantic AI Gateway; api_url/api_key optional, falling back to the PYDANTIC_AI_GATEWAY_* environment variables when api_key is omitted). Custom OpenAI-protocol gateways use 'openai' with an api_url; gateways speaking the Anthropic Messages API use 'anthropic' with an api_url. For discoverable types (openai, openai-chat, openai-responses, anthropic, ollama, openrouter, litellm), omitting 'models' enables auto-discovery via GET {api_url}/models.",
+                        "type": "string",
+                        "enum": [
+                            "openai",
+                            "openai-chat",
+                            "openai-responses",
+                            "anthropic",
+                            "google",
+                            "google-cloud",
+                            "groq",
+                            "mistral",
+                            "cohere",
+                            "bedrock",
+                            "huggingface",
+                            "xai",
+                            "deepseek",
+                            "openrouter",
+                            "ollama",
+                            "litellm",
+                            "azure",
+                            "vercel",
+                            "together",
+                            "fireworks",
+                            "heroku",
+                            "cerebras",
+                            "moonshotai",
+                            "alibaba",
+                            "github",
+                            "nebius",
+                            "ovhcloud",
+                            "sambanova",
+                            "gateway/openai",
+                            "gateway/anthropic",
+                            "gateway/groq",
+                            "gateway/google",
+                            "gateway/bedrock"
+                        ]
+                    },
+                    "name": {
+                        "description": "Human-readable provider name shown in the UI",
+                        "type": "string"
+                    },
+                    "api_url": {
+                        "description": "Base URL of the provider/gateway endpoint. Optional for native providers (their default endpoint applies); required for custom gateways and for HTTP model auto-discovery (when 'models' is omitted).",
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "api_key": {
+                        "description": "Exact source-qualified reference to the API key. Use ${env:AI_NAME} to read only the process environment or ${settings:AI_NAME} to read only the Django settings object. The AI_ prefix is required and the key itself is never stored in this config. Omit this field to use pydantic-ai's standard provider environment inference.",
+                        "type": "string",
+                        "pattern": "^(?![\\s\\S]*[\\r\\n])\\$\\{(env|settings):AI_[A-Z0-9_]+\\}$"
+                    },
+                    "models": {
+                        "description": "Models exposed by this provider; unset fields of each entry are enriched from models.dev, so an entry can also be used to override models.dev metadata. Omit the list entirely to auto-populate: from HTTP discovery via GET {api_url}/models (when api_url is set on a discoverable type), otherwise from models.dev (when the provider id matches a known models.dev provider).",
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "$ref": "#/definitions/model"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "type"
+                ],
+                "additionalProperties": false
+            }
+        },
+        "default_model": {
+            "description": "Model selected by default in the chat UI",
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "provider",
+                "model"
+            ],
+            "additionalProperties": false
+        },
+        "mcp_servers": {
+            "description": "Remote MCP servers whose tools are exposed to the chat assistant (in addition to the built-in Bublik tools). Optional.",
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/mcp_server"
+            }
+        },
+        "compaction": {
+            "description": "Automatic conversation compaction. When the estimated context occupancy crosses the threshold fraction of the model's context window, older turns are summarized before being sent to the model (the stored conversation is untouched). Models without a known context window are never compacted.",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Whether automatic compaction is enabled",
+                    "type": "boolean",
+                    "default": true
+                },
+                "threshold": {
+                    "description": "Fraction of the model's context window that triggers compaction",
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                    "default": 0.8
+                },
+                "keep_recent": {
+                    "description": "How many trailing messages are always kept verbatim (the split point may move further back to keep tool call/return pairs intact)",
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 8
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "required": [
+        "providers"
+    ],
+    "additionalProperties": false,
+    "default": {
+        "providers": [
+            {
+                "id": "openai",
+                "type": "openai",
+                "name": "OpenAI",
+                "api_key": "${env:AI_OPENAI_API_KEY}"
+            },
+            {
+                "id": "anthropic",
+                "type": "anthropic",
+                "name": "Anthropic",
+                "api_key": "${env:AI_ANTHROPIC_API_KEY}"
+            }
+        ],
+        "default_model": {
+            "provider": "openai",
+            "model": "gpt-4.1"
+        }
+    }
+}

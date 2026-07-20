@@ -24,6 +24,8 @@ class ConfigServices:
                 return load_schema('references')
             if config_name == GlobalConfigs.META.name:
                 return load_schema('meta')
+            if config_name == GlobalConfigs.AI.name:
+                return load_schema('ai')
         return None
 
     @staticmethod
