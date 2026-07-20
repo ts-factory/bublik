@@ -72,7 +72,10 @@ def _get_run_leaf_results(
     result = ResultService.get_result(leaf_result_id)
     run_id = result.test_run_id
     if run_id is None:
-        msg = 'A test leaf result ID from get_run_overview is required'
+        msg = (
+            f'Result {leaf_result_id} is not a test result in a run. Pass a '
+            f'test-leaf Result ID from get_run_overview.'
+        )
         raise ValidationError(msg)
 
     stats = RunService.get_run_stats(run_id, None)
@@ -93,7 +96,11 @@ def _get_run_leaf_results(
         or leaf.parent_id is None
         or leaf.exec_seqno is None
     ):
-        msg = 'A test leaf result ID from get_run_overview is required'
+        msg = (
+            f"Result {leaf_result_id} is a '{leaf.type}' node, not a test leaf; "
+            f"only rows with Type = 'test' in get_run_overview have concrete "
+            f"executions. Pass the Result ID of one of its child 'test' rows."
+        )
         raise ValidationError(msg)
 
     if unexpected_only:
