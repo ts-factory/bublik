@@ -22,6 +22,7 @@ class Migration(migrations.Migration):
                 ('messages', models.JSONField(default=list, help_text='The conversation messages (UIMessage[]).')),
                 ('created', models.DateTimeField(auto_now_add=True, help_text='Timestamp of the thread creation.')),
                 ('updated', models.DateTimeField(auto_now=True, help_text='Timestamp of the last thread update.')),
+                ('context_state', models.JSONField(default=dict, help_text='Server-managed context bookkeeping: last known context token occupancy and the cached compaction summary (see bublik.ai.compaction). Never written by the client.')),
                 ('user', models.ForeignKey(help_text='The user who owns the thread.', on_delete=django.db.models.deletion.CASCADE, related_name='ai_chat_threads', to=settings.AUTH_USER_MODEL)),
             ],
             options={
