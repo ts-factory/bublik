@@ -29,4 +29,20 @@ class Migration(migrations.Migration):
                 'ordering': ['-updated'],
             },
         ),
+        migrations.CreateModel(
+            name='AiChatFile',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, help_text='File identifier (used in the download URL).', primary_key=True, serialize=False)),
+                ('filename', models.CharField(help_text='Download filename.', max_length=255)),
+                ('content_type', models.CharField(help_text='MIME type served on download.', max_length=127)),
+                ('size', models.PositiveIntegerField(help_text='Object size in bytes.')),
+                ('storage_key', models.CharField(help_text='Key in the chat file store (S3 object key, or path on disk).', max_length=512, unique=True)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text='Timestamp of the file creation.')),
+                ('thread', models.ForeignKey(help_text='The chat thread the file was generated in.', on_delete=django.db.models.deletion.CASCADE, related_name='files', to='data.aichatthread')),
+            ],
+            options={
+                'db_table': 'bublik_ai_chat_file',
+                'ordering': ['-created'],
+            },
+        ),
     ]
