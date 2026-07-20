@@ -48,6 +48,14 @@ class ChatThread(models.Model):
         default=list,
         help_text='The conversation messages (UIMessage[]).',
     )
+    context_state = models.JSONField(
+        default=dict,
+        help_text=(
+            'Server-managed context bookkeeping: last known context token '
+            'occupancy and the cached compaction summary (see bublik.ai.compaction). '
+            'Never written by the client.'
+        ),
+    )
     created = models.DateTimeField(
         auto_now_add=True,
         help_text='Timestamp of the thread creation.',

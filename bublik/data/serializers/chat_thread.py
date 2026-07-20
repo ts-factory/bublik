@@ -46,6 +46,8 @@ class ChatThreadDetailSerializer(ModelSerializer):
     # reloaded client shows a background-response indicator while it is present.
     active_run_id = SerializerMethodField()
     latest_run_status = SerializerMethodField()
+    # Seeds the UI context meter with the latest server-recorded usage.
+    context_usage = SerializerMethodField()
     class Meta:
         model = ChatThread
         fields = (
@@ -55,6 +57,7 @@ class ChatThreadDetailSerializer(ModelSerializer):
             'messages',
             'active_run_id',
             'latest_run_status',
+            'context_usage',
             'created',
             'updated',
         )
@@ -68,3 +71,19 @@ class ChatThreadDetailSerializer(ModelSerializer):
 
     def get_latest_run_status(self, obj) -> str | None:
         return self.context.get('latest_run_status')
+
+    def get_context_usage(self, obj) -> dict | None:
+        state = obj.context_state or {}
+        tokens = state.get('context_tokens')
+        summary = state.get('summary')
+        if tokens is None and not summary:
+            return None
+        return {
+            'tokens': tokens or 0,
+            'context_limit': state.get('context_limit'),
+            'provider': state.get('provider'),
+            'model': state.get('model'),
+            'compacted': bool(summary),
+            'covered_count': state.get('covered_count'),
+            'compacted_at': state.get('compacted_at'),
+        }

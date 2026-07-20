@@ -38,6 +38,7 @@ from starlette.routing import Route
 from bublik.ai import run_store
 from bublik.ai.access import resolve_user, user_may_access_thread
 from bublik.ai.agent import build_agent
+from bublik.ai.compaction import make_usage_reporter
 from bublik.ai.config import (
     ModelRequestError,
     config_fingerprint,
@@ -152,7 +153,11 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
 
     deps = ChatDeps(thread_id=thread_id, user_id=user.id, run_id=run_id)
 
-    spawn_run(adapter, agent, run_id, deps, RunOptions())
+    context_limit = _model_entry.limit.context if _model_entry.limit else None
+    options = RunOptions(
+        on_complete=make_usage_reporter(thread_id, provider, model, context_limit),
+    )
+    spawn_run(adapter, agent, run_id, deps, options)
 
     return StreamingResponse(
         stream_run_events(run_id),
