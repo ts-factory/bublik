@@ -61,6 +61,9 @@ SECURE_HTTP = False
 ANALYTICS_ENABLED = '${ANALYTICS_ENABLED}'.lower() in ('1', 'true', 'yes')
 ANALYTICS_DB_PATH = '${ANALYTICS_DB_PATH}'
 
+# Chat configuration
+CHAT_ENABLED = '${CHAT_ENABLED}'.lower() in ('1', 'true', 'yes')
+
 ALLOWED_HOSTS = ['*']
 
 # For debug panel. Note, that you might need
