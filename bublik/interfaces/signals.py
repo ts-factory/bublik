@@ -60,6 +60,18 @@ def activate_latest_after_delete(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=Config)
+@receiver(post_delete, sender=Config)
+def clear_ai_agent_cache(sender, instance, **kwargs):
+    # The chat agent is cached per (provider, model, effort) and reads provider
+    # urls/keys from the active `ai` config. Drop the cache on any `ai` config
+    # change so edits go live without a worker restart.
+    if instance.type == ConfigTypes.GLOBAL and instance.name == GlobalConfigs.AI.name:
+        from bublik.ai import build_agent  # noqa: PLC0415
+
+        build_agent.cache_clear()
+
+
+@receiver(post_save, sender=Config)
 def categorize_metas_on_config_change(sender, instance, **kwargs):
     if (
         instance.type == ConfigTypes.GLOBAL
