@@ -47,689 +47,732 @@ def get_default_date_range():
     return from_date.isoformat(), to_date.isoformat()
 
 
-def register_tools(mcp: FastMCP):  # noqa: C901
+# Return format for log tools ('markdown' or 'dict').
+LOG_RETURN_FORMAT: str = 'markdown'
+
+
+async def get_run_overview(
+    run_id: int,
+    requirements: str | None = None,
+    unexpected_only: bool = False,
+) -> str:
     """
-    Register all MCP tools with the FastMCP server.
+    Get a complete Markdown overview of a test run.
+
+    The overview combines run metadata, status, conclusion, source,
+    compromised details, and the aggregate result statistics tree. Each
+    test row includes a Result ID that can be passed to
+    get_run_leaf_results for concrete executions.
+
+    Args:
+        run_id: The ID of the test run
+        requirements: Optional semicolon-separated requirements filter
+        unexpected_only: Return only test leaves containing unexpected or
+            abnormal results
+
+    Returns:
+        Markdown document containing run details and aggregate statistics
     """
+    details, source, stats = await sync_to_async(
+        lambda: (
+            RunService.get_run_details(run_id),
+            RunService.get_run_source(run_id),
+            RunService.get_run_stats(run_id, requirements),
+        ),
+    )()
 
-    @mcp.tool()
-    async def get_run_overview(
-        run_id: int,
-        requirements: str | None = None,
-        unexpected_only: bool = False,
-    ) -> str:
-        """
-        Get a complete Markdown overview of a test run.
+    return render_run_overview(
+        details,
+        source,
+        stats,
+        requirements,
+        unexpected_only,
+    )
 
-        The overview combines run metadata, status, conclusion, source,
-        compromised details, and the aggregate result statistics tree. Each
-        test row includes a Result ID that can be passed to
-        get_run_leaf_results for concrete executions.
 
-        Args:
-            run_id: The ID of the test run
-            requirements: Optional semicolon-separated requirements filter
-            unexpected_only: Return only test leaves containing unexpected or
-                abnormal results
+async def get_run_leaf_results(
+    leaf_result_id: int,
+    requirements: str | None = None,
+    results: str | None = None,
+    result_properties: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+    unexpected_only: bool = False,
+) -> str:
+    """
+    Get paginated executions represented by a test leaf in a run overview.
 
-        Returns:
-            Markdown document containing run details and aggregate statistics
-        """
-        details, source, stats = await sync_to_async(
-            lambda: (
-                RunService.get_run_details(run_id),
-                RunService.get_run_source(run_id),
-                RunService.get_run_stats(run_id, requirements),
-            ),
-        )()
+    Pass the Result ID of a Type = 'test' row shown by get_run_overview -- not a
+    'package' row (packages aggregate child tests and have no direct executions)
+    and not an individual execution ID. For the common failure-investigation
+    workflow, set
+    unexpected_only to true to return only unexpected or abnormal executions.
+    Use the advanced requirements, results, and result_properties filters to
+    narrow further. requirements composes with unexpected_only; results and
+    result_properties are mutually exclusive with it (they overlap with the
+    unexpected/abnormal classification). With no toggle or filters, all
+    executions represented by the leaf are returned.
 
-        return render_run_overview(
-            details,
-            source,
-            stats,
-            requirements,
-            unexpected_only,
-        )
+    Args:
+        leaf_result_id: Aggregate test Result ID shown by get_run_overview
+        requirements: Optional semicolon-separated requirement names
+        results: Optional semicolon-separated obtained result statuses
+            (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
+        result_properties: Optional semicolon-separated result properties
+            (e.g., 'expected;unexpected;not_run')
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+        unexpected_only: Return only unexpected or abnormal executions.
+            Can be combined with requirements; cannot be combined with
+            results or result_properties
 
-    @mcp.tool()
-    async def get_run_leaf_results(
-        leaf_result_id: int,
-        requirements: str | None = None,
-        results: str | None = None,
-        result_properties: str | None = None,
-        page: int | None = None,
-        page_size: int | None = None,
-        unexpected_only: bool = False,
-    ) -> str:
-        """
-        Get paginated executions represented by a test leaf in a run overview.
+    Returns:
+        Markdown table with the matching concrete executions and pagination
+    """
+    payload = await sync_to_async(_get_run_leaf_results)(
+        leaf_result_id=leaf_result_id,
+        requirements=requirements,
+        results=results,
+        result_properties=result_properties,
+        page=page,
+        page_size=page_size,
+        unexpected_only=unexpected_only,
+    )
+    return render_run_leaf_results(payload)
 
-        Pass a test Result ID shown by get_run_overview, not an individual
-        execution ID. For the common failure-investigation workflow, set
-        unexpected_only to true to return only unexpected or abnormal executions.
-        Use the advanced requirements, results, and result_properties filters to
-        narrow further. requirements composes with unexpected_only; results and
-        result_properties are mutually exclusive with it (they overlap with the
-        unexpected/abnormal classification). With no toggle or filters, all
-        executions represented by the leaf are returned.
 
-        Args:
-            leaf_result_id: Aggregate test Result ID shown by get_run_overview
-            requirements: Optional semicolon-separated requirement names
-            results: Optional semicolon-separated obtained result statuses
-                (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
-            result_properties: Optional semicolon-separated result properties
-                (e.g., 'expected;unexpected;not_run')
-            page: Page number (default: 1)
-            page_size: Items per page (default: 25, max: 10000)
-            unexpected_only: Return only unexpected or abnormal executions.
-                Can be combined with requirements; cannot be combined with
-                results or result_properties
+async def get_result_details(result_id: int) -> dict:
+    """
+    Get detailed information about a test result.
 
-        Returns:
-            Markdown table with the matching concrete executions and pagination
-        """
-        payload = await sync_to_async(_get_run_leaf_results)(
-            leaf_result_id=leaf_result_id,
-            requirements=requirements,
-            results=results,
-            result_properties=result_properties,
-            page=page,
-            page_size=page_size,
-            unexpected_only=unexpected_only,
-        )
-        return render_run_leaf_results(payload)
+    Args:
+        result_id: The ID of the test result
 
-    @mcp.tool()
-    async def get_result_details(result_id: int) -> dict:
-        """
-        Get detailed information about a test result.
+    Returns:
+        Dictionary with full result details
+    """
+    return await sync_to_async(ResultService.get_result_details)(result_id)
 
-        Args:
-            result_id: The ID of the test result
 
-        Returns:
-            Dictionary with full result details
-        """
-        return await sync_to_async(ResultService.get_result_details)(result_id)
+async def get_result_artifacts_and_verdicts(result_id: int) -> dict:
+    """
+    Get artifacts and verdicts for a test result.
 
-    @mcp.tool()
-    async def get_result_artifacts_and_verdicts(result_id: int) -> dict:
-        """
-        Get artifacts and verdicts for a test result.
+    Args:
+        result_id: The ID of the test result
 
-        Args:
-            result_id: The ID of the test result
+    Returns:
+        Dictionary with artifacts and verdicts lists
+    """
+    return await sync_to_async(ResultService.get_result_artifacts_and_verdicts)(result_id)
 
-        Returns:
-            Dictionary with artifacts and verdicts lists
-        """
-        return await sync_to_async(ResultService.get_result_artifacts_and_verdicts)(result_id)
 
-    # Project tools
+# Project tools
 
-    @mcp.tool()
-    async def list_projects() -> list[dict]:
-        """
-        List all available projects.
 
-        Returns:
-            List of projects with id and name
-        """
-        return await sync_to_async(ProjectService.list_projects)()
+async def list_projects() -> list[dict]:
+    """
+    List all available projects.
 
-    @mcp.tool()
-    async def get_project(project_id: int) -> dict:
-        """
-        Get details of a specific project.
+    Returns:
+        List of projects with id and name
+    """
+    return await sync_to_async(ProjectService.list_projects)()
 
-        Args:
-            project_id: The ID of the project
 
-        Returns:
-            Dictionary with project id and name
-        """
-        return await sync_to_async(ProjectService.get_project)(project_id)
+async def get_project(project_id: int) -> dict:
+    """
+    Get details of a specific project.
 
-    # Runs tools
+    Args:
+        project_id: The ID of the project
 
-    @mcp.tool()
-    async def list_runs(  # noqa: PLR0913
-        start_date: str | None = None,
-        finish_date: str | None = None,
-        project_id: int | None = None,
-        run_status: str | None = None,
-        run_metas: str | None = None,
-        tag_expr: str | None = None,
-        label_expr: str | None = None,
-        revision_expr: str | None = None,
-        branch_expr: str | None = None,
-        page: int | None = None,
-        page_size: int | None = None,
-    ) -> dict:
-        """
-        List test runs with comprehensive filtering.
+    Returns:
+        Dictionary with project id and name
+    """
+    return await sync_to_async(ProjectService.get_project)(project_id)
 
-        Args:
-            start_date: Start date in yyyy-mm-dd format (e.g., '2024-01-01')
-            finish_date: Finish date in yyyy-mm-dd format (e.g., '2024-01-31')
-            project_id: Optional project ID to filter results
-            run_status: Optional run status filter
-            run_metas: Semicolon-separated metadata (tags, labels, revisions, branches)
-            tag_expr: Tag expression filter (supports boolean logic: &, |, !)
-            label_expr: Label expression filter (supports boolean logic: &, |, !)
-            revision_expr: Revision expression filter (supports boolean logic: &, |, !)
-            branch_expr: Branch expression filter (supports boolean logic: &, |, !)
-            page: Page number (default: 1)
-            page_size: Items per page (default: 25, max: 10000)
 
-        Returns:
-            Dictionary with pagination metadata and run details
-        """
-        queryset = await sync_to_async(RunService.list_runs_queryset)(
-            start_date=start_date,
-            finish_date=finish_date,
-            project_id=project_id,
-            run_status=run_status,
-            run_metas=run_metas,
-            tag_expr=tag_expr,
-            label_expr=label_expr,
-            revision_expr=revision_expr,
-            branch_expr=branch_expr,
-        )
-        runs_details = await sync_to_async(generate_runs_details)(queryset)
-        return serialize_paginated_run_summary_results(
-            await sync_to_async(PaginatedResult.paginate_queryset)(
-                runs_details,
-                page,
-                page_size,
-            ),
-        )
+# Runs tools
 
-    @mcp.tool()
-    async def list_runs_today(
-        project_id: int | None = None,
-        page: int | None = None,
-        page_size: int | None = None,
-    ) -> dict:
-        """
-        List test runs for today.
 
-        Args:
-            project_id: Optional project ID to filter results
-            page: Page number (default: 1)
-            page_size: Items per page (default: 25, max: 10000)
+async def list_runs(  # noqa: PLR0913
+    start_date: str | None = None,
+    finish_date: str | None = None,
+    project_id: int | None = None,
+    run_status: str | None = None,
+    run_metas: str | None = None,
+    tag_expr: str | None = None,
+    label_expr: str | None = None,
+    revision_expr: str | None = None,
+    branch_expr: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List test runs with comprehensive filtering.
 
-        Returns:
-            Dictionary with pagination metadata and today's run details
-        """
-        date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
-            project_id=project_id,
-        )
-        queryset = (
-            await sync_to_async(RunService.list_runs_by_dashboard_date_queryset)(
-                date=date_str,
-                project_id=project_id,
-            )
-            if date_str
-            else []
-        )
-        runs_details = await sync_to_async(generate_runs_details)(queryset) if date_str else []
-        return serialize_paginated_run_summary_results(
-            await sync_to_async(PaginatedResult.paginate_queryset)(
-                runs_details,
-                page,
-                page_size,
-            ),
-        )
+    Args:
+        start_date: Start date in yyyy-mm-dd format (e.g., '2024-01-01')
+        finish_date: Finish date in yyyy-mm-dd format (e.g., '2024-01-31')
+        project_id: Optional project ID to filter results
+        run_status: Optional run status filter
+        run_metas: Semicolon-separated metadata (tags, labels, revisions, branches)
+        tag_expr: Tag expression filter (supports boolean logic: &, |, !)
+        label_expr: Label expression filter (supports boolean logic: &, |, !)
+        revision_expr: Revision expression filter (supports boolean logic: &, |, !)
+        branch_expr: Branch expression filter (supports boolean logic: &, |, !)
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
 
-    @mcp.tool()
-    async def get_latest_run_date(project_id: int | None = None) -> str | None:
-        """
-        Get the most recent run date.
+    Returns:
+        Dictionary with pagination metadata and run details
+    """
+    queryset = await sync_to_async(RunService.list_runs_queryset)(
+        start_date=start_date,
+        finish_date=finish_date,
+        project_id=project_id,
+        run_status=run_status,
+        run_metas=run_metas,
+        tag_expr=tag_expr,
+        label_expr=label_expr,
+        revision_expr=revision_expr,
+        branch_expr=branch_expr,
+    )
+    runs_details = await sync_to_async(generate_runs_details)(queryset)
+    return serialize_paginated_run_summary_results(
+        await sync_to_async(PaginatedResult.paginate_queryset)(
+            runs_details,
+            page,
+            page_size,
+        ),
+    )
 
-        Args:
-            project_id: Optional project ID to filter by
 
-        Returns:
-            Date string in yyyy-mm-dd format, or None if no runs exist
-        """
+async def list_runs_today(
+    project_id: int | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List test runs for today.
 
-        def _get_latest_date():
-            runs = get_test_runs(order_by='-start')
-            if project_id:
-                runs = runs.filter(project_id=project_id)
-            latest = runs.first()
-            return latest.start.date().isoformat() if latest else None
+    Args:
+        project_id: Optional project ID to filter results
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
 
-        return await sync_to_async(_get_latest_date)()
-
-    # Dashboard tools
-
-    @mcp.tool()
-    async def get_dashboard(
-        date: str,
-        project_id: int | None = None,
-        sort_by: str | None = None,
-        validate: bool = False,
-    ) -> dict:
-        """
-        Get dashboard data for a specific date (structured format).
-
-        Returns the same format as /api/v2/dashboard/ endpoint with:
-        - date: The dashboard date
-        - rows: List of {row_cells, context} for each run
-        - header: Column definitions
-        - payload: Handler descriptions
-
-        Args:
-            date: Date in yyyy-mm-dd format (e.g., '2024-01-15')
-            project_id: Optional project ID to filter results
-            sort_by: Optional comma-separated column keys to sort by (e.g., 'start,total')
-            validate: If True, validate dashboard settings before returning
-                      (useful for debugging config issues)
-
-        Returns:
-            Dictionary with dashboard structure
-
-        Raises:
-            ValidationError: if validate=True and settings are invalid
-        """
-        # Optional validation (useful for debugging config issues)
-        if validate:
-            await sync_to_async(DashboardService.validate_dashboard_settings)(
-                project_id,
-                raise_on_error=True,
-            )
-
-        sort_config = sort_by.split(',') if sort_by else None
-        return await sync_to_async(DashboardService.get_dashboard_data)(
-            date=date,
-            project_id=project_id,
-            sort_config=sort_config,
-        )
-
-    @mcp.tool()
-    async def get_dashboard_today(
-        project_id: int | None = None,
-        sort_by: str | None = None,
-    ) -> dict:
-        """
-        Get dashboard data for today (structured format).
-
-        Args:
-            project_id: Optional project ID to filter results
-            sort_by: Optional comma-separated column keys to sort by (e.g., 'start,total')
-
-        Returns:
-            Dictionary with the latest dashboard structure
-        """
-        date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
-            project_id=project_id,
-        )
-
-        if not date_str:
-            return {'date': None, 'rows': [], 'header': [], 'payload': {}}
-
-        sort_config = sort_by.split(',') if sort_by else None
-        return await sync_to_async(DashboardService.get_dashboard_data)(
+    Returns:
+        Dictionary with pagination metadata and today's run details
+    """
+    date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
+        project_id=project_id,
+    )
+    queryset = (
+        await sync_to_async(RunService.list_runs_by_dashboard_date_queryset)(
             date=date_str,
             project_id=project_id,
-            sort_config=sort_config,
         )
-
-    @mcp.tool()
-    async def get_latest_dashboard_date(project_id: int | None = None) -> str | None:
-        """
-        Get the most recent date with dashboard data.
-
-        Args:
-            project_id: Optional project ID to filter by
-
-        Returns:
-            Date string in yyyy-mm-dd format, or None if no data
-        """
-        return await sync_to_async(DashboardService.get_latest_dashboard_date)(
-            project_id=project_id,
-        )
-
-    # Log tools
-
-    @mcp.tool()
-    async def get_log_urls(result_id: int, page: int | None = None) -> dict:
-        """
-        Get log URLs for a test result (without fetching content).
-
-        Args:
-            result_id: The ID of the test result
-            page: Optional page number (0 for all pages combined, >0 for specific page)
-
-        Returns:
-            Dictionary with 'url' and 'attachments_url' keys
-        """
-        return await sync_to_async(LogService.get_json_log_urls)(
-            result_id,
+        if date_str
+        else []
+    )
+    runs_details = await sync_to_async(generate_runs_details)(queryset) if date_str else []
+    return serialize_paginated_run_summary_results(
+        await sync_to_async(PaginatedResult.paginate_queryset)(
+            runs_details,
             page,
-            request_origin=None,
+            page_size,
+        ),
+    )
+
+
+async def get_latest_run_date(project_id: int | None = None) -> str | None:
+    """
+    Get the most recent run date.
+
+    Args:
+        project_id: Optional project ID to filter by
+
+    Returns:
+        Date string in yyyy-mm-dd format, or None if no runs exist
+    """
+
+    def _get_latest_date():
+        runs = get_test_runs(order_by='-start')
+        if project_id:
+            runs = runs.filter(project_id=project_id)
+        latest = runs.first()
+        return latest.start.date().isoformat() if latest else None
+
+    return await sync_to_async(_get_latest_date)()
+
+
+# Dashboard tools
+
+
+async def get_dashboard(
+    date: str,
+    project_id: int | None = None,
+    sort_by: str | None = None,
+    validate: bool = False,
+) -> dict:
+    """
+    Get dashboard data for a specific date (structured format).
+
+    Returns the same format as /api/v2/dashboard/ endpoint with:
+    - date: The dashboard date
+    - rows: List of {row_cells, context} for each run
+    - header: Column definitions
+    - payload: Handler descriptions
+
+    Args:
+        date: Date in yyyy-mm-dd format (e.g., '2024-01-15')
+        project_id: Optional project ID to filter results
+        sort_by: Optional comma-separated column keys to sort by (e.g., 'start,total')
+        validate: If True, validate dashboard settings before returning
+                  (useful for debugging config issues)
+
+    Returns:
+        Dictionary with dashboard structure
+
+    Raises:
+        ValidationError: if validate=True and settings are invalid
+    """
+    # Optional validation (useful for debugging config issues)
+    if validate:
+        await sync_to_async(DashboardService.validate_dashboard_settings)(
+            project_id,
+            raise_on_error=True,
         )
 
-    @mcp.tool()
-    async def get_log_html_url(result_id: int) -> str | None:
-        """
-        Get HTML log URL for a test result.
+    sort_config = sort_by.split(',') if sort_by else None
+    return await sync_to_async(DashboardService.get_dashboard_data)(
+        date=date,
+        project_id=project_id,
+        sort_config=sort_config,
+    )
 
-        Args:
-            result_id: The ID of the test result
 
-        Returns:
-            URL string or None if not available
-        """
-        return await sync_to_async(LogService.get_html_log_url)(result_id)
+async def get_dashboard_today(
+    project_id: int | None = None,
+    sort_by: str | None = None,
+) -> dict:
+    """
+    Get dashboard data for today (structured format).
 
-    LOG_RETURN_FORMAT: str = 'markdown'  # noqa: N806
+    Args:
+        project_id: Optional project ID to filter results
+        sort_by: Optional comma-separated column keys to sort by (e.g., 'start,total')
 
-    @mcp.tool()
-    async def get_log_overview(
-        result_id: int,
-        page: int | None = None,
-        include_scenario: bool = True,
-        max_content_length: int | None = 200,
-    ) -> dict | str:
-        """
-        Get structured log overview with metadata and optional scenario logs.
+    Returns:
+        Dictionary with the latest dashboard structure
+    """
+    date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
+        project_id=project_id,
+    )
 
-        Extracts comprehensive log header information including test metadata,
-        parameters, verdicts, artifacts, requirements, authors, and statistics.
+    if not date_str:
+        return {'date': None, 'rows': [], 'header': [], 'payload': {}}
 
-        Args:
-            result_id: Test result ID
-            page: Optional page number (0 for all pages combined, >0 for specific page)
-            include_scenario: Include scenario-related log lines in overview
-            max_content_length: Maximum content length per scenario line. If specified,
-                content exceeding this length will be truncated and marked with
-                content_truncated=True. Use get_log_line to retrieve full content.
+    sort_config = sort_by.split(',') if sort_by else None
+    return await sync_to_async(DashboardService.get_dashboard_data)(
+        date=date_str,
+        project_id=project_id,
+        sort_config=sort_config,
+    )
 
-        Returns:
-            LogOverview as dictionary or markdown string
 
-        Raises:
-            ValueError: If no header block is found in the log
-        """
+async def get_latest_dashboard_date(project_id: int | None = None) -> str | None:
+    """
+    Get the most recent date with dashboard data.
 
-        def _get_overview():
-            log_data = LogService.get_log_json(result_id, page)
-            validated_log = JsonLog.model_validate(log_data['log'])
+    Args:
+        project_id: Optional project ID to filter by
 
-            processor = LogProcessor(validated_log)
-            overview = processor.get_overview(
-                include_scenario=include_scenario,
-                max_content_length=max_content_length,
-            )
+    Returns:
+        Date string in yyyy-mm-dd format, or None if no data
+    """
+    return await sync_to_async(DashboardService.get_latest_dashboard_date)(
+        project_id=project_id,
+    )
 
-            if LOG_RETURN_FORMAT == 'markdown':
-                return overview.to_markdown()
-            return overview.model_dump()
 
-        return await sync_to_async(_get_overview)()
+# Log tools
 
-    @mcp.tool()
-    async def get_log_lines(  # noqa: PLR0913
-        result_id: int,
-        page: int | None = None,
-        start_line: int | None = None,
-        end_line: int | None = None,
-        levels: list[str] | None = None,
-        entity_names: list[str] | None = None,
-        user_names: list[str] | None = None,
-        entity_user_pairs: list[str] | None = None,
-        table_index: int = 0,
-        max_content_length: int | None = 200,
-    ) -> dict | str:
-        """
-        Extract and filter log lines.
 
-        Retrieves log lines with optional range-based and content-based filtering.
-        All filters are AND-combined. Supports truncating content for display.
+async def get_log_urls(result_id: int, page: int | None = None) -> dict:
+    """
+    Get log URLs for a test result (without fetching content).
 
-        Args:
-            result_id: Test result ID
-            page: Optional page number (0 for all pages combined, >0 for specific page)
-            start_line: Starting line number (inclusive), None for start
-            end_line: Ending line number (inclusive), None for end
-            levels: Filter by log levels (ERROR, WARN, INFO, VERB, PACKET, RING)
-            entity_names: Filter by entity names
-            user_names: Filter by user names
-            entity_user_pairs: Filter by "entity:user" combinations (e.g., ["Tester:Run"])
-            table_index: Log table block index (default: 0)
-            max_content_length: Maximum content length per line. If specified,
-                content exceeding this length will be truncated and marked with
-                content_truncated=True. Use get_log_line to retrieve full content.
+    Args:
+        result_id: The ID of the test result
+        page: Optional page number (0 for all pages combined, >0 for specific page)
 
-        Returns:
-            LogLinesResult as dictionary or markdown string. When truncated,
-            lines will have content_truncated=True and original_content_length set.
-        """
+    Returns:
+        Dictionary with 'url' and 'attachments_url' keys
+    """
+    return await sync_to_async(LogService.get_json_log_urls)(
+        result_id,
+        page,
+        request_origin=None,
+    )
 
-        def _get_lines():
-            log_data = LogService.get_log_json(result_id, page)
-            validated_log = JsonLog.model_validate(log_data['log'])
 
-            processor = LogProcessor(validated_log)
-            result = processor.get_lines(
-                start_line=start_line,
-                end_line=end_line,
-                levels=levels,
-                entity_names=entity_names,
-                user_names=user_names,
-                entity_user_pairs=entity_user_pairs,
-                table_index=table_index,
-                max_content_length=max_content_length,
-            )
+async def get_log_html_url(result_id: int) -> str | None:
+    """
+    Get HTML log URL for a test result.
 
-            if LOG_RETURN_FORMAT == 'markdown':
-                return result.to_markdown(max_content_length=None)
-            return result.model_dump()
+    Args:
+        result_id: The ID of the test result
 
-        return await sync_to_async(_get_lines)()
+    Returns:
+        URL string or None if not available
+    """
+    return await sync_to_async(LogService.get_html_log_url)(result_id)
 
-    @mcp.tool()
-    async def get_log_line(
-        result_id: int,
-        line_number: int,
-        page: int | None = None,
-    ) -> dict | str:
-        """
-        Get a single log line with full, untruncated content.
 
-        Use this tool to retrieve the complete content of a specific line
-        after using get_log_lines with truncation.
+async def get_log_overview(
+    result_id: int,
+    page: int | None = None,
+    include_scenario: bool = True,
+    max_content_length: int | None = 200,
+) -> dict | str:
+    """
+    Get structured log overview with metadata and optional scenario logs.
 
-        Args:
-            result_id: Test result ID
-            line_number: Line number to retrieve
-            page: Optional page number (0 for all pages combined, >0 for specific page)
+    Extracts comprehensive log header information including test metadata,
+    parameters, verdicts, artifacts, requirements, authors, and statistics.
 
-        Returns:
-            Single LogLine as dictionary or markdown string with full content
+    Args:
+        result_id: Test result ID
+        page: Optional page number (0 for all pages combined, >0 for specific page)
+        include_scenario: Include scenario-related log lines in overview
+        max_content_length: Maximum content length per scenario line. If specified,
+            content exceeding this length will be truncated and marked with
+            content_truncated=True. Use get_log_line to retrieve full content.
 
-        Raises:
-            ValueError: If line_number is not found
-        """
+    Returns:
+        LogOverview as dictionary or markdown string
 
-        def _get_line():
-            log_data = LogService.get_log_json(result_id, page)
-            validated_log = JsonLog.model_validate(log_data['log'])
+    Raises:
+        ValueError: If no header block is found in the log
+    """
 
-            processor = LogProcessor(validated_log)
+    def _get_overview():
+        log_data = LogService.get_log_json(result_id, page)
+        validated_log = JsonLog.model_validate(log_data['log'])
 
-            result = processor.get_lines(
-                start_line=line_number,
-                end_line=line_number,
-                max_content_length=None,
-            )
+        processor = LogProcessor(validated_log)
+        overview = processor.get_overview(
+            include_scenario=include_scenario,
+            max_content_length=max_content_length,
+        )
 
-            if not result.lines:
-                msg = f'Line {line_number} not found in result {result_id}'
-                raise ValueError(msg)
+        if LOG_RETURN_FORMAT == 'markdown':
+            return overview.to_markdown()
+        return overview.model_dump()
 
-            line = next(
-                (line for line in result.lines if line.line_number == line_number),
-                result.lines[0],
-            )
+    return await sync_to_async(_get_overview)()
 
-            if LOG_RETURN_FORMAT == 'markdown':
-                return line.to_markdown(max_content_length=None)
-            return line.model_dump()
 
-        return await sync_to_async(_get_line)()
+async def get_log_lines(  # noqa: PLR0913
+    result_id: int,
+    page: int | None = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    levels: list[str] | None = None,
+    entity_names: list[str] | None = None,
+    user_names: list[str] | None = None,
+    entity_user_pairs: list[str] | None = None,
+    table_index: int = 0,
+    max_content_length: int | None = 200,
+) -> dict | str:
+    """
+    Extract and filter log lines.
 
-    @mcp.tool()
-    async def get_tree_path(result_id: int) -> list[int]:
-        """
-        Get path to a specific test result in the tree.
+    Retrieves log lines with optional range-based and content-based filtering.
+    All filters are AND-combined. Supports truncating content for display.
 
-        Args:
-            result_id: The ID of the test result
+    Args:
+        result_id: Test result ID
+        page: Optional page number (0 for all pages combined, >0 for specific page)
+        start_line: Starting line number (inclusive), None for start
+        end_line: Ending line number (inclusive), None for end
+        levels: Filter by log levels (ERROR, WARN, INFO, VERB, PACKET, RING)
+        entity_names: Filter by entity names
+        user_names: Filter by user names
+        entity_user_pairs: Filter by "entity:user" combinations (e.g., ["Tester:Run"])
+        table_index: Log table block index (default: 0)
+        max_content_length: Maximum content length per line. If specified,
+            content exceeding this length will be truncated and marked with
+            content_truncated=True. Use get_log_line to retrieve full content.
 
-        Returns:
-            List of node IDs from root to the specified result
-        """
-        return await sync_to_async(TreeService.get_tree_path)(result_id)
+    Returns:
+        LogLinesResult as dictionary or markdown string. When truncated,
+        lines will have content_truncated=True and original_content_length set.
+    """
 
-    # History tools
+    def _get_lines():
+        log_data = LogService.get_log_json(result_id, page)
+        validated_log = JsonLog.model_validate(log_data['log'])
 
-    @mcp.tool()
-    async def get_history(  # noqa: PLR0913
-        test_name: str,
-        project_id: int | None = None,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        result_statuses: str | None = None,
-        branches: str | None = None,
-        labels: str | None = None,
-        tags: str | None = None,
-        page: int | None = None,
-        page_size: int | None = None,
-    ) -> dict:
-        """
-        Get test history (linear format).
+        processor = LogProcessor(validated_log)
+        result = processor.get_lines(
+            start_line=start_line,
+            end_line=end_line,
+            levels=levels,
+            entity_names=entity_names,
+            user_names=user_names,
+            entity_user_pairs=entity_user_pairs,
+            table_index=table_index,
+            max_content_length=max_content_length,
+        )
 
-        Args:
-            test_name: Name of the test to get history for
-            project_id: Optional project ID to filter by
-            from_date: Start date in yyyy-mm-dd format (default: 6 months ago)
-            to_date: End date in yyyy-mm-dd format (default: today)
-            result_statuses: Semicolon-separated result statuses (e.g., 'PASSED;FAILED')
-            branches: Semicolon-separated branch names
-            labels: Semicolon-separated labels
-            tags: Semicolon-separated tags
-            page: Page number (default: 1)
-            page_size: Items per page (default: 25, max: 10000)
+        if LOG_RETURN_FORMAT == 'markdown':
+            return result.to_markdown(max_content_length=None)
+        return result.model_dump()
 
-        Returns:
-            Dictionary with history results, counts, date range, and pagination
-        """
-        # Set default date range if not provided
-        if from_date is None and to_date is None:
-            from_date, to_date = get_default_date_range()
+    return await sync_to_async(_get_lines)()
 
-        filters = {
-            'project_id': project_id,
-            'from_date': from_date or '',
-            'to_date': to_date or '',
-            'result_statuses': result_statuses or '',
-            'branches': branches or '',
-            'labels': labels or '',
-            'tags': tags or '',
-            'page': page,
-            'page_size': page_size,
-        }
-        return await sync_to_async(HistoryService.get_history)(test_name, **filters)
 
-    @mcp.tool()
-    async def get_history_grouped(  # noqa: PLR0913
-        test_name: str,
-        project_id: int | None = None,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        result_statuses: str | None = None,
-        branches: str | None = None,
-        labels: str | None = None,
-        tags: str | None = None,
-        page: int | None = None,
-        page_size: int | None = None,
-    ) -> dict:
-        """
-        Get test history grouped by iteration.
+async def get_log_line(
+    result_id: int,
+    line_number: int,
+    page: int | None = None,
+) -> dict | str:
+    """
+    Get a single log line with full, untruncated content.
 
-        Args:
-            test_name: Name of the test to get history for
-            project_id: Optional project ID to filter by
-            from_date: Start date in yyyy-mm-dd format (default: 6 months ago)
-            to_date: End date in yyyy-mm-dd format (default: today)
-            result_statuses: Semicolon-separated result statuses (e.g., 'PASSED;FAILED')
-            branches: Semicolon-separated branch names
-            labels: Semicolon-separated labels
-            tags: Semicolon-separated tags
-            page: Page number (default: 1)
-            page_size: Items per page (default: 25, max: 10000)
+    Use this tool to retrieve the complete content of a specific line
+    after using get_log_lines with truncation.
 
-        Returns:
-            Dictionary with grouped history results, counts, date range, and pagination
-        """
-        # Set default date range if not provided
-        if from_date is None and to_date is None:
-            from_date, to_date = get_default_date_range()
+    Args:
+        result_id: Test result ID
+        line_number: Line number to retrieve
+        page: Optional page number (0 for all pages combined, >0 for specific page)
 
-        filters = {
-            'project_id': project_id,
-            'from_date': from_date or '',
-            'to_date': to_date or '',
-            'result_statuses': result_statuses or '',
-            'branches': branches or '',
-            'labels': labels or '',
-            'tags': tags or '',
-            'page': page,
-            'page_size': page_size,
-        }
-        return await sync_to_async(HistoryService.get_history_grouped)(test_name, **filters)
+    Returns:
+        Single LogLine as dictionary or markdown string with full content
 
-    # Run extension tools
+    Raises:
+        ValueError: If line_number is not found
+    """
 
-    @mcp.tool()
-    async def get_run_requirements(run_id: int) -> list[str]:
-        """
-        Get requirements for a run.
+    def _get_line():
+        log_data = LogService.get_log_json(result_id, page)
+        validated_log = JsonLog.model_validate(log_data['log'])
 
-        Args:
-            run_id: The ID of the test run
+        processor = LogProcessor(validated_log)
 
-        Returns:
-            Sorted list of requirement strings
-        """
-        return await sync_to_async(RunService.get_run_requirements)(run_id)
+        result = processor.get_lines(
+            start_line=line_number,
+            end_line=line_number,
+            max_content_length=None,
+        )
 
-    @mcp.tool()
-    async def get_run_comment(run_id: int) -> str | None:
-        """
-        Get comment for a run.
+        if not result.lines:
+            msg = f'Line {line_number} not found in result {result_id}'
+            raise ValueError(msg)
 
-        Args:
-            run_id: The ID of the test run
+        line = next(
+            (line for line in result.lines if line.line_number == line_number),
+            result.lines[0],
+        )
 
-        Returns:
-            Comment string or None if no comment exists
-        """
-        return await sync_to_async(RunService.get_run_comment)(run_id)
+        if LOG_RETURN_FORMAT == 'markdown':
+            return line.to_markdown(max_content_length=None)
+        return line.model_dump()
 
-    # Server tools
+    return await sync_to_async(_get_line)()
 
-    @mcp.tool()
-    async def get_server_version() -> dict:
-        """
-        Get server version information.
 
-        Returns:
-            Dictionary with repository revision information
-        """
-        return await sync_to_async(ServerService.get_version)()
+async def get_tree_path(result_id: int) -> list[int]:
+    """
+    Get path to a specific test result in the tree.
+
+    Args:
+        result_id: The ID of the test result
+
+    Returns:
+        List of node IDs from root to the specified result
+    """
+    return await sync_to_async(TreeService.get_tree_path)(result_id)
+
+
+# History tools
+
+
+async def get_history(  # noqa: PLR0913
+    test_name: str,
+    project_id: int | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    result_statuses: str | None = None,
+    branches: str | None = None,
+    labels: str | None = None,
+    tags: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    Get test history (linear format).
+
+    Args:
+        test_name: Name of the test to get history for
+        project_id: Optional project ID to filter by
+        from_date: Start date in yyyy-mm-dd format (default: 6 months ago)
+        to_date: End date in yyyy-mm-dd format (default: today)
+        result_statuses: Semicolon-separated result statuses (e.g., 'PASSED;FAILED')
+        branches: Semicolon-separated branch names
+        labels: Semicolon-separated labels
+        tags: Semicolon-separated tags
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with history results, counts, date range, and pagination
+    """
+    # Set default date range if not provided
+    if from_date is None and to_date is None:
+        from_date, to_date = get_default_date_range()
+
+    filters = {
+        'project_id': project_id,
+        'from_date': from_date or '',
+        'to_date': to_date or '',
+        'result_statuses': result_statuses or '',
+        'branches': branches or '',
+        'labels': labels or '',
+        'tags': tags or '',
+        'page': page,
+        'page_size': page_size,
+    }
+    return await sync_to_async(HistoryService.get_history)(test_name, **filters)
+
+
+async def get_history_grouped(  # noqa: PLR0913
+    test_name: str,
+    project_id: int | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    result_statuses: str | None = None,
+    branches: str | None = None,
+    labels: str | None = None,
+    tags: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    Get test history grouped by iteration.
+
+    Args:
+        test_name: Name of the test to get history for
+        project_id: Optional project ID to filter by
+        from_date: Start date in yyyy-mm-dd format (default: 6 months ago)
+        to_date: End date in yyyy-mm-dd format (default: today)
+        result_statuses: Semicolon-separated result statuses (e.g., 'PASSED;FAILED')
+        branches: Semicolon-separated branch names
+        labels: Semicolon-separated labels
+        tags: Semicolon-separated tags
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with grouped history results, counts, date range, and pagination
+    """
+    # Set default date range if not provided
+    if from_date is None and to_date is None:
+        from_date, to_date = get_default_date_range()
+
+    filters = {
+        'project_id': project_id,
+        'from_date': from_date or '',
+        'to_date': to_date or '',
+        'result_statuses': result_statuses or '',
+        'branches': branches or '',
+        'labels': labels or '',
+        'tags': tags or '',
+        'page': page,
+        'page_size': page_size,
+    }
+    return await sync_to_async(HistoryService.get_history_grouped)(test_name, **filters)
+
+
+# Run extension tools
+
+
+async def get_run_requirements(run_id: int) -> list[str]:
+    """
+    Get requirements for a run.
+
+    Args:
+        run_id: The ID of the test run
+
+    Returns:
+        Sorted list of requirement strings
+    """
+    return await sync_to_async(RunService.get_run_requirements)(run_id)
+
+
+async def get_run_comment(run_id: int) -> str | None:
+    """
+    Get comment for a run.
+
+    Args:
+        run_id: The ID of the test run
+
+    Returns:
+        Comment string or None if no comment exists
+    """
+    return await sync_to_async(RunService.get_run_comment)(run_id)
+
+
+# Server tools
+
+
+async def get_server_version() -> dict:
+    """
+    Get server version information.
+
+    Returns:
+        Dictionary with repository revision information
+    """
+    return await sync_to_async(ServerService.get_version)()
+
+
+# Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
+# server (see register_tools) and directly by the in-process chat agent
+# (see bublik.ai.agent), so both expose exactly the same tools.
+MCP_TOOLS = [
+    get_run_overview,
+    get_run_leaf_results,
+    get_result_details,
+    get_result_artifacts_and_verdicts,
+    list_projects,
+    get_project,
+    list_runs,
+    list_runs_today,
+    get_latest_run_date,
+    get_dashboard,
+    get_dashboard_today,
+    get_latest_dashboard_date,
+    get_log_urls,
+    get_log_html_url,
+    get_log_overview,
+    get_log_lines,
+    get_log_line,
+    get_tree_path,
+    get_history,
+    get_history_grouped,
+    get_run_requirements,
+    get_run_comment,
+    get_server_version,
+]
+
+
+def register_tools(mcp: FastMCP) -> None:
+    """
+    Register all shared Bublik tools with the FastMCP server.
+    """
+    for tool in MCP_TOOLS:
+        mcp.tool(tool)
