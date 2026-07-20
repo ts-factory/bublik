@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from enum import Enum
 from itertools import groupby
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel
 
@@ -223,13 +223,14 @@ class TimeStamp(BaseModel):
 LogTimestamp = TimeStamp | float
 
 
-LogContent = (
+LogContent = Annotated[
     LogContentTextBlock
     | LogContentMemoryDump
     | LogContentFile
     | LogContentMi
-    | LogContentSnifferPacket
-)
+    | LogContentSnifferPacket,
+    Field(discriminator='type'),
+]
 
 
 class LogTableData(BaseModel):
@@ -272,6 +273,12 @@ class LogTableBlock(BaseModel):
     data: list[LogTableData]
 
 
+LogBlock = Annotated[
+    LogHeaderBlock | LogEntityListBlock | LogTableBlock,
+    Field(discriminator='type'),
+]
+
+
 class LogPageBlock(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -280,7 +287,7 @@ class LogPageBlock(BaseModel):
         None,
         description='Pagination object `cur_page: 0` represents to display all pages',
     )
-    content: list[LogHeaderBlock | LogEntityListBlock | LogTableBlock]
+    content: list[LogBlock]
 
 
 class JsonLog(BaseModel):

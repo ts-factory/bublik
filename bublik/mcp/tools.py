@@ -14,9 +14,10 @@ from bublik.core.history.services import HistoryService
 from bublik.core.log.services import LogService
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.project import ProjectService
+from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
-from bublik.core.run.stats import generate_runs_details, get_test_runs
+from bublik.core.run.stats import generate_all_run_details, generate_runs_details, get_test_runs
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
 from bublik.interfaces.api_v2.run.serializers import (
@@ -73,13 +74,17 @@ async def get_run_overview(
     Returns:
         Markdown document containing run details and aggregate statistics
     """
-    details, source, stats = await sync_to_async(
-        lambda: (
-            RunService.get_run_details(run_id),
+
+    def load_overview():
+        run = RunService.get_run(run_id)
+        return (
+            generate_all_run_details(run),
             RunService.get_run_source(run_id),
             RunService.get_run_stats(run_id, requirements),
-        ),
-    )()
+            ReportService.get_configs_for_run_report(run),
+        )
+
+    details, source, stats, report_configs = await sync_to_async(load_overview)()
 
     return render_run_overview(
         details,
@@ -87,6 +92,7 @@ async def get_run_overview(
         stats,
         requirements,
         unexpected_only,
+        report_configs=report_configs,
     )
 
 
@@ -727,6 +733,23 @@ async def get_run_comment(run_id: int) -> str | None:
     return await sync_to_async(RunService.get_run_comment)(run_id)
 
 
+async def get_run_report_configs(run_id: int) -> list[dict]:
+    """
+    Get available report configurations for a run.
+
+    The configs list being non-empty means the run has report data and a
+    report page at ``/runs/{run_id}/report`` can be generated.
+
+    Args:
+        run_id: The ID of the test run
+
+    Returns:
+        List of report config dicts with id, name, description, version and project
+    """
+    run = await sync_to_async(RunService.get_run)(run_id)
+    return await sync_to_async(ReportService.get_configs_for_run_report)(run)
+
+
 # Server tools
 
 
@@ -766,6 +789,7 @@ MCP_TOOLS = [
     get_history_grouped,
     get_run_requirements,
     get_run_comment,
+    get_run_report_configs,
     get_server_version,
 ]
 

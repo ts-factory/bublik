@@ -88,6 +88,7 @@ def render_run_overview(
     stats: RunStatsResult | None,
     requirements: str | None,
     unexpected_only: bool = False,
+    report_configs: list[dict] | None = None,
 ) -> str:
     compromised = details.compromised
     rows = [
@@ -182,11 +183,27 @@ def render_run_overview(
                 ],
             )
 
+    if report_configs:
+        lines.extend(
+            [
+                '',
+                '## Report Configurations',
+                '',
+                '| Report ID | Name | Description |',
+                '|---:|---|---|',
+            ],
+        )
+        for cfg in report_configs:
+            lines.append(
+                f'| {_cell(cfg.get("id"))} | {_cell(cfg.get("name"))} | '
+                f'{_cell(cfg.get("description"))} |',
+            )
+
     lines.extend(
         [
             '',
-            '*Use a test row Result ID with `get_run_leaf_results` to inspect '
-            'its concrete executions.*',
+            '*Only rows with Type = `test` (not `package`) have concrete '
+            'executions -- pass their Result ID to `get_run_leaf_results`.*',
         ],
     )
     return '\n'.join(lines)
