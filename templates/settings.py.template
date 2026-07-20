@@ -34,6 +34,8 @@ BUBLIK_DOCS_STATIC = '${BUBLIK_DOCS_DIR}/dist/${BUBLIK_DOCS_DIST}'
 
 # Bublik host for urls i.e.'http://bublik'
 BUBLIK_HOST = '${BUBLIK_HOST}'
+# FQDN for the AI assistant's system prompt (URL patterns in chat)
+BUBLIK_FQDN = os.getenv('BUBLIK_FQDN', '')
 
 # Staic web files
 BUBLIK_WEB_STATIC = '${BUBLIK_WEB_STATIC}'
@@ -132,6 +134,7 @@ TEMPLATES = [
 MANAGEMENT_COMMANDS_LOG = '${MANAGEMENT_COMMANDS_LOG}'
 
 WSGI_APPLICATION = 'bublik.wsgi.application'
+ASGI_APPLICATION = 'bublik.asgi.application'
 DJANGO_LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
 CELERY_LOG_LEVEL = os.getenv('CELERYD_LOG_LEVEL', 'INFO')
 
@@ -304,12 +307,18 @@ if ANALYTICS_ENABLED:
     DATABASE_ROUTERS = ['bublik.analytics.db_router.AnalyticsRouter']
 
 
+REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
-        # 'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-        # 'LOCATION': 'redis://127.0.0.1:11211',
-        # 'TIMEOUT': 60 * 20,
+    },
+    'ai_models': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379',
+        'OPTIONS': {
+            'DB': 1,
+        },
     },
     'run': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -456,6 +465,20 @@ QUERY_DELIMITER = ';'
 KEY_VALUE_DELIMITER = '='
 PERIOD_DELIMITER = '-'
 TIMESTAMP_DELIMITER = 's'
+
+# S3-compatible storage for AI-chat generated files (bundled SeaweedFS by default)
+S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', 'http://127.0.0.1:8333')
+# Set only when the S3 endpoint is browser-reachable (e.g. real AWS S3);
+# downloads are then redirected to presigned URLs instead of proxied.
+S3_PUBLIC_ENDPOINT_URL = os.getenv('S3_PUBLIC_ENDPOINT_URL', '')
+S3_ACCESS_KEY = os.getenv('S3_ACCESS_KEY', 'bublik')
+S3_SECRET_KEY = os.getenv('S3_SECRET_KEY', 'bublik-secret-key')
+S3_BUCKET = os.getenv('S3_BUCKET', 'bublik-chat-files')
+S3_REGION = os.getenv('S3_REGION', 'us-east-1')
+S3_PRESIGN_EXPIRY = int(os.getenv('S3_PRESIGN_EXPIRY', '300'))
+# Upload cap for agent-generated files; also bounds the memory used by the
+# chat file download endpoint, which reads whole objects.
+CHAT_FILE_MAX_SIZE = int(os.getenv('CHAT_FILE_MAX_SIZE', str(20 * 1024 * 1024)))
 
 # Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

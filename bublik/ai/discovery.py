@@ -23,7 +23,7 @@ import hashlib
 import logging
 from typing import TYPE_CHECKING
 
-from django.core.cache import cache
+from django.core.cache import caches
 import httpx
 from models_dev import get_provider as _md_get_provider
 from models_dev import providers as _md_providers
@@ -170,6 +170,7 @@ def _fetch_gateway_models(provider: Provider, api_key: str | None) -> list[dict]
     (including failures, as an empty list) are cached; on failure the provider
     degrades to an empty model list rather than breaking /chat/models.
     """
+    cache = caches['ai_models']
     cache_key = _discovery_cache_key(provider)
     cached = cache.get(cache_key)
     if cached is not None:

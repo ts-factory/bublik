@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from unittest import mock
 
+from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
 from jsonschema import Draft7Validator
 
@@ -27,6 +28,15 @@ from bublik.ai.discovery import (
 from bublik.ai.mcp import build_mcp_toolsets, resolve_mcp_headers
 from bublik.ai.types import AiConfig, McpServer, ModelEntry, Provider
 import bublik.data
+
+
+_DISCOVERY_TEST_CACHES = {
+    'default': {'BACKEND': 'django.core.cache.backends.dummy.DummyCache'},
+    'ai_models': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ai-model-discovery-tests',
+    },
+}
 
 
 def _config(**model_extra):
@@ -285,7 +295,11 @@ class EnrichModelTest(SimpleTestCase):
         self.assertIsNone(entry.limit)
 
 
+@override_settings(CACHES=_DISCOVERY_TEST_CACHES)
 class PopulateModelsTest(SimpleTestCase):
+    def setUp(self):
+        caches['ai_models'].clear()
+
     def test_explicit_models_win_over_discovery(self):
         provider = _provider(
             api_url='http://localhost:9/v1',
@@ -335,7 +349,11 @@ class PopulateModelsTest(SimpleTestCase):
         self.assertIsNone(config.providers[0].models)
 
 
+@override_settings(CACHES=_DISCOVERY_TEST_CACHES)
 class ModelDiscoveryTest(SimpleTestCase):
+    def setUp(self):
+        caches['ai_models'].clear()
+
     def test_anthropic_is_in_discoverable_types(self):
         self.assertIn('anthropic', _DISCOVERABLE_TYPES)
 
@@ -359,6 +377,18 @@ class ModelDiscoveryTest(SimpleTestCase):
         self.assertEqual(kwargs['headers']['x-api-key'], 'sk-ant-test')
         self.assertEqual(kwargs['headers']['anthropic-version'], '2023-06-01')
         self.assertEqual(kwargs['params'], {'limit': 1000})
+
+    @mock.patch('bublik.ai.discovery.httpx.get')
+    def test_gateway_discovery_uses_dedicated_cache(self, mock_get):
+        mock_get.return_value.json.return_value = {'data': [{'id': 'cached-model'}]}
+        mock_get.return_value.raise_for_status.return_value = None
+        provider = _provider(api_url='https://example.test/v1')
+
+        first = populate_models(provider, None)
+        second = populate_models(provider, None)
+
+        self.assertEqual(first, second)
+        mock_get.assert_called_once()
 
     @mock.patch('bublik.ai.discovery.httpx.get')
     def test_anthropic_discovery_extracts_display_name(self, mock_get):
