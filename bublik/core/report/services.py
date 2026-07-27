@@ -5,6 +5,7 @@ from __future__ import annotations
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, Q, Subquery
 from django.forms.models import model_to_dict
+from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
 from bublik.core.report.components import ReportPoint, ReportTestLevel
@@ -148,6 +149,9 @@ class ReportService:
         """
         try:
             report_config_obj = Config.objects.get(id=config_id)
+        except ValueError as e:
+            msg = f'Invalid config ID: {config_id}'
+            raise ValidationError(msg) from e
         except ObjectDoesNotExist as e:
             msg = f'Config {config_id} not found'
             raise NotFoundError(msg) from e
