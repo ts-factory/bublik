@@ -29,7 +29,7 @@ from .measurements import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
 from .performance import PerformanceCheckView
 from .project import ProjectViewSet
-from .report import ReportViewSet
+from .report.views import ReportViewSet
 from .result.views import ResultViewSet
 from .run.views import RunViewSet
 from .server import ServerViewSet
