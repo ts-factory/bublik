@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, Q, Subquery
-from django.forms.models import model_to_dict
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
 from bublik.core.report.components import ReportPoint, ReportTestLevel
+from bublik.core.report.dto import (
+    ReportConfigContentDTO,
+    ReportConfigDTO,
+    ReportDTO,
+    ReportUnprocessedIterDTO,
+    RunReportConfigDTO,
+)
 from bublik.core.run.services import RunService
 from bublik.core.utils import parse_number, unordered_group_by
 from bublik.data.models import (
@@ -134,7 +140,7 @@ def filter_by_not_show_args(mmrs_test, not_show_args):
 
 class ReportService:
     @staticmethod
-    def get_report_config(config_id: int) -> tuple[Config, dict, dict]:
+    def get_report_config(config_id: int) -> ReportConfigContentDTO:
         """
         Get and validate a report configuration.
 
@@ -142,7 +148,7 @@ class ReportService:
             config_id: The ID of the report config
 
         Returns:
-            Tuple of (config_obj, config_data, config_content)
+            ReportConfigContentDTO
 
         Raises:
             NotFoundError: if config not found
@@ -156,20 +162,25 @@ class ReportService:
             msg = f'Config {config_id} not found'
             raise NotFoundError(msg) from e
 
-        config_data = model_to_dict(
-            report_config_obj,
-            fields=['name', 'description', 'version'],
-        )
-        report_config = report_config_obj.content
+        report_config_content = report_config_obj.content
 
         # Validate config content
-        serializer = ConfigSerializer(report_config_obj, {'content': report_config})
-        serializer.validate_content(report_config)
+        serializer = ConfigSerializer(
+            report_config_obj, data={'content': report_config_content}
+        )
+        serializer.validate_content(report_config_content)
 
-        return report_config_obj, config_data, report_config
+        return ReportConfigContentDTO(
+            config=ReportConfigDTO(
+                name=report_config_obj.name,
+                description=report_config_obj.description,
+                version=report_config_obj.version,
+            ),
+            content=report_config_content,
+        )
 
     @staticmethod
-    def get_configs_for_run_report(run) -> list[dict]:
+    def get_configs_for_run_report(run) -> list[RunReportConfigDTO]:
         """
         Get available report configurations for a run.
 
@@ -177,7 +188,7 @@ class ReportService:
             run: TestIterationResult instance
 
         Returns:
-            List of available report config dictionaries
+            List of available report configuration DTOs.
         """
         iters = TestIterationResult.objects.filter(test_run=run)
         test_names = list(
@@ -203,16 +214,19 @@ class ReportService:
             report_config_test_names = report_config_content.get('tests', {}).keys()
             if set(report_config_test_names).intersection(test_names):
                 run_report_configs.append(
-                    model_to_dict(
-                        report_config,
-                        exclude=['type', 'is_active', 'user', 'content'],
+                    RunReportConfigDTO(
+                        id=report_config.id,
+                        name=report_config.name,
+                        version=report_config.version,
+                        project=report_config.project_id,
+                        description=report_config.description,
                     ),
                 )
 
         return run_report_configs
 
     @staticmethod
-    def get_most_recent_config_for_run_report(run) -> list[dict]:
+    def get_most_recent_config_for_run_report(run) -> int | None:
         """
         Get the ID of the most recent available report configuration for a run.
 
@@ -224,14 +238,17 @@ class ReportService:
             otherwise None if no configs exist.
         """
 
-        run_report_configs_data = ReportService.get_configs_for_run_report(run)
-        if run_report_configs_data:
+        run_report_configs = ReportService.get_configs_for_run_report(run)
+        if run_report_configs:
             # get the ID of the most recent applicable config
-            return max(run_report_configs_data, key=lambda cfg_data: cfg_data['id'])['id']
+            return max(
+                run_report_configs,
+                key=lambda report_config: report_config.id,
+            ).id
         return None
 
     @staticmethod
-    def generate_report(run_id: int, config_id: int) -> dict:
+    def generate_report(run_id: int, config_id: int) -> ReportDTO:
         """
         Generate full report for a run using specified config.
 
@@ -240,7 +257,7 @@ class ReportService:
             config_id: The ID of the report config
 
         Returns:
-            Dictionary with warnings, config, content, unprocessed_iters
+            ReportDTO with warnings, config, content, unprocessed_iters
 
         Raises:
             NotFoundError: if run not found or config not found
@@ -252,7 +269,8 @@ class ReportService:
         main_pkg = run.root
 
         # Get and validate config
-        _, config_data, report_config = ReportService.get_report_config(config_id)
+        report_config_dto = ReportService.get_report_config(config_id)
+        report_config = report_config_dto.content
 
         # Get measurement results
         mmrs_run = (
@@ -322,16 +340,16 @@ class ReportService:
             except ValueError as ve:
                 test_name = mmr.result.iteration.test.name
                 common_test_args = common_args[test_name]
-                invalid_iteration = {
-                    'test_name': test_name,
-                    'common_args': common_test_args,
-                    'args_vals': {
+                invalid_iteration = ReportUnprocessedIterDTO(
+                    test_name=test_name,
+                    common_args=common_test_args,
+                    args_vals={
                         arg.name: parse_number(arg.value)
                         for arg in mmr.result.iteration.test_arguments.all()
                         if arg.name not in common_test_args
                     },
-                    'reasons': ve.args[0],
-                }
+                    reasons=ve.args[0],
+                )
                 if invalid_iteration not in unprocessed_iters:
                     unprocessed_iters.append(invalid_iteration)
 
@@ -348,9 +366,9 @@ class ReportService:
             test = ReportTestLevel(test_name, common_args, list(test_points), report_config)
             content.append(test.__dict__)
 
-        return {
-            'warnings': warnings,
-            'config': config_data,
-            'content': content,
-            'unprocessed_iters': unprocessed_iters,
-        }
+        return ReportDTO(
+            warnings=warnings,
+            config=report_config_dto.config,
+            content=content,
+            unprocessed_iters=unprocessed_iters,
+        )

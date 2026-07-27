@@ -10,6 +10,10 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.report.services import ReportService
 from bublik.data.models import TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
+from bublik.interfaces.api_v2.report.serializers import (
+    ReportConfigListResponseSerializer,
+    ReportRetrieveResponseSerializer,
+)
 
 
 __all__ = [
@@ -27,9 +31,12 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         Return a list of active configs that can be used to build a report on the current run.
         Request: GET /api/v2/report/<run_id>/configs
         """
-        return Response(
-            {'run_report_configs': ReportService.get_configs_for_run_report(self.get_object())},
+        report_configs = ReportService.get_configs_for_run_report(self.get_object())
+
+        serializer = ReportConfigListResponseSerializer(
+            instance={'run_report_configs': report_configs},
         )
+        return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """
@@ -44,6 +51,7 @@ class ReportViewSet(RetrieveModelMixin, GenericViewSet):
         # Generate report using service layer
         # Let exceptions bubble up to be handled by custom exception handler
         result = self.get_object()
-        report = ReportService.generate_report(result.id, report_config_id)
+        report_dto = ReportService.generate_report(result.id, report_config_id)
 
-        return Response(data=report)
+        serializer = ReportRetrieveResponseSerializer(instance=report_dto)
+        return Response(serializer.data)
