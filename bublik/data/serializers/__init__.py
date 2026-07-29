@@ -9,6 +9,11 @@ from .auth import (
     UserEmailSerializer,
     UserSerializer,
 )
+from .classification import (
+    IssueExtSerializer,
+    IssueRuleSerializer,
+    IssueSerializer,
+)
 from .config import ConfigSerializer
 from .endpoint_url import EndpointURLSerializer
 from .eventlog import EventLogSerializer
@@ -45,6 +50,9 @@ __all__ = [
     'ExpectMetaReadSerializer',
     'ExpectMetaWriteSerializer',
     'ExpectationSerializer',
+    'IssueExtSerializer',
+    'IssueRuleSerializer',
+    'IssueSerializer',
     'MeasurementResultListSerializer',
     'MeasurementResultSerializer',
     'MeasurementSerializer',

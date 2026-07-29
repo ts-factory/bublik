@@ -21,7 +21,10 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 """
 
-from .config import Config, ConfigTypes, GlobalConfigs
+# isort would hoist `.classification` above `.eventlog`, but classification.py
+# triggers the core.config->cache->utils->EventLog chain at import time, so it
+# must be imported after EventLog to avoid a partial-init circular import.
+from .config import Config, ConfigTypes, GlobalConfigs  # noqa: I001
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
 from .expectation import Expectation, ExpectMeta
@@ -61,6 +64,16 @@ from .result import (
     TestIterationRelation,
     TestIterationResult,
 )
+from .classification import (
+    Issue,
+    IssueCategory,
+    IssueExt,
+    IssueRule,
+    IssueState,
+    ResultClassification,
+    StampOrigin,
+    default_expected_for,
+)
 from .user import User, UserManager, UserRoles
 
 
@@ -75,6 +88,11 @@ __all__ = [
     'Expectation',
     'GlobalConfigs',
     'ImportJob',
+    'Issue',
+    'IssueCategory',
+    'IssueExt',
+    'IssueRule',
+    'IssueState',
     'Job',
     'JobTaskExecution',
     'JobTaskExecutionResult',
@@ -88,11 +106,13 @@ __all__ = [
     'MetaTest',
     'Project',
     'Reference',
+    'ResultClassification',
     'ResultStatus',
     'ResultType',
     'RunConclusion',
     'RunStatus',
     'RunStatusByUnexpected',
+    'StampOrigin',
     'TaskExecution',
     'Test',
     'TestArgument',
@@ -103,4 +123,5 @@ __all__ = [
     'UserManager',
     'UserRoles',
     'View',
+    'default_expected_for',
 ]

@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 from django.conf import settings
-from django.db.models import Exists, F, OuterRef, Q
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, When
 
 from bublik.core.cache import ProjectCache
+from bublik.core.classification import suppressed_subquery
 from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.exceptions import NotFoundError
 from bublik.core.history.v2.utils import (
@@ -67,6 +68,10 @@ class HistoryService:
         verdict_lookup: str | None = None,
         verdict_expr: str | None = None,
         result_types: str | None = None,
+        categories: str | None = None,
+        issue: str | None = None,
+        explained: str | None = None,
+        untriaged: str | None = None,
     ):
         """
         Build history queryset with all filters applied.
@@ -161,6 +166,10 @@ class HistoryService:
             verdict_expr=verdict_expr,
             result_types=result_types,
             query_delimiter=query_delimiter,
+            categories=categories,
+            issue=issue,
+            explained=explained,
+            untriaged=untriaged,
         )
 
         # Step 7: Finalize queryset
@@ -347,7 +356,7 @@ class HistoryService:
         return test_results.filter(iteration__in=test_iteration_ids)
 
     @staticmethod
-    def _apply_result_filters(
+    def _apply_result_filters(  # noqa: PLR0913
         test_results: TestIterationResult,
         result_statuses: str | None,
         verdict: str | None,
@@ -355,6 +364,10 @@ class HistoryService:
         verdict_expr: str | None,
         result_types: str | None,
         query_delimiter: str,
+        categories: str | None = None,
+        issue: str | None = None,
+        explained: str | None = None,
+        untriaged: str | None = None,
     ) -> TestIterationResult:
         """
         Apply result-level filters to test results.
@@ -413,6 +426,25 @@ class HistoryService:
                 result_types.split(query_delimiter),
             )
 
+        if categories:
+            test_results = test_results.filter(
+                classifications__rule__category__in=categories.split(query_delimiter),
+            ).distinct()
+        if issue:
+            test_results = test_results.filter(
+                classifications__rule__issue_id__in=issue.split(query_delimiter),
+            ).distinct()
+        if explained and explained.lower() == 'true':
+            test_results = test_results.filter(classifications__isnull=False).distinct()
+        if untriaged and untriaged.lower() == 'true':
+            test_results = (
+                test_results.filter(
+                    meta_results__meta__type='err',
+                )
+                .exclude(classifications__isnull=False)
+                .distinct()
+            )
+
         return test_results
 
     @staticmethod
@@ -431,8 +463,14 @@ class HistoryService:
             .annotate(
                 run_id=F('test_run__id'),
                 iteration_hash=F('iteration__hash'),
-                has_error=Exists(
+                _has_err=Exists(
                     MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err'),
+                ),
+                _suppressed=Exists(suppressed_subquery()),
+                has_error=Case(
+                    When(_has_err=True, _suppressed=False, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
                 ),
                 is_measurements=Exists(
                     MeasurementResult.objects.filter(result__id=OuterRef('id')),

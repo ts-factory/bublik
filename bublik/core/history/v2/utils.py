@@ -85,6 +85,25 @@ def prepare_list_results(
             ),
         }
 
+        # Classifications stamped on this result (all of them), with the
+        # external bug key for display in the obtained-result column.
+        classifications = list(
+            test_result_obj.classifications.select_related('rule__issue__issue_ext').all(),
+        )
+        result['issues'] = [
+            {
+                'issue_id': c.rule.issue_id,
+                'issue_title': c.rule.issue.title,
+                'issue_state': c.rule.issue.state,
+                'bug_key': c.rule.issue.issue_ext.key if c.rule.issue.issue_ext_id else None,
+                'category': c.rule.category,
+                'expected': c.rule.expected,
+                'rule_id': c.rule_id,
+                'origin': c.origin,
+            }
+            for c in classifications
+        ]
+
         results_to_response.append(result)
 
     return results_to_response

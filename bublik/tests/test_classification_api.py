@@ -1,0 +1,772 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
+
+from django.test import TestCase
+
+from bublik.data.models import Issue, IssueCategory, IssueRule, IssueState, Project, Test
+from bublik.data.serializers import (
+    IssueRuleSerializer,
+    IssueSerializer,
+)
+
+
+class IssueSerializerTest(TestCase):
+    def test_serialize_issue(self):
+        issue = Issue.objects.create(title='bug', description='x', state=IssueState.OPEN)
+        data = IssueSerializer(issue).data
+        self.assertEqual(data['title'], 'bug')
+        self.assertEqual(data['state'], 'open')
+        # audit fields are read-only and present
+        self.assertIn('created_at', data)
+
+
+class IssueRuleSerializerTest(TestCase):
+    def test_expected_defaults_from_category_when_omitted(self):
+        project = Project.objects.create(name='p')
+        issue = Issue.objects.create(title='bug')
+        test = Test.objects.create(name='t', result_type='T')
+        ser = IssueRuleSerializer(
+            data={
+                'project': project.id,
+                'issue': issue.id,
+                'test': test.id,
+                'category': IssueCategory.KNOWN_ISSUE,
+                # expected omitted -> should default True for known-issue
+                'parameters': {'a': '1'},
+                'verdicts': ['boom'],
+                'tags': [],
+            }
+        )
+        ser.is_valid(raise_exception=True)
+        rule = ser.save()
+        self.assertTrue(rule.expected)
+
+    def test_expected_explicit_override(self):
+        project = Project.objects.create(name='p')
+        issue = Issue.objects.create(title='bug')
+        test = Test.objects.create(name='t', result_type='T')
+        ser = IssueRuleSerializer(
+            data={
+                'project': project.id,
+                'issue': issue.id,
+                'test': test.id,
+                'category': IssueCategory.KNOWN_ISSUE,
+                'expected': False,
+                'parameters': {},
+                'verdicts': [],
+                'tags': [],
+            }
+        )
+        ser.is_valid(raise_exception=True)
+        rule = ser.save()
+        self.assertFalse(rule.expected)
+
+
+from datetime import datetime, timezone
+
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from bublik.data.models import (
+    ResultClassification,
+    StampOrigin,
+    TestIteration,
+    TestIterationResult,
+)
+
+
+def _auth(client, project):
+    # Write actions use @check_action_permission('manage_classifications'); with no
+    # NOT_PERMISSION_REQUIRED_ACTIONS config in the test DB the action is admin-only,
+    # so authenticate as an admin via the access_token JWT cookie. roles is a scalar
+    # CharField; create_superuser already sets roles=UserRoles.ADMIN.
+    from rest_framework_simplejwt.tokens import AccessToken
+
+    from bublik.data.models import User
+
+    user = User.objects.create_superuser(email=f'a{project.id}@x.io', password='x')
+    client.cookies['access_token'] = str(AccessToken.for_user(user))
+    return user
+
+
+class IssueLifecycleApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Issue, IssueCategory, Project, Test
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        self.issue = Issue.objects.create(title='bug')
+        self.test = Test.objects.create(name='t', result_type='T')
+        self.rule = IssueRule.objects.create(
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+        )
+
+    def test_close_issue_deactivates_rules(self):
+        url = f'/api/v2/issues/{self.issue.id}/close/?project={self.project.id}'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.issue.refresh_from_db()
+        self.rule.refresh_from_db()
+        self.assertEqual(self.issue.state, 'closed')
+        self.assertFalse(self.rule.active)
+
+    def test_deactivate_rule(self):
+        url = f'/api/v2/issue-rules/{self.rule.id}/deactivate/?project={self.project.id}'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.rule.refresh_from_db()
+        self.assertFalse(self.rule.active)
+
+
+class ClassifyApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Meta, MetaResult, Project, Test, TestArgument
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        run = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        test = Test.objects.create(name='t', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
+        iteration.test_arguments.add(arg)
+        self.result = TestIterationResult.objects.create(
+            iteration=iteration,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        m = Meta.objects.create(type='verdict', value='boom', hash='vh')
+        MetaResult.objects.create(result=self.result, meta=m, serial=0)
+
+    def test_classify_creates_issue_rule_and_stamp(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'flaky thing'},
+                'category': 'known-issue',
+                'scope': 'future',
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertEqual(stamp.origin, StampOrigin.MANUAL_APPLY)  # scope=future
+        self.assertTrue(stamp.rule.active)  # scope=future -> active rule
+        self.assertEqual(stamp.rule.category, 'known-issue')
+        self.assertTrue(stamp.rule.expected)  # default for known-issue
+        # matcher prefilled from the result
+        self.assertEqual(stamp.rule.parameters, {'a': '1'})
+        self.assertEqual(set(stamp.rule.verdicts), {'boom'})
+
+    def test_classify_oneoff_is_inactive_rule(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'one off'},
+                'category': 'product-defect',
+                'scope': 'oneoff',
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertFalse(stamp.rule.active)
+        self.assertEqual(stamp.origin, StampOrigin.MANUAL_ONEOFF)
+
+    def test_classify_honors_non_default_matcher(self):
+        from unittest.mock import patch
+
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        with patch(
+            'bublik.interfaces.api_v2.classification.get_tags_by_runs',
+        ) as gt:
+            gt.return_value = {self.result.test_run_id: ['imp', 'rel']}
+            resp = self.client.post(
+                url,
+                {
+                    'issue': {'title': 'x'},
+                    'category': 'known-issue',
+                    'scope': 'future',
+                    'matcher': {
+                        'match_parameters': True,
+                        'match_verdicts': False,
+                        'match_important_tags': False,
+                        'match_all_tags': True,
+                    },
+                },
+                format='json',
+            )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertTrue(stamp.rule.match_parameters)
+        self.assertFalse(stamp.rule.match_verdicts)
+        self.assertFalse(stamp.rule.match_important_tags)
+        self.assertTrue(stamp.rule.match_all_tags)
+        self.assertEqual(set(stamp.rule.tags), {'imp', 'rel'})
+
+    def test_classify_rejects_bad_category(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url,
+            {'issue': {'title': 'x'}, 'category': 'banana'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_classify_expected_none_marks_without_suppressing(self):
+        from bublik.core.classification import SUPPRESSION_FILTER
+
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'x'},
+                'category': 'known-issue',
+                'scope': 'future',
+                'expected': None,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertIsNone(stamp.rule.expected)
+        self.assertFalse(
+            ResultClassification.objects.filter(
+                result=self.result,
+                **SUPPRESSION_FILTER,
+            ).exists(),
+        )
+
+    def test_classify_expected_false_is_unexpected(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'y'},
+                'category': 'known-issue',
+                'scope': 'future',
+                'expected': False,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertIs(stamp.rule.expected, False)
+
+    def test_classify_expected_omitted_defaults_from_category(self):
+        url = f'/api/v2/results/{self.result.id}/classify/?project={self.project.id}'
+        resp = self.client.post(
+            url,
+            {
+                'issue': {'title': 'z'},
+                'category': 'known-issue',
+                'scope': 'future',
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertTrue(stamp.rule.expected)
+
+
+class ApplyRulesApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        self.run = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        test = Test.objects.create(name='t', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
+        iteration.test_arguments.add(arg)
+        self.result = TestIterationResult.objects.create(
+            iteration=iteration,
+            test_run=self.run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        m = Meta.objects.create(type='verdict', value='boom', hash='vh')
+        MetaResult.objects.create(result=self.result, meta=m, serial=0)
+        issue = Issue.objects.create(title='bug')
+        IssueRule.objects.create(
+            project=self.project,
+            issue=issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+            parameters={'a': '1'},
+            verdicts=['boom'],
+        )
+
+    def test_apply_rules_stamps_existing_run(self):
+        url = f'/api/v2/runs/{self.run.id}/apply-rules/?project={self.project.id}'
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        stamp = ResultClassification.objects.get(result=self.result)
+        self.assertEqual(stamp.origin, StampOrigin.MANUAL_APPLY)
+
+
+class RunIssuesApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.run = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        test = Test.objects.create(name='t', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
+        iteration.test_arguments.add(arg)
+
+        # Two distinct results in the run, each with an err verdict meta.
+        self.results = []
+        for i in range(2):
+            result = TestIterationResult.objects.create(
+                iteration=iteration,
+                test_run=self.run,
+                start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                project=self.project,
+            )
+            m = Meta.objects.create(type='verdict', value=f'boom{i}', hash=f'vh{i}')
+            MetaResult.objects.create(result=result, meta=m, serial=0)
+            self.results.append(result)
+
+        self.issue = Issue.objects.create(title='flaky thing')
+        self.rule = IssueRule.objects.create(
+            project=self.project,
+            issue=self.issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+        )
+        # Stamp BOTH results under the same rule.
+        for result in self.results:
+            ResultClassification.objects.create(
+                result=result,
+                rule=self.rule,
+                origin=StampOrigin.MANUAL_APPLY,
+            )
+
+    def test_run_issues_summary(self):
+        url = f'/api/v2/runs/{self.run.id}/issues/?project={self.project.id}'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        # Bare list, not a paginated wrapper.
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        row = data[0]
+        self.assertEqual(row['issue_id'], self.issue.id)
+        self.assertEqual(row['title'], 'flaky thing')
+        self.assertEqual(row['result_count'], 2)
+        self.assertEqual(row['categories'][0]['category'], 'known-issue')
+        self.assertTrue(row['categories'][0]['expected'])
+
+
+class RunIssueResultsApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.run = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+
+        # Package node (a TestIterationResult whose test is a package).
+        pkg_test = Test.objects.create(name='net', result_type='P')
+        pkg_iter = TestIteration.objects.create(test=pkg_test, hash='ph')
+        self.package = TestIterationResult.objects.create(
+            iteration=pkg_iter,
+            test_run=self.run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+
+        # Leaf test result under the package.
+        test = Test.objects.create(name='ana_log', result_type='T')
+        iteration = TestIteration.objects.create(test=test, hash='h1')
+        arg, _ = TestArgument.objects.get_or_create(
+            name='a', value='1', defaults={'hash': 'ah'}
+        )
+        iteration.test_arguments.add(arg)
+        self.result = TestIterationResult.objects.create(
+            iteration=iteration,
+            test_run=self.run,
+            parent_package=self.package,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        verdict = Meta.objects.create(type='verdict', value='timeout', hash='vh')
+        MetaResult.objects.create(result=self.result, meta=verdict, serial=0)
+        status_meta = Meta.objects.create(type='result', value='FAILED', hash='rh')
+        MetaResult.objects.create(result=self.result, meta=status_meta, serial=0)
+
+        self.issue = Issue.objects.create(title='flaky thing')
+        self.rule = IssueRule.objects.create(
+            project=self.project,
+            issue=self.issue,
+            test=test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+        )
+        ResultClassification.objects.create(
+            result=self.result,
+            rule=self.rule,
+            origin=StampOrigin.MANUAL_APPLY,
+        )
+
+    def test_run_issue_results_list(self):
+        url = (
+            f'/api/v2/runs/{self.run.id}/issues/{self.issue.id}/results/'
+            f'?project={self.project.id}'
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        # Bare list, not a paginated wrapper.
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        row = data[0]
+        self.assertEqual(row['result_id'], self.result.id)
+        self.assertEqual(row['name'], 'ana_log')
+        self.assertIn('net', row['path'])
+        self.assertEqual(row['verdicts'], ['timeout'])
+        self.assertEqual(row['obtained_result'], 'FAILED')
+
+
+class AuthGuardTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Issue, IssueCategory, Project, Test
+
+        self.project = Project.objects.create(name='guard')
+        self.issue = Issue.objects.create(title='bug')
+        self.test = Test.objects.create(name='t', result_type='T')
+        self.rule = IssueRule.objects.create(
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+        )
+
+    def test_unauth_delete_issue_rejected(self):
+        r = self.client.delete(f'/api/v2/issues/{self.issue.id}/?project={self.project.id}')
+        self.assertEqual(r.status_code, 403)
+
+    def test_unauth_patch_issue_rejected(self):
+        r = self.client.patch(
+            f'/api/v2/issues/{self.issue.id}/?project={self.project.id}',
+            {'title': 'x'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_unauth_patch_rule_rejected(self):
+        r = self.client.patch(
+            f'/api/v2/issue-rules/{self.rule.id}/?project={self.project.id}',
+            {'expected': False},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 403)
+        self.rule.refresh_from_db()
+        self.assertTrue(self.rule.expected)  # unchanged
+
+    def test_unauth_delete_rule_rejected(self):
+        r = self.client.delete(f'/api/v2/issue-rules/{self.rule.id}/?project={self.project.id}')
+        self.assertEqual(r.status_code, 403)
+
+
+class IssuePickerApiTest(APITestCase):
+    def setUp(self):
+        from datetime import datetime, timezone
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            IssueExt,
+            IssueRule,
+            Project,
+            ResultClassification,
+            StampOrigin,
+            Test,
+            TestIteration,
+            TestIterationResult,
+        )
+
+        self.project = Project.objects.create(name='pick')
+        test = Test.objects.create(name='t', result_type='T')
+
+        def stamp(issue, when):
+            it = TestIteration.objects.create(test=test, hash=f'h{issue.id}{when}')
+            res = TestIterationResult.objects.create(
+                iteration=it,
+                test_run=None,
+                start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                project=self.project,
+            )
+            rule = IssueRule.objects.create(
+                project=self.project,
+                issue=issue,
+                test=test,
+                category=IssueCategory.KNOWN_ISSUE,
+                expected=True,
+                active=True,
+            )
+            sc = ResultClassification.objects.create(
+                result=res,
+                rule=rule,
+                origin=StampOrigin.MANUAL_ONEOFF,
+            )
+            # created_at is auto_now_add; override to control recency ordering
+            ResultClassification.objects.filter(id=sc.id).update(created_at=when)
+            return rule
+
+        # issue A: older stamp, has a bug key
+        self.a = Issue.objects.create(title='Alpha bug')
+        self.a.issue_ext = IssueExt.objects.create(key='ref://JIRA/ZZZ-9')
+        self.a.save()
+        stamp(self.a, datetime(2026, 1, 1, tzinfo=timezone.utc))
+        # issue B: newer stamp, no key
+        self.b = Issue.objects.create(title='Beta bug')
+        stamp(self.b, datetime(2026, 2, 1, tzinfo=timezone.utc))
+
+    def test_recent_default_ordered_by_latest_stamp(self):
+        from rest_framework import status
+
+        r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        data = r.json()
+        self.assertEqual([o['id'] for o in data], [self.b.id, self.a.id])  # newest first
+        a = next(o for o in data if o['id'] == self.a.id)
+        self.assertEqual(a['key'], 'ref://JIRA/ZZZ-9')
+        self.assertEqual(a['category'], 'known-issue')
+        b = next(o for o in data if o['id'] == self.b.id)
+        self.assertIsNone(b['key'])
+        self.assertEqual(b['category'], 'known-issue')
+
+    def test_search_matches_title(self):
+        r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}&search=alph')
+        self.assertEqual([o['id'] for o in r.json()], [self.a.id])
+
+    def test_search_matches_bug_key(self):
+        r = self.client.get(f'/api/v2/issues/picker/?project={self.project.id}&search=zzz')
+        self.assertEqual([o['id'] for o in r.json()], [self.a.id])
+
+
+from unittest.mock import patch
+
+from bublik.interfaces.api_v2.classification import ResultClassifyViewSet
+
+
+class CaptureTagsTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import Project
+
+        self.project = Project.objects.create(name='p')
+        run = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=None,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+        self.result = TestIterationResult.objects.create(
+            iteration=None,
+            test_run=run,
+            start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            project=self.project,
+        )
+
+    def test_important_only_by_default(self):
+        view = ResultClassifyViewSet()
+        with patch(
+            'bublik.interfaces.api_v2.classification.get_tags_by_runs',
+        ) as gt:
+            gt.return_value = (
+                {self.result.test_run_id: ['imp']},
+                {self.result.test_run_id: ['rel']},
+            )
+            tags = view._capture_tags(self.result, all_tags=False)
+        self.assertEqual(tags, ['imp'])
+
+    def test_all_tags_includes_relevant(self):
+        view = ResultClassifyViewSet()
+        with patch(
+            'bublik.interfaces.api_v2.classification.get_tags_by_runs',
+        ) as gt:
+            gt.return_value = {self.result.test_run_id: ['imp', 'rel']}
+            tags = view._capture_tags(self.result, all_tags=True)
+        self.assertEqual(set(tags), {'imp', 'rel'})
+        gt.assert_called_once()
+        self.assertTrue(gt.call_args.kwargs.get('not_categorize'))
+
+
+class IssueRuleResultsApiTest(APITestCase):
+    def setUp(self):
+        from bublik.data.models import (
+            Issue,
+            IssueCategory,
+            Meta,
+            MetaResult,
+            Project,
+            Test,
+            TestArgument,
+        )
+
+        self.project = Project.objects.create(name='p')
+        self.user = _auth(self.client, self.project)
+        self.issue = Issue.objects.create(title='bug')
+        self.test = Test.objects.create(name='t', result_type='T')
+
+        def make_run(day):
+            return TestIterationResult.objects.create(
+                iteration=None,
+                test_run=None,
+                start=datetime(2026, 1, day, tzinfo=timezone.utc),
+                project=self.project,
+            )
+
+        def make_result(run, day):
+            iteration = TestIteration.objects.create(test=self.test, hash=f'h{day}')
+            arg, _ = TestArgument.objects.get_or_create(
+                name='a',
+                value='1',
+                defaults={'hash': 'ah'},
+            )
+            iteration.test_arguments.add(arg)
+            r = TestIterationResult.objects.create(
+                iteration=iteration,
+                test_run=run,
+                start=datetime(2026, 1, day, tzinfo=timezone.utc),
+                project=self.project,
+            )
+            m = Meta.objects.create(type='verdict', value=f'boom{day}', hash=f'vh{day}')
+            MetaResult.objects.create(result=r, meta=m, serial=0)
+            return r
+
+        self.rule = IssueRule.objects.create(
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+        )
+        old_run, new_run = make_run(1), make_run(5)
+        self.old_result = make_result(old_run, 1)
+        self.new_result = make_result(new_run, 5)
+        for r in (self.old_result, self.new_result):
+            ResultClassification.objects.create(result=r, rule=self.rule, origin='manual_apply')
+
+        self.other_rule = IssueRule.objects.create(
+            project=self.project,
+            issue=self.issue,
+            test=self.test,
+            category=IssueCategory.KNOWN_ISSUE,
+            expected=True,
+            active=True,
+        )
+        other_result = make_result(make_run(9), 9)
+        ResultClassification.objects.create(
+            result=other_result,
+            rule=self.other_rule,
+            origin='manual_apply',
+        )
+
+    def test_results_newest_run_first_and_scoped_to_rule(self):
+        url = f'/api/v2/issue-rules/{self.rule.id}/results/?project={self.project.id}'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        ids = [row['result_id'] for row in data]
+        self.assertEqual(ids, [self.new_result.id, self.old_result.id])
+        self.assertEqual(data[0]['run_id'], self.new_result.test_run_id)
+        self.assertIn('run_start', data[0])
+        self.assertIn('verdicts', data[0])
+
+    def test_results_respects_limit(self):
+        url = f'/api/v2/issue-rules/{self.rule.id}/results/?project={self.project.id}&limit=1'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['result_id'], self.new_result.id)
+
+    def test_issue_results_union_across_rules_newest_first(self):
+        # Issue results span both rules: other_result(run day 9) is newest,
+        # then new_result(day 5), then old_result(day 1).
+        url = f'/api/v2/issues/{self.issue.id}/results/?project={self.project.id}'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        data = resp.json()
+        ids = [row['result_id'] for row in data]
+        self.assertEqual(len(ids), 3)
+        # newest run (other_rule's day-9 result) leads, then day-5, then day-1
+        self.assertNotIn(ids[0], (self.new_result.id, self.old_result.id))
+        self.assertEqual(ids[1], self.new_result.id)
+        self.assertEqual(ids[2], self.old_result.id)
+        self.assertIn('category', data[0])
+
+    def test_issue_results_respects_limit(self):
+        url = f'/api/v2/issues/{self.issue.id}/results/?project={self.project.id}&limit=2'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        self.assertEqual(len(resp.json()), 2)

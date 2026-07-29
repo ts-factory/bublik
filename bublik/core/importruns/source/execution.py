@@ -277,6 +277,13 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
     add_tags(run, tags)
     logger.info(f'the number of added tags is {len(tags)}')
 
+    # Lazy import: a top-level import pulls core.run.classification during
+    # data.models init and deadlocks on a circular import.
+    from bublik.core.run.classification import apply_active_rules  # noqa: PLC0415
+
+    apply_active_rules(run)
+    logger.info(f'applied active classification rules to run {run.id}')
+
     call_command('run_cache', 'delete', '-i', run.id, '--logger_out', True)
 
     return run, True

@@ -43,6 +43,29 @@ api_v2_router.register(
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
+api_v2_router.register(r'issues/picker', api_v2.IssuePickerViewSet, basename='issues_picker')
+api_v2_router.register(r'issues', api_v2.IssueViewSet, 'issues')
+api_v2_router.register(r'issue-rules', api_v2.IssueRuleViewSet, 'issue-rules')
+api_v2_router.register(
+    r'results/(?P<result_id>[0-9]+)/classify',
+    api_v2.ResultClassifyViewSet,
+    basename='results_classify',
+)
+api_v2_router.register(
+    r'runs/(?P<run_id>[0-9]+)/apply-rules',
+    api_v2.RunApplyRulesViewSet,
+    basename='runs_apply_rules',
+)
+api_v2_router.register(
+    r'runs/(?P<run_id>[0-9]+)/issues',
+    api_v2.RunIssuesViewSet,
+    basename='runs_issues',
+)
+api_v2_router.register(
+    r'runs/(?P<run_id>[0-9]+)/issues/(?P<issue_id>[0-9]+)/results',
+    api_v2.RunIssueResultsViewSet,
+    basename='runs_issue_results',
+)
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet

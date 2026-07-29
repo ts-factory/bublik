@@ -12,6 +12,15 @@ from .auth import (
     RefreshTokenView,
     RegisterView,
 )
+from .classification import (
+    IssuePickerViewSet,
+    IssueRuleViewSet,
+    IssueViewSet,
+    ResultClassifyViewSet,
+    RunApplyRulesViewSet,
+    RunIssueResultsViewSet,
+    RunIssuesViewSet,
+)
 from .comments import TestCommentViewSet
 from .config.views import ConfigViewSet
 from .dashboard import (
@@ -48,6 +57,9 @@ __all__ = [
     'HistoryViewSet',
     'ImportEventViewSet',
     'ImportrunsViewSet',
+    'IssuePickerViewSet',
+    'IssueRuleViewSet',
+    'IssueViewSet',
     'JobTaskExecutionViewSet',
     'LogInView',
     'LogOutView',
@@ -60,7 +72,11 @@ __all__ = [
     'RefreshTokenView',
     'RegisterView',
     'ReportViewSet',
+    'ResultClassifyViewSet',
     'ResultViewSet',
+    'RunApplyRulesViewSet',
+    'RunIssueResultsViewSet',
+    'RunIssuesViewSet',
     'RunViewSet',
     'ServerViewSet',
     'TestCommentViewSet',
