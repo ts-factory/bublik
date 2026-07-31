@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from rest_framework import serializers
 
+from bublik.data.models import IssueCategory, IssueState
+
 
 if TYPE_CHECKING:
     from bublik.core.run.dto import (
@@ -255,6 +257,37 @@ class RunChartBucketSerializer(serializers.Serializer):
 
 class RunChartsResponseSerializer(serializers.Serializer):
     buckets = RunChartBucketSerializer(many=True)
+
+
+class EmptySerializer(serializers.Serializer):
+    """No request body expected."""
+
+
+class ApplyRulesResponseSerializer(serializers.Serializer):
+    stamps_created = serializers.IntegerField()
+
+
+class RunIssueCategorySerializer(serializers.Serializer):
+    category = serializers.ChoiceField(choices=IssueCategory.choices)
+    expected = serializers.BooleanField(allow_null=True)
+
+
+class RunIssueSummarySerializer(serializers.Serializer):
+    issue_id = serializers.IntegerField()
+    title = serializers.CharField()
+    state = serializers.ChoiceField(choices=IssueState.choices)
+    bug_key = serializers.CharField(allow_null=True)
+    bug_url = serializers.CharField(allow_null=True)
+    result_count = serializers.IntegerField()
+    categories = RunIssueCategorySerializer(many=True)
+
+
+class RunIssueResultSerializer(serializers.Serializer):
+    result_id = serializers.IntegerField()
+    name = serializers.CharField(allow_null=True)
+    path = serializers.ListField(child=serializers.CharField())
+    obtained_result = serializers.CharField(allow_null=True)
+    verdicts = serializers.ListField(child=serializers.CharField())
 
 
 def serialize_run_compromised_details(

@@ -1,0 +1,334 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
+
+from __future__ import annotations
+
+from django.db import transaction
+from django.db.models import Count
+
+from bublik.core.references import resolve_ref
+from bublik.core.run.data import get_tags_by_runs
+from bublik.data import models
+
+
+class ClassificationService:
+    """
+    Matcher engine: applies active IssueRules to a run's results, creating
+    RuleResult stamps. The test path is always required for a match;
+    parameters and verdicts are matched as a subset when non-empty (an empty
+    value means that criterion is not applied). Tag matching is a run-level
+    gate, since all results in a run share the run's tags.
+    """
+
+    @staticmethod
+    def result_param_dict(result: models.TestIterationResult) -> dict:
+        """
+        Build a {name: value} dict of a result's test arguments.
+
+        Args:
+            result: The test iteration result
+
+        Returns:
+            Dictionary mapping argument names to their values
+        """
+        return {a.name: a.value for a in result.iteration.test_arguments.all()}
+
+    @staticmethod
+    def result_verdict_set(result: models.TestIterationResult) -> set[str]:
+        """
+        Collect a result's verdict strings.
+
+        Args:
+            result: The test iteration result
+
+        Returns:
+            Set of verdict values attached to the result
+        """
+        return set(
+            result.meta_results.filter(meta__type='verdict').values_list(
+                'meta__value',
+                flat=True,
+            ),
+        )
+
+    @staticmethod
+    def rule_matches_run_tags(rule: models.IssueRule, run: models.TestIterationResult) -> bool:
+        """
+        Check the run-level tag gate for a rule.
+
+        Args:
+            rule: The issue rule to test
+            run: The run whose tags are checked against the rule
+
+        Returns:
+            True if rule.tags is empty (no gate) or is a subset of the run's
+            tags (important + relevant); False otherwise
+        """
+        if not rule.tags:
+            return True
+
+        important_by_run, relevant_by_run = get_tags_by_runs([run])
+        universe = set(important_by_run.get(run.id, [])) | set(
+            relevant_by_run.get(run.id, []),
+        )
+        return set(rule.tags).issubset(universe)
+
+    @staticmethod
+    def matching_results(
+        rule: models.IssueRule,
+        run: models.TestIterationResult,
+    ) -> list[models.TestIterationResult]:
+        """
+        Find results in a run that match a rule.
+
+        A result matches when its test equals rule.test and, for each
+        non-empty matcher field on the rule (parameters, verdicts), the
+        rule's captured value is a subset of the result's own value. The
+        run-level tag gate (rule.tags) is checked once via
+        rule_matches_run_tags before iterating over candidate results.
+
+        Args:
+            rule: The issue rule to match
+            run: The run whose results are searched
+
+        Returns:
+            List of matching TestIterationResult instances
+        """
+        if not ClassificationService.rule_matches_run_tags(rule, run):
+            return []
+
+        candidates = models.TestIterationResult.objects.filter(
+            test_run=run,
+            iteration__test_id=rule.test_id,
+        ).select_related('iteration')
+
+        matched = []
+        for result in candidates:
+            if rule.parameters and not (
+                rule.parameters.items()
+                <= ClassificationService.result_param_dict(result).items()
+            ):
+                continue
+            if rule.verdicts and not set(rule.verdicts).issubset(
+                ClassificationService.result_verdict_set(result),
+            ):
+                continue
+            matched.append(result)
+        return matched
+
+    @staticmethod
+    def apply_active_rules(run: models.TestIterationResult) -> int:
+        """
+        Recompute import-origin RuleResult stamps for a run from the project's
+        active rules. Idempotent: drops previous origin='import' stamps for this
+        run, then rebuilds them from the current set of active rules. Manual
+        stamps (manual_persistent / manual_oneoff) are never touched.
+
+        Args:
+            run: The run to (re)apply active rules to, typically right after import
+
+        Returns:
+            Number of RuleResult stamps created
+        """
+        with transaction.atomic():
+            models.RuleResult.objects.filter(
+                result__test_run=run,
+                origin=models.RuleResultOrigin.IMPORT,
+            ).delete()
+
+            rules = models.IssueRule.objects.filter(project_id=run.project_id, active=True)
+            created = 0
+            for rule in rules:
+                for result in ClassificationService.matching_results(rule, run):
+                    _, made = models.RuleResult.objects.get_or_create(
+                        result=result,
+                        issue_rule=rule,
+                        defaults={'origin': models.RuleResultOrigin.IMPORT},
+                    )
+                    created += int(made)
+        return created
+
+    @staticmethod
+    def apply_active_rules_manual(
+        run: models.TestIterationResult,
+        actor: models.User | None = None,
+    ) -> int:
+        """
+        Apply the project's active rules to an already-imported run on demand.
+
+        Existing RuleResult stamps are never removed - this only adds stamps
+        that are missing, so it is safe to call repeatedly on the same run.
+
+        Args:
+            run: The run to apply active rules to
+            actor: The user who triggered the action, stored as created_by
+                on any new stamps
+
+        Returns:
+            Number of RuleResult stamps actually created
+        """
+        rules = models.IssueRule.objects.filter(project_id=run.project_id, active=True)
+        created = 0
+        for rule in rules:
+            for result in ClassificationService.matching_results(rule, run):
+                _, made = models.RuleResult.objects.get_or_create(
+                    result=result,
+                    issue_rule=rule,
+                    defaults={
+                        'origin': models.RuleResultOrigin.MANUAL_PERSISTENT,
+                        'created_by': actor,
+                    },
+                )
+                created += int(made)
+        return created
+
+    @staticmethod
+    def runs_for_rule(rule: models.IssueRule) -> list[int]:
+        """
+        Get run IDs that have at least one stamp for a rule.
+
+        Args:
+            rule: The issue rule to look up
+
+        Returns:
+            List of distinct TestIterationResult (run) IDs
+        """
+        return list(
+            models.RuleResult.objects.filter(issue_rule=rule)
+            .values_list('result__test_run_id', flat=True)
+            .distinct(),
+        )
+
+    @staticmethod
+    def runs_for_issue(issue: models.Issue) -> list[int]:
+        """
+        Get run IDs that have at least one stamp for any rule of an issue.
+
+        Args:
+            issue: The issue to look up
+
+        Returns:
+            List of distinct TestIterationResult (run) IDs
+        """
+        return list(
+            models.RuleResult.objects.filter(issue_rule__issue=issue)
+            .values_list('result__test_run_id', flat=True)
+            .distinct(),
+        )
+
+    @staticmethod
+    def run_issues_summary(run: models.TestIterationResult) -> list[dict]:
+        """
+        Per-issue summary of classified results in a run.
+
+        Args:
+            run: The run to summarize
+
+        Returns:
+            List of dicts, one per issue with at least one stamp in this run:
+            issue_id, title, state, bug_key, result_count (distinct results
+            stamped under this issue in this run), and the (category,
+            expected) pairs seen for it here.
+        """
+        base = models.RuleResult.objects.filter(result__test_run=run)
+
+        # Distinct result count per issue (a result may carry stamps from
+        # several of the issue's rules).
+        counts = {
+            row['issue_rule__issue_id']: row['c']
+            for row in base.values('issue_rule__issue_id').annotate(
+                c=Count('result_id', distinct=True),
+            )
+        }
+
+        rows: dict = {}
+        for m in base.values(
+            'issue_rule__issue_id',
+            'issue_rule__issue__title',
+            'issue_rule__issue__state',
+            'issue_rule__category',
+            'issue_rule__expected',
+        ).distinct():
+            issue_id = m['issue_rule__issue_id']
+            row = rows.setdefault(
+                issue_id,
+                {
+                    'issue_id': issue_id,
+                    'title': m['issue_rule__issue__title'],
+                    'state': m['issue_rule__issue__state'],
+                    'result_count': counts.get(issue_id, 0),
+                    'categories': [],
+                },
+            )
+            row['categories'].append(
+                {'category': m['issue_rule__category'], 'expected': m['issue_rule__expected']},
+            )
+
+        bug_keys = dict(
+            models.Issue.objects.filter(id__in=rows.keys())
+            .exclude(issue_ext__isnull=True)
+            .values_list('id', 'issue_ext__key'),
+        )
+        for issue_id, row in rows.items():
+            bug_key = bug_keys.get(issue_id)
+            row['bug_key'] = bug_key
+            resolved = resolve_ref(bug_key, run.project_id) if bug_key else None
+            row['bug_url'] = resolved[2] if resolved else None
+
+        return sorted(rows.values(), key=lambda x: (x['title'] or '').lower())
+
+    @staticmethod
+    def run_issue_results(run: models.TestIterationResult, issue_id: int) -> list[dict]:
+        """
+        Results in a run classified under a specific issue, with their
+        package path in the run tree.
+
+        Args:
+            run: The run to search
+            issue_id: The issue to filter by
+
+        Returns:
+            List of dicts: result_id, name, path (top-down package names),
+            obtained_result, verdicts
+        """
+        stamps = (
+            models.RuleResult.objects.filter(
+                result__test_run=run,
+                issue_rule__issue_id=issue_id,
+            )
+            .select_related('result__iteration__test')
+            .distinct('result_id')
+            .order_by('result_id')
+        )
+
+        data = []
+        for stamp in stamps:
+            result = stamp.result
+            path = []
+            node = result.parent_package
+            while node is not None:
+                if node.iteration_id and node.iteration.test_id:
+                    path.append(node.iteration.test.name)
+                node = node.parent_package
+            path.reverse()
+
+            verdicts = list(
+                result.meta_results.filter(meta__type='verdict')
+                .order_by('serial')
+                .values_list('meta__value', flat=True),
+            )
+            obtained = (
+                result.meta_results.filter(meta__type='result')
+                .values_list('meta__value', flat=True)
+                .first()
+            )
+            data.append(
+                {
+                    'result_id': result.id,
+                    'name': result.iteration.test.name if result.iteration_id else None,
+                    'path': path,
+                    'obtained_result': obtained,
+                    'verdicts': verdicts,
+                },
+            )
+        return data

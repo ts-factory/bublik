@@ -9,6 +9,7 @@ import urllib
 from deepdiff import DeepHash
 from django.conf import settings
 
+from bublik.core.classification import build_issues_list
 from bublik.core.datetime_formatting import get_duration
 from bublik.core.report.services import ReportService
 from bublik.core.run.stats import get_expected_results
@@ -83,6 +84,7 @@ def prepare_list_results(
             'report_config_id': ReportService.get_most_recent_config_for_run_report(
                 test_result_obj.test_run,
             ),
+            'issues': build_issues_list(test_result_obj),
         }
 
         results_to_response.append(result)

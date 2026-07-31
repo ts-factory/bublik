@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.run.serializers import (
+    ApplyRulesResponseSerializer,
     DropCacheRequestSerializer,
     DropCacheResponseSerializer,
     MarkRunCompromisedRequestSerializer,
@@ -15,6 +21,8 @@ from bublik.interfaces.api_v2.run.serializers import (
     RunCommentResponseSerializer,
     RunCommentValueResponseSerializer,
     RunDetailsResponseSerializer,
+    RunIssueResultSerializer,
+    RunIssueSummarySerializer,
     RunListItemSerializer,
     RunListQuerySerializer,
     RunRequirementsResponseSerializer,
@@ -220,6 +228,79 @@ run_viewset_schema = extend_schema_view(
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Multiple comments were found for the run',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Run was not found',
+            ),
+        },
+        tags=[RUN_TAG],
+    ),
+    apply_rules=extend_schema(
+        summary='Apply active classification rules to a run',
+        description="""
+        Applies the project's active IssueRules to an already-imported run on
+        demand. Existing RuleResult stamps are never removed, so calling this
+        repeatedly on the same run is safe.
+        """,
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response=ApplyRulesResponseSerializer,
+                description='Active rules were successfully applied to the run',
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'The user is not authenticated, or is authenticated but lacks '
+                    'admin privileges required to manage classifications'
+                ),
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Run was not found',
+            ),
+        },
+        tags=[RUN_TAG],
+    ),
+    issues=extend_schema(
+        summary='Get run issues summary',
+        description="""
+        Returns a per-issue summary of classified results in a run: issue
+        title, state, external bug key, distinct result count, and the
+        (category, expected) pairs seen for it in this run.
+        """,
+        responses={
+            200: OpenApiResponse(
+                response=RunIssueSummarySerializer(many=True),
+                description='Run issues summary was successfully retrieved',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Run was not found',
+            ),
+        },
+        tags=[RUN_TAG],
+    ),
+    issue_results=extend_schema(
+        summary='Get run results for an issue',
+        description="""
+        Returns the results in a run classified under a specific issue,
+        each with its package path in the run tree, obtained result, and
+        verdicts.
+        """,
+        parameters=[
+            OpenApiParameter(
+                name='issue_id',
+                type=int,
+                location=OpenApiParameter.PATH,
+                description='The ID of the issue to filter results by.',
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=RunIssueResultSerializer(many=True),
+                description='Run issue results were successfully retrieved',
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,

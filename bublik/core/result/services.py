@@ -40,7 +40,9 @@ class ResultService:
             NotFoundError: if result not found
         """
         try:
-            return models.TestIterationResult.objects.get(id=result_id)
+            return models.TestIterationResult.objects.get(
+                id=result_id, test_run_id__isnull=False
+            )
         except ObjectDoesNotExist as e:
             msg = f'Result {result_id} not found'
             raise NotFoundError(msg) from e
