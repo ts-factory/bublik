@@ -15,6 +15,9 @@ from bublik.core.history.services import HistoryService
 from bublik.core.log.services import LogService
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.project import ProjectService
+from bublik.core.project.dto import (
+    ProjectDTO,  # noqa: TC001 - resolved eagerly by fastmcp/pydantic at @mcp.tool() registration time, not lazily
+)
 from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
@@ -177,17 +180,17 @@ async def get_result_artifacts_and_verdicts(result_id: int) -> dict:
 # Project tools
 
 
-async def list_projects() -> list[dict]:
+async def list_projects() -> list[ProjectDTO]:
     """
     List all available projects.
 
     Returns:
-        List of projects with id and name
+        List of ProjectDTOs
     """
     return await sync_to_async(ProjectService.list_projects)()
 
 
-async def get_project(project_id: int) -> dict:
+async def get_project(project_id: int) -> ProjectDTO:
     """
     Get details of a specific project.
 
@@ -195,7 +198,7 @@ async def get_project(project_id: int) -> dict:
         project_id: The ID of the project
 
     Returns:
-        Dictionary with project id and name
+        ProjectDTO
     """
     return await sync_to_async(ProjectService.get_project)(project_id)
 
