@@ -10,6 +10,7 @@ from django.template.loader import render_to_string
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
+from bublik.core.project.dto import ProjectDTO
 from bublik.core.run.stats import get_run_conclusion, get_run_stats
 from bublik.data import models
 from bublik.data.models import TestIterationResult
@@ -28,14 +29,24 @@ class ProjectService:
         return models.Project.objects.order_by('id')
 
     @staticmethod
-    def list_projects() -> list[dict]:
+    def _to_dto(project: models.Project) -> ProjectDTO:
+        return ProjectDTO(
+            id=project.id,
+            name=project.name,
+        )
+
+    @staticmethod
+    def list_projects() -> list[ProjectDTO]:
         """
         List all projects.
 
         Returns:
-            List of dictionaries with project id and name
+            List of projects DTOs.
         """
-        return list(ProjectService.list_projects_queryset().values('id', 'name'))
+        return [
+            ProjectService._to_dto(project)
+            for project in ProjectService.list_projects_queryset()
+        ]
 
     @staticmethod
     def get_project_instance(project_id: int | str) -> models.Project:
@@ -58,7 +69,7 @@ class ProjectService:
             raise NotFoundError(msg) from e
 
     @staticmethod
-    def get_project(project_id: int | str) -> dict:
+    def get_project(project_id: int | str) -> ProjectDTO:
         """
         Get a single project by ID.
 
@@ -66,16 +77,16 @@ class ProjectService:
             project_id: The ID of the project
 
         Returns:
-            Dictionary with project id and name
+            Project DTO.
 
         Raises:
             NotFoundError: if project not found
         """
         project = ProjectService.get_project_instance(project_id)
-        return {'id': project.id, 'name': project.name}
+        return ProjectService._to_dto(project)
 
     @staticmethod
-    def create_project(data: dict) -> models.Project:
+    def create_project(data: dict) -> ProjectDTO:
         """
         Create a project.
 
@@ -83,18 +94,20 @@ class ProjectService:
             data: Project payload
 
         Returns:
-            Created Project model instance
+            Created project DTO.
         """
         serializer = ProjectSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        return serializer.save()
+        project = serializer.save()
+
+        return ProjectService._to_dto(project)
 
     @staticmethod
     def update_project(
         project_id: int | str,
         data: dict,
         partial: bool = False,
-    ) -> models.Project:
+    ) -> ProjectDTO:
         """
         Update a project.
 
@@ -104,7 +117,7 @@ class ProjectService:
             partial: Whether to perform partial update
 
         Returns:
-            Updated Project model instance
+            Updated project DTO.
 
         Raises:
             NotFoundError: if project not found
@@ -112,7 +125,9 @@ class ProjectService:
         project = ProjectService.get_project_instance(project_id)
         serializer = ProjectSerializer(project, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        return serializer.save()
+        project = serializer.save()
+
+        return ProjectService._to_dto(project)
 
     @staticmethod
     def delete_project(project_id: int | str) -> None:
