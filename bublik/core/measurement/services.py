@@ -10,6 +10,10 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
+from bublik.core.measurement.dto import (
+    MeasurementChartDTO,
+    MeasurementDTO,
+)
 from bublik.core.measurement.representation import ChartViewBuilder
 from bublik.core.utils import key_value_dict_transforming, unordered_group_by
 from bublik.data.models import (
@@ -169,6 +173,17 @@ def get_measurement_charts(result_id):
     return charts
 
 
+def _chart_to_dto(chart: dict) -> MeasurementChartDTO:
+    return MeasurementChartDTO(
+        id=chart['id'],
+        title=chart['title'],
+        subtitle=chart['subtitle'],
+        axis_x=chart['axis_x'],
+        axis_y=chart['axis_y'],
+        dataset=chart['dataset'],
+    )
+
+
 class MeasurementService:
     @staticmethod
     def list_measurements():
@@ -201,7 +216,7 @@ class MeasurementService:
             raise NotFoundError(msg) from e
 
     @staticmethod
-    def get_trend_charts(result_ids: list[int]) -> list:
+    def get_trend_charts(result_ids: list[int]) -> list[MeasurementChartDTO]:
         """
         Get measurement trend charts for multiple result IDs.
 
@@ -211,7 +226,7 @@ class MeasurementService:
             result_ids: List of test result IDs
 
         Returns:
-            List of chart representations
+            List of MeasurementChartDTO's instances
 
         Raises:
             ValidationError: if result_ids is empty
@@ -224,16 +239,18 @@ class MeasurementService:
         mmrs_groups = unordered_group_by(mmrs, 'measurement_group_key')
 
         return [
-            (
-                ChartViewBuilder(next(iter(mmr_group)).measurement).by_measurement_results(
-                    mmr_group,
-                )
-            ).representation()
+            _chart_to_dto(
+                (
+                    ChartViewBuilder(next(iter(mmr_group)).measurement).by_measurement_results(
+                        mmr_group,
+                    )
+                ).representation(),
+            )
             for _mm_key, mmr_group in mmrs_groups.items()
         ]
 
     @staticmethod
-    def get_measurements_by_result_ids(result_ids: list[int]) -> list[dict]:
+    def get_measurements_by_result_ids(result_ids: list[int]) -> list[MeasurementDTO]:
         """
         Get measurements with parameters for each result ID.
 
@@ -246,7 +263,7 @@ class MeasurementService:
             result_ids: List of test result IDs
 
         Returns:
-            List of dictionaries containing measurement data for each result
+            List of MeasurementDTO's instances
 
         Raises:
             ValidationError: if result_ids is empty
@@ -277,17 +294,17 @@ class MeasurementService:
                 # Strings nested within an f-string cannot use the same quote character
                 # as the f-string prior to Python 3.12
                 chart['id'] = f'{test_result.id}_{chart["id"]}'
-                measurement_series_charts.append(chart)
+                measurement_series_charts.append(_chart_to_dto(chart))
 
             measurement_series_charts_by_result.append(
-                {
-                    'run_id': test_result.test_run_id,
-                    'result_id': test_result.id,
-                    'start': test_result.start,
-                    'test_name': test_result.iteration.test.name,
-                    'parameters_list': parameters_list,
-                    'measurement_series_charts': measurement_series_charts,
-                },
+                MeasurementDTO(
+                    run_id=test_result.test_run_id,
+                    result_id=test_result.id,
+                    start=test_result.start,
+                    test_name=test_result.iteration.test.name,
+                    parameters_list=parameters_list,
+                    measurement_series_charts=measurement_series_charts,
+                ),
             )
 
         return measurement_series_charts_by_result
