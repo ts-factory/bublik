@@ -55,6 +55,9 @@ export DB_HOST="localhost"
 export ANALYTICS_ENABLED="false"
 export ANALYTICS_DB_PATH="${BUBLIK_HOME}/analytics.db"
 
+# Chat
+export CHAT_ENABLED="false"
+
 # Server logs
 export BUBLIK_LOG_PREFIX="bublik-rest"
 export BUBLIK_LOGDIR="${BUBLIK_SRC}/logs"

@@ -104,6 +104,11 @@ exclude = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+'bublik/tests/*' = [
+    # Django tests use unittest-style TestCase assertions.
+    'PT009',
+    'PT027',
+]
 'bublik/settings.py' = [
     # There is an import of per_conf that can't be moved to the top of the file
     'E402',

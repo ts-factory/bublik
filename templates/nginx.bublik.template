@@ -11,6 +11,18 @@ server {
         alias $BUBLIK_WEB_STATIC/static/;
     }
 
+    location ^~ $URL_PREFIX/api/v2/chat {
+        include proxy_params;
+        proxy_pass http://$BUBLIK_BIND_GUNICORN;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade "";
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
     location $URL_PREFIX/ {
         include proxy_params;
         proxy_pass http://$BUBLIK_BIND_GUNICORN;

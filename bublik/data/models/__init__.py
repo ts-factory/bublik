@@ -21,6 +21,8 @@ The database is capable to keep thousands of test runs which contain thousands
 of test iteration results.
 """
 
+from .chat_file import ChatFile
+from .chat_thread import ChatThread
 from .config import Config, ConfigTypes, GlobalConfigs
 from .endpoint_url import EndpointURL
 from .eventlog import EventLog
@@ -67,6 +69,8 @@ from .user import User, UserManager, UserRoles
 __all__ = [
     'ChartView',
     'ChartViewType',
+    'ChatFile',
+    'ChatThread',
     'Config',
     'ConfigTypes',
     'EndpointURL',

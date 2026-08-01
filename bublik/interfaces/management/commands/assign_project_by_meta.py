@@ -14,6 +14,8 @@ from django.db.models.functions import Length
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
     Config,
+    ConfigTypes,
+    GlobalConfigs,
     Meta,
     MetaTest,
     Project,
@@ -151,6 +153,7 @@ class Command(BaseCommand):
 
         project_configs = (
             Config.objects.filter(project_filter, is_active=True)
+            .exclude(type=ConfigTypes.GLOBAL, name=GlobalConfigs.AI.name)
             .order_by('content')
             .distinct('content')
         )
@@ -322,6 +325,10 @@ class Command(BaseCommand):
             name__in=metas_with_runs_values,
         ).exists()
         if not another_projects_exists:
-            Config.objects.filter(project__isnull=True).delete()
+            (
+                Config.objects.filter(project__isnull=True)
+                .exclude(type=ConfigTypes.GLOBAL, name=GlobalConfigs.AI.name)
+                .delete()
+            )
             MetaTest.objects.filter(project__isnull=True).delete()
             call_command('meta_categorization')

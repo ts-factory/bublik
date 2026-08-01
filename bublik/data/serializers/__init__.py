@@ -9,6 +9,7 @@ from .auth import (
     UserEmailSerializer,
     UserSerializer,
 )
+from .chat_thread import ChatThreadDetailSerializer, ChatThreadListSerializer
 from .config import ConfigSerializer
 from .endpoint_url import EndpointURLSerializer
 from .eventlog import EventLogSerializer
@@ -39,6 +40,8 @@ from .result import (
 
 
 __all__ = [
+    'ChatThreadDetailSerializer',
+    'ChatThreadListSerializer',
     'ConfigSerializer',
     'EndpointURLSerializer',
     'EventLogSerializer',

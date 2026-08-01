@@ -40,7 +40,7 @@ class ConfigSerializer(ModelSerializer):
             'version': {'read_only': True},
             'user': {'read_only': True},
         }
-        validators = []
+        validators: ClassVar[list] = []
 
     def to_internal_value(self, data):
         is_system_action = self.context.get('is_system_action', False)
@@ -60,6 +60,25 @@ class ConfigSerializer(ModelSerializer):
             msg = f'Unsupported config type. Possible are: {possible_config_types}'
             raise serializers.ValidationError(msg)
         return config_type
+
+    def validate(self, attrs):
+        return self._validate_ai_scope(attrs)
+
+    def _validate_ai_scope(self, attrs, instance=None):
+        instance = instance or self.instance
+        config_type = attrs.get('type', getattr(instance, 'type', None))
+        config_name = attrs.get('name', getattr(instance, 'name', None))
+        config_project = attrs.get('project', getattr(instance, 'project', None))
+
+        if (
+            config_type == ConfigTypes.GLOBAL
+            and config_name == GlobalConfigs.AI.name
+            and config_project is not None
+        ):
+            msg = 'AI configuration is only supported for No Project (Default).'
+            raise serializers.ValidationError({'project': msg})
+
+        return attrs
 
     def validate_name(self, name):
         config_type = self.initial_data.get('type', getattr(self.instance, 'type', None))
@@ -158,6 +177,7 @@ class ConfigSerializer(ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        self._validate_ai_scope(validated_data, instance)
         is_active = validated_data.pop('is_active', instance.is_active)
         config = super().update(instance, validated_data)
         if is_active and not config.is_active:
@@ -198,6 +218,7 @@ class ConfigSerializer(ModelSerializer):
         return config, True
 
     def create(self, config_data):
+        self._validate_ai_scope(config_data)
         with transaction.atomic():
             config = Config.objects.create(**{**config_data, 'is_active': False})
             if config_data.get('is_active'):

@@ -2,6 +2,7 @@
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
 from enum import Enum
+from typing import ClassVar
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
@@ -39,6 +40,7 @@ class GlobalConfigs(Enum):
     PER_CONF = ('per_conf', 'The main project configuration')
     REFERENCES = ('references', 'Project references')
     META = ('meta', 'Meta categorization configuration')
+    AI = ('ai', 'AI chat models and providers configuration')
 
     def __init__(self, name, description):
         self._name = name
@@ -169,7 +171,7 @@ class Config(models.Model):
 
     class Meta:
         db_table = 'bublik_config'
-        constraints = [
+        constraints: ClassVar[list] = [
             models.UniqueConstraint(
                 fields=['project', 'type', 'name'],
                 condition=models.Q(is_active=True),
