@@ -12,6 +12,7 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.measurement.services import MeasurementService
 from bublik.data.models import Measurement
 from bublik.data.serializers import MeasurementSerializer
+from bublik.interfaces.api_v2.measurement.schemas import measurement_viewset_schema
 from bublik.interfaces.api_v2.measurement.serializers import (
     MeasurementByResultSerializer,
     MeasurementChartSerializer,
@@ -23,6 +24,7 @@ all = [
 ]
 
 
+@measurement_viewset_schema
 class MeasurementViewSet(GenericViewSet):
     pagination_class = None
     queryset = Measurement.objects.all()

@@ -20,3 +20,21 @@ class MeasurementByResultSerializer(serializers.Serializer):
     test_name = serializers.CharField()
     parameters_list = serializers.ListField(child=serializers.CharField())
     measurement_series_charts = MeasurementChartSerializer(many=True)
+
+
+class MeasurementMetasSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    type = serializers.CharField()
+    value = serializers.CharField()
+    comment = serializers.CharField(allow_null=True)
+
+
+class MeasurementListResponseSerializer(serializers.Serializer):
+    metas = MeasurementMetasSerializer(many=True)
+
+
+class MeasurementRequestBodySerializer(serializers.Serializer):
+    result_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False,
+    )
