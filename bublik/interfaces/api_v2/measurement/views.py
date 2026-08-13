@@ -24,6 +24,7 @@ all = [
 
 
 class MeasurementViewSet(GenericViewSet):
+    pagination_class = None
     queryset = Measurement.objects.all()
     serializer_class = MeasurementSerializer
     search_fields: typing.ClassVar[list[str]] = ['tool', 'type', 'name', 'keys', 'aggr']
