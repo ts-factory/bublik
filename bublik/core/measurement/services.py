@@ -211,6 +211,9 @@ class MeasurementService:
         """
         try:
             return Measurement.objects.get(id=measurement_id)
+        except ValueError as e:
+            msg = f'Invalid measurement ID: {measurement_id}'
+            raise ValidationError(msg) from e
         except ObjectDoesNotExist as e:
             msg = f'Measurement {measurement_id} not found'
             raise NotFoundError(msg) from e
