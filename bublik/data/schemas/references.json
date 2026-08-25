@@ -17,6 +17,7 @@
                         "items": {
                             "type": "string"
                         },
+                        "minItems": 1,
                         "uniqueItems": true
                     }
                 },
@@ -26,6 +27,7 @@
                 ],
                 "additionalProperties": false
             },
+            "minItems": 1,
             "uniqueItems": true,
             "default": [
                 {
