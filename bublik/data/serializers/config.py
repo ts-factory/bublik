@@ -7,7 +7,7 @@ from typing import ClassVar
 from django.contrib.auth import get_user_model
 from django.db import transaction
 import jsonschema
-from jsonschema import validate
+from jsonschema import FormatChecker, validate
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
@@ -117,7 +117,7 @@ class ConfigSerializer(ModelSerializer):
         json_schema = ConfigServices.get_schema(config_type, config_name)
         if json_schema:
             try:
-                validate(instance=content, schema=json_schema)
+                validate(instance=content, schema=json_schema, format_checker=FormatChecker())
             except jsonschema.exceptions.ValidationError as jeve:
                 jeve_msg = jeve.message[0].lower() + jeve.message[1:]
                 msg = f'Invalid format: {jeve_msg}'
