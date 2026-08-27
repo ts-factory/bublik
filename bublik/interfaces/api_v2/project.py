@@ -14,6 +14,7 @@ from bublik.data.serializers import ProjectSerializer
 
 class ProjectViewSet(ModelViewSet):
     serializer_class = ProjectSerializer
+    pagination_class = None
 
     def get_queryset(self):
         return ProjectService.list_projects_queryset()
