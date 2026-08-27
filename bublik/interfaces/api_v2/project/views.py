@@ -10,8 +10,10 @@ from rest_framework.viewsets import ModelViewSet
 from bublik.core.auth import auth_required
 from bublik.core.project import ProjectBadgeService, ProjectService
 from bublik.data.serializers import ProjectSerializer
+from bublik.interfaces.api_v2.project.schemas import project_viewset_schema
 
 
+@project_viewset_schema
 class ProjectViewSet(ModelViewSet):
     serializer_class = ProjectSerializer
     pagination_class = None
@@ -66,14 +68,6 @@ class ProjectViewSet(ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='badge')
     def badge(self, request, pk=None):
-        """
-        SVG badge for the latest run of a project.
-
-        Query parameters:
-            label   (optional) -- left-side text; defaults to project name
-            metric  (optional) -- passed | unexpected | total | rate
-                                   default shows run conclusion with nok count
-        """
         project = self.get_object()
         label = request.query_params.get('label') or project.name
         metric = request.query_params.get('metric', '').lower()
