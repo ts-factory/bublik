@@ -727,24 +727,16 @@
         "miEntry": {
             "type": "object",
             "title": "Measurement Entry",
-            "description": "Measurement entry. Entries are grouped internally by (aggr, base_units, multiplier).",
+            "description": "Measurement entry. Entries are grouped internally by (aggr, base_units, multiplier). Exactly one of 'value' or 'values' must be present.",
             "properties": {
                 "value": {
-                    "description": "Single value or list. Internally normalised to a list during import.",
-                    "oneOf": [
-                        {
-                            "type": "number"
-                        },
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "array",
-                            "items": {
-                                "type": ["number", "string"]
-                            }
-                        }
-                    ]
+                    "type": ["number", "string"],
+                    "description": "Single value. Mutually exclusive with 'values' — exactly one of the two must be present."
+                },
+                "values": {
+                    "type": "array",
+                    "items": { "type": ["number", "string"] },
+                    "description": "List of values. Mutually exclusive with 'value' — exactly one of the two must be present."
                 },
                 "aggr": {
                     "type": "string",
@@ -760,10 +752,12 @@
                     "description": "Metric/binary prefix code used to derive the display unit prefix (e.g. '1e-3' -> milli/m, '0x1p20' -> mebi/Mi)."
                 }
             },
-            "required": ["value", "aggr", "base_units", "multiplier"],
-            "additionalProperties": {
-                "type": ["string", "number"]
-            }
+            "required": ["aggr", "base_units", "multiplier"],
+            "oneOf": [
+                { "required": ["value"] },
+                { "required": ["values"] }
+            ],
+            "additionalProperties": { "type": ["string", "number"] }
         },
         "miView": {
             "type": "object",
