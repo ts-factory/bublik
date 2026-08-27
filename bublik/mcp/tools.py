@@ -30,6 +30,8 @@ from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, rende
 if TYPE_CHECKING:
     from fastmcp import FastMCP
 
+    from bublik.core.project.dto import ProjectDTO
+
 
 logger = logging.getLogger(__name__)
 
@@ -169,17 +171,17 @@ def register_tools(mcp: FastMCP):  # noqa: C901
     # Project tools
 
     @mcp.tool()
-    async def list_projects() -> list[dict]:
+    async def list_projects() -> list[ProjectDTO]:
         """
         List all available projects.
 
         Returns:
-            List of projects with id and name
+            List of ProjectDTOs
         """
         return await sync_to_async(ProjectService.list_projects)()
 
     @mcp.tool()
-    async def get_project(project_id: int) -> dict:
+    async def get_project(project_id: int) -> ProjectDTO:
         """
         Get details of a specific project.
 
@@ -187,7 +189,7 @@ def register_tools(mcp: FastMCP):  # noqa: C901
             project_id: The ID of the project
 
         Returns:
-            Dictionary with project id and name
+            ProjectDTO
         """
         return await sync_to_async(ProjectService.get_project)(project_id)
 

@@ -28,7 +28,7 @@ from .management import clear_all_runs_stats_cache, local_logs, meta_categorizat
 from .measurements import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
 from .performance import PerformanceCheckView
-from .project import ProjectViewSet
+from .project.views import ProjectViewSet
 from .report import ReportViewSet
 from .result.views import ResultViewSet
 from .run.views import RunViewSet
