@@ -17,7 +17,7 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bublik.core.datetime_formatting import date_str_to_db
+from bublik.core.datetime_formatting import parse_date_param
 from bublik.core.exceptions import NotFoundError
 from bublik.data.models import EventLog, TestIterationResult
 from bublik.data.serializers import EventLogSerializer
@@ -65,7 +65,7 @@ class ImportEventViewSet(ListModelMixin, GenericViewSet):
             import_events = import_events.filter(facility=facility)
 
         if date:
-            import_events = import_events.filter(timestamp__date=date_str_to_db(date))
+            import_events = import_events.filter(timestamp__date=parse_date_param(date, 'date'))
 
         if severity:
             import_events = import_events.filter(severity=severity)
