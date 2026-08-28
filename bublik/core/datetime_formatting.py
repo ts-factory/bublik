@@ -9,6 +9,7 @@ from django.conf import settings
 from django.utils import timezone
 import pendulum
 import pytz
+from rest_framework.exceptions import ValidationError
 
 
 """
@@ -46,6 +47,31 @@ def date_str_to_date(ds):
 def date_str_to_db(ds):
     dt = date_str_to_date(ds)
     return dt.strftime(DB_DATE_FORMAT['iso_date'])
+
+
+def parse_date_param(ds, field_name='date'):
+    """
+    Parse a date string from a query parameter (any of INPUT_DATE_FORMATS).
+
+    Args:
+        ds: The date string to parse
+        field_name: Field name to report in the raised ValidationError
+
+    Returns:
+        A date object
+
+    Raises:
+        ValidationError: if ds doesn't match any of INPUT_DATE_FORMATS
+    """
+    parsed = date_str_to_date(ds)
+    if parsed is None:
+        expected = ', '.join(
+            parse_format.replace('%Y', 'YYYY').replace('%m', 'MM').replace('%d', 'DD')
+            for parse_format in INPUT_DATE_FORMATS
+        )
+        msg = f'Invalid date format, expected one of: {expected}.'
+        raise ValidationError({field_name: msg})
+    return parsed
 
 
 def display_to_date_in_numbers(dt):
