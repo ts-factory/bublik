@@ -53,6 +53,10 @@ class TestIterationResultQuerySet(QuerySet):
 
         return self
 
+    def stamped_under(self, issue_ids):
+        """Results carrying a stamp of a rule of any of the given issues."""
+        return self.filter(rule_results__issue_rule__issue_id__in=issue_ids)
+
     def filter_by_result_classification(self, properties):
         if 'expected' in properties and 'unexpected' in properties:
             return self
@@ -100,6 +104,5 @@ class TestIterationResultQuerySet(QuerySet):
         return self.filter(start__gte=from_d, start__lte=to_d)
 
 
-class TestIterationResultManager(Manager):
-    def get_queryset(self):
-        return TestIterationResultQuerySet(self.model, using=self._db)
+class TestIterationResultManager(Manager.from_queryset(TestIterationResultQuerySet)):
+    """The queryset's filters are callable on `TestIterationResult.objects` too."""
