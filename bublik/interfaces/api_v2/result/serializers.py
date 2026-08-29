@@ -14,6 +14,7 @@ class ResultListQuerySerializer(serializers.Serializer):
     results = serializers.CharField(required=False)
     result_properties = serializers.CharField(required=False)
     requirements = serializers.CharField(required=False)
+    issue = serializers.CharField(required=False)
 
 
 class ResultKeySerializer(serializers.Serializer):
