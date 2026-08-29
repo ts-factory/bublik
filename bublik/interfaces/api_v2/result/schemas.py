@@ -42,8 +42,8 @@ result_viewset_schema = extend_schema_view(
         summary='List results',
         description="""
         Returns test iteration results matching the provided parent, test name,
-        execution sequence, result status, classification, and requirement
-        filters.
+        execution sequence, result status, classification, requirement, and
+        issue filters.
         """,
         parameters=[ResultListQuerySerializer],
         responses={
