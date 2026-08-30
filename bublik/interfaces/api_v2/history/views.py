@@ -126,3 +126,12 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         project_id = request.query_params.get('project')
         data = HistoryService.get_metas_search_options(project_id)
         return Response(HistoryMetasSearchOptionsSerializer(data).data)
+
+    @action(detail=False, methods=['get'], renderer_classes=[JSONRenderer])
+    def issue_search_options(self, request, pk=None):
+        project_id = request.query_params.get('project')
+        test_name = request.query_params.get('test_name')
+        if not test_name:
+            msg = 'No test name specified'
+            raise ValidationError(msg)
+        return Response(HistoryService.get_issue_search_options(project_id, test_name))

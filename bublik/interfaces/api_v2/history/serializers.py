@@ -185,6 +185,12 @@ class HistoryTagsSerializer(serializers.Serializer):
     all = serializers.ListField(child=serializers.CharField())
 
 
+class HistoryIssueSearchOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    bug_key = serializers.CharField(allow_null=True)
+
+
 class HistoryMetasSearchOptionsSerializer(serializers.Serializer):
     tags = HistoryTagsSerializer()
     branches = serializers.ListField(child=serializers.CharField())
