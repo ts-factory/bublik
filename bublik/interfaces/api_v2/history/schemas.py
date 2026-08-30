@@ -6,6 +6,7 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
+    HistoryIssueSearchOptionSerializer,
     HistoryListQuerySerializer,
     HistoryListResponseSerializer,
     HistoryMetasSearchOptionsSerializer,
@@ -111,6 +112,29 @@ history_viewset_schema = extend_schema_view(
             200: OpenApiResponse(
                 response=HistoryMetasSearchOptionsSerializer,
                 description='Metadata search options were successfully retrieved',
+            ),
+        },
+        tags=[HISTORY_TAG],
+    ),
+    issue_search_options=extend_schema(
+        summary='List issue search options',
+        description="""
+        Returns issues with at least one rule matched by results of the selected
+        test, ordered by title. Used by the history issue filter.
+        """,
+        parameters=[HistoryParamsSearchQuerySerializer],
+        responses={
+            200: OpenApiResponse(
+                response=HistoryIssueSearchOptionSerializer(many=True),
+                description='Issue search options were successfully retrieved',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Test name is missing',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Test was not found',
             ),
         },
         tags=[HISTORY_TAG],
