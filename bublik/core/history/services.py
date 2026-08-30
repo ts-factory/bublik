@@ -28,6 +28,7 @@ from bublik.core.run.tests_organization import get_test_ids_by_name
 from bublik.core.run.utils import prepare_dates_period
 from bublik.core.utils import key_value_list_transforming
 from bublik.data.models import (
+    Issue,
     MeasurementResult,
     Meta,
     MetaResult,
@@ -726,3 +727,32 @@ class HistoryService:
             'revisions': metas_cache.get('revisions'),
             'labels': metas_cache.get('labels'),
         }
+
+    @staticmethod
+    def get_issue_search_options(project_id: str | None, test_name: str) -> list[dict]:
+        """
+        Get issues with at least one rule for the given test, for the history
+        issue filter dropdown.
+
+        Args:
+            project_id: Optional project filter
+            test_name: Name of the test to scope issues to
+
+        Returns:
+            List of {id, title, bug_key} dicts, ordered by title
+
+        Raises:
+            NotFoundError: if test name is invalid
+        """
+        test_ids = get_test_ids_by_name(test_name)
+        if not test_ids:
+            msg = 'Test with the specified name was not found'
+            raise NotFoundError(msg)
+
+        qs = Issue.objects.filter(
+            rules__rule_results__result__iteration__test__in=test_ids,
+        ).distinct()
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+
+        return list(qs.values('id', 'title', 'bug_key').order_by('title'))
