@@ -231,6 +231,23 @@ class DashboardService:
                 else:
                     row_data[key] = [{'value': stats.get(key, '')}]
 
+        # go_comment columns show the run comment as their value. Resolved here
+        # (outside the cached build) so comment edits are reflected immediately.
+        comment_keys = [
+            key
+            for key, col_settings in columns.items()
+            if col_settings.get('payload') == 'go_comment'
+        ]
+        if comment_keys:
+            comment_mr = (
+                models.MetaResult.objects.filter(meta__type='comment', result=run)
+                .select_related('meta')
+                .first()
+            )
+            comment = comment_mr.meta.value if comment_mr else None
+            for key in comment_keys:
+                row_data[key] = [{'value': comment}] if comment else []
+
         # Normalize values (unwrap single-item lists)
         for key in list(row_data.keys()):
             data = row_data.get(key)

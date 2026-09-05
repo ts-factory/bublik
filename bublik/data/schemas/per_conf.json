@@ -83,6 +83,10 @@
                             {
                                 "const": "go_report",
                                 "description": "Go to Report (Most Recent)"
+                            },
+                            {
+                                "const": "go_comment",
+                                "description": "Show the run comment as the cell value"
                             }
                         ]
                     },

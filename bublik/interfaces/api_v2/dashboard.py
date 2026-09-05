@@ -315,6 +315,11 @@ class DashboardPayload:
         # TODO: In the new interface bugs will be display in a different place.
         return data
 
+    def go_comment(self, data, run):
+        # The run comment is injected as the cell value in prepare_row_data;
+        # rendered inline as text, so no link is attached here.
+        return data
+
     def go_source(self, data, run):
         for item in data:
             item.update(
