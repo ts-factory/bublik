@@ -53,10 +53,13 @@ class _StubAdapter:
     def __init__(self, stream_factory, native_events=()):
         self.run_input = type('RunInput', (), {'messages': []})()
         self.messages = []
+        self.model_settings = None
         self._stream_factory = stream_factory
         self._native_events = list(native_events)
 
-    def run_stream_native(self, *, deps=None, capabilities=None):
+    def run_stream_native(self, *, deps=None, capabilities=None, model_settings=None):
+        self.model_settings = model_settings
+
         async def events():
             for event in self._native_events:
                 yield event
@@ -267,3 +270,54 @@ class StreamRunEventsTest(IsolatedAsyncioTestCase):
             await self._collect('run1'),
             ['data: first\n\n', 'data: second\n\n'],
         )
+
+
+class RunOptionsModelSettingsTest(IsolatedAsyncioTestCase):
+    """Per-run model settings must reach the underlying agent call.
+
+    This is how a provider's conversation-scoped headers (e.g. OpenCode Go's
+    `x-opencode-session`) get onto every request without being baked into the
+    lru-cached agent.
+    """
+
+    def setUp(self):
+        server = fakeredis.FakeServer()
+        run_store._aredis = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
+        run_store._sredis = fakeredis.FakeRedis(server=server, decode_responses=True)
+
+    def tearDown(self):
+        run_store._aredis = None
+        run_store._sredis = None
+
+    async def test_model_settings_are_passed_to_run_stream_native(self):
+        async def stream():
+            yield 'data: a\n\n'
+
+        settings = {'extra_headers': {'x-opencode-session': 'thread-1'}}
+        await run_store.register_run('run-ms', 'thread-1', 7)
+        adapter = _StubAdapter(stream)
+        deps = AiChatDeps(thread_id='thread-1', user_id=7, run_id='run-ms')
+
+        await streaming.produce_run(
+            adapter,
+            _StubAgent(),
+            'run-ms',
+            deps,
+            streaming.RunOptions(model_settings=settings),
+        )
+
+        self.assertEqual(adapter.model_settings, settings)
+
+    async def test_model_settings_default_to_none(self):
+        async def stream():
+            yield 'data: a\n\n'
+
+        await run_store.register_run('run-none', 'thread-2', 7)
+        adapter = _StubAdapter(stream)
+        deps = AiChatDeps(thread_id='thread-2', user_id=7, run_id='run-none')
+
+        await streaming.produce_run(
+            adapter, _StubAgent(), 'run-none', deps, streaming.RunOptions()
+        )
+
+        self.assertIsNone(adapter.model_settings)

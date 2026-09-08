@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+import uuid
 
 from django.conf import settings
 from pydantic import ValidationError
@@ -152,6 +153,90 @@ def resolve_api_key(provider: Provider) -> str | None:
     return resolve_secret_reference(provider.api_key)
 
 
+# Every complete ${...} placeholder. Whether its contents are a valid
+# substitution or secret reference is decided per match below; static text
+# passes through untouched.
+_PLACEHOLDER_RE = re.compile(r'\$\{[^}]*\}')
+
+
+def resolve_headers(
+    headers: dict[str, str],
+    label: str,
+    substitutions: dict[str, str] | None = None,
+) -> dict[str, str] | None:
+    """Resolve every placeholder in a header mapping, or ``None`` on failure.
+
+    ``substitutions`` supplies non-secret values by bare name (``${thread_id}``)
+    and is consulted first; anything else must be a strict source-qualified
+    ``AI_`` secret reference (see :func:`resolve_secret_reference`).
+
+    All-or-nothing by design: a placeholder with invalid syntax, a non-``AI_``
+    name, or an unresolved value makes the whole mapping unusable, so the caller
+    drops it rather than sending a literal ``${...}`` -- or a header the remote
+    end routes on -- upstream. ``label`` only names the source in the log line.
+    """
+    substitutions = substitutions or {}
+    resolved: dict[str, str] = {}
+    for key, value in headers.items():
+        unresolved: list[str] = []
+
+        def _sub(match: re.Match, _unresolved=unresolved) -> str:
+            placeholder = match.group(0)
+            name = placeholder[2:-1]
+            if name in substitutions:
+                return substitutions[name]
+            secret = resolve_secret_reference(placeholder)
+            if secret is None:
+                _unresolved.append(placeholder)
+                return ''
+            return secret
+
+        substituted = _PLACEHOLDER_RE.sub(_sub, value)
+        if unresolved:
+            logger.warning(
+                '%s: headers dropped, unresolved reference(s) %s in header %r',
+                label,
+                ', '.join(unresolved),
+                key,
+            )
+            return None
+        # A newline in a resolved value would let a poisoned env var smuggle in
+        # extra headers; refuse rather than sanitize.
+        if '\r' in substituted or '\n' in substituted:
+            logger.warning(
+                '%s: headers dropped, header %r resolved to a value containing a newline',
+                label,
+                key,
+            )
+            return None
+        resolved[key] = substituted
+    return resolved
+
+
+def resolve_provider_headers(
+    provider: Provider,
+    thread_id: str | None = None,
+) -> dict[str, str]:
+    """A provider's request headers, resolved for one conversation.
+
+    ``${thread_id}`` becomes ``thread_id``: gateways such as OpenCode Go route
+    and cache on a caller-supplied session id that must stay stable for the
+    whole conversation, which is exactly what a Bublik thread id is. Callers
+    without a conversation (model discovery) pass a stable synthetic id.
+    Returns an empty mapping when nothing is configured or resolution failed.
+    """
+    if not provider.headers:
+        return {}
+    substitutions = {'thread_id': thread_id} if thread_id else {}
+    return resolve_headers(provider.headers, f'provider {provider.id!r}', substitutions) or {}
+
+
+# Model discovery has no conversation to key on, but a gateway may still require
+# the session header on its /models endpoint. A namespaced UUID5 is stable across
+# restarts and shaped like the per-conversation ids, without impersonating one.
+DISCOVERY_SESSION_ID = str(uuid.uuid5(uuid.NAMESPACE_URL, 'bublik-model-discovery'))
+
+
 def effective_ai_config(config: AiConfig) -> AiConfig:
     """The config with every provider's model list populated and enriched.
 
@@ -160,7 +245,13 @@ def effective_ai_config(config: AiConfig) -> AiConfig:
     """
     providers = [
         provider.model_copy(
-            update={'models': populate_models(provider, resolve_api_key(provider))},
+            update={
+                'models': populate_models(
+                    provider,
+                    resolve_api_key(provider),
+                    resolve_provider_headers(provider, DISCOVERY_SESSION_ID),
+                ),
+            },
         )
         for provider in config.providers
     ]

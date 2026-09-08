@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 import hashlib
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -157,12 +158,19 @@ def enrich_model(entry: ModelEntry, provider: Provider) -> ModelEntry:
     return entry.model_copy(update=update) if update else entry
 
 
-def _discovery_cache_key(provider: Provider) -> str:
-    url_digest = hashlib.sha1((provider.api_url or '').encode()).hexdigest()
-    return f'ai-models:{provider.id}:{url_digest}'
+def _discovery_cache_key(provider: Provider, headers: dict[str, str] | None = None) -> str:
+    # Headers are part of the key: editing them changes what the gateway
+    # returns (or whether it answers at all), so a stale entry must not win.
+    material = f'{provider.api_url or ""}|{json.dumps(headers or {}, sort_keys=True)}'
+    digest = hashlib.sha1(material.encode()).hexdigest()
+    return f'ai-models:{provider.id}:{digest}'
 
 
-def _fetch_gateway_models(provider: Provider, api_key: str | None) -> list[dict]:
+def _fetch_gateway_models(
+    provider: Provider,
+    api_key: str | None,
+    headers: dict[str, str] | None = None,
+) -> list[dict]:
     """Fetch model ids (and optional display names) from a ``/models`` endpoint.
 
     Supports OpenAI-protocol providers (``Authorization: Bearer``) and the
@@ -171,21 +179,26 @@ def _fetch_gateway_models(provider: Provider, api_key: str | None) -> list[dict]
     degrades to an empty model list rather than breaking /chat/models.
     """
     cache = caches['ai_models']
-    cache_key = _discovery_cache_key(provider)
+    cache_key = _discovery_cache_key(provider, headers)
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
     api_url = (provider.api_url or '').rstrip('/')
-    headers = {}
+    request_headers: dict[str, str] = {}
     params = {}
     if provider.type == 'anthropic':
         if api_key:
-            headers['x-api-key'] = api_key
-        headers['anthropic-version'] = '2023-06-01'
+            request_headers['x-api-key'] = api_key
+        request_headers['anthropic-version'] = '2023-06-01'
         params['limit'] = 1000
     elif api_key:
-        headers['Authorization'] = f'Bearer {api_key}'
+        request_headers['Authorization'] = f'Bearer {api_key}'
+    # Configured headers last, as on the inference path, where they ride as
+    # `extra_headers` and the SDK merges them over the client's own auth
+    # header: a gateway whose auth scheme `api_key` cannot express has to be
+    # reachable here too, or none of its models ever show up in /chat/models.
+    request_headers.update(headers or {})
 
     if provider.type == 'anthropic':
         # The Anthropic Messages API versions its paths: the models list lives
@@ -198,7 +211,7 @@ def _fetch_gateway_models(provider: Provider, api_key: str | None) -> list[dict]
     try:
         response = httpx.get(
             models_url,
-            headers=headers,
+            headers=request_headers,
             params=params,
             timeout=_DISCOVERY_TIMEOUT_S,
         )
@@ -225,14 +238,18 @@ def _fetch_gateway_models(provider: Provider, api_key: str | None) -> list[dict]
     return items
 
 
-def _http_discovered_models(provider: Provider, api_key: str | None) -> list[ModelEntry]:
+def _http_discovered_models(
+    provider: Provider,
+    api_key: str | None,
+    headers: dict[str, str] | None = None,
+) -> list[ModelEntry]:
     """Model entries from a gateway's ``/models`` endpoint, enriched from models.dev.
 
     The display name is the gateway-provided one or the raw model id -- never a
     models.dev name: the gateway may serve a variant that only shares the id.
     """
     entries = []
-    for item in _fetch_gateway_models(provider, api_key):
+    for item in _fetch_gateway_models(provider, api_key, headers):
         entry = ModelEntry(id=item['id'], name=item.get('display_name') or item['id'])
         entries.append(enrich_model(entry, provider))
     return entries
@@ -246,12 +263,16 @@ def models_from_models_dev(provider_id: str) -> list[ModelEntry]:
     return [_entry_from_md(model_id, model) for model_id, model in sorted(md.models.items())]
 
 
-def populate_models(provider: Provider, api_key: str | None) -> list[ModelEntry]:
+def populate_models(
+    provider: Provider,
+    api_key: str | None,
+    headers: dict[str, str] | None = None,
+) -> list[ModelEntry]:
     """Resolve a provider's model list (see the module docstring for priority)."""
     if provider.models is not None:
         return [enrich_model(entry, provider) for entry in provider.models]
     if provider.api_url and provider.type in _DISCOVERABLE_TYPES:
-        return _http_discovered_models(provider, api_key)
+        return _http_discovered_models(provider, api_key, headers)
     models = models_from_models_dev(provider.id)
     if not models:
         logger.warning(

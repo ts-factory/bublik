@@ -301,6 +301,17 @@
                         "type": "string",
                         "pattern": "^(?![\\s\\S]*[\\r\\n])\\$\\{(env|settings):AI_[A-Z0-9_]+\\}$"
                     },
+                    "headers": {
+                        "description": "Extra HTTP headers sent with every request to this provider, including model discovery. A header value may embed one or more source-qualified ${env:AI_NAME} or ${settings:AI_NAME} placeholders (only AI_-prefixed names are honoured), plus ${thread_id}, which resolves to the id of the conversation the request belongs to and stays stable for its whole lifetime. Use it for gateways that route or cache on a caller-supplied session id, e.g. OpenCode Go: {\"x-opencode-session\": \"${thread_id}\"}. Static values pass through unchanged, so a custom \"User-Agent\" works too. These headers are applied last, over the auth header derived from api_key (Authorization: Bearer for OpenAI-protocol types, x-api-key for anthropic), so setting one of those names here deliberately replaces it -- that is the way to reach a gateway whose auth scheme api_key cannot express, e.g. {\"Authorization\": \"Basic ${env:AI_GATEWAY_BASIC}\"}. If any complete placeholder is invalid or unresolved, or a value resolves to something containing a newline, the headers are dropped with a logged warning. Honoured for OpenAI-, Anthropic-, Gemini-, Groq- and xAI-based provider types.",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "model_settings": {
+                        "description": "Pydantic AI model settings applied to every request to this provider (e.g. {\"temperature\": 0.2}). Escape hatch for provider quirks the rest of the config cannot reach. Set {\"openai_continuous_usage_stats\": true} for OpenAI-protocol gateways that report cumulative token usage on every stream chunk rather than only the last one -- without it the reported context usage is multiplied by the number of chunks. Merged under the resolved headers, and over the settings derived from the model entry.",
+                        "type": "object"
+                    },
                     "models": {
                         "description": "Models exposed by this provider; unset fields of each entry are enriched from models.dev, so an entry can also be used to override models.dev metadata. Omit the list entirely to auto-populate: from HTTP discovery via GET {api_url}/models (when api_url is set on a discoverable type), otherwise from models.dev (when the provider id matches a known models.dev provider).",
                         "type": "array",

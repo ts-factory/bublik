@@ -48,11 +48,15 @@ class RunOptions:
     ``capabilities`` carries the run's history compactor and ``on_complete``
     its usage reporter (see :mod:`bublik.ai.compaction`); both are per-run
     state, which is exactly why they ride the run call rather than the
-    lru-cached agent.
+    lru-cached agent. ``model_settings`` is the same story: it carries the
+    provider headers resolved for this conversation, which vary per thread and
+    so must not be baked into the shared agent. Run-level settings are merged
+    over the agent's, so the agent's own settings survive.
     """
 
     capabilities: Sequence[AbstractCapability] = field(default_factory=tuple)
     on_complete: Any = None
+    model_settings: Any = None
 
 
 logger = logging.getLogger(__name__)
@@ -97,6 +101,7 @@ async def _buffer_stream(
         native = adapter.run_stream_native(
             deps=deps,
             capabilities=options.capabilities or None,
+            model_settings=options.model_settings,
         )
         async for event in native:
             partial.add(event)

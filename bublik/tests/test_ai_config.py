@@ -4,6 +4,7 @@
 import json
 from pathlib import Path
 from unittest import mock
+import uuid
 
 from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
@@ -11,13 +12,16 @@ from jsonschema import Draft7Validator
 
 from bublik.ai.agent import build_agent
 from bublik.ai.config import (
+    DISCOVERY_SESSION_ID,
     ModelRequestError,
     config_fingerprint,
     effective_ai_config,
     parse_ai_config,
     public_models,
     resolve_api_key,
+    resolve_headers,
     resolve_model_request,
+    resolve_provider_headers,
     resolve_secret_reference,
 )
 from bublik.ai.discovery import (
@@ -25,7 +29,7 @@ from bublik.ai.discovery import (
     enrich_model,
     populate_models,
 )
-from bublik.ai.mcp import build_mcp_toolsets, resolve_mcp_headers
+from bublik.ai.mcp import build_mcp_toolsets
 from bublik.ai.types import AiConfig, McpServer, ModelEntry, Provider
 import bublik.data
 
@@ -435,6 +439,53 @@ class ModelDiscoveryTest(SimpleTestCase):
         self.assertNotIn('anthropic-version', kwargs['headers'])
         self.assertEqual(kwargs['params'], {})
 
+    @mock.patch('bublik.ai.discovery.httpx.get')
+    @override_settings(AI_OPENAI_KEY='sk-test')
+    def test_configured_header_overrides_the_derived_bearer_auth(self, mock_get):
+        # Same precedence as the inference path (see `test_ai_chat_app`): a
+        # gateway whose auth scheme `api_key` cannot express must be reachable
+        # for discovery too, or none of its models show up in /chat/models.
+        mock_get.return_value.json.return_value = {'data': []}
+        mock_get.return_value.raise_for_status.return_value = None
+
+        provider = _provider(
+            id='openai-basic',
+            api_url='https://gateway.test/v1',
+            api_key='${settings:AI_OPENAI_KEY}',
+            headers={'Authorization': 'Basic ZGVtbzpzM2tyZXQ='},
+        )
+        populate_models(
+            provider,
+            resolve_api_key(provider),
+            resolve_provider_headers(provider, DISCOVERY_SESSION_ID),
+        )
+
+        _args, kwargs = mock_get.call_args
+        self.assertEqual(kwargs['headers']['Authorization'], 'Basic ZGVtbzpzM2tyZXQ=')
+
+    @mock.patch('bublik.ai.discovery.httpx.get')
+    @override_settings(AI_ANTHROPIC_KEY='sk-ant-test')
+    def test_configured_header_overrides_the_derived_anthropic_key(self, mock_get):
+        mock_get.return_value.json.return_value = {'data': []}
+        mock_get.return_value.raise_for_status.return_value = None
+
+        provider = _provider(
+            id='anthropic-override',
+            type='anthropic',
+            api_url='https://gateway.test/v1',
+            api_key='${settings:AI_ANTHROPIC_KEY}',
+            headers={'x-api-key': 'gateway-issued', 'anthropic-version': '2024-01-01'},
+        )
+        populate_models(
+            provider,
+            resolve_api_key(provider),
+            resolve_provider_headers(provider, DISCOVERY_SESSION_ID),
+        )
+
+        _args, kwargs = mock_get.call_args
+        self.assertEqual(kwargs['headers']['x-api-key'], 'gateway-issued')
+        self.assertEqual(kwargs['headers']['anthropic-version'], '2024-01-01')
+
 
 class ResolveMcpHeadersTest(SimpleTestCase):
     @override_settings(AI_GITHUB_AUTH_TOKEN='ghtok')
@@ -445,7 +496,7 @@ class ResolveMcpHeadersTest(SimpleTestCase):
             headers={'Authorization': 'Bearer ${settings:AI_GITHUB_AUTH_TOKEN}'},
         )
         self.assertEqual(
-            resolve_mcp_headers(server),
+            resolve_headers(server.headers, 'test'),
             {'Authorization': 'Bearer ghtok'},
         )
 
@@ -461,7 +512,7 @@ class ResolveMcpHeadersTest(SimpleTestCase):
             },
         )
         self.assertEqual(
-            resolve_mcp_headers(server),
+            resolve_headers(server.headers, 'test'),
             {'X-Api-Key': 'pre-xyz-tail', 'X-Tenant': 'acme'},
         )
 
@@ -471,7 +522,7 @@ class ResolveMcpHeadersTest(SimpleTestCase):
             url='https://example.com/mcp',
             headers={'Authorization': 'Bearer ${env:AI_MISSING_TOKEN}'},
         )
-        self.assertIsNone(resolve_mcp_headers(server))
+        self.assertIsNone(resolve_headers(server.headers, 'test'))
 
     def test_complete_invalid_reference_skips_server(self):
         for reference in (
@@ -487,11 +538,11 @@ class ResolveMcpHeadersTest(SimpleTestCase):
                     url='https://example.com/mcp',
                     headers={'Authorization': f'Bearer {reference}'},
                 )
-                self.assertIsNone(resolve_mcp_headers(server))
+                self.assertIsNone(resolve_headers(server.headers, 'test'))
 
     def test_no_headers_resolves_to_empty(self):
         self.assertEqual(
-            resolve_mcp_headers(McpServer(id='x', url='https://example.com/mcp')),
+            resolve_headers(McpServer(id='x', url='https://example.com/mcp').headers, 'test'),
             {},
         )
 
@@ -641,3 +692,130 @@ class AiSchemaTest(SimpleTestCase):
 
     def test_config_without_mcp_servers_still_validates(self):
         self.assertTrue(self._is_valid(_config()))
+
+
+class ProviderHeadersTest(SimpleTestCase):
+    """Per-provider request headers (see `resolve_provider_headers`)."""
+
+    THREAD = 'f0e0d3a2-1111-2222-3333-444455556666'
+
+    def _provider(self, **headers):
+        return Provider(id='opencode', type='openai', headers=headers)
+
+    @override_settings(AI_TEST_API_KEY='sekret')
+    def test_resolves_secrets_thread_id_and_static_values(self):
+        provider = self._provider(
+            **{
+                'x-opencode-session': '${thread_id}',
+                'Authorization': 'Bearer ${settings:AI_TEST_API_KEY}',
+                'User-Agent': 'bublik-chat/1.0',
+            }
+        )
+        self.assertEqual(
+            resolve_provider_headers(provider, self.THREAD),
+            {
+                'x-opencode-session': self.THREAD,
+                'Authorization': 'Bearer sekret',
+                'User-Agent': 'bublik-chat/1.0',
+            },
+        )
+
+    def test_thread_id_is_stable_per_conversation_and_differs_between_threads(self):
+        provider = self._provider(**{'x-opencode-session': '${thread_id}'})
+        first = resolve_provider_headers(provider, self.THREAD)
+        # Prompt caching upstream depends on this being identical across turns.
+        self.assertEqual(first, resolve_provider_headers(provider, self.THREAD))
+        other = resolve_provider_headers(provider, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+        self.assertNotEqual(first, other)
+
+    def test_discovery_session_id_is_a_stable_uuid(self):
+        provider = self._provider(**{'x-opencode-session': '${thread_id}'})
+        resolved = resolve_provider_headers(provider, DISCOVERY_SESSION_ID)
+        self.assertEqual(resolved['x-opencode-session'], DISCOVERY_SESSION_ID)
+        self.assertEqual(str(uuid.UUID(DISCOVERY_SESSION_ID)), DISCOVERY_SESSION_ID)
+
+    def test_thread_id_without_a_conversation_is_unresolved(self):
+        provider = self._provider(**{'x-opencode-session': '${thread_id}'})
+        self.assertEqual(resolve_provider_headers(provider, None), {})
+
+    def test_no_headers_configured(self):
+        self.assertEqual(resolve_provider_headers(Provider(id='p', type='openai')), {})
+
+    def test_non_ai_settings_name_is_refused(self):
+        # The whole point of the AI_ guard: no reaching into arbitrary settings.
+        self.assertIsNone(resolve_headers({'X': '${settings:SECRET_KEY}'}, 'test'))
+        self.assertIsNone(resolve_headers({'X': '${env:PATH}'}, 'test'))
+
+    @override_settings(AI_INJECTED='one\r\nX-Evil: two')
+    def test_newline_in_a_resolved_value_is_refused(self):
+        self.assertIsNone(resolve_headers({'X': '${settings:AI_INJECTED}'}, 'test'))
+
+    @override_settings(AI_TEST_API_KEY='sekret')
+    def test_headers_are_never_exposed_to_the_ui(self):
+        config = AiConfig(
+            providers=[
+                Provider(
+                    id='opencode',
+                    type='openai',
+                    headers={'Authorization': 'Bearer ${settings:AI_TEST_API_KEY}'},
+                    models=[ModelEntry(id='m')],
+                )
+            ]
+        )
+        payload = json.dumps(public_models(config))
+        self.assertNotIn('headers', payload)
+        self.assertNotIn('sekret', payload)
+        self.assertNotIn('Authorization', payload)
+
+
+class ProviderModelSettingsTest(SimpleTestCase):
+    """Per-provider Pydantic AI model settings."""
+
+    def test_defaults_to_empty(self):
+        self.assertEqual(Provider(id='p', type='openai').model_settings, {})
+
+    def test_round_trips_through_the_config(self):
+        config = parse_ai_config(
+            {
+                'providers': [
+                    {
+                        'id': 'opencode-go',
+                        'type': 'openai',
+                        'model_settings': {'openai_continuous_usage_stats': True},
+                    }
+                ]
+            }
+        )
+        self.assertEqual(
+            config.providers[0].model_settings,
+            {'openai_continuous_usage_stats': True},
+        )
+
+    def test_is_never_exposed_to_the_ui(self):
+        config = AiConfig(
+            providers=[
+                Provider(
+                    id='p',
+                    type='openai',
+                    model_settings={'openai_continuous_usage_stats': True},
+                    models=[ModelEntry(id='m')],
+                )
+            ]
+        )
+        self.assertNotIn('model_settings', json.dumps(public_models(config)))
+
+    def test_schema_accepts_it(self):
+        schema = json.loads(
+            (Path(bublik.data.__file__).parent / 'schemas' / 'ai.json').read_text()
+        )
+        Draft7Validator(schema).validate(
+            {
+                'providers': [
+                    {
+                        'id': 'opencode-go',
+                        'type': 'openai',
+                        'model_settings': {'openai_continuous_usage_stats': True},
+                    }
+                ]
+            }
+        )
