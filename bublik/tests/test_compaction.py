@@ -21,6 +21,7 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bublik.settings')
 django.setup()
 
+from pydantic_ai import Agent  # noqa: E402
 from pydantic_ai.messages import (  # noqa: E402
     ModelRequest,
     ModelResponse,
@@ -200,6 +201,32 @@ class CompactorTest(IsolatedAsyncioTestCase):
         # The compaction event was appended to the run's buffer.
         self.append_event.assert_awaited_once()
         self.assertIn(compaction.COMPACTED_EVENT, self.append_event.await_args.args[1])
+
+    async def _run_compaction_capturing_settings(self, compactor):
+        """Drive one real compaction, returning the summarizer's model_settings."""
+        captured = {}
+        real_run = Agent.run
+
+        async def spy(agent_self, *args, **kwargs):
+            captured['model_settings'] = kwargs.get('model_settings')
+            return await real_run(agent_self, *args, **kwargs)
+
+        compactor._state = {'context_tokens': 900}
+        messages = [_user('q1'), _assistant('a1'), _user('q2'), _assistant('a2')]
+        with mock.patch.object(Agent, 'run', spy):
+            await compactor(_Ctx(), messages)
+        return captured['model_settings']
+
+    async def test_summarizer_receives_the_runs_model_settings(self):
+        # The summarizer is a second agent hitting the same provider endpoint:
+        # a gateway requiring a session header (OpenCode Go) would fail
+        # compaction while ordinary chat kept working.
+        settings = {'extra_headers': {'x-opencode-session': 't1'}}
+        compactor = _compactor(model_settings=settings)
+        self.assertEqual(await self._run_compaction_capturing_settings(compactor), settings)
+
+    async def test_summarizer_settings_default_to_none(self):
+        self.assertIsNone(await self._run_compaction_capturing_settings(_compactor()))
 
     async def test_compacts_once_per_run(self):
         compactor = _compactor()

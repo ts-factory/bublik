@@ -49,6 +49,7 @@ from bublik.ai.config import (
     parse_ai_config,
     public_models,
     resolve_model_request,
+    resolve_provider_headers,
 )
 from bublik.ai.downloads import download_file
 from bublik.ai.streaming import RunOptions, spawn_run, stream_run_events
@@ -160,6 +161,19 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
     try:
         deps = AiChatDeps(thread_id=thread_id, user_id=user.id, run_id=run_id)
 
+        # Provider headers resolved for *this* conversation: gateways such as
+        # OpenCode Go route and cache on a stable per-conversation session id
+        # (`x-opencode-session: ${thread_id}`) and reject requests without it.
+        # They ride the run, not the lru-cached agent, because they vary per
+        # thread; run-level settings merge over the agent's own.
+        provider_headers = resolve_provider_headers(_provider, thread_id)
+        # The provider's own settings come first so a config author can never
+        # clobber the headers the gateway routes on.
+        model_settings = dict(_provider.model_settings)
+        if provider_headers:
+            model_settings['extra_headers'] = provider_headers
+        model_settings = model_settings or None
+
         # Per-run context machinery (see bublik.ai.compaction): the compactor
         # rides the run's capabilities so the lru-cached agent stays shared, and
         # the usage reporter rides on_complete. Both are inert when the model's
@@ -174,6 +188,7 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
             config=config.compaction,
             context_limit=context_limit,
             summarizer_model=summarizer_model,
+            model_settings=model_settings,
             output_limit=_model_entry.limit.output if _model_entry.limit else None,
         )
         options = RunOptions(
@@ -185,6 +200,7 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
                 context_limit,
                 _provider.type,
             ),
+            model_settings=model_settings,
         )
         spawn_run(adapter, agent, run_id, deps, options)
     except Exception:

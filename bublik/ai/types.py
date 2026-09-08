@@ -92,6 +92,21 @@ class Provider(_Base):
     name: str | None = None
     api_url: str | None = None
     api_key: str | None = Field(default=None, pattern=SECRET_REFERENCE_PATTERN)
+    # Extra HTTP headers sent with every request to this provider. Values may
+    # embed ``${env:AI_NAME}``/``${settings:AI_NAME}`` secret references and the
+    # per-conversation ``${thread_id}`` placeholder (see
+    # :func:`bublik.ai.config.resolve_headers`). Needed by gateways that route
+    # on a caller-supplied session id, e.g. OpenCode Go's ``x-opencode-session``.
+    # Applied last, over the auth header each SDK derives from ``api_key``, so
+    # setting ``Authorization``/``x-api-key`` here deliberately replaces it --
+    # the only way to reach a gateway whose auth scheme ``api_key`` (one fixed
+    # scheme per provider ``type``) cannot express.
+    headers: dict[str, str] = Field(default_factory=dict)
+    # Pydantic AI ``ModelSettings`` applied to every request to this provider.
+    # Escape hatch for provider quirks the config cannot otherwise reach --
+    # most importantly ``openai_continuous_usage_stats`` for gateways that
+    # report cumulative usage on every stream chunk (see bublik.ai.compaction).
+    model_settings: dict = Field(default_factory=dict)
     models: list[ModelEntry] | None = None
 
 

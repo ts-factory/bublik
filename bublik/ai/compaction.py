@@ -229,12 +229,17 @@ class Compactor:
         config: CompactionConfig,
         context_limit: int | None,
         summarizer_model: Model | None,
+        model_settings: dict | None = None,
         output_limit: int | None = None,
     ) -> None:
         self._config = config
         self._context_limit = context_limit
         self._output_limit = output_limit
         self._summarizer_model = summarizer_model
+        # The run's provider headers. The summarizer is a separate agent hitting
+        # the same endpoint, so a gateway that rejects requests without them
+        # (e.g. OpenCode Go) would fail compaction while the chat itself works.
+        self._model_settings = model_settings
         self._state: dict | None = None
         self._compacted_this_run = False
 
@@ -343,7 +348,7 @@ class Compactor:
             return working
 
         summarizer = Agent(self._summarizer_model, instructions=COMPACTION_PROMPT)
-        result = await summarizer.run(transcript)
+        result = await summarizer.run(transcript, model_settings=self._model_settings)
         summary = result.output
 
         # `covered_count` is relative to the *original* client history: when a
