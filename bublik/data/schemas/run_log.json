@@ -361,6 +361,27 @@
                     "items": {
                         "$ref": "#/definitions/iteration"
                     }
+                },
+                "param_docs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "scenario": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "depth": {
+                                "type": "integer"
+                            },
+                            "text": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 }
             },
             "required": ["name", "type", "params", "hash", "tin", "test_id", "objective", "reqs", "err", "obtained", "iters"],
