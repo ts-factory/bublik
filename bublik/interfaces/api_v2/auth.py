@@ -36,6 +36,25 @@ from bublik.data.serializers import (
     UserEmailSerializer,
     UserSerializer,
 )
+from bublik.settings import SIMPLE_JWT
+
+
+def set_auth_cookies(response, access_token, refresh_token):
+    """Set the access/refresh token cookies, with max_age matching their JWT lifetime."""
+    response.set_cookie(
+        key='access_token',
+        value=str(access_token),
+        max_age=int(SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+        httponly=True,
+        samesite='Strict',
+    )
+    response.set_cookie(
+        key='refresh_token',
+        value=str(refresh_token),
+        max_age=int(SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
+        httponly=True,
+        samesite='Strict',
+    )
 
 
 __all__ = [
@@ -114,18 +133,7 @@ class LogInView(TokenObtainPairView):
         access_token = refresh_token.access_token
         response = Response()
         # set cookies
-        response.set_cookie(
-            key='refresh_token',
-            value=str(refresh_token),
-            httponly=True,
-            samesite='Strict',
-        )
-        response.set_cookie(
-            key='access_token',
-            value=str(access_token),
-            httponly=True,
-            samesite='Strict',
-        )
+        set_auth_cookies(response, access_token, refresh_token)
         response.data = {
             'user': UserSerializer(user).data,
         }
@@ -223,18 +231,7 @@ class RefreshTokenView(TokenRefreshView):
                 },
             )
 
-            response.set_cookie(
-                key='access_token',
-                value=str(new_access),
-                httponly=True,
-                samesite='Strict',
-            )
-            response.set_cookie(
-                key='refresh_token',
-                value=str(new_refresh),
-                httponly=True,
-                samesite='Strict',
-            )
+            set_auth_cookies(response, new_access, new_refresh)
 
             return response
 
