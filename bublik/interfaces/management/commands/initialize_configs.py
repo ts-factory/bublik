@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025 OKTET Labs Ltd. All rights reserved.
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 
@@ -21,7 +22,14 @@ class Command(BaseCommand):
         """
 
         self.stdout.write('Initialize default required configurations if they do not exist:')
-        for config in GlobalConfigs.required():
+        configs = GlobalConfigs.required()
+        if settings.AI_CHAT_ENABLED:
+            # The `ai` config is not required in general, but chat is unusable
+            # without it: a missing config reads back as an empty provider set
+            # rather than falling back to the schema default. Seed it from that
+            # default so there is something to edit once chat is enabled.
+            configs = [*configs, GlobalConfigs.AI]
+        for config in configs:
             try:
                 Config.objects.get_global(config.name, None)
                 self.stdout.write(f'Default {config}: already exist!')
