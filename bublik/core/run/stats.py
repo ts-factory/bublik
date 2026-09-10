@@ -566,7 +566,9 @@ def generate_results_details(test_results):
     for test_result in test_results:
         result_id = test_result.id
         iteration = test_result.iteration
-        iteration_id = iteration.id
+        # Run/session/package nodes are also TestIterationResult rows but carry
+        # no iteration; guard every iteration-derived field below.
+        iteration_id = iteration.id if iteration else None
         project = test_result.project
 
         # Handle expected result
@@ -598,17 +600,18 @@ def generate_results_details(test_results):
 
         # Handle parameters
         parameters = {}
-        for test_argument in test_result.iteration.test_arguments.all():
-            parameters[test_argument.name] = test_argument.value
+        if iteration:
+            for test_argument in iteration.test_arguments.all():
+                parameters[test_argument.name] = test_argument.value
         parameters = OrderedDict(sorted(parameters.items()))
         parameters_list = key_value_dict_transforming(parameters)
 
         data = {
-            'name': iteration.test.name,
+            'name': iteration.test.name if iteration else None,
             'result_id': result_id,
-            'run_id': test_result.root.id,
-            'project_id': project.id,
-            'project_name': project.name,
+            'run_id': test_result.root.id if test_result.root else None,
+            'project_id': project.id if project else None,
+            'project_name': project.name if project else None,
             'iteration_id': iteration_id,
             'start': test_result.start,
             'obtained_result': obtained_result_data,
