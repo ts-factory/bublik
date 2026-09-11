@@ -1,0 +1,18 @@
+[Unit]
+Description=Bublik SeaweedFS (S3 storage for AI chat generated files)
+Before=bublik-gunicorn.service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${SEAWEEDFS_DIR}
+Environment=AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY}
+Environment=AWS_SECRET_ACCESS_KEY=${S3_SECRET_KEY}
+Environment=S3_BUCKET=${S3_BUCKET}
+# Keep all SeaweedFS components on loopback; only its S3 API is used.
+ExecStart=${SEAWEEDFS_BIN} mini -dir=${SEAWEEDFS_DATA_DIR} -ip=127.0.0.1 -ip.bind=127.0.0.1 -s3.port=${SEAWEEDFS_S3_PORT} -s3.port.iceberg=0 -webdav=false -admin.ui=false
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
