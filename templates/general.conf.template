@@ -60,7 +60,20 @@ DB_PORT="${DB_PORT}"
 
 ANALYTICS_ENABLED="${ANALYTICS_ENABLED}"
 ANALYTICS_DB_PATH="${ANALYTICS_DB_PATH}"
+
+# AI chat
 AI_CHAT_ENABLED="${AI_CHAT_ENABLED}"
+AI_CHAT_FILE_MAX_SIZE="${AI_CHAT_FILE_MAX_SIZE}"
+# FQDN used to build absolute Bublik URLs in the AI assistant's system prompt
+BUBLIK_FQDN="${BUBLIK_FQDN}"
+REDIS_URL="${REDIS_URL}"
+
+# Local backend
+AI_CHAT_FILE_STORAGE_DIR="${AI_CHAT_FILE_STORAGE_DIR}"
+
+# API keys for the providers named in the `ai` global config are NOT kept here:
+# this file is world-readable and regenerated from a template. Put them in
+# bublik/secrets.env (chmod 600) instead; every Bublik service sources it.
 
 CELERY_APP="bublik.interfaces"
 CELERY_BROKER_URL="amqp://localhost"

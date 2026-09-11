@@ -4,6 +4,9 @@ Description=Bublik gunicorn daemon
 [Service]
 PIDFile=${BUBLIK_GUNICORN_PID_PATH}
 WorkingDirectory=${BUBLIK_SRC}
+# Operator-managed secrets (AI provider keys, S3 credentials). Optional: the
+# leading "-" means systemd ignores it when absent.
+EnvironmentFile=-${BUBLIK_SRC}/bublik/secrets.env
 ExecStart=${SCRIPTS_DIR}/rungunicorn
 ExecReload=/bin/kill -s HUP $MAINPID
 ExecStop=/bin/kill -s TERM $MAINPID
