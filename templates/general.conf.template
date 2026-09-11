@@ -68,8 +68,29 @@ AI_CHAT_FILE_MAX_SIZE="${AI_CHAT_FILE_MAX_SIZE}"
 BUBLIK_FQDN="${BUBLIK_FQDN}"
 REDIS_URL="${REDIS_URL}"
 
+# Storage backend for AI chat-generated files: "local" or "s3"
+AI_CHAT_FILE_STORAGE_BACKEND="${AI_CHAT_FILE_STORAGE_BACKEND}"
+
 # Local backend
 AI_CHAT_FILE_STORAGE_DIR="${AI_CHAT_FILE_STORAGE_DIR}"
+
+# S3 backend -- bundled SeaweedFS (not packaged for Debian/Ubuntu, install it
+# yourself and place the binary at SEAWEEDFS_BIN)
+SEAWEEDFS_DIR="${SEAWEEDFS_DIR}"
+SEAWEEDFS_BIN="${SEAWEEDFS_BIN}"
+SEAWEEDFS_DATA_DIR="${SEAWEEDFS_DATA_DIR}"
+SEAWEEDFS_S3_PORT="${SEAWEEDFS_S3_PORT}"
+SEAWEEDFS_SERVICE_PATH="${SEAWEEDFS_SERVICE_PATH}"
+
+# S3 backend -- any S3-compatible endpoint (defaults to the bundled SeaweedFS above)
+S3_ENDPOINT_URL="${S3_ENDPOINT_URL}"
+S3_PUBLIC_ENDPOINT_URL="${S3_PUBLIC_ENDPOINT_URL}"
+# S3_ACCESS_KEY and S3_SECRET_KEY are secrets and are deliberately not kept
+# here: this file is world-readable. Set them in bublik/secrets.env, which
+# is sourced after this one, by deploy as well as by every service.
+S3_BUCKET="${S3_BUCKET}"
+S3_REGION="${S3_REGION}"
+S3_PRESIGN_EXPIRY="${S3_PRESIGN_EXPIRY}"
 
 # API keys for the providers named in the `ai` global config are NOT kept here:
 # this file is world-readable and regenerated from a template. Put them in
