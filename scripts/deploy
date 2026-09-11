@@ -809,6 +809,7 @@ source "$(dirname $0)/exports"
 # set_vars_dependent_on_options(), which only runs when server options are
 # given. Fill in the ones a host deployed before they existed is missing, so
 # a --steps run works before general.conf has been re-rendered.
+export MCP_SERVICE_PATH="${MCP_SERVICE_PATH:-${USER_SERVICES_PATH}/bublik-mcp.service}"
 export SEAWEEDFS_SERVICE_PATH="${SEAWEEDFS_SERVICE_PATH:-${USER_SERVICES_PATH}/bublik-seaweedfs.service}"
 
 # Execute steps preserving original order
