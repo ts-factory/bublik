@@ -9,6 +9,13 @@ CONFIG_DIR="$(readlink -f $(dirname "$0")/../bublik)"
 if [ -e "${CONFIG_DIR}/general.conf" ] ; then
   set -a
   . "${CONFIG_DIR}/general.conf"
+  # Operator-managed secrets (AI provider keys, S3 credentials). Kept out of
+  # general.conf because that file is world-readable and is regenerated from a
+  # template; this one deploy never creates or rewrites. Also referenced by the
+  # service units as an EnvironmentFile, so it must stay plain KEY=value.
+  if [ -e "${CONFIG_DIR}/secrets.env" ] ; then
+    . "${CONFIG_DIR}/secrets.env"
+  fi
   set +a
   export PATH=$PATH:$TE_BASE
 fi

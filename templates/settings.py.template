@@ -466,8 +466,11 @@ KEY_VALUE_DELIMITER = '='
 PERIOD_DELIMITER = '-'
 TIMESTAMP_DELIMITER = 's'
 
-# S3-compatible storage for AI-chat generated files (bundled SeaweedFS by default)
-S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', 'http://127.0.0.1:8333')
+# Storage for AI-chat generated files. A non-empty S3_ENDPOINT_URL selects
+# S3-compatible object storage; leaving it empty stores the files on local disk
+# under AI_CHAT_FILE_STORAGE_DIR, which is the default.
+AI_CHAT_FILE_STORAGE_DIR = '${AI_CHAT_FILE_STORAGE_DIR}'
+S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', '')
 # Set only when the S3 endpoint is browser-reachable (e.g. real AWS S3);
 # downloads are then redirected to presigned URLs instead of proxied.
 S3_PUBLIC_ENDPOINT_URL = os.getenv('S3_PUBLIC_ENDPOINT_URL', '')

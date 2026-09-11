@@ -6,6 +6,9 @@ After=bublik-celery.service
 [Service]
 Type=forking
 WorkingDirectory=${BUBLIK_SRC}
+# Operator-managed secrets (AI provider keys, S3 credentials). Optional: the
+# leading "-" means systemd ignores it when absent.
+EnvironmentFile=-${BUBLIK_SRC}/bublik/secrets.env
 ExecStart=${SCRIPTS_DIR}/runflower
 Restart=on-failure
 StartLimitIntervalSec=11

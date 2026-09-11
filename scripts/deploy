@@ -55,9 +55,6 @@ export DB_HOST="localhost"
 export ANALYTICS_ENABLED="false"
 export ANALYTICS_DB_PATH="${BUBLIK_HOME}/analytics.db"
 
-# Chat
-export AI_CHAT_ENABLED="false"
-
 # Server logs
 export BUBLIK_LOG_PREFIX="bublik-rest"
 export BUBLIK_LOGDIR="${BUBLIK_SRC}/logs"
@@ -79,6 +76,16 @@ export BUBLIK_BIND_GUNICORN="${BIND_HOST}:${GUNICORN_PORT}"
 
 export MCP_PORT="8001"
 export BUBLIK_BIND_MCP="${BIND_HOST}:${MCP_PORT}"
+
+# AI chat
+export AI_CHAT_ENABLED="false"
+export AI_CHAT_FILE_MAX_SIZE="20971520"
+# FQDN used to build absolute Bublik URLs in the AI assistant's system prompt
+export BUBLIK_FQDN=""
+export REDIS_URL="redis://127.0.0.1:6379/0"
+
+# Local backend
+export AI_CHAT_FILE_STORAGE_DIR="${BUBLIK_HOME}/ai-chat-files"
 
 ### Steps ###
 
@@ -111,6 +118,7 @@ define_step kerberos_service         "Create kerberos service"
 define_step celery_service           "Create celery service"
 define_step flower_service           "Create flower service"
 define_step mcp_service              "Create MCP service"
+define_step ai_chat_files_dir           "Create AI chat file storage directory"
 define_step setup_gunicorn           "Setup gunicorn"
 define_step nginx_conf               "Create nginx configs (requires root)"
 define_step bootstrap_db             "Bootstrap bublik database"
@@ -515,6 +523,27 @@ function mcp_service_handler() {
     set_up_service "${TEMPLATES_DIR}/bublik-mcp.service.template" \
                    "${MCP_SERVICE_PATH}"
   fi
+}
+
+function ai_chat_enabled() {
+  [[ "${AI_CHAT_ENABLED,,}" =~ ^(1|true|yes)$ ]]
+}
+
+function skip_unless_ai_chat_enabled() {
+  ai_chat_enabled && return 0
+  echo "AI_CHAT_ENABLED is not set, AI chat file storage is not needed"
+  CURRENT_STEP_SKIPPED=true
+  return 1
+}
+
+function ai_chat_files_dir_handler() {
+  skip_unless_ai_chat_enabled || return
+  step "Create AI chat file storage directory" && {
+    create_bublik_dir "${AI_CHAT_FILE_STORAGE_DIR}"
+    # Generated files are private to one user and this tree sits on a shared
+    # filesystem, so keep the whole subtree unreadable by anyone else.
+    chmod 700 "${AI_CHAT_FILE_STORAGE_DIR}"
+  }
 }
 
 function nginx_conf_handler() {

@@ -6,6 +6,9 @@ After=network.target
 Type=simple
 WorkingDirectory=${BUBLIK_SRC}
 Environment=DJANGO_SETTINGS_MODULE=bublik.settings
+# Operator-managed secrets (AI provider keys, S3 credentials). Optional: the
+# leading "-" means systemd ignores it when absent.
+EnvironmentFile=-${BUBLIK_SRC}/bublik/secrets.env
 ExecStart=${ENV_DIR}/bin/python ${BUBLIK_SRC}/manage.py run_mcp_server --host ${BIND_HOST} --port ${MCP_PORT}
 Restart=always
 RestartSec=5
