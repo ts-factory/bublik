@@ -12,6 +12,11 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.measurement.services import MeasurementService
 from bublik.data.models import Measurement
 from bublik.data.serializers import MeasurementSerializer
+from bublik.interfaces.api_v2.measurement.schemas import measurement_viewset_schema
+from bublik.interfaces.api_v2.measurement.serializers import (
+    MeasurementByResultSerializer,
+    MeasurementChartSerializer,
+)
 
 
 all = [
@@ -19,7 +24,9 @@ all = [
 ]
 
 
+@measurement_viewset_schema
 class MeasurementViewSet(GenericViewSet):
+    pagination_class = None
     queryset = Measurement.objects.all()
     serializer_class = MeasurementSerializer
     search_fields: typing.ClassVar[list[str]] = ['tool', 'type', 'name', 'keys', 'aggr']
@@ -37,7 +44,8 @@ class MeasurementViewSet(GenericViewSet):
             raise ValidationError(msg)
 
         charts = MeasurementService.get_trend_charts(result_ids)
-        return Response(charts)
+        serializer = MeasurementChartSerializer(charts, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
     def by_result_ids(self, request):
@@ -47,7 +55,8 @@ class MeasurementViewSet(GenericViewSet):
             raise ValidationError(msg)
 
         measurements = MeasurementService.get_measurements_by_result_ids(result_ids)
-        return Response(measurements)
+        serializer = MeasurementByResultSerializer(measurements, many=True)
+        return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         measurement = MeasurementService.get_measurement(pk)

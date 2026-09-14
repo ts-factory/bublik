@@ -25,11 +25,11 @@ from .index import render_docs, render_react
 from .job_task.views import JobTaskExecutionViewSet
 from .log import LogViewSet
 from .management import clear_all_runs_stats_cache, local_logs, meta_categorization
-from .measurements import MeasurementViewSet
+from .measurement.views import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
 from .performance import PerformanceCheckView
 from .project import ProjectViewSet
-from .report import ReportViewSet
+from .report.views import ReportViewSet
 from .result.views import ResultViewSet
 from .run.views import RunViewSet
 from .server import ServerViewSet

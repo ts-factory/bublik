@@ -6,6 +6,7 @@ from datetime import datetime
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Q
 
 from bublik.core.argparse import parser_type_str_or_none
 from bublik.core.cache import ProjectCache
@@ -92,15 +93,25 @@ class Command(BaseCommand):
                 project_id=project_id,
             )
 
-            for pattern in patterns:
-                logger.debug(f'[project id={project_id}] creating category pattern: {pattern}')
-                MetaPattern.objects.create(
-                    pattern=pattern,
-                    category=category_obj,
-                )
+            metas_query = Q(type=type)
+            if patterns:
+                patterns_query = Q()
+                for pattern in patterns:
+                    logger.debug(
+                        f'[project id={project_id}] creating category pattern: {pattern}',
+                    )
+                    MetaPattern.objects.create(
+                        pattern=pattern,
+                        category=category_obj,
+                    )
+                    patterns_query |= Q(name__regex=pattern)
+                metas_query &= patterns_query
 
-                for meta in Meta.objects.filter(type=type, name__regex=pattern):
-                    category_obj.metas.add(meta)
+            logger.debug(
+                f'[project id={project_id}] assigning metas to {category} '
+                f'using filter: {metas_query}',
+            )
+            category_obj.metas.add(*Meta.objects.filter(metas_query))
 
     def handle(self, *args, **options):
         logger = get_task_or_server_logger()

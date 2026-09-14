@@ -361,6 +361,27 @@
                     "items": {
                         "$ref": "#/definitions/iteration"
                     }
+                },
+                "param_docs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "scenario": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "depth": {
+                                "type": "integer"
+                            },
+                            "text": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 }
             },
             "required": ["name", "type", "params", "hash", "tin", "test_id", "objective", "reqs", "err", "obtained", "iters"],
@@ -562,7 +583,7 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE", "EMPTY"],
+                    "enum": ["PASSED", "FAILED", "SKIPPED", "KILLED", "CORED", "FAKED", "INCOMPLETE", "EMPTY", "UNSPEC"],
                     "description": "Expected status.",
                     "$comment": "For session/pkg nodes, status is the highest-priority status among descendants, by fixed priority order."
                 },
@@ -727,24 +748,16 @@
         "miEntry": {
             "type": "object",
             "title": "Measurement Entry",
-            "description": "Measurement entry. Entries are grouped internally by (aggr, base_units, multiplier).",
+            "description": "Measurement entry. Entries are grouped internally by (aggr, base_units, multiplier). Exactly one of 'value' or 'values' must be present.",
             "properties": {
                 "value": {
-                    "description": "Single value or list. Internally normalised to a list during import.",
-                    "oneOf": [
-                        {
-                            "type": "number"
-                        },
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "array",
-                            "items": {
-                                "type": ["number", "string"]
-                            }
-                        }
-                    ]
+                    "type": ["number", "string"],
+                    "description": "Single value. Mutually exclusive with 'values' — exactly one of the two must be present."
+                },
+                "values": {
+                    "type": "array",
+                    "items": { "type": ["number", "string"] },
+                    "description": "List of values. Mutually exclusive with 'value' — exactly one of the two must be present."
                 },
                 "aggr": {
                     "type": "string",
@@ -760,10 +773,12 @@
                     "description": "Metric/binary prefix code used to derive the display unit prefix (e.g. '1e-3' -> milli/m, '0x1p20' -> mebi/Mi)."
                 }
             },
-            "required": ["value", "aggr", "base_units", "multiplier"],
-            "additionalProperties": {
-                "type": ["string", "number"]
-            }
+            "required": ["aggr", "base_units", "multiplier"],
+            "oneOf": [
+                { "required": ["value"] },
+                { "required": ["values"] }
+            ],
+            "additionalProperties": { "type": ["string", "number"] }
         },
         "miView": {
             "type": "object",
