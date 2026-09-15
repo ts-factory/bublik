@@ -11,3 +11,9 @@ class PerformanceCheckQuerySerializer(serializers.Serializer):
         max_value=2_147_483_647,
         help_text='ID of the project whose configuration should be used',
     )
+
+
+class PerformanceCheckResponseSerializer(serializers.Serializer):
+    label = serializers.CharField()
+    url = serializers.URLField(allow_null=True)
+    timeout = serializers.IntegerField()
