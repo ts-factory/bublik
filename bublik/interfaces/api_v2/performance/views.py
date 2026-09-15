@@ -11,6 +11,9 @@ from rest_framework.views import APIView
 from bublik.core.config.services import ConfigServices
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import GlobalConfigs
+from bublik.interfaces.api_v2.performance.serializers import (
+    PerformanceCheckQuerySerializer,
+)
 
 
 logger = logging.getLogger()
@@ -30,7 +33,9 @@ class PerformanceCheckView(APIView):
             'history_list_intense',
         ]
 
-        project_id = request.query_params.get('project')
+        query_serializer = PerformanceCheckQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        project_id = query_serializer.validated_data.get('project')
 
         # Check settings timeouts
         if set(settings.VIEWS_TIMEOUTS.keys()) != set(views_to_check):
