@@ -7,12 +7,14 @@ Providers and models are defined in the ``ai`` global config (see
 ``bublik.ai.config``). A single agent definition is reused across them; only
 the model adapter changes. Model dispatch is delegated to
 :func:`pydantic_ai.models.infer_model`, so any provider pydantic-ai supports
-(openai, anthropic, google, groq, deepseek, alibaba, moonshotai, ...) can be
-configured -- subject to that provider's optional package being installed.
-Custom OpenAI-protocol gateways use ``type: "openai"`` with an ``api_url``;
-gateways that speak the Anthropic Messages API use the native ``anthropic``
-type with an ``api_url``. The agent's tools are the shared Bublik tools
-(``bublik.mcp.tools.MCP_TOOLS``) called in-process, so the chat assistant has
+(openai, anthropic, google, groq, mistral, alibaba, ...) can be configured --
+subject to that provider's optional package being installed. Every provider
+names its endpoint in ``api_url``; it is the only source of the base URL
+(never the type, pydantic-ai defaults or environment variables). Custom
+OpenAI-protocol gateways and OpenAI-compatible vendors (OpenRouter, DeepSeek,
+...) use ``type: "openai"``; gateways that speak the Anthropic Messages API
+use the native ``anthropic`` type. The agent's tools are the shared Bublik
+tools (``bublik.mcp.tools.MCP_TOOLS``) called in-process, so the chat assistant has
 access to exactly the same tools the Bublik MCP server exposes -- without any
 network hop to a separate MCP server.
 """
@@ -21,12 +23,14 @@ from __future__ import annotations
 
 from functools import lru_cache, wraps
 import inspect
+import logging
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelRetry, UserError
 from pydantic_ai.models import infer_model
-from pydantic_ai.providers import infer_provider, infer_provider_class
+from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.providers.gateway import gateway_provider
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
@@ -48,6 +52,8 @@ if TYPE_CHECKING:
     from bublik.ai.types import Provider
 
 
+logger = logging.getLogger(__name__)
+
 # Bublik ``type`` aliases mapped to a pydantic-ai model kind. ``openai-chat``
 # forces ``OpenAIChatModel`` (bare ``openai`` in pydantic-ai selects the
 # Responses API, which we do not want, and it is the protocol every custom
@@ -56,6 +62,14 @@ if TYPE_CHECKING:
 TYPE_ALIASES = {
     'openai': 'openai-chat',
 }
+
+# Constructor parameter names under which pydantic-ai provider classes accept
+# an endpoint, in lookup order. A class with none of them has a fixed URL and
+# cannot honour ``api_url``, so it is rejected rather than silently using its
+# built-in endpoint.
+_URL_PARAMS = ('base_url', 'api_base', 'azure_endpoint')
+
+_LOOPBACK_HOSTS = frozenset({'localhost', '127.0.0.1', '::1'})
 
 
 def _extra_hint(provider_kind: str, exc: Exception) -> str:
@@ -72,12 +86,16 @@ def _extra_hint(provider_kind: str, exc: Exception) -> str:
 
 
 def _make_provider_factory(provider: Provider, api_key: str | None):
-    """Build a ``provider_factory`` for ``infer_model`` that injects our credentials.
+    """Build a ``provider_factory`` for ``infer_model`` that injects endpoint and credentials.
 
-    Provider constructors are not uniform (some take ``base_url``, some ``api_base``,
-    some only ``api_key``), so we introspect each class ``__init__`` and pass only the
-    kwargs it accepts. When we have no overrides to inject we defer to pydantic-ai's
-    env-var-based ``infer_provider`` so standard keys (``OPENAI_API_KEY`` etc.) work.
+    ``provider.api_url`` is always passed to the provider class: nothing is
+    inferred from the type, pydantic-ai's defaults or environment variables
+    (``OPENAI_BASE_URL`` and friends are ignored once an explicit URL is given).
+    Constructors name the endpoint differently (``base_url``, ``api_base``,
+    ``azure_endpoint``), so each class ``__init__`` is introspected and the first
+    matching parameter is used; a class with none of them raises a ``ValueError``
+    naming the type. When ``api_key`` is not configured the SDK's own key lookup
+    still applies (``OPENAI_API_KEY`` etc.).
 
     ``gateway/<upstream>`` types go through :func:`gateway_provider` instead:
     building the upstream provider class directly would skip the gateway's route
@@ -90,23 +108,31 @@ def _make_provider_factory(provider: Provider, api_key: str | None):
             return gateway_provider(
                 provider_kind.removeprefix('gateway/'),
                 api_key=api_key,
-                base_url=api_url or None,
+                base_url=api_url,
             )
         cls = infer_provider_class(provider_kind)
         params = inspect.signature(cls.__init__).parameters
-        kwargs = {}
+        url_param = next((name for name in _URL_PARAMS if name in params), None)
+        if url_param is None:
+            msg = (
+                f'Provider type {provider.type!r} ({cls.__name__}) has a fixed endpoint '
+                f'and cannot use api_url; use type "openai" (or "anthropic") with this '
+                f'api_url instead'
+            )
+            raise ValueError(msg)
+        kwargs = {url_param: api_url}
         if api_key and 'api_key' in params:
             kwargs['api_key'] = api_key
-        if api_url:
-            if 'base_url' in params:
-                kwargs['base_url'] = api_url
-            elif 'api_base' in params:
-                kwargs['api_base'] = api_url
-        if not kwargs:
-            return infer_provider(provider_kind)
         return cls(**kwargs)
 
     return factory
+
+
+def _is_loopback(api_url: str) -> bool:
+    try:
+        return (urlsplit(api_url).hostname or '') in _LOOPBACK_HOSTS
+    except ValueError:
+        return False
 
 
 def _flatten_detail(detail: object) -> str:
@@ -162,6 +188,17 @@ def _infer_provider_model(provider: Provider, provider_id: str, model_id: str):
             f'API key reference {provider.api_key!r} is unresolved for provider {provider_id!r}'
         )
         raise ValueError(msg)
+    if provider.api_key is None and not _is_loopback(provider.api_url):
+        # With an explicit base_url the OpenAI SDK no longer fails fast on a
+        # missing key; pydantic-ai substitutes a placeholder and the first
+        # request 401s. Keyless local gateways are common, remote ones are
+        # almost always a mistake.
+        logger.warning(
+            'provider %r has no api_key configured: requests to %s go out '
+            'unauthenticated unless the SDK finds its own environment variable',
+            provider_id,
+            provider.api_url,
+        )
     provider_kind = TYPE_ALIASES.get(provider.type, provider.type)
 
     factory = _make_provider_factory(provider, api_key)

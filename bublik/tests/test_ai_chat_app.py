@@ -41,7 +41,12 @@ class RunModelSettingsTest(IsolatedAsyncioTestCase):
     """`_run_chat` merges provider model settings with the resolved headers."""
 
     def _provider(self, **kwargs):
-        return Provider(id='opencode-go', type='openai', **kwargs)
+        return Provider(
+            id='opencode-go',
+            type='openai',
+            api_url='https://opencode.ai/zen/v1',
+            **kwargs,
+        )
 
     def _build(self, provider, thread_id='11111111-2222-3333-4444-555555555555'):
         """The settings `_run_chat` would hand to the run for this provider."""

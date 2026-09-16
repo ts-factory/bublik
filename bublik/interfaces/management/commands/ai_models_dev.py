@@ -102,15 +102,22 @@ class Command(BaseCommand):
         models = models_from_models_dev(provider.id)
 
         if as_json:
-            snippet = {
-                'id': provider.id,
-                'type': 'openai',
-                'name': provider.name,
-                'models': [
-                    model.model_dump(exclude_none=True, exclude_defaults=True)
-                    for model in models
-                ],
-            }
+            snippet = {'id': provider.id, 'type': 'openai', 'name': provider.name}
+            # models.dev knows the vendor's OpenAI-compatible base URL for most
+            # providers. When it does not, leave the mandatory api_url out so
+            # the schema rejects the snippet until the author fills it in.
+            if provider.api:
+                snippet['api_url'] = provider.api
+            else:
+                self.stderr.write(
+                    self.style.WARNING(
+                        f'models.dev has no base URL for {provider.id!r}: add the '
+                        f'mandatory "api_url" to the snippet before saving it.',
+                    ),
+                )
+            snippet['models'] = [
+                model.model_dump(exclude_none=True, exclude_defaults=True) for model in models
+            ]
             self.stdout.write(json.dumps(snippet, indent=2, ensure_ascii=False))
             return
 
