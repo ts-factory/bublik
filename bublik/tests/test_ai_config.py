@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025-2026 OKTET Labs Ltd. All rights reserved.
 
+import inspect
 import json
+import os
 from pathlib import Path
 from unittest import mock
 import uuid
@@ -9,8 +11,18 @@ import uuid
 from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
 from jsonschema import Draft7Validator
+from pydantic_ai.providers import infer_provider_class
+from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.azure import AzureProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 
-from bublik.ai.agent import build_agent
+from bublik.ai.agent import (
+    _URL_PARAMS,
+    TYPE_ALIASES,
+    _infer_provider_model,
+    _make_provider_factory,
+    build_agent,
+)
 from bublik.ai.config import (
     DISCOVERY_SESSION_ID,
     ModelRequestError,
@@ -43,13 +55,32 @@ _DISCOVERY_TEST_CACHES = {
 }
 
 
+_API_URL = 'http://localhost:9/v1'
+# Types retired from the schema enum because their pydantic-ai class has a
+# fixed endpoint; such vendors are configured as type 'openai' + api_url.
+_FIXED_ENDPOINT_TYPES = (
+    'openrouter',
+    'cohere',
+    'xai',
+    'deepseek',
+    'vercel',
+    'together',
+    'fireworks',
+    'cerebras',
+    'moonshotai',
+    'github',
+    'nebius',
+    'ovhcloud',
+)
+
+
 def _config(**model_extra):
     return {
         'providers': [
             {
                 'id': 'proxy',
                 'type': 'openai',
-                'api_url': 'http://localhost:9/v1',
+                'api_url': _API_URL,
                 'api_key': '${settings:AI_TEST_API_KEY}',
                 'models': [{'id': 'test-model', **model_extra}],
             },
@@ -59,7 +90,9 @@ def _config(**model_extra):
 
 
 def _provider(**extra):
-    return Provider.model_validate({'id': 'proxy', 'type': 'openai', **extra})
+    return Provider.model_validate(
+        {'id': 'proxy', 'type': 'openai', 'api_url': _API_URL, **extra},
+    )
 
 
 class ResolveApiKeyTest(SimpleTestCase):
@@ -131,6 +164,36 @@ class ParseAiConfigTest(SimpleTestCase):
         legacy = {'providers': [{'id': 'p', 'type': 'openai', 'models': [{'name': 'm'}]}]}
         config = parse_ai_config(legacy)
         self.assertEqual(config.providers, [])
+
+    def test_provider_requires_api_url(self):
+        with self.assertRaises(ValueError):
+            Provider.model_validate({'id': 'x', 'type': 'openai'})
+
+    def test_provider_rejects_empty_or_scheme_less_api_url(self):
+        # An empty base_url would let the SDKs fall back to env vars again.
+        for api_url in ('', 'gw.test/v1', 'ftp://gw.test'):
+            with self.subTest(api_url=api_url), self.assertRaises(ValueError):
+                _provider(api_url=api_url)
+
+    def test_provider_rejects_retired_types_at_parse_time(self):
+        # The schema enum only guards saves; a stored config with a type
+        # whose class has a fixed endpoint must not list models it cannot serve.
+        for provider_type in ('openrouter', 'deepseek', 'nonsense'):
+            with self.subTest(type=provider_type), self.assertRaises(ValueError):
+                _provider(type=provider_type)
+        raw = _config()
+        raw['providers'][0]['type'] = 'openrouter'
+        with self.assertLogs('bublik.ai.config', 'ERROR') as logs:
+            self.assertEqual(parse_ai_config(raw).providers, [])
+        self.assertIn('openrouter', logs.output[0])
+
+    def test_provider_without_api_url_degrades_to_empty_with_log(self):
+        # A config seeded before api_url became mandatory: chat has no
+        # providers, and the log tells the operator what to fix.
+        raw = {'providers': [{'id': 'openai', 'type': 'openai'}]}
+        with self.assertLogs('bublik.ai.config', 'ERROR') as logs:
+            self.assertEqual(parse_ai_config(raw).providers, [])
+        self.assertIn('api_url', logs.output[0])
 
     def test_legacy_api_key_field_is_not_silently_ignored(self):
         legacy = _config()
@@ -274,6 +337,65 @@ class BuildAgentTest(SimpleTestCase):
         self.assertIsNot(first, self._build(changed))
 
 
+class ProviderFactoryTest(SimpleTestCase):
+    """`_make_provider_factory` lets the endpoint come from nowhere but api_url."""
+
+    URL = 'https://gw.test/v1'
+
+    def _factory(self, provider_type, api_url=URL):
+        provider = _provider(type=provider_type, api_url=api_url)
+        return _make_provider_factory(provider, 'sekret')
+
+    @mock.patch.dict(os.environ, {'OPENAI_BASE_URL': 'https://evil.test/v1'})
+    def test_openai_uses_api_url_as_base_url(self):
+        provider = self._factory('openai')('openai-chat')
+        self.assertIsInstance(provider, OpenAIProvider)
+        self.assertEqual(provider.base_url.rstrip('/'), self.URL)
+
+    def test_anthropic_uses_api_url_as_base_url(self):
+        provider = self._factory('anthropic')('anthropic')
+        self.assertIsInstance(provider, AnthropicProvider)
+        self.assertEqual(provider.base_url.rstrip('/'), self.URL)
+
+    def test_azure_passes_api_url_as_azure_endpoint(self):
+        # A /v1 endpoint needs no api_version, so the real class constructs.
+        endpoint = 'https://res.openai.azure.com/openai/v1'
+        provider = self._factory('azure', endpoint)('azure')
+        self.assertIsInstance(provider, AzureProvider)
+        self.assertEqual(provider.base_url.rstrip('/'), endpoint)
+
+    @mock.patch('bublik.ai.agent.gateway_provider')
+    def test_gateway_forwards_api_key_and_base_url(self, mock_gateway):
+        self._factory('gateway/anthropic')('gateway/anthropic')
+        mock_gateway.assert_called_once_with(
+            'anthropic',
+            api_key='sekret',
+            base_url=self.URL,
+        )
+
+    def test_type_with_fixed_endpoint_is_rejected(self):
+        # Safety net behind the parse-time check: a retired type that somehow
+        # reaches the factory (model_construct skips validation) is refused
+        # instead of silently using the class's built-in URL.
+        provider = Provider.model_construct(id='proxy', type='deepseek', api_url=self.URL)
+        factory = _make_provider_factory(provider, 'sekret')
+        with self.assertRaisesMessage(ValueError, "'deepseek'"):
+            factory('deepseek')
+
+    def test_remote_endpoint_without_api_key_is_warned_about(self):
+        # The OpenAI SDK no longer fails fast without a key once base_url is
+        # explicit; the operator gets told before the first 401.
+        provider = _provider(api_url='https://gw.test/v1')
+        with self.assertLogs('bublik.ai.agent', 'WARNING') as logs:
+            _infer_provider_model(provider, 'proxy', 'm')
+        self.assertIn('no api_key', logs.output[0])
+
+    def test_local_endpoint_without_api_key_is_not_warned_about(self):
+        provider = _provider(api_url='http://localhost:4000/v1')
+        with self.assertNoLogs('bublik.ai.agent', 'WARNING'):
+            _infer_provider_model(provider, 'proxy', 'm')
+
+
 class EnrichModelTest(SimpleTestCase):
     def test_known_model_fills_unset_fields_only(self):
         provider = _provider(id='openai', type='openai')
@@ -336,16 +458,45 @@ class PopulateModelsTest(SimpleTestCase):
         self.assertEqual(by_id['own'].name, 'Own')
 
     def test_models_dev_provider_id_populates_catalogue(self):
-        models = populate_models(_provider(id='openai', api_url=None), None)
+        # A non-discoverable type never touches the network: the catalogue
+        # comes from the models.dev snapshot keyed on the provider id.
+        provider = _provider(
+            id='google',
+            type='google',
+            api_url='https://generativelanguage.googleapis.com',
+        )
+        with mock.patch('bublik.ai.discovery.httpx.get') as mock_get:
+            models = populate_models(provider, None)
+        mock_get.assert_not_called()
         self.assertTrue(models)
         self.assertTrue(all(m.name for m in models))
 
-    def test_unknown_provider_without_api_url_yields_empty(self):
+    @mock.patch('bublik.ai.discovery._fetch_gateway_models', return_value=[])
+    def test_empty_discovery_stays_empty_even_for_known_provider_id(self, mock_fetch):
+        # Endpoint down or /models behind auth the config does not carry: the
+        # gateway is authoritative, so an id that collides with a models.dev
+        # provider must not substitute that vendor's real catalogue.
+        self.assertEqual(populate_models(_provider(id='openai'), None), [])
         self.assertEqual(populate_models(_provider(id='custom-gw'), None), [])
+        self.assertEqual(mock_fetch.call_count, 2)
 
-    def test_effective_config_populates_all_providers(self):
+    def test_unknown_provider_id_on_non_discoverable_type_yields_empty(self):
+        provider = _provider(id='custom-gw', type='google')
+        self.assertEqual(populate_models(provider, None), [])
+
+    @mock.patch('bublik.ai.discovery._fetch_gateway_models')
+    def test_effective_config_populates_all_providers(self, mock_fetch):
+        mock_fetch.return_value = [{'id': 'claude-sonnet-4-6'}]
         config = AiConfig.model_validate(
-            {'providers': [{'id': 'anthropic', 'type': 'anthropic'}]},
+            {
+                'providers': [
+                    {
+                        'id': 'anthropic',
+                        'type': 'anthropic',
+                        'api_url': 'https://api.anthropic.com',
+                    }
+                ]
+            },
         )
         effective = effective_ai_config(config)
         self.assertTrue(effective.providers[0].models)
@@ -360,6 +511,7 @@ class ModelDiscoveryTest(SimpleTestCase):
 
     def test_anthropic_is_in_discoverable_types(self):
         self.assertIn('anthropic', _DISCOVERABLE_TYPES)
+        self.assertNotIn('openrouter', _DISCOVERABLE_TYPES)
 
     @mock.patch('bublik.ai.discovery.httpx.get')
     @override_settings(AI_ANTHROPIC_KEY='sk-ant-test')
@@ -600,18 +752,69 @@ class AiSchemaTest(SimpleTestCase):
         )
         self.assertTrue(self._is_valid(config))
 
-    def test_provider_does_not_require_api_url_or_models(self):
+    def test_provider_requires_api_url(self):
+        # No implicit endpoints: not even the native providers get one.
         for provider_type in ('anthropic', 'gateway/anthropic', 'openai'):
             config = _config()
             config['providers'][0]['type'] = provider_type
             del config['providers'][0]['api_url']
-            del config['providers'][0]['models']
-            self.assertTrue(self._is_valid(config), provider_type)
+            self.assertFalse(self._is_valid(config), provider_type)
 
-    def test_rejects_unknown_type(self):
+    def test_provider_does_not_require_models(self):
         config = _config()
-        config['providers'][0]['type'] = 'nonsense'
-        self.assertFalse(self._is_valid(config))
+        del config['providers'][0]['models']
+        self.assertTrue(self._is_valid(config))
+
+    @mock.patch('bublik.ai.discovery._fetch_gateway_models', return_value=[])
+    def test_embedded_default_is_empty(self, mock_fetch):
+        # Nothing in the deploy starts a gateway or local runtime, so seeded
+        # entries would look like a working setup when they are not.
+        self.assertEqual(self.schema['default'], {'providers': []})
+        effective = effective_ai_config(parse_ai_config(self.schema['default']))
+        self.assertEqual(effective.providers, [])
+        mock_fetch.assert_not_called()
+
+    def test_schema_rejects_empty_or_scheme_less_api_url(self):
+        for api_url in ('', 'gw.test/v1', 'ftp://gw.test'):
+            config = _config()
+            config['providers'][0]['api_url'] = api_url
+            self.assertFalse(self._is_valid(config), api_url)
+
+    def test_every_enum_type_accepts_an_endpoint(self):
+        # Ties the schema enum to the runtime rule in `_make_provider_factory`:
+        # a pydantic-ai bump that fixes or frees a class's endpoint must be
+        # reflected in the enum, not discovered at chat time.
+        enum = self.schema['properties']['providers']['items']['properties']['type']['enum']
+        for provider_type in enum:
+            if provider_type.startswith('gateway/'):
+                continue
+            with self.subTest(type=provider_type):
+                try:
+                    cls = infer_provider_class(TYPE_ALIASES.get(provider_type, provider_type))
+                except ImportError:
+                    self.skipTest('optional provider package not installed')
+                params = inspect.signature(cls.__init__).parameters
+                self.assertTrue(any(name in params for name in _URL_PARAMS), cls.__name__)
+
+    def test_fixed_endpoint_types_are_not_in_the_enum(self):
+        enum = self.schema['properties']['providers']['items']['properties']['type']['enum']
+        for provider_type in _FIXED_ENDPOINT_TYPES:
+            with self.subTest(type=provider_type):
+                self.assertNotIn(provider_type, enum)
+                try:
+                    cls = infer_provider_class(provider_type)
+                except ImportError:
+                    self.skipTest('optional provider package not installed')
+                params = inspect.signature(cls.__init__).parameters
+                self.assertFalse(any(name in params for name in _URL_PARAMS), cls.__name__)
+
+    def test_rejects_unknown_and_fixed_endpoint_types(self):
+        # Types whose pydantic-ai class has a fixed endpoint are gone from the
+        # enum; such vendors are reached via type 'openai' + their api_url.
+        for provider_type in ('nonsense', 'openrouter', 'deepseek', 'xai', 'together'):
+            config = _config()
+            config['providers'][0]['type'] = provider_type
+            self.assertFalse(self._is_valid(config), provider_type)
 
     def test_api_key_requires_exact_source_qualified_ai_reference(self):
         for reference in ('${env:AI_KEY}', '${settings:AI_KEY}'):
@@ -700,7 +903,7 @@ class ProviderHeadersTest(SimpleTestCase):
     THREAD = 'f0e0d3a2-1111-2222-3333-444455556666'
 
     def _provider(self, **headers):
-        return Provider(id='opencode', type='openai', headers=headers)
+        return Provider(id='opencode', type='openai', api_url=_API_URL, headers=headers)
 
     @override_settings(AI_TEST_API_KEY='sekret')
     def test_resolves_secrets_thread_id_and_static_values(self):
@@ -739,7 +942,8 @@ class ProviderHeadersTest(SimpleTestCase):
         self.assertEqual(resolve_provider_headers(provider, None), {})
 
     def test_no_headers_configured(self):
-        self.assertEqual(resolve_provider_headers(Provider(id='p', type='openai')), {})
+        provider = Provider(id='p', type='openai', api_url=_API_URL)
+        self.assertEqual(resolve_provider_headers(provider), {})
 
     def test_non_ai_settings_name_is_refused(self):
         # The whole point of the AI_ guard: no reaching into arbitrary settings.
@@ -757,6 +961,7 @@ class ProviderHeadersTest(SimpleTestCase):
                 Provider(
                     id='opencode',
                     type='openai',
+                    api_url=_API_URL,
                     headers={'Authorization': 'Bearer ${settings:AI_TEST_API_KEY}'},
                     models=[ModelEntry(id='m')],
                 )
@@ -772,7 +977,8 @@ class ProviderModelSettingsTest(SimpleTestCase):
     """Per-provider Pydantic AI model settings."""
 
     def test_defaults_to_empty(self):
-        self.assertEqual(Provider(id='p', type='openai').model_settings, {})
+        provider = Provider(id='p', type='openai', api_url=_API_URL)
+        self.assertEqual(provider.model_settings, {})
 
     def test_round_trips_through_the_config(self):
         config = parse_ai_config(
@@ -781,6 +987,7 @@ class ProviderModelSettingsTest(SimpleTestCase):
                     {
                         'id': 'opencode-go',
                         'type': 'openai',
+                        'api_url': _API_URL,
                         'model_settings': {'openai_continuous_usage_stats': True},
                     }
                 ]
@@ -797,6 +1004,7 @@ class ProviderModelSettingsTest(SimpleTestCase):
                 Provider(
                     id='p',
                     type='openai',
+                    api_url=_API_URL,
                     model_settings={'openai_continuous_usage_stats': True},
                     models=[ModelEntry(id='m')],
                 )
@@ -814,6 +1022,7 @@ class ProviderModelSettingsTest(SimpleTestCase):
                     {
                         'id': 'opencode-go',
                         'type': 'openai',
+                        'api_url': _API_URL,
                         'model_settings': {'openai_continuous_usage_stats': True},
                     }
                 ]

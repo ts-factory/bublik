@@ -96,7 +96,7 @@
     },
     "properties": {
         "providers": {
-            "description": "LLM providers available to the chat assistant",
+            "description": "LLM providers available to the chat assistant. Empty by default: the chat has no models until a provider is added.",
             "type": "array",
             "items": {
                 "type": "object",
@@ -249,7 +249,7 @@
                         ]
                     },
                     "type": {
-                        "description": "Provider protocol / pydantic-ai provider name. Either a native pydantic-ai provider (delegated to pydantic_ai.models.infer_model) or 'gateway/<upstream>' (Pydantic AI Gateway; api_url/api_key optional, falling back to the PYDANTIC_AI_GATEWAY_* environment variables when api_key is omitted). Custom OpenAI-protocol gateways use 'openai' with an api_url; gateways speaking the Anthropic Messages API use 'anthropic' with an api_url. For discoverable types (openai, openai-chat, openai-responses, anthropic, ollama, openrouter, litellm), omitting 'models' enables auto-discovery via GET {api_url}/models.",
+                        "description": "Provider protocol / pydantic-ai provider name. Either a native pydantic-ai provider (delegated to pydantic_ai.models.infer_model) or 'gateway/<upstream>' (Pydantic AI Gateway; api_url is the gateway base URL, e.g. https://gateway.pydantic.dev/proxy; api_key falls back to the PYDANTIC_AI_GATEWAY_* environment variables when omitted). The endpoint always comes from api_url -- it is never derived from the type. Custom OpenAI-protocol gateways and OpenAI-compatible vendors without a dedicated type (OpenRouter, DeepSeek, xAI, Together, Fireworks, Cerebras, Moonshot, GitHub Models, Nebius, OVHcloud, Vercel, Cohere's compatibility API, ...) use 'openai' with the vendor api_url, e.g. {\"id\": \"openrouter\", \"type\": \"openai\", \"api_url\": \"https://openrouter.ai/api/v1\"}; keeping the vendor id enriches model metadata from models.dev. Gateways speaking the Anthropic Messages API use 'anthropic' with an api_url. For 'azure', api_url is passed as the Azure endpoint; use the v1 form (https://<resource>.openai.azure.com/openai/v1) -- any other endpoint shape needs an API version, which pydantic-ai reads only from the OPENAI_API_VERSION environment variable. For discoverable types (openai, openai-chat, openai-responses, anthropic, ollama, litellm), omitting 'models' enables auto-discovery via GET {api_url}/models.",
                         "type": "string",
                         "enum": [
                             "openai",
@@ -260,25 +260,13 @@
                             "google-cloud",
                             "groq",
                             "mistral",
-                            "cohere",
                             "bedrock",
                             "huggingface",
-                            "xai",
-                            "deepseek",
-                            "openrouter",
                             "ollama",
                             "litellm",
                             "azure",
-                            "vercel",
-                            "together",
-                            "fireworks",
                             "heroku",
-                            "cerebras",
-                            "moonshotai",
                             "alibaba",
-                            "github",
-                            "nebius",
-                            "ovhcloud",
                             "sambanova",
                             "gateway/openai",
                             "gateway/anthropic",
@@ -292,9 +280,11 @@
                         "type": "string"
                     },
                     "api_url": {
-                        "description": "Base URL of the provider/gateway endpoint. Optional for native providers (their default endpoint applies); required for custom gateways and for HTTP model auto-discovery (when 'models' is omitted).",
+                        "description": "Base URL of the provider/gateway endpoint. Required for every provider: the endpoint is never derived from the provider id or type, from pydantic-ai's built-in defaults, or from environment variables (OPENAI_BASE_URL, PYDANTIC_AI_GATEWAY_BASE_URL, ...). Native endpoints: https://api.openai.com/v1 (openai), https://api.anthropic.com (anthropic). Also the target of HTTP model auto-discovery (GET {api_url}/models) when 'models' is omitted on a discoverable type.",
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "minLength": 1,
+                        "pattern": "^https?://"
                     },
                     "api_key": {
                         "description": "Exact source-qualified reference to the API key. Use ${env:AI_NAME} to read only the process environment or ${settings:AI_NAME} to read only the Django settings object. The AI_ prefix is required and the key itself is never stored in this config. Omit this field to use pydantic-ai's standard provider environment inference.",
@@ -313,7 +303,7 @@
                         "type": "object"
                     },
                     "models": {
-                        "description": "Models exposed by this provider; unset fields of each entry are enriched from models.dev, so an entry can also be used to override models.dev metadata. Omit the list entirely to auto-populate: from HTTP discovery via GET {api_url}/models (when api_url is set on a discoverable type), otherwise from models.dev (when the provider id matches a known models.dev provider).",
+                        "description": "Models exposed by this provider; unset fields of each entry are enriched from models.dev, so an entry can also be used to override models.dev metadata. Omit the list entirely to auto-populate: from HTTP discovery via GET {api_url}/models (for discoverable types), otherwise from models.dev (when the provider id matches a known models.dev provider).",
                         "type": "array",
                         "minItems": 1,
                         "items": {
@@ -323,7 +313,8 @@
                 },
                 "required": [
                     "id",
-                    "type"
+                    "type",
+                    "api_url"
                 ],
                 "additionalProperties": false
             }
@@ -388,23 +379,6 @@
     ],
     "additionalProperties": false,
     "default": {
-        "providers": [
-            {
-                "id": "openai",
-                "type": "openai",
-                "name": "OpenAI",
-                "api_key": "${env:AI_OPENAI_API_KEY}"
-            },
-            {
-                "id": "anthropic",
-                "type": "anthropic",
-                "name": "Anthropic",
-                "api_key": "${env:AI_ANTHROPIC_API_KEY}"
-            }
-        ],
-        "default_model": {
-            "provider": "openai",
-            "model": "gpt-4.1"
-        }
+        "providers": []
     }
 }

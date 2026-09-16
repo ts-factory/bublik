@@ -18,8 +18,11 @@ fields cannot be silently ignored.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from bublik.data.schemas.services import load_schema
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,16 @@ class AiChatDeps:
 UNIFIED_THINKING_EFFORTS: tuple[str, ...] = ('minimal', 'low', 'medium', 'high', 'xhigh')
 DEFAULT_THINKING_EFFORT = 'medium'
 SECRET_REFERENCE_PATTERN = r'^\$\{(?:env|settings):AI_[A-Z0-9_]+\}$'
+# An explicit http(s) endpoint; an empty or scheme-less value would let the
+# SDKs fall back to their built-in URLs or environment variables again.
+API_URL_PATTERN = r'^https?://'
+
+
+@lru_cache(maxsize=1)
+def allowed_provider_types() -> frozenset[str]:
+    """The ``type`` enum of ``data/schemas/ai.json``, the single list of supported types."""
+    schema = load_schema('ai')
+    return frozenset(schema['properties']['providers']['items']['properties']['type']['enum'])
 
 
 class _Base(BaseModel):
@@ -83,14 +96,18 @@ class ModelEntry(_Base):
 
 
 class Provider(_Base):
-    """An LLM provider entry; ``models=None`` means auto-populate."""
+    """An LLM provider entry; ``models=None`` means auto-populate.
+
+    ``api_url`` is the only source of the endpoint: it is never inferred from
+    the ``type``, pydantic-ai defaults or environment variables.
+    """
 
     model_config = ConfigDict(extra='forbid')
 
     id: str
     type: str
     name: str | None = None
-    api_url: str | None = None
+    api_url: str = Field(min_length=1, pattern=API_URL_PATTERN)
     api_key: str | None = Field(default=None, pattern=SECRET_REFERENCE_PATTERN)
     # Extra HTTP headers sent with every request to this provider. Values may
     # embed ``${env:AI_NAME}``/``${settings:AI_NAME}`` secret references and the
@@ -108,6 +125,21 @@ class Provider(_Base):
     # report cumulative usage on every stream chunk (see bublik.ai.compaction).
     model_settings: dict = Field(default_factory=dict)
     models: list[ModelEntry] | None = None
+
+    @field_validator('type')
+    @classmethod
+    def _supported_type(cls, value: str) -> str:
+        # The schema enum is only enforced when a config is saved; a stored
+        # config using a type that has since been retired (e.g. one whose
+        # pydantic-ai class has a fixed endpoint) must fail here, at parse
+        # time, rather than list models it can never serve.
+        if value not in allowed_provider_types():
+            msg = (
+                f'unsupported provider type {value!r}; vendors with a fixed endpoint '
+                f'use type "openai" with their api_url'
+            )
+            raise ValueError(msg)
+        return value
 
 
 class McpServer(_Base):

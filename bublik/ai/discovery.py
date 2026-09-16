@@ -10,10 +10,14 @@ list is populated with the following priority:
 
 1. an explicit ``models`` list in the config — kept as-is, unset fields
    enriched from models.dev (explicit values always win);
-2. an ``api_url`` on an OpenAI-protocol/anthropic provider — HTTP discovery
+2. a discoverable ``type`` (OpenAI-protocol or anthropic) — HTTP discovery
    via ``GET {api_url}/models`` (the gateway is authoritative for *which*
-   models exist; models.dev only fills metadata, never the display name);
-3. the provider ``id`` matching a models.dev provider — its full catalogue.
+   models exist; models.dev only fills metadata, never the display name).
+   A failed or empty discovery leaves the list empty: the provider ``id`` is a
+   user-chosen label, so a gateway named ``openai`` must not be shown the real
+   vendor's catalogue while its own endpoint is down or behind auth;
+3. otherwise, the provider ``id`` matching a models.dev provider — its full
+   catalogue (types with no ``/models`` endpoint, e.g. google or bedrock).
 """
 
 from __future__ import annotations
@@ -42,15 +46,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Provider types speaking the OpenAI chat protocol (or the Anthropic Messages
-# API); their gateways expose ``GET {api_url}/models``, so HTTP model
-# auto-discovery is supported.
+# API); their ``api_url`` exposes ``GET /models``, so HTTP model
+# auto-discovery is supported. OpenAI-compatible vendors without a dedicated
+# type (OpenRouter, DeepSeek, ...) are configured as ``type: openai``.
 _DISCOVERABLE_TYPES = {
     'openai',
     'openai-chat',
     'openai-responses',
     'anthropic',
     'ollama',
-    'openrouter',
     'litellm',
 }
 
@@ -161,7 +165,7 @@ def enrich_model(entry: ModelEntry, provider: Provider) -> ModelEntry:
 def _discovery_cache_key(provider: Provider, headers: dict[str, str] | None = None) -> str:
     # Headers are part of the key: editing them changes what the gateway
     # returns (or whether it answers at all), so a stale entry must not win.
-    material = f'{provider.api_url or ""}|{json.dumps(headers or {}, sort_keys=True)}'
+    material = f'{provider.api_url}|{json.dumps(headers or {}, sort_keys=True)}'
     digest = hashlib.sha1(material.encode()).hexdigest()
     return f'ai-models:{provider.id}:{digest}'
 
@@ -184,7 +188,7 @@ def _fetch_gateway_models(
     if cached is not None:
         return cached
 
-    api_url = (provider.api_url or '').rstrip('/')
+    api_url = provider.api_url.rstrip('/')
     request_headers: dict[str, str] = {}
     params = {}
     if provider.type == 'anthropic':
@@ -271,13 +275,14 @@ def populate_models(
     """Resolve a provider's model list (see the module docstring for priority)."""
     if provider.models is not None:
         return [enrich_model(entry, provider) for entry in provider.models]
-    if provider.api_url and provider.type in _DISCOVERABLE_TYPES:
+    if provider.type in _DISCOVERABLE_TYPES:
+        # Empty on failure too: `_fetch_gateway_models` has already logged it.
         return _http_discovered_models(provider, api_key, headers)
     models = models_from_models_dev(provider.id)
     if not models:
         logger.warning(
-            'provider %r has no models: not a models.dev provider id and no '
-            'discoverable api_url (type %r)',
+            'provider %r has no models: type %r is not HTTP-discoverable and the id '
+            'is not a models.dev provider id; list models explicitly',
             provider.id,
             provider.type,
         )

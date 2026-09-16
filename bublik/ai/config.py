@@ -46,13 +46,19 @@ def parse_ai_config(raw: dict) -> AiConfig:
     """Parse authored config content into its typed form.
 
     A stored config that no longer matches the current shape (e.g. written
-    against an older schema) degrades to an empty provider set with an error
-    logged, instead of breaking every /chat endpoint.
+    against an older schema, or a provider without the now-mandatory
+    ``api_url``) degrades to an empty provider set with an error logged,
+    instead of breaking every /chat endpoint.
     """
     try:
         return AiConfig.model_validate(raw)
     except ValidationError as exc:
-        logger.error('active ai config does not match the current schema: %s', exc)
+        logger.error(
+            'active ai config does not match the current schema; chat has no '
+            'providers until it is re-saved (note: every provider requires an '
+            'explicit api_url): %s',
+            exc,
+        )
         return AiConfig()
 
 
