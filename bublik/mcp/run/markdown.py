@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
+    from bublik.core.report.dto import RunReportConfigDTO
     from bublik.core.run.dto import (
         RunDetailsResult,
         RunStatsComment,
@@ -88,7 +89,7 @@ def render_run_overview(
     stats: RunStatsResult | None,
     requirements: str | None,
     unexpected_only: bool = False,
-    report_configs: list[dict] | None = None,
+    report_configs: list[RunReportConfigDTO] | None = None,
 ) -> str:
     compromised = details.compromised
     rows = [
@@ -195,8 +196,7 @@ def render_run_overview(
         )
         for cfg in report_configs:
             lines.append(
-                f'| {_cell(cfg.get("id"))} | {_cell(cfg.get("name"))} | '
-                f'{_cell(cfg.get("description"))} |',
+                f'| {_cell(cfg.id)} | {_cell(cfg.name)} | {_cell(cfg.description)} |',
             )
 
     lines.extend(
