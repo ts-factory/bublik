@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import date, timedelta
 import logging
 from typing import TYPE_CHECKING
@@ -747,7 +748,8 @@ async def get_run_report_configs(run_id: int) -> list[dict]:
         List of report config dicts with id, name, description, version and project
     """
     run = await sync_to_async(RunService.get_run)(run_id)
-    return await sync_to_async(ReportService.get_configs_for_run_report)(run)
+    configs = await sync_to_async(ReportService.get_configs_for_run_report)(run)
+    return [asdict(cfg) for cfg in configs]
 
 
 # Server tools
