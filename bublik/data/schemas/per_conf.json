@@ -352,7 +352,7 @@
             "type": "array",
             "items": {
                 "type": "string",
-                "enum": ["manage_test_comments", "read_configs"]
+                "enum": ["manage_test_comments", "read_configs", "manage_issues"]
             },
             "uniqueItems": true
         },
