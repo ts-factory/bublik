@@ -30,18 +30,29 @@ from bublik.core.classification import (
 )
 from bublik.core.filter_backends import StableOrderingFilter
 from bublik.core.run.classification import ClassificationService
-from bublik.core.run.tests_organization import get_test_ids_by_name
-from bublik.data.models import Issue, IssueCategory, IssueRule, IssueState, RuleResult
+from bublik.core.run.tests_organization import build_test_paths, get_test_ids_by_name
+from bublik.data.models import (
+    Issue,
+    IssueCategory,
+    IssueRule,
+    IssueState,
+    ResultType,
+    RuleResult,
+    Test,
+    TestIterationResult,
+)
 from bublik.data.serializers import IssueRuleSerializer, IssueSerializer
 from bublik.interfaces.api_v2.issue.filters import IssueFilterSet, IssueRuleFilterSet
 from bublik.interfaces.api_v2.issue.schemas import (
     issue_picker_viewset_schema,
     issue_rule_viewset_schema,
     issue_viewset_schema,
+    test_picker_viewset_schema,
 )
 from bublik.interfaces.api_v2.issue.serializers import (
     ActionResultSerializer,
     IssuePickerOptionSerializer,
+    TestPickerOptionSerializer,
 )
 
 
@@ -439,6 +450,77 @@ class IssuePickerViewSet(GenericViewSet):
                 ],
             }
             for issue in issues
+        ]
+
+        serializer = self.get_serializer(data, many=True)
+        return Response(serializer.data)
+
+
+@test_picker_viewset_schema
+class TestPickerViewSet(GenericViewSet):
+    """
+    GET /tests/picker/?project=&search= - compact test options for the rule
+    form: up to 20 path matches for the given search text, or the 10 most
+    recently ruled tests when no search text is given. Only tests that have
+    results in the given project.
+
+    A test's `name` alone does not identify it - the same name can occur
+    under different parent packages with a different id each time - so
+    `search` matches the full `path`, not `name`.
+    """
+
+    filter_backends: typing.ClassVar[list] = []
+    renderer_classes: typing.ClassVar[list] = [JSONRenderer]
+    serializer_class = TestPickerOptionSerializer
+
+    def list(self, request, *args, **kwargs):
+        project_id = request.query_params.get('project')
+        search = (request.query_params.get('search') or '').strip()
+
+        results_qs = TestIterationResult.objects.all()
+        if project_id:
+            results_qs = results_qs.filter(project_id=project_id)
+        node_ids = results_qs.values_list('iteration__test_id', flat=True).distinct()
+
+        test_entity = ResultType.conv('test')
+        tested_ids = list(
+            Test.objects.filter(id__in=node_ids, result_type=test_entity).values_list(
+                'id',
+                flat=True,
+            ),
+        )
+
+        if search:
+            paths_by_id = build_test_paths(tested_ids)
+            matches = sorted(
+                (
+                    (test_id, path)
+                    for test_id, path in paths_by_id.items()
+                    if search.lower() in path.lower()
+                ),
+                key=lambda item: item[1],
+            )[:20]
+            ids = [test_id for test_id, _ in matches]
+            paths_by_id = dict(matches)
+        else:
+            recent = (
+                IssueRule.objects.filter(test_id__in=tested_ids)
+                .values('test_id')
+                .annotate(last_used=Max('created_at'))
+                .order_by('-last_used')[:10]
+            )
+            ids = [row['test_id'] for row in recent]
+            paths_by_id = build_test_paths(ids)
+
+        tests_by_id = Test.objects.filter(id__in=ids).in_bulk()
+        data = [
+            {
+                'id': test_id,
+                'name': tests_by_id[test_id].name,
+                'path': paths_by_id.get(test_id, ''),
+            }
+            for test_id in ids
+            if test_id in tests_by_id
         ]
 
         serializer = self.get_serializer(data, many=True)

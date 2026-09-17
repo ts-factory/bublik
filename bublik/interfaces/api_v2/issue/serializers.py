@@ -75,3 +75,14 @@ class IssuePickerOptionSerializer(serializers.Serializer):
     bug_key = serializers.CharField(allow_null=True)
     bug_url = serializers.CharField(allow_null=True)
     rules = RunIssueRuleSerializer(many=True)
+
+
+class TestPickerQuerySerializer(serializers.Serializer):
+    project = serializers.IntegerField(required=False)
+    search = serializers.CharField(required=False)
+
+
+class TestPickerOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    path = serializers.CharField()

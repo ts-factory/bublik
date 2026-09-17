@@ -12,11 +12,14 @@ from bublik.interfaces.api_v2.issue.serializers import (
     IssuePickerOptionSerializer,
     IssuePickerQuerySerializer,
     IssueRuleListQuerySerializer,
+    TestPickerOptionSerializer,
+    TestPickerQuerySerializer,
 )
 
 
 ISSUE_TAG = 'Issues'
 ISSUE_RULE_TAG = 'Issue Rules'
+TEST_TAG = 'Tests'
 
 _FORBIDDEN_DESCRIPTION = (
     'The user is not authenticated, or is authenticated but lacks admin '
@@ -300,5 +303,21 @@ issue_picker_viewset_schema = extend_schema_view(
         parameters=[IssuePickerQuerySerializer],
         responses={200: IssuePickerOptionSerializer(many=True)},
         tags=[ISSUE_TAG],
+    ),
+)
+
+
+test_picker_viewset_schema = extend_schema_view(
+    list=extend_schema(
+        summary='List test picker options',
+        description="""
+        Returns compact test options for a selection widget: up to 20
+        path matches for the given search text, or the 10 most recently
+        ruled tests when no search text is given. Only tests that have
+        results in the given project.
+        """,
+        parameters=[TestPickerQuerySerializer],
+        responses={200: TestPickerOptionSerializer(many=True)},
+        tags=[TEST_TAG],
     ),
 )
