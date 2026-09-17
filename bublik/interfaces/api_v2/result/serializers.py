@@ -32,6 +32,7 @@ class ObtainedResultSerializer(serializers.Serializer):
 
 class ResultDetailsSerializer(serializers.Serializer):
     name = serializers.CharField()
+    path = serializers.CharField(allow_null=True)
     result_id = serializers.IntegerField()
     run_id = serializers.IntegerField()
     project_id = serializers.IntegerField()
