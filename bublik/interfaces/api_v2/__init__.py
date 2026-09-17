@@ -18,7 +18,12 @@ from .eventlog.views import ImportEventViewSet
 from .history.views import HistoryViewSet
 from .importruns.views import ImportrunsViewSet
 from .index import render_docs, render_react
-from .issue.views import IssuePickerViewSet, IssueRuleViewSet, IssueViewSet
+from .issue.views import (
+    IssuePickerViewSet,
+    IssueRuleViewSet,
+    IssueViewSet,
+    TestPickerViewSet,
+)
 from .job_task.views import JobTaskExecutionViewSet
 from .log import LogViewSet
 from .management import clear_all_runs_stats_cache, local_logs, meta_categorization
@@ -60,6 +65,7 @@ __all__ = [
     'ServerViewSet',
     'SessionViewSet',
     'TestCommentViewSet',
+    'TestPickerViewSet',
     'TreeViewSet',
     'URLShortenerView',
     'clear_all_runs_stats_cache',
