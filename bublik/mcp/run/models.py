@@ -53,6 +53,7 @@ class RunLeafResult(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     name: str
+    path: str | None
     result_id: int
     run_id: int
     project_id: int

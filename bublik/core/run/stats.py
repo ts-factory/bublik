@@ -39,6 +39,7 @@ from bublik.core.run.dto import (
     RunSummaryStats,
 )
 from bublik.core.run.filter_expression import filter_by_expression
+from bublik.core.run.tests_organization import build_test_paths
 from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
 from bublik.data.models import (
     GlobalConfigs,
@@ -548,6 +549,10 @@ def get_nok_results_distribution(run):
 
 
 def generate_results_details(test_results):
+    test_results = list(test_results)
+    test_ids = {tr.iteration.test_id for tr in test_results if tr.iteration}
+    test_paths = build_test_paths(test_ids)
+
     # Gather all results details
     results_details = []
     for test_result in test_results:
@@ -595,6 +600,7 @@ def generate_results_details(test_results):
 
         data = {
             'name': iteration.test.name if iteration else None,
+            'path': test_paths.get(iteration.test_id, '') if iteration else None,
             'result_id': result_id,
             'run_id': test_result.root.id if test_result.root else None,
             'project_id': project.id if project else None,
