@@ -48,3 +48,19 @@ class IssuePickerTest(PickersDataMixin, APITestCase):
     def test_unknown_state_is_rejected(self):
         response = self.client.get(reverse('api-v2:issues_picker-list'), {'state': 'bogus'})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@data.isolated_caches
+class TestPickerTest(PickersDataMixin, APITestCase):
+    def _pick(self, **params):
+        response = self.client.get(reverse('api-v2:tests_picker-list'), params)
+        assert response.status_code == status.HTTP_200_OK, response.data
+        return [option['path'] for option in response.data]
+
+    def test_search_by_path_among_tests_with_results(self):
+        assert self._pick(project=self.project.id, search='net') == ['suite/net/ping']
+        assert self._pick(search='net') == ['suite/net/ping', 'suite/net/reset']
+
+    def test_without_search_the_recently_ruled(self):
+        assert self._pick(project=self.project.id) == ['suite/net/ping']
+        assert self._pick(project=self.other_project.id) == []
