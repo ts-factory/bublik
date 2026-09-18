@@ -34,7 +34,7 @@ from .result.views import ResultViewSet
 from .run.views import RunViewSet
 from .server import ServerViewSet
 from .tree import TreeViewSet
-from .url_shortener import URLShortenerView
+from .url_shortener.views import URLShortenerView
 
 
 __all__ = [
