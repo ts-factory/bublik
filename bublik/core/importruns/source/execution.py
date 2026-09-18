@@ -277,6 +277,16 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
     add_tags(run, tags)
     logger.info(f'the number of added tags is {len(tags)}')
 
+    # Lazy import: a top-level import would pull core.run.classification in
+    # during bublik.data.models init, causing a circular import.
+    from bublik.core.run.classification import ClassificationService  # noqa: PLC0415
+
+    try:
+        stamps_created = ClassificationService.apply_active_rules(run)
+        logger.info(f'the number of classification stamps applied is {stamps_created}')
+    except Exception:
+        logger.warning('failed to apply classification rules during import, continuing')
+
     call_command('run_cache', 'delete', '-i', run.id, '--logger_out', True)
 
     return run, True
