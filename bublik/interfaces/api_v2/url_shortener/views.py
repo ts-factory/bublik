@@ -51,6 +51,9 @@ class URLShortenerView(APIView):
             try:
                 project_name = Project.objects.get(id=project_id).name
                 short_url_endpoint += f'{project_name}/'
+            except ValueError:
+                msg = f'Invalid project ID: {project_id}'
+                raise ValidationError(msg) from None
             except ObjectDoesNotExist:
                 msg = f'No project exists with the provided ID: {project_id}'
                 raise ValidationError(msg) from None
