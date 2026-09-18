@@ -16,18 +16,16 @@ from bublik.core.run.utils import prepare_date
 from bublik.core.shortcuts import build_absolute_uri, serialize
 from bublik.data.models import Project
 from bublik.data.serializers import EndpointURLSerializer
+from bublik.interfaces.api_v2.url_shortener.schemas import url_shortener_view_schema
+from bublik.interfaces.api_v2.url_shortener.serializers import URLShortenerResponseSerializer
 
 
 logger = logging.getLogger('')
 
 
+@url_shortener_view_schema
 class URLShortenerView(APIView):
     def get(self, request, *args, **kwargs):
-        r"""
-        Return a short URL corresponding to the passed URL.
-        Short URL format is 'http://<host name>/bublik/short/<view>/<hash>'.
-        Route: /url_shortener/?url=<url\>.
-        """
         # Get URL to be shortened
         url = self.request.query_params.get('url', '')
 
@@ -74,4 +72,5 @@ class URLShortenerView(APIView):
         short_url_endpoint += f'short/{view}/{short_url_obj.hash}'
         short_url = build_absolute_uri(request, short_url_endpoint)
 
-        return Response(data={'short_url': short_url})
+        serializer = URLShortenerResponseSerializer(instance={'short_url': short_url})
+        return Response(serializer.data)
