@@ -11,17 +11,19 @@ from rest_framework.views import APIView
 from bublik.core.config.services import ConfigServices
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import GlobalConfigs
+from bublik.interfaces.api_v2.performance.schemas import performance_check_view_schema
+from bublik.interfaces.api_v2.performance.serializers import (
+    PerformanceCheckQuerySerializer,
+    PerformanceCheckResponseSerializer,
+)
 
 
 logger = logging.getLogger()
 
 
+@performance_check_view_schema
 class PerformanceCheckView(APIView):
     def get(self, request, *args, **kwargs):
-        """
-        Return labels, URLs and timeouts for basic views.
-        Route: /performance_check.
-        """
         views_to_check = [
             'dashboard',
             'runs_list',
@@ -30,7 +32,9 @@ class PerformanceCheckView(APIView):
             'history_list_intense',
         ]
 
-        project_id = request.query_params.get('project')
+        query_serializer = PerformanceCheckQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        project_id = query_serializer.validated_data.get('project')
 
         # Check settings timeouts
         if set(settings.VIEWS_TIMEOUTS.keys()) != set(views_to_check):
@@ -110,4 +114,8 @@ class PerformanceCheckView(APIView):
                 continue
             data.append(view_data)
 
-        return Response(data)
+        serializer = PerformanceCheckResponseSerializer(
+            instance=data,
+            many=True,
+        )
+        return Response(serializer.data)
