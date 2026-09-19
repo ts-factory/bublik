@@ -36,7 +36,7 @@ from bublik.core.run.data import (
 from bublik.core.run.filter_expression import filter_by_expression
 from bublik.core.run.tests_organization import get_test_ids_by_name
 from bublik.core.run.utils import prepare_dates_period
-from bublik.core.utils import key_value_list_transforming
+from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
 from bublik.data.models import (
     MeasurementResult,
     Meta,
@@ -481,12 +481,53 @@ class HistoryService:
         return runs_ids, iterations_ids, results_ids
 
     @staticmethod
-    def prepare_results_data(test_results):
+    def _get_searchable_values(test_result: dict, data: dict) -> list[str]:
+        """
+        Collect all string values of a result that are displayed in the history
+        table and can be matched by the substring search.
+        """
+        run_id = test_result['run_id']
+        result_id = test_result['id']
+        parameters = data['parameters_by_iterations'].get(test_result['iteration_id'], {})
+
+        values = [
+            *data['important_tags'].get(run_id, []),
+            *data['relevant_tags'].get(run_id, []),
+            *data['metadata_by_runs'].get(run_id, []),
+            *key_value_dict_transforming(parameters),
+            *data['verdicts'].get(result_id, []),
+        ]
+        result_type = data['results'].get(result_id)
+        if result_type:
+            values.append(result_type)
+
+        return [str(value) for value in values if value]
+
+    @staticmethod
+    def _filter_by_search(test_results_list: list[dict], data: dict, search: str) -> list:
+        """
+        Keep only results where at least one displayed value contains
+        the search substring (case-insensitive).
+        """
+        search = search.casefold()
+        return [
+            test_result
+            for test_result in test_results_list
+            if any(
+                search in value.casefold()
+                for value in HistoryService._get_searchable_values(test_result, data)
+            )
+        ]
+
+    @staticmethod
+    def prepare_results_data(test_results, search: str | None = None):
         """
         Prepare results data for response.
 
         Args:
             test_results: Queryset of test results
+            search: Optional substring to filter results by. Matched case-insensitively
+                against tags, metadata, parameters, verdicts and result type.
 
         Returns:
             Tuple of (data dict, counts dict, runs_ids, iterations_ids, results_ids)
@@ -505,6 +546,19 @@ class HistoryService:
             'important_tags': important_tags,
             'relevant_tags': relevant_tags,
         }
+
+        # Apply substring search before counting and pagination
+        search = (search or '').strip()
+        if search:
+            test_results_list = HistoryService._filter_by_search(
+                test_results_list,
+                data,
+                search,
+            )
+            data['test_results'] = test_results_list
+            runs_ids, iterations_ids, results_ids = HistoryService._collect_ids(
+                test_results_list,
+            )
 
         # Calculate counts
         total_results = len(test_results_list)
@@ -525,6 +579,7 @@ class HistoryService:
         test_name: str,
         page: int | None = None,
         page_size: int | None = None,
+        search: str | None = None,
         **filters,
     ) -> HistoryListDTO:
         """
@@ -534,6 +589,7 @@ class HistoryService:
             test_name: Name of the test
             page: Page number (default: 1)
             page_size: Items per page (default: 25, max: 10000)
+            search: Optional substring to filter results by (see prepare_results_data)
             **filters: Filter parameters (see build_history_queryset for details)
 
         Returns:
@@ -552,7 +608,7 @@ class HistoryService:
 
         # Prepare data
         data, counts, _runs_ids, _iterations_ids, results_ids = (
-            HistoryService.prepare_results_data(test_results)
+            HistoryService.prepare_results_data(test_results, search)
         )
 
         # Apply pagination to test_results
@@ -588,6 +644,7 @@ class HistoryService:
         test_name: str,
         page: int | None = None,
         page_size: int | None = None,
+        search: str | None = None,
         **filters,
     ) -> HistoryGroupedDTO:
         """
@@ -597,6 +654,7 @@ class HistoryService:
             test_name: Name of the test
             page: Page number (default: 1)
             page_size: Items per page (default: 25, max: 10000)
+            search: Optional substring to filter results by (see prepare_results_data)
             **filters: Filter parameters (see build_history_queryset for details)
 
         Returns:
@@ -615,7 +673,7 @@ class HistoryService:
 
         # Prepare data
         data, counts, _runs_ids, _iterations_ids, results_ids = (
-            HistoryService.prepare_results_data(test_results)
+            HistoryService.prepare_results_data(test_results, search)
         )
 
         # Group by iteration
