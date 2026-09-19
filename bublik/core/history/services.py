@@ -470,6 +470,17 @@ class HistoryService:
         )
 
     @staticmethod
+    def _collect_ids(test_results_list: list[dict]) -> tuple[set, set, set]:
+        runs_ids = set()
+        iterations_ids = set()
+        results_ids = set()
+        for result in test_results_list:
+            runs_ids.add(result['run_id'])
+            iterations_ids.add(result['iteration_id'])
+            results_ids.add(result['id'])
+        return runs_ids, iterations_ids, results_ids
+
+    @staticmethod
     def prepare_results_data(test_results):
         """
         Prepare results data for response.
@@ -480,28 +491,8 @@ class HistoryService:
         Returns:
             Tuple of (data dict, counts dict, runs_ids, iterations_ids, results_ids)
         """
-        # Collect IDs
-        runs_ids = set()
-        iterations_ids = set()
-        results_ids = set()
-
         test_results_list = list(test_results)
-        for result in test_results_list:
-            runs_ids.add(result['run_id'])
-            iterations_ids.add(result['iteration_id'])
-            results_ids.add(result['id'])
-
-        # Calculate counts
-        total_results = len(test_results_list)
-        unexpected_results = sum([result['has_error'] is True for result in test_results_list])
-
-        counts = {
-            'runs': len(runs_ids),
-            'iterations': len(iterations_ids),
-            'total_results': total_results,
-            'expected_results': total_results - unexpected_results,
-            'unexpected_results': unexpected_results,
-        }
+        runs_ids, iterations_ids, results_ids = HistoryService._collect_ids(test_results_list)
 
         # Get related data
         important_tags, relevant_tags = get_tags_by_runs(runs_ids)
@@ -513,6 +504,18 @@ class HistoryService:
             'metadata_by_runs': get_metadata_by_runs(runs_ids),
             'important_tags': important_tags,
             'relevant_tags': relevant_tags,
+        }
+
+        # Calculate counts
+        total_results = len(test_results_list)
+        unexpected_results = sum([result['has_error'] is True for result in test_results_list])
+
+        counts = {
+            'runs': len(runs_ids),
+            'iterations': len(iterations_ids),
+            'total_results': total_results,
+            'expected_results': total_results - unexpected_results,
+            'unexpected_results': unexpected_results,
         }
 
         return data, counts, runs_ids, iterations_ids, results_ids
