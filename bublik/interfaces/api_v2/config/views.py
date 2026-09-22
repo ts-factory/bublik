@@ -5,20 +5,19 @@ from __future__ import annotations
 
 import typing
 
-from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import auth_required, get_request_user, is_admin
+from bublik.core.auth import auth_required, get_request_user
 from bublik.core.config.filters import ConfigFilter
+from bublik.core.config.management import ConfigManagementService
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import UnprocessableEntityError
 from bublik.core.filter_backends import ProjectFilterBackend
-from bublik.core.shortcuts import serialize
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project
+from bublik.data.models import Config
 from bublik.data.serializers import ConfigSerializer
 from bublik.interfaces.api_v2.config.schemas import config_viewset_schema
 
@@ -44,109 +43,33 @@ class ConfigViewSet(ModelViewSet):
     ]
 
     def get_queryset(self):
-        configs = self.filter_queryset(super().get_queryset())
-        user = get_request_user(self.request)
-
-        not_permission_required_actions_default = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'NOT_PERMISSION_REQUIRED_ACTIONS',
-            project_id=None,
+        return ConfigManagementService.visible_for(
+            get_request_user(self.request),
+            self.filter_queryset(super().get_queryset()),
         )
-        if is_admin(user) or 'read_configs' in not_permission_required_actions_default:
-            return configs | Config.objects.filter(project__isnull=True)
-
-        project_ids = list(Project.objects.all().values_list('id', flat=True))
-        project_ids = [
-            project_id
-            for project_id in project_ids
-            if 'read_configs'
-            in ConfigServices.getattr_from_global(
-                GlobalConfigs.PER_CONF.name,
-                'NOT_PERMISSION_REQUIRED_ACTIONS',
-                project_id=project_id,
-            )
-        ]
-        if project_ids:
-            configs = configs.filter(project_id__in=project_ids)
-            if configs:
-                return configs | Config.objects.filter(project__isnull=True)
-
-        return configs.none()
 
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
-        serializer = serialize(
-            self.serializer_class,
-            data=request.data,
-            context={'user': get_request_user(request)},
-        )
-        config, _ = serializer.get_or_create()
+        config = ConfigManagementService.create(request.data, get_request_user(request))
         config_data = self.get_serializer(config).data
         return Response(config_data, status=status.HTTP_201_CREATED)
 
     @auth_required(as_admin=True)
     def partial_update(self, request, *args, **kwargs):
-        config = self.get_object()
-
-        with transaction.atomic():
-            # rename config and its versions if new name is provided
-            if 'name' in request.data:
-                new_name = request.data['name']
-                serializer = self.get_serializer(config, data={'name': new_name}, partial=True)
-                serializer.is_valid(raise_exception=True)
-                Config.objects.get_all_versions(
-                    config.type,
-                    config.name,
-                    config.project,
-                ).update(
-                    name=serializer.validated_data['name'],
-                )
-                config.refresh_from_db()
-
-            # collect data for update
-            update_data = {
-                k: v
-                for k, v in request.data.items()
-                if k in ['description', 'is_active', 'content']
-            }
-
-            if not update_data:
-                serializer = self.get_serializer(config)
-                return Response(serializer.data)
-
-            # if no new content is provided, just update the current config instance
-            if 'content' not in update_data:
-                serializer = self.get_serializer(config, data=update_data, partial=True)
-                serializer.is_valid(raise_exception=True)
-                self.perform_update(serializer)
-                return Response(serializer.data)
-
-        # create a new config version if the provided content differs from all existing versions
-        serializer = self.get_serializer(
-            config,
-            data=update_data,
-            partial=True,
-            context={'user': get_request_user(request)},
+        config, created = ConfigManagementService.update(
+            self.get_object(),
+            request.data,
+            get_request_user(request),
         )
-        serializer.is_valid(raise_exception=True)
-        updated_config, created = serializer.get_or_create()
+        config_data = self.get_serializer(config).data
         if created:
-            updated_config_data = self.get_serializer(updated_config).data
-            return Response(updated_config_data, status=status.HTTP_201_CREATED)
-
-        # update the existing config matching the provided content:
-        # set is_active and description to the provided values,
-        # or to the corresponding values from the current config if not provided
-        update_data['is_active'] = update_data.get('is_active', config.is_active)
-        update_data['description'] = update_data.get('description', config.description)
-        serializer = self.get_serializer(updated_config, data=update_data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+            return Response(config_data, status=status.HTTP_201_CREATED)
+        return Response(config_data)
 
     @auth_required(as_admin=True)
     def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+        ConfigManagementService.delete(self.get_object(), get_request_user(request))
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'], url_path='schema')
     def get_schema(self, request, *args, **kwargs):
@@ -181,43 +104,10 @@ class ConfigViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def available_types_names(self, request):
-        config_type_names = [
-            {
-                'type': ConfigTypes.REPORT,
-                'required': False,
-                'description': 'Configuration for report generation',
-            },
-            {
-                'type': ConfigTypes.SCHEDULE,
-                'required': False,
-                'description': 'Schedule of the runs to be made',
-            },
-        ]
-        for global_config in GlobalConfigs:
-            config_type_names.append(
-                {
-                    'type': ConfigTypes.GLOBAL,
-                    'name': global_config.name,
-                    'required': global_config in GlobalConfigs.required(),
-                    'description': global_config.description,
-                },
-            )
-        return Response({'config_types_names': config_type_names})
+        return Response(
+            {'config_types_names': ConfigManagementService.available_types_names()},
+        )
 
     def list(self, request):
         queryset = self.filter_queryset(self.get_queryset())
-        configs_to_display = (
-            queryset.order_by('project', 'type', 'name', '-is_active', '-created')
-            .distinct('project', 'type', 'name')
-            .values(
-                'id',
-                'version',
-                'is_active',
-                'type',
-                'name',
-                'description',
-                'project',
-                'created',
-            )
-        )
-        return Response(list(configs_to_display))
+        return Response(ConfigManagementService.summarize(queryset))
