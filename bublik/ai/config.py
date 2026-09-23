@@ -17,20 +17,22 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import re
 import uuid
 
-from django.conf import settings
 from pydantic import ValidationError
 
 from bublik.ai.discovery import populate_models
 from bublik.ai.types import AiConfig, ModelEntry, Provider
+from bublik.core import secrets as core_secrets
 from bublik.core.config.services import ConfigServices
 from bublik.data.models import GlobalConfigs
 
 
 logger = logging.getLogger(__name__)
+
+# Only AI_-prefixed names may be dereferenced as secrets by the ai config.
+AI_SECRET_PREFIX = 'AI_'
 
 
 def get_raw_ai_config(project_id: int | None = None) -> dict:
@@ -128,30 +130,12 @@ def resolve_model_request(
     return provider, model, effort or model.default_reasoning_effort
 
 
-# Only source-qualified, AI_-prefixed names may be dereferenced as secrets.
-# Without this, a config author could point an API key or MCP header at any
-# Django setting (SECRET_KEY, database credentials, ...) and send it to an
-# api_url / MCP server they also control.
-_SECRET_REFERENCE_RE = re.compile(
-    r'^\$\{(?P<source>env|settings):(?P<name>AI_[A-Z0-9_]+)\}$',
-)
-
-
 def resolve_secret_reference(reference: str | None) -> str | None:
     """Resolve one strict, source-qualified ``AI_`` secret reference.
 
-    ``env`` reads only :data:`os.environ`; ``settings`` reads only
-    :mod:`django.conf.settings`. Invalid references and missing, empty, or
-    non-string values are unresolved and return ``None``.
+    See :func:`bublik.core.secrets.resolve_secret_reference`.
     """
-    if not reference or (match := _SECRET_REFERENCE_RE.fullmatch(reference)) is None:
-        return None
-    name = match.group('name')
-    if match.group('source') == 'env':
-        value = os.environ.get(name)
-    else:
-        value = getattr(settings, name, None)
-    return value if isinstance(value, str) and value else None
+    return core_secrets.resolve_secret_reference(reference, AI_SECRET_PREFIX)
 
 
 def resolve_api_key(provider: Provider) -> str | None:
