@@ -111,3 +111,26 @@ class ImportrunsSerializer(serializers.Serializer):
             ),
             'force': data.get('force', False),
         }
+
+
+class ImportUploadSerializer(serializers.Serializer):
+    """Form fields of a log tarball upload."""
+
+    file = serializers.FileField()
+    project = serializers.IntegerField(required=False, allow_null=True)
+    force = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
+    def validate_project(self, project_id):
+        if project_id is None:
+            return None
+        project = Project.objects.filter(id=project_id).first()
+        if project is None:
+            msg = f'Project {project_id} does not exist'
+            raise serializers.ValidationError(msg)
+        return project
+
+    def validate_force(self, force):
+        try:
+            return parser_type_force(force) if force else False
+        except ArgumentTypeError as ate:
+            raise serializers.ValidationError(ate) from None

@@ -66,6 +66,11 @@ ANALYTICS_DB_PATH = '${ANALYTICS_DB_PATH}'
 # AI chat configuration
 AI_CHAT_ENABLED = '${AI_CHAT_ENABLED}'.lower() in ('1', 'true', 'yes')
 
+
+# Largest TE log tarball importruns/upload/ accepts, in bytes. A reverse proxy
+# in front of Bublik needs a matching request body limit.
+IMPORT_UPLOAD_MAX_SIZE = int(os.getenv('IMPORT_UPLOAD_MAX_SIZE', str(2 * 1024**3)))
+
 ALLOWED_HOSTS = ['*']
 
 # For debug panel. Note, that you might need
