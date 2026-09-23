@@ -17,6 +17,7 @@ from bublik.core.exceptions import (
     URLFetchError,
     get_safe_error_message,
 )
+from bublik.core.importruns.source.storage import unsupported_source_error, url_scheme
 from bublik.core.importruns.utils import indicate_collision, runtime
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.core.url import fetch_url
@@ -160,6 +161,13 @@ class HTTPDirectoryTraverser:
         yield from self.__find_runs(self.url)
 
 
+def traverser_for(url: str, job_id: int):
+    """The traverser discovering the runs under ``url``, chosen by scheme."""
+    if url_scheme(url) in ('http', 'https'):
+        return HTTPDirectoryTraverser(url, job_id)
+    raise unsupported_source_error(url)
+
+
 @with_path_processing_events
 def schedule_runs(
     request: Request,
@@ -168,7 +176,7 @@ def schedule_runs(
     **importruns_params,
 ):
     tasks_data = []
-    spear = HTTPDirectoryTraverser(importruns_params.pop('url'), job_id)
+    spear = traverser_for(importruns_params.pop('url'), job_id)
 
     for run_source_url, error in spear.find_runs():
         if error is not None:

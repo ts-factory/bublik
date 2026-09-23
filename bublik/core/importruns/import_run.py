@@ -14,7 +14,6 @@ from django.core.management import call_command
 import jsonschema
 from jsonschema import validate
 
-from bublik.core.checks import check_run_file
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import (
     ImportrunsError,
@@ -25,13 +24,13 @@ from bublik.core.exceptions import (
 )
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
+from bublik.core.importruns.source.storage import run_source_for
 from bublik.core.importruns.telog import JSONLog
 from bublik.core.importruns.utils import MeasureTime, runtime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
 from bublik.core.run.objects import add_import_id, add_run_log
-from bublik.core.url import save_url_to_dir
 from bublik.core.utils import create_event, get_import_job_task
 from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, Project
 from bublik.data.schemas.services import load_schema
@@ -121,6 +120,7 @@ def import_run(
     logger = get_task_or_server_logger()
 
     project = Project.objects.get(name=project_name) if project_name is not None else None
+    source = run_source_for(run_source_url)
     process_dir = None
 
     try:
@@ -130,7 +130,7 @@ def import_run(
         logger.info(f'downloading and parsing meta_data at {process_dir=}')
 
         # Fetch meta_data.json if available
-        meta_data_saved = save_url_to_dir(run_source_url, process_dir, 'meta_data.json')
+        meta_data_saved = source.fetch_to_dir('meta_data.json', process_dir)
 
         # Fetch available logs, convert and load JSON log
         log_files = [
@@ -141,14 +141,14 @@ def import_run(
             'raw_log_bundle.tpxz',
         ]
         log_file = next(
-            (f for f in log_files if save_url_to_dir(run_source_url, process_dir, f)),
+            (f for f in log_files if source.fetch_to_dir(f, process_dir)),
             None,
         )
         if log_file:
             args = (process_dir, log_file) if log_file == 'bublik.json' else (process_dir,)
             json_data = JSONLog().convert_from_dir(*args)
             logger.info(
-                f'run logs were downloaded from {os.path.join(run_source_url, log_file)}',
+                f'run logs were downloaded from {source.location(log_file)}',
             )
         else:
             json_data = None
@@ -208,7 +208,7 @@ def import_run(
                 project_id=project.id,
             )
             for filename in files_to_try:
-                filename_saved = save_url_to_dir(run_source_url, process_dir, filename)
+                filename_saved = source.fetch_to_dir(filename, process_dir)
                 if filename_saved:
                     logger.info(f'Save {filename} for generating metadata')
 
@@ -250,13 +250,12 @@ def import_run(
             )
 
         if meta_data_saved:
-            run_completed = check_run_file(
+            run_completed = source.exists(
                 ConfigServices.getattr_from_global(
                     GlobalConfigs.PER_CONF.name,
                     'RUN_COMPLETE_FILE',
                     project.id,
                 ),
-                run_source_url,
                 logger,
             )
         else:
