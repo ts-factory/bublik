@@ -12,12 +12,20 @@ implementation from the URL scheme.
 from __future__ import annotations
 
 import os
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlsplit
 
+from botocore.exceptions import ClientError
+
+from bublik.core import s3
 from bublik.core.checks import check_run_file
 from bublik.core.exceptions import ImportrunsError
+from bublik.core.logs_storage import LogsStorageError, find_s3_storage, is_s3_url
 from bublik.core.url import save_url_to_dir
+
+
+if TYPE_CHECKING:
+    from bublik.core.logs_storage import LogsStorage
 
 
 class RunSource(Protocol):
@@ -49,6 +57,48 @@ class HTTPRunSource:
         return os.path.join(self.url, name)
 
 
+class S3RunSource:
+    """A run directory under an S3 logs base (``s3://bucket/prefix/run/``)."""
+
+    def __init__(self, url: str, storage: LogsStorage):
+        self.url = url if url.endswith('/') else url + '/'
+        self.storage = storage
+        self.prefix = storage.key(self.url)
+
+    def fetch_to_dir(self, name: str, save_dir: str) -> bool:
+        path = os.path.join(save_dir, name)
+        try:
+            s3.download_file(self.prefix + name, path, target=self.storage.target)
+        except ClientError as exc:
+            if os.path.exists(path):
+                os.unlink(path)
+            if s3.is_missing(exc):
+                return False
+            raise
+        return True
+
+    def exists(self, name: str, logger=None) -> bool:
+        found = s3.object_exists(self.prefix + name, target=self.storage.target)
+        if not found and logger:
+            logger.info(f"{name} wasn't found in {self.url}")
+        return found
+
+    def location(self, name: str) -> str:
+        return self.url + name
+
+
+def s3_storage_for_url(url: str, project_id: int | None = None) -> LogsStorage:
+    """The S3 logs base ``url`` belongs to, or an import error if none is configured."""
+    storage = find_s3_storage(url, project_id)
+    if storage is None:
+        msg = (
+            "run URL doesn't match any S3 logs base in the references "
+            'configuration (a LOGS_BASES entry with storage.type "s3")'
+        )
+        raise LogsStorageError(message=msg, debug_details=[f'Run source URL: {url}'])
+    return storage
+
+
 def url_scheme(url: str) -> str:
     return urlsplit(url).scheme.lower()
 
@@ -60,8 +110,10 @@ def unsupported_source_error(url: str) -> ImportrunsError:
     )
 
 
-def run_source_for(url: str) -> RunSource:
+def run_source_for(url: str, project_id: int | None = None) -> RunSource:
     """The run source reading the run at ``url``."""
     if url_scheme(url) in ('http', 'https'):
         return HTTPRunSource(url)
+    if is_s3_url(url):
+        return S3RunSource(url, s3_storage_for_url(url, project_id))
     raise unsupported_source_error(url)

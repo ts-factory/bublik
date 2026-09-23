@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from argparse import ArgumentTypeError
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import URLValidator
 from rest_framework import serializers
 
 from bublik.core.argparse import (
@@ -12,11 +14,13 @@ from bublik.core.argparse import (
     parser_type_force,
 )
 from bublik.core.config.services import ConfigServices
+from bublik.core.logs_storage import LogsStorageError, is_s3_url, parse_s3_url
 from bublik.data.models import GlobalConfigs, Project
 
 
 class ImportrunsSerializer(serializers.Serializer):
-    url = serializers.URLField()
+    # http(s) URLs of a TE log server, or s3:// URLs of an S3 logs base.
+    url = serializers.CharField()
     project = serializers.IntegerField(required=False, allow_null=True)
     date_from = serializers.CharField(required=False, allow_null=True)
     date_to = serializers.CharField(required=False, allow_null=True)
@@ -31,6 +35,18 @@ class ImportrunsSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
     def validate_url(self, url):
+        if is_s3_url(url):
+            try:
+                parse_s3_url(url)
+            except LogsStorageError as error:
+                raise serializers.ValidationError(error.message) from None
+        else:
+            try:
+                URLValidator(schemes=['http', 'https'])(url)
+            except DjangoValidationError:
+                msg = 'Enter a valid http(s):// or s3:// URL.'
+                raise serializers.ValidationError(msg) from None
+
         project_id = self.initial_data.get('project')
         project_ids = (
             Project.objects.filter(id=project_id)

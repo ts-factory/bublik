@@ -176,7 +176,7 @@ def open_object(key: str, *, target: S3Target | None = None) -> dict | None:
     try:
         return client_for(target).get_object(Bucket=target.bucket, Key=key)
     except ClientError as exc:
-        if _is_missing(exc):
+        if is_missing(exc):
             return None
         raise
 
@@ -193,7 +193,7 @@ def object_exists(key: str, *, target: S3Target | None = None) -> bool:
     try:
         client_for(target).head_object(Bucket=target.bucket, Key=key)
     except ClientError as exc:
-        if _is_missing(exc):
+        if is_missing(exc):
             return False
         raise
     return True
@@ -267,5 +267,6 @@ def public_read_url(key: str, *, target: S3Target | None = None) -> str | None:
     return _presigned_get(_resolve(target), {'Key': key})
 
 
-def _is_missing(exc: ClientError) -> bool:
+def is_missing(exc: ClientError) -> bool:
+    """Whether a client error means the object or bucket does not exist."""
     return exc.response.get('Error', {}).get('Code', '') in ('404', 'NoSuchKey', 'NotFound')
