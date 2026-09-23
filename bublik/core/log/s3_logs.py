@@ -74,6 +74,23 @@ def browser_url(url: str | None, origin: str | None = None) -> str | None:
     return f'{prefix}/{path}'
 
 
+def direct_url(url: str, project_id: int | None = None) -> str | None:
+    """A presigned URL on the storage's public endpoint for an existing log item.
+
+    ``None`` when the storage has no public endpoint or the item does not
+    exist yet (it must go through Bublik to be generated). Only for single
+    files: pages that link to other, not yet generated, pages (HTML) must keep
+    going through Bublik.
+    """
+    storage = find_s3_storage(url, project_id)
+    if storage is None or not storage.target.public_endpoint_url:
+        return None
+    key = storage.key(url)
+    if not s3.object_exists(key, target=storage.target):
+        return None
+    return s3.public_read_url(key, target=storage.target)
+
+
 def storage_for(bucket: str, key: str) -> LogsStorage | None:
     """The S3 logs base holding ``key``; only keys under a configured base are served."""
     return find_s3_storage(f's3://{bucket}/{key}')

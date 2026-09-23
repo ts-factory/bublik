@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from types import MappingProxyType
 from unittest import mock
 
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -215,9 +216,10 @@ class S3LogViewTest(TestCase):
 
 
 @override_settings(SECURE_HTTP=True, URL_PREFIX='', ENABLE_JSON_LOGS_PROXY=True)
+@mock.patch.object(logs_storage, 'logs_bases', new=mock.Mock(return_value=[HTTP_BASE, S3_BASE]))
 class JsonLogUrlsTest(SimpleTestCase):
     def urls(self, source, origin):
-        result = mock.Mock(test_run=object(), exec_seqno=5)
+        result = mock.Mock(test_run=object(), exec_seqno=5, project_id=1)
         services = 'bublik.core.log.services'
         with mock.patch(f'{services}.ResultService.get_result', return_value=result):  # noqa: SIM117
             with mock.patch(f'{services}.get_sources', return_value=source):
@@ -239,4 +241,67 @@ class JsonLogUrlsTest(SimpleTestCase):
         urls = self.urls('https://logs.example/logs/run/', 'bublik.example')
         self.assertIn(
             '/api/v2/logs/proxy/?url=https://logs.example/logs/run/json/', urls['url']
+        )
+
+    def test_the_html_log_url_is_absolute_for_the_requesting_client(self):
+        result = mock.Mock(test_run=object(), exec_seqno=5, project_id=1)
+        services = 'bublik.core.log.services'
+        with mock.patch(f'{services}.ResultService.get_result', return_value=result):  # noqa: SIM117
+            with mock.patch(
+                f'{services}.get_result_log', return_value='s3://b/run/html/x.html'
+            ):
+                self.assertEqual(
+                    LogService.get_html_log_url(1, 'https://bublik.example'),
+                    'https://bublik.example/api/v2/logs/s3/b/run/html/x.html',
+                )
+
+
+@override_settings(
+    SECURE_HTTP=True, URL_PREFIX='', S3_PRESIGN_EXPIRY=60, ENABLE_JSON_LOGS_PROXY=False
+)
+class PresignedLogUrlsTest(SimpleTestCase):
+    public_base = MappingProxyType(
+        {**S3_BASE, 'storage': {'type': 's3', 'public_endpoint_url': 'https://s3.example.com'}},
+    )
+
+    def urls(self, base, exists):
+        result = mock.Mock(test_run=object(), exec_seqno=5, project_id=1)
+        services = 'bublik.core.log.services'
+        with mock.patch.object(logs_storage, 'logs_bases', return_value=[dict(base)]):  # noqa: SIM117
+            with mock.patch('bublik.core.s3.object_exists', side_effect=exists):
+                with mock.patch(f'{services}.ResultService.get_result', return_value=result):
+                    with mock.patch(
+                        f'{services}.get_sources', return_value=f's3://bublik-logs/{RUN}'
+                    ):
+                        return LogService.get_json_log_urls(1, None, 'bublik.example')
+
+    def test_existing_pages_on_a_public_endpoint_are_presigned(self):
+        urls = self.urls(self.public_base, lambda key, **_: key.endswith('.json'))
+        run = RUN.replace(':', '%3A')
+        self.assertTrue(
+            urls['url'].startswith(f'https://s3.example.com/bublik-logs/{run}json/')
+        )
+        self.assertIn('X-Amz-Signature=', urls['url'])
+
+    def test_missing_pages_go_through_bublik(self):
+        urls = self.urls(self.public_base, lambda key, **_: False)
+        self.assertTrue(urls['url'].startswith('https://bublik.example/api/v2/logs/s3/'))
+
+    @override_settings(ENABLE_JSON_LOGS_PROXY=True)
+    def test_the_proxy_switch_keeps_existing_pages_on_bublik(self):
+        # A presigned S3 URL is cross-origin for the browser; the switch exists
+        # for deployments that cannot allow that.
+        with mock.patch('bublik.core.s3.public_read_url') as presign:
+            urls = self.urls(self.public_base, lambda key, **_: True)
+        self.assertTrue(urls['url'].startswith('https://bublik.example/api/v2/logs/s3/'))
+        self.assertTrue(
+            urls['attachments_url'].startswith('https://bublik.example/api/v2/logs/s3/')
+        )
+        presign.assert_not_called()
+
+    def test_without_a_public_endpoint_everything_goes_through_bublik(self):
+        urls = self.urls(S3_BASE, lambda key, **_: True)
+        self.assertTrue(urls['url'].startswith('https://bublik.example/api/v2/logs/s3/'))
+        self.assertTrue(
+            urls['attachments_url'].startswith('https://bublik.example/api/v2/logs/s3/')
         )

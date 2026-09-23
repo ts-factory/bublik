@@ -15,6 +15,7 @@ from bublik.core.exceptions import BadGatewayError, UnprocessableEntityError
 from bublik.core.log.s3_logs import (
     LogGenerationError,
     browser_url,
+    direct_url,
     open_log_item,
     storage_for,
 )
@@ -82,8 +83,21 @@ class LogService:
             if request_origin:
                 protocol = 'https' if settings.SECURE_HTTP else 'http'
                 origin = f'{protocol}://{request_origin}'
-                url = origin + browser_url(url)
-                attachments_url = origin + browser_url(attachments_url)
+                project_id = result.project_id
+
+                def served(s3_url):
+                    # Pages that already exist can be read straight from a
+                    # browser-reachable S3, which is cross-origin and needs a
+                    # CORS rule on the bucket; the proxy switch keeps them on
+                    # Bublik, which generates the missing ones anyway.
+                    if not settings.ENABLE_JSON_LOGS_PROXY:
+                        presigned = direct_url(s3_url, project_id)
+                        if presigned:
+                            return presigned
+                    return browser_url(s3_url, origin)
+
+                url = served(url)
+                attachments_url = served(attachments_url)
             return {'url': url, 'attachments_url': attachments_url}
 
         # Apply proxy if enabled
