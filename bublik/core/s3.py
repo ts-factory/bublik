@@ -209,6 +209,18 @@ def list_prefixes(prefix: str, *, target: S3Target | None = None) -> list[str]:
     return prefixes
 
 
+def list_entries(prefix: str, *, target: S3Target | None = None) -> tuple[list[str], list[str]]:
+    """The sub-prefixes and object keys directly under ``prefix``, like a directory."""
+    target = _resolve(target)
+    paginator = client_for(target).get_paginator('list_objects_v2')
+    prefixes: list[str] = []
+    keys: list[str] = []
+    for page in paginator.paginate(Bucket=target.bucket, Prefix=prefix, Delimiter='/'):
+        prefixes.extend(entry['Prefix'] for entry in page.get('CommonPrefixes', []))
+        keys.extend(entry['Key'] for entry in page.get('Contents', []))
+    return prefixes, keys
+
+
 def delete_prefix(prefix: str, *, target: S3Target | None = None) -> None:
     """Best-effort bulk delete of every object under ``prefix``."""
     target = _resolve(target)

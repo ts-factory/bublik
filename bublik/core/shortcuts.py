@@ -6,6 +6,12 @@ from urllib.parse import urljoin
 from django.conf import settings
 
 
+def get_origin(request):
+    """``scheme://host`` of the request, with the scheme the deployment is served on."""
+    protocol = 'https' if settings.SECURE_HTTP else 'http'
+    return f'{protocol}://{request.get_host()}'
+
+
 def get_current_scheme_host_prefix(request):
     return (
         urljoin(f'{request.scheme}://{request.get_host()}', settings.URL_PREFIX).rstrip('/')

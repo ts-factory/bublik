@@ -18,6 +18,7 @@ from bublik.core.run.stats import (
     generate_results_details,
     generate_runs_details,
 )
+from bublik.core.shortcuts import get_origin
 from bublik.core.utils import get_difference
 from bublik.data.models import GlobalConfigs
 from bublik.data.serializers import (
@@ -139,8 +140,8 @@ class RunViewSet(ModelViewSet):
         return Response({'requirements': RunService.get_run_requirements(pk)})
 
     @action(detail=True, methods=['get'])
-    def source(self, _request, pk=None):
-        return Response({'url': RunService.get_run_source(pk)})
+    def source(self, request, pk=None):
+        return Response({'url': RunService.get_run_source(pk, get_origin(request))})
 
     @action(detail=True, methods=['get'])
     def status(self, _request, pk=None):
