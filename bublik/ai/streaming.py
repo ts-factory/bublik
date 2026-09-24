@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import logging
 from typing import TYPE_CHECKING
 
@@ -28,6 +28,7 @@ from ag_ui.encoder import EventEncoder
 
 from bublik.ai import run_store
 from bublik.ai.transcript import PartialRun, persist_messages
+from bublik.core.auth import bind_acting_user
 
 
 if TYPE_CHECKING:
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 
     from pydantic_ai import Agent
     from pydantic_ai.capabilities import AbstractCapability
+    from pydantic_ai.toolsets import AbstractToolset
     from pydantic_ai.ui.ag_ui import AGUIAdapter
 
     from bublik.ai.types import AiChatDeps
@@ -51,12 +53,14 @@ class RunOptions:
     lru-cached agent. ``model_settings`` is the same story: it carries the
     provider headers resolved for this conversation, which vary per thread and
     so must not be baked into the shared agent. Run-level settings are merged
-    over the agent's, so the agent's own settings survive.
+    over the agent's, so the agent's own settings survive. ``toolsets`` are the
+    user's own MCP servers.
     """
 
     capabilities: Sequence[AbstractCapability] = field(default_factory=tuple)
     on_complete: Any = None
     model_settings: Any = None
+    toolsets: Sequence[AbstractToolset] = field(default_factory=tuple)
 
 
 logger = logging.getLogger(__name__)
@@ -102,6 +106,7 @@ async def _buffer_stream(
             deps=deps,
             capabilities=options.capabilities or None,
             model_settings=options.model_settings,
+            toolsets=list(options.toolsets) or None,
         )
         async for event in native:
             partial.add(event)
@@ -110,6 +115,50 @@ async def _buffer_stream(
     stream = adapter.transform_stream(tapped(), on_complete=on_complete)
     async for sse in adapter.encode_stream(stream):
         await run_store.append_event(run_id, sse, deps.thread_id)
+
+
+def _toolset_label(toolset: AbstractToolset) -> str:
+    return getattr(toolset, 'prefix', None) or getattr(toolset, 'id', None) or repr(toolset)
+
+
+async def _safe_aexit(toolset: AbstractToolset) -> None:
+    # A remote dying mid-run must not turn a finished run into an error.
+    try:
+        await toolset.__aexit__(None, None, None)
+    except Exception:
+        logger.warning(
+            'MCP toolset %s: teardown failed', _toolset_label(toolset), exc_info=True
+        )
+
+
+async def _connect_toolsets(
+    stack: contextlib.AsyncExitStack,
+    toolsets: Sequence[AbstractToolset],
+    run_id: str,
+) -> tuple[AbstractToolset, ...]:
+    """Connect the user's MCP toolsets concurrently; return the ones that answered.
+
+    The run aborts on a toolset that fails to connect, so failures are dropped
+    here first. Each teardown is registered on ``stack`` as soon as its toolset
+    connects, so a cancelled run still closes it.
+    """
+
+    async def attempt(toolset: AbstractToolset) -> AbstractToolset | None:
+        try:
+            await toolset.__aenter__()
+        except Exception:  # an ExceptionGroup from anyio is an Exception too
+            logger.warning(
+                'chat run %s: MCP toolset %s unavailable, skipped',
+                run_id,
+                _toolset_label(toolset),
+                exc_info=True,
+            )
+            return None
+        stack.push_async_callback(_safe_aexit, toolset)
+        return toolset
+
+    results = await asyncio.gather(*(attempt(toolset) for toolset in toolsets))
+    return tuple(toolset for toolset in results if toolset is not None)
 
 
 async def _heartbeat(run_id: str, thread_id: str) -> None:
@@ -159,34 +208,47 @@ async def produce_run(
     The stream runs inside ``async with agent`` so any remote MCP toolsets the
     agent was built with (see :func:`bublik.ai.agent.build_agent`) are connected
     for the run and torn down afterwards. With no MCP servers configured this is
-    a cheap no-op, so it is unconditional.
+    a cheap no-op, so it is unconditional. The user's own servers are connected
+    by :func:`_connect_toolsets`.
     """
     status = 'finished'
     cancelled = False
     partial = PartialRun()
     heartbeat_task = asyncio.ensure_future(_heartbeat(run_id, deps.thread_id))
     try:
-        async with agent:
-            stream_task = asyncio.ensure_future(
-                _buffer_stream(adapter, run_id, deps, options, partial)
-            )
-            watch_task = asyncio.ensure_future(_watch_cancel(run_id))
-            done, _pending = await asyncio.wait(
-                {stream_task, watch_task}, return_when=asyncio.FIRST_COMPLETED
-            )
-            if watch_task in done and stream_task not in done:
-                # Cancellation requested while the stream was still running.
-                cancelled = True
-                stream_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
+        # The shared write tools read the caller from this binding.
+        with bind_acting_user(deps.user_id):
+            async with agent, contextlib.AsyncExitStack() as toolset_stack:
+
+                async def connect_and_stream():
+                    run_options = options
+                    if run_options.toolsets:
+                        connected = await _connect_toolsets(
+                            toolset_stack, run_options.toolsets, run_id
+                        )
+                        run_options = replace(run_options, toolsets=connected)
+                    await _buffer_stream(adapter, run_id, deps, run_options, partial)
+
+                # Connecting is raced against cancellation like the stream itself.
+                stream_task = asyncio.ensure_future(connect_and_stream())
+                watch_task = asyncio.ensure_future(_watch_cancel(run_id))
+                done, _pending = await asyncio.wait(
+                    {stream_task, watch_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if watch_task in done and stream_task not in done:
+                    # Cancellation requested while the stream was still running.
+                    cancelled = True
+                    stream_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await stream_task
+                else:
+                    # Stream finished (or raised) first; stop watching and
+                    # re-await it so any real failure propagates to the
+                    # handler below.
+                    watch_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await watch_task
                     await stream_task
-            else:
-                # Stream finished (or raised) first; stop watching and re-await it
-                # so any real failure propagates to the handler below.
-                watch_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await watch_task
-                await stream_task
     except asyncio.CancelledError:
         status = 'error'
         raise

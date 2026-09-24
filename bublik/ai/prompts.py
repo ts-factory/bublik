@@ -33,6 +33,43 @@ FILES_GUIDE = (
 )
 
 
+WRITE_GUIDE = (
+    '\n\n## Making Changes\n\n'
+    'You can also change data on behalf of the user. Each tool works out '
+    'whether to add, change or remove from what you pass: `edit_test_comment` '
+    '(text without `comment_id` adds, text with `comment_id` replaces, '
+    '`comment_id` without text removes), `edit_run_comment` (text sets the '
+    "run's single comment, no text removes it), and `set_run_compromised` "
+    '(`compromised=true` with a mandatory comment and an optional bug '
+    'reference marks or re-marks the run, `compromised=false` clears the '
+    "mark). A run overview shows each test's Test ID, its comments as "
+    '`[comment_id] text`, and the Project ID these tools need; '
+    '`get_test_comments` lists the comments of one test on its own. Every '
+    'change is recorded as the user, so only do what they asked for. Before '
+    'an action that removes or replaces something (clearing a compromised '
+    'mark, removing a comment, deleting or overwriting a config) confirm with '
+    'the user unless they explicitly asked for exactly that. If a tool '
+    'refuses because the user is not allowed to do something, say so plainly '
+    'and do not try again with other arguments.'
+)
+
+
+ADMIN_GUIDE = (
+    '\n\n## Editing Configs (administrator)\n\n'
+    'The user is a Bublik administrator and can manage configs through you. '
+    'Start with `list_configs` to see what exists and which types and names '
+    'may be created. `edit_config` creates a config when called without '
+    '`config_id` and changes one when called with it. Before changing content, '
+    'fetch the current version with `get_config` and the rules with '
+    '`get_config_schema`; then pass the whole edited content back (content is '
+    'replaced, not merged). New content creates a new version and activates it '
+    'if the edited version was active; `is_active` alone switches versions. '
+    '`delete_config` removes a version for good; prefer deactivating. '
+    'Projects work the same way: `edit_project` creates or renames one, and '
+    '`delete_project` removes an empty project for good.'
+)
+
+
 COMPACTION_PROMPT = (
     'You summarize an earlier portion of a conversation between a user and the '
     'Bublik testing assistant so the conversation can continue with the summary '
@@ -48,11 +85,15 @@ COMPACTION_PROMPT = (
 )
 
 
-def build_system_instructions() -> str:
-    """The system prompt, extended with URL patterns when the FQDN is known."""
+def build_system_instructions(admin: bool = False) -> str:
+    """The system prompt, extended with URL patterns when the FQDN is known.
+
+    ``admin`` adds the guide for the admin tools.
+    """
+    guides = WRITE_GUIDE + (ADMIN_GUIDE if admin else '') + FILES_GUIDE
     fqdn = getattr(settings, 'BUBLIK_FQDN', '').strip()
     if not fqdn:
-        return SYSTEM_PROMPT + FILES_GUIDE
+        return SYSTEM_PROMPT + guides
 
     prefix = settings.URL_PREFIX.strip('/')
     base = f'/{prefix}/v2' if prefix else '/v2'
@@ -82,4 +123,4 @@ def build_system_instructions() -> str:
         f'Always use exact ids from tool results. When you reference a run or '
         f'result, include a clickable link to the relevant page using the pattern above.'
     )
-    return SYSTEM_PROMPT + url_guide + FILES_GUIDE
+    return SYSTEM_PROMPT + url_guide + guides

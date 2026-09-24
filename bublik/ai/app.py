@@ -15,6 +15,8 @@ Endpoints under ``/api/v2/chat`` (honouring ``URL_PREFIX``):
   run (``thread`` query param). The background run task tears itself down; a
   terminal error event is buffered so the client leaves the streaming state.
 * ``GET  /api/v2/chat/files/{file_id}`` serves a chat-generated file to its owner.
+* ``GET  /api/v2/chat/mcp-status`` reports whether each MCP server the caller's
+  run would attach is reachable.
 
 This module is the thin route table; the machinery lives in sibling modules:
 authorization in :mod:`bublik.ai.access`, run/SSE streaming in
@@ -44,6 +46,7 @@ from bublik.ai.config import (
     ModelRequestError,
     config_fingerprint,
     effective_ai_config,
+    get_ai_config,
     get_effective_ai_config,
     get_raw_ai_config,
     parse_ai_config,
@@ -52,9 +55,13 @@ from bublik.ai.config import (
     resolve_provider_headers,
 )
 from bublik.ai.downloads import download_file
+from bublik.ai.mcp import build_user_mcp_toolsets
+from bublik.ai.mcp_status import collect_status
 from bublik.ai.streaming import RunOptions, spawn_run, stream_run_events
 from bublik.ai.transcript import persist_messages
 from bublik.ai.types import AiChatDeps
+from bublik.core.auth import is_admin
+from bublik.core.user_mcp_server import UserMcpServerService
 from bublik.data.models import AiChatThread
 
 
@@ -122,6 +129,7 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
             model,
             effort,
             config_fingerprint(raw_config),
+            admin=is_admin(user),
         )
     except ValueError as exc:
         return JSONResponse({'detail': str(exc)}, status_code=422)
@@ -191,6 +199,13 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
             model_settings=model_settings,
             output_limit=_model_entry.limit.output if _model_entry.limit else None,
         )
+        # User MCP servers differ per user, so they ride the run, not the shared agent.
+        user_servers = await sync_to_async(UserMcpServerService.enabled_for)(user.id)
+        user_toolsets = build_user_mcp_toolsets(
+            user_servers,
+            reserved_ids=config.mcp_server_ids,
+            policy=config.user_mcp_servers,
+        )
         options = RunOptions(
             capabilities=(ProcessHistory(compactor),),
             on_complete=make_usage_reporter(
@@ -201,6 +216,7 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
                 _provider.type,
             ),
             model_settings=model_settings,
+            toolsets=tuple(user_toolsets),
         )
         spawn_run(adapter, agent, run_id, deps, options)
     except Exception:
@@ -217,6 +233,16 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
             'X-Accel-Buffering': 'no',
         },
     )
+
+
+async def _mcp_status(request: Request) -> Response:
+    """Probe the MCP servers a run for this user would attach and report each."""
+    user = await resolve_user(request)
+    if user is None:
+        return JSONResponse({'detail': 'Authentication required.'}, status_code=401)
+    config = await sync_to_async(get_ai_config)()
+    servers = await sync_to_async(UserMcpServerService.all_for)(user.id)
+    return JSONResponse(await collect_status(config, servers))
 
 
 async def _cancel_chat(request: Request) -> Response:
@@ -249,11 +275,12 @@ def _chat_base_path() -> str:
 
 
 def build_chat_routes() -> list[Route]:
-    """Build the chat model-listing, run, cancellation and file routes."""
+    """Build the chat model-listing, run, cancellation, MCP status and file routes."""
     base = _chat_base_path()
     return [
         Route(f'{base}/models', _list_models, methods=['GET'], name='chat-models'),
         Route(f'{base}/cancel', _cancel_chat, methods=['POST'], name='chat-cancel'),
+        Route(f'{base}/mcp-status', _mcp_status, methods=['GET'], name='chat-mcp-status'),
         Route(
             f'{base}/files/{{file_id}}',
             download_file,

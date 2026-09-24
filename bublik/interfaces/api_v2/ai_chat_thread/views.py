@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bublik.ai import run_store
-from bublik.core.auth import auth_required, get_user_by_access_token
+from bublik.core.auth import auth_required, get_request_user
 from bublik.data.models import AiChatThread
 from bublik.data.serializers import AiChatThreadDetailSerializer, AiChatThreadListSerializer
 
@@ -43,8 +43,7 @@ class AiChatThreadViewSet(ModelViewSet):
         return AiChatThreadDetailSerializer
 
     def _get_user(self):
-        access_token = self.request.COOKIES.get('access_token')
-        return get_user_by_access_token(access_token)
+        return get_request_user(self.request)
 
     def get_queryset(self):
         user = self._get_user()

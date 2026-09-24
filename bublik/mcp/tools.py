@@ -3,13 +3,20 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import asdict
 from datetime import date, timedelta
+import json
 import logging
 from typing import TYPE_CHECKING
 
 from asgiref.sync import sync_to_async
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
+from bublik.core.comment import TestCommentService
+from bublik.core.config.management import ConfigManagementService
+from bublik.core.config.services import ConfigServices
 from bublik.core.dashboard import DashboardService
 from bublik.core.history.services import HistoryService
 from bublik.core.log.services import LogService
@@ -17,13 +24,17 @@ from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.project import ProjectService
 from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
+from bublik.core.run.compromised import get_compromised_details, is_run_compromised
 from bublik.core.run.services import RunService
 from bublik.core.run.stats import generate_all_run_details, generate_runs_details, get_test_runs
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
+from bublik.data.models import Config, MetaTest
+from bublik.data.serializers import ConfigSerializer
 from bublik.interfaces.api_v2.run.serializers import (
     serialize_paginated_run_summary_results,
 )
+from bublik.mcp.auth import mcp_auth_required, mcp_caller
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
 from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, render_run_overview
@@ -61,10 +72,11 @@ async def get_run_overview(
     """
     Get a complete Markdown overview of a test run.
 
-    The overview combines run metadata, status, conclusion, source,
-    compromised details, and the aggregate result statistics tree. Each
-    test row includes a Result ID that can be passed to
-    get_run_leaf_results for concrete executions.
+    The overview combines run metadata (including the Project ID), status,
+    conclusion, source, compromised details, and the aggregate result
+    statistics tree. Each test row includes a Result ID that can be passed to
+    get_run_leaf_results for concrete executions, a Test ID for the test
+    comment tools, and the test's comments as `[comment_id] text`.
 
     Args:
         run_id: The ID of the test run
@@ -765,6 +777,424 @@ async def get_server_version() -> dict:
     return await sync_to_async(ServerService.get_version)()
 
 
+# Test comment tools. A comment is identified by its meta id, as in the REST API.
+
+
+def _comment_row(metatest) -> dict:
+    value = metatest.meta.value
+    with contextlib.suppress(ValueError, TypeError):
+        value = json.loads(value)
+    return {
+        'comment_id': metatest.meta_id,
+        'test_id': metatest.test_id,
+        'project_id': metatest.project_id,
+        'comment': value,
+        'serial': metatest.serial,
+        'updated': metatest.updated,
+    }
+
+
+def _comment_rows(test_id, project_id) -> list[dict]:
+    comments = (
+        TestCommentService.list_for_test(test_id, project_id)
+        .select_related('meta')
+        .order_by('serial')
+    )
+    return [_comment_row(metatest) for metatest in comments]
+
+
+async def get_test_comments(test_id: int, project_id: int) -> list[dict]:
+    """
+    List the comments left on a test within a project.
+
+    get_run_overview already shows each test's comments as `[comment_id] text`;
+    use this when you need them for a test outside a run overview.
+
+    Args:
+        test_id: The test
+        project_id: The project the comments belong to
+
+    Returns:
+        List of comments with comment_id, comment, serial and updated. The
+        `comment_id` is what edit_test_comment takes to change or remove one.
+    """
+    return await sync_to_async(_comment_rows)(test_id, project_id)
+
+
+@mcp_auth_required(action='manage_test_comments')
+async def edit_test_comment(
+    test_id: int,
+    project_id: int,
+    comment: str | None = None,
+    comment_id: int | None = None,
+) -> dict:
+    """
+    Add, change or remove a comment on a test, acting as the caller.
+
+    What happens follows from the arguments: text without `comment_id` adds
+    a new comment; text with `comment_id` replaces that comment (its position
+    is kept, its id changes); `comment_id` without text removes it.
+    `comment_id` is the id shown in get_run_overview's Comments column or by
+    get_test_comments; `test_id` and `project_id` come from the same overview.
+
+    Requires an access token and the `manage_test_comments` permission.
+
+    Args:
+        test_id: The test
+        project_id: The project the comment belongs to
+        comment: The comment text; omit it to remove `comment_id`
+        comment_id: The comment to change or remove; omit it to add a new one
+
+    Returns:
+        The resulting comment, or `{'removed': comment_id}` after a removal
+    """
+
+    def _edit():
+        has_text = bool(comment and comment.strip())
+        if comment_id is None:
+            if not has_text:
+                msg = 'Pass the comment text to add a comment.'
+                raise ValidationError(msg)
+            created = TestCommentService.add(
+                test_id=test_id,
+                project_id=project_id,
+                comment=comment,
+            )
+            return _comment_row(MetaTest.objects.select_related('meta').get(pk=created['id']))
+
+        metatest = TestCommentService.get(test_id, project_id, comment_id)
+        if not has_text:
+            TestCommentService.delete(metatest)
+            return {'removed': comment_id}
+        updated = TestCommentService.update(metatest, comment)
+        return _comment_row(MetaTest.objects.select_related('meta').get(pk=updated['id']))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def edit_run_comment(run_id: int, comment: str | None = None) -> dict:
+    """
+    Set or remove the comment on a run, acting as the caller.
+
+    A run has at most one comment. Text replaces whatever is there, adding
+    the comment when there is none; omitting the text removes the comment.
+    Requires an access token.
+
+    Args:
+        run_id: The run
+        comment: The comment text; omit it to remove the run's comment
+
+    Returns:
+        The run id and its resulting comment (None once removed)
+    """
+
+    def _edit():
+        if comment and comment.strip():
+            result = RunService.create_run_comment(run_id, comment)
+            return {'run_id': run_id, 'comment': result.comment}
+        # Raises only when there is no comment, which is already the goal.
+        with contextlib.suppress(ValidationError):
+            RunService.delete_run_comment(run_id)
+        return {'run_id': run_id, 'comment': None}
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def set_run_compromised(
+    run_id: int,
+    compromised: bool,
+    comment: str | None = None,
+    bug_id: str | None = None,
+    reference_key: str | None = None,
+) -> dict:
+    """
+    Mark a run as compromised, change the mark, or clear it, acting as the caller.
+
+    `compromised=true` marks the run with `comment` (mandatory), replacing an
+    existing mark; `compromised=false` clears it. To link a bug, pass `bug_id`
+    and `reference_key` together: `reference_key` is a key of ISSUES in the
+    project's `references` config, and the bug URL is built from that
+    reference's URI plus the bug id. Requires an access token.
+
+    Args:
+        run_id: The run
+        compromised: The desired state
+        comment: Why the run is compromised (required when marking)
+        bug_id: Optional bug identifier
+        reference_key: Optional key of the bug tracker in the references config
+
+    Returns:
+        The run's compromised details: status, comment, bug_id and bug_url
+    """
+
+    def _set():
+        # Atomic, so a rejected new mark keeps the old one.
+        with transaction.atomic():
+            if compromised:
+                if is_run_compromised(run_id):
+                    RunService.unmark_run_compromised(run_id)
+                RunService.mark_run_compromised(run_id, comment, bug_id, reference_key)
+            elif is_run_compromised(run_id):
+                RunService.unmark_run_compromised(run_id)
+        return get_compromised_details(run_id)
+
+    return await sync_to_async(_set)()
+
+
+# Config tools. Admin only, reads included, like the REST endpoints.
+
+
+def _config_data(config: Config) -> dict:
+    return dict(ConfigSerializer(config).data)
+
+
+@mcp_auth_required(admin=True)
+async def list_configs(project_id: int | None = None) -> dict:
+    """
+    List configs, one row per (project, type, name), plus what may be created.
+
+    Requires an administrator's access token.
+
+    Args:
+        project_id: Only this project's configs; omit for every project.
+            Default (no-project) configs have `project` null.
+
+    Returns:
+        `configs`: id, version, is_active, type, name, description, project,
+        created (the active version, else the newest). `available_types_names`:
+        the config types, and for `global` the allowed names, with whether
+        each is required.
+    """
+
+    def _list():
+        configs = Config.objects.all()
+        if project_id is not None:
+            configs = configs.filter(project_id=project_id)
+        return {
+            'configs': ConfigManagementService.summarize(configs),
+            'available_types_names': ConfigManagementService.available_types_names(),
+        }
+
+    return await sync_to_async(_list)()
+
+
+@mcp_auth_required(admin=True)
+async def get_config(config_id: int) -> dict:
+    """
+    Get one config version with its content, and the other versions of it.
+
+    Requires an administrator's access token.
+
+    Args:
+        config_id: The config version (an id from list_configs or `versions`)
+
+    Returns:
+        The config (id, type, name, project, version, is_active, description,
+        user, content) plus `versions`: every version of the same config with
+        id, version, is_active, description and created
+    """
+
+    def _get():
+        config = ConfigManagementService.get(config_id)
+        data = _config_data(config)
+        data['versions'] = list(
+            Config.objects.get_all_versions(config.type, config.name, config.project).values(
+                'id',
+                'version',
+                'is_active',
+                'description',
+                'created',
+            ),
+        )
+        return data
+
+    return await sync_to_async(_get)()
+
+
+@mcp_auth_required(admin=True)
+async def get_config_schema(config_type: str, config_name: str | None = None) -> dict:
+    """
+    The JSON schema a config's content must satisfy.
+
+    Requires an administrator's access token. Fetch it before writing content:
+    edit_config validates content against it.
+
+    Args:
+        config_type: `global`, `report` or `schedule`
+        config_name: For `global` configs, the name (e.g. `per_conf`)
+
+    Returns:
+        The JSON schema
+    """
+
+    def _schema():
+        schema = ConfigServices.get_schema(config_type, config_name)
+        if schema is None:
+            msg = (
+                f'There is no JSON schema for config type {config_type!r}, name {config_name!r}'
+            )
+            raise ValidationError(msg)
+        return schema
+
+    return await sync_to_async(_schema)()
+
+
+@mcp_auth_required(admin=True)
+async def edit_config(
+    config_id: int | None = None,
+    config_type: str | None = None,
+    name: str | None = None,
+    project_id: int | None = None,
+    content: dict | str | None = None,
+    description: str | None = None,
+    is_active: bool | None = None,
+) -> dict:
+    """
+    Create a config, or change an existing one, acting as the caller.
+
+    Without `config_id` a config is created: `config_type`, `name` and
+    `content` are required, `project_id` omitted means the default
+    (no-project) config, and it becomes the active version unless
+    `is_active` is false. With `config_id` only the arguments given change:
+    new `content` creates a new version (attributed to the caller) and
+    activates it if the edited version was active, while content equal to an
+    existing version switches to that version; `is_active` alone activates or
+    deactivates the version; `name` renames every version. Fetch the current
+    content with get_config first and pass the whole edited content back:
+    content is replaced, not merged, and validated against get_config_schema.
+    Removing a version is a separate, irreversible tool: delete_config.
+
+    Requires an administrator's access token.
+
+    Args:
+        config_id: The config version to change; omit it to create a config
+        config_type: `global`, `report` or `schedule` (creation only)
+        name: The config name; for `global` one of the names in list_configs
+        project_id: The project of a new config; omit for the default config
+        content: The config content, as a JSON object or a JSON string
+        description: A short description
+        is_active: Whether this version is the active one
+
+    Returns:
+        The resulting config version, with `created_new_version`
+    """
+
+    def _edit():
+        user = mcp_caller()
+        if config_id is None:
+            required = {'config_type': config_type, 'name': name, 'content': content}
+            missing = [key for key, value in required.items() if value is None]
+            if missing:
+                msg = f'Creating a config requires {", ".join(missing)}.'
+                raise ValidationError(msg)
+            data = {
+                'type': config_type,
+                'name': name,
+                'project': project_id,
+                'description': description or '',
+                'is_active': True if is_active is None else is_active,
+                'content': content,
+            }
+            config = ConfigManagementService.create(data, user)
+            return {**_config_data(config), 'created_new_version': True}
+
+        if config_type is not None or project_id is not None:
+            msg = (
+                'The type and project of an existing config cannot be changed; '
+                'create a new config instead.'
+            )
+            raise ValidationError(msg)
+        changes = {
+            'content': content,
+            'description': description,
+            'is_active': is_active,
+            'name': name,
+        }
+        data = {key: value for key, value in changes.items() if value is not None}
+        config = ConfigManagementService.get(config_id)
+        config, created = ConfigManagementService.update(config, data, user)
+        return {**_config_data(config), 'created_new_version': created}
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required(admin=True)
+async def delete_config(config_id: int) -> dict:
+    """
+    Delete one config version. Irreversible.
+
+    Requires an administrator's access token. Other versions of the same
+    config are kept; delete them one by one if that is what is wanted. To
+    retire a version without losing it, deactivate it with edit_config.
+
+    Args:
+        config_id: The config version to delete
+
+    Returns:
+        The id of the deleted config version
+    """
+
+    def _delete():
+        ConfigManagementService.delete(ConfigManagementService.get(config_id), mcp_caller())
+        return {'deleted': config_id}
+
+    return await sync_to_async(_delete)()
+
+
+# Project tools that write. Admin only, like the REST endpoints.
+
+
+@mcp_auth_required(admin=True)
+async def edit_project(name: str, project_id: int | None = None) -> dict:
+    """
+    Create a project, or rename an existing one, acting as the caller.
+
+    Without `project_id` a project called `name` is created; with it, that
+    project is renamed. Project names are unique. Requires an administrator's
+    access token.
+
+    Args:
+        name: The project name
+        project_id: The project to rename; omit it to create a project
+
+    Returns:
+        The resulting project: id and name
+    """
+
+    def _edit():
+        if project_id is None:
+            project = ProjectService.create_project({'name': name})
+        else:
+            project = ProjectService.update_project(project_id, {'name': name}, partial=True)
+        return ProjectService.get_project(project.id)
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required(admin=True)
+async def delete_project(project_id: int) -> dict:
+    """
+    Delete a project. Irreversible.
+
+    Refused while any run belongs to the project. Requires an administrator's
+    access token.
+
+    Args:
+        project_id: The project to delete
+
+    Returns:
+        The id of the deleted project
+    """
+
+    def _delete():
+        ProjectService.delete_project(project_id)
+        return {'deleted': project_id}
+
+    return await sync_to_async(_delete)()
+
+
 # Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
 # server (see register_tools) and directly by the in-process chat agent
 # (see bublik.ai.agent), so both expose exactly the same tools.
@@ -793,7 +1223,48 @@ MCP_TOOLS = [
     get_run_comment,
     get_run_report_configs,
     get_server_version,
+    get_test_comments,
 ]
+
+
+# Tools that write; each requires a caller.
+MCP_WRITE_TOOLS = [
+    edit_test_comment,
+    edit_run_comment,
+    set_run_compromised,
+]
+
+# Tools only an administrator may call, reads included.
+MCP_ADMIN_TOOLS = [
+    list_configs,
+    get_config,
+    get_config_schema,
+    edit_config,
+    delete_config,
+    edit_project,
+    delete_project,
+]
+
+# Reads showing data that the write tools, the browser or the chat can change.
+# Never served from the response cache.
+MCP_UNCACHED_TOOLS = [
+    get_run_overview,
+    list_projects,
+    get_project,
+    list_runs,
+    list_runs_today,
+    get_dashboard,
+    get_dashboard_today,
+    get_history,
+    get_history_grouped,
+    get_run_comment,
+    get_run_report_configs,
+    get_test_comments,
+]
+
+MCP_WRITE_TOOL_NAMES = [tool.__name__ for tool in MCP_WRITE_TOOLS]
+MCP_ADMIN_TOOL_NAMES = [tool.__name__ for tool in MCP_ADMIN_TOOLS]
+MCP_UNCACHED_TOOL_NAMES = [tool.__name__ for tool in MCP_UNCACHED_TOOLS]
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -802,3 +1273,7 @@ def register_tools(mcp: FastMCP) -> None:
     """
     for tool in MCP_TOOLS:
         mcp.tool(tool)
+    for tool in MCP_WRITE_TOOLS:
+        mcp.tool(tool, tags={'write'})
+    for tool in MCP_ADMIN_TOOLS:
+        mcp.tool(tool, tags={'write', 'admin'})

@@ -3,6 +3,7 @@
 
 from django.core.management.base import BaseCommand
 
+from bublik.mcp.auth import build_auth_middleware
 from bublik.mcp.server import create_mcp_server
 
 
@@ -32,4 +33,5 @@ class Command(BaseCommand):
             host=options['host'],
             port=options['port'],
             log_level='INFO',
+            middleware=build_auth_middleware(),
         )

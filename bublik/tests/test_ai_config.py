@@ -11,6 +11,7 @@ import uuid
 from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
 from jsonschema import Draft7Validator
+from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.azure import AzureProvider
@@ -41,9 +42,10 @@ from bublik.ai.discovery import (
     enrich_model,
     populate_models,
 )
-from bublik.ai.mcp import build_mcp_toolsets
-from bublik.ai.types import AiConfig, McpServer, ModelEntry, Provider
+from bublik.ai.mcp import build_mcp_toolsets, build_user_mcp_toolsets
+from bublik.ai.types import AiConfig, McpServer, ModelEntry, Provider, UserMcpServersConfig
 import bublik.data
+from bublik.data.models import UserMcpServer
 
 
 _DISCOVERY_TEST_CACHES = {
@@ -727,6 +729,55 @@ class BuildMcpToolsetsTest(SimpleTestCase):
         self.assertEqual(build_mcp_toolsets(AiConfig()), [])
 
 
+POLICY = UserMcpServersConfig(allowed_hosts=['*'], connect_timeout_s=3.0)
+
+
+class BuildUserMcpToolsetsTest(SimpleTestCase):
+    @staticmethod
+    def _server(slug, headers=None, url='https://mcp.example.com/mcp'):
+        server = UserMcpServer(name=slug, slug=slug, url=url)
+        server.set_headers(headers or {})
+        return server
+
+    def test_builds_prefixed_toolsets_with_literal_headers(self):
+        # A user value that looks like an admin secret reference stays literal.
+        reference = '${env:AI_GITHUB_AUTH_TOKEN}'
+        servers = [
+            self._server('jira', {'Authorization': 'Bearer literal'}),
+            self._server('copy', {'Authorization': reference}),
+        ]
+        with mock.patch('bublik.ai.mcp.MCPToolset', wraps=MCPToolset) as ctor:
+            toolsets = build_user_mcp_toolsets(servers, reserved_ids={'github'}, policy=POLICY)
+        self.assertEqual([t.prefix for t in toolsets], ['jira_', 'copy_'])
+        clients = [call.kwargs['http_client'] for call in ctor.call_args_list]
+        self.assertEqual(
+            [client.headers['Authorization'] for client in clients],
+            ['Bearer literal', reference],
+        )
+        self.assertFalse(any(client.follow_redirects for client in clients))
+        self.assertEqual({call.kwargs['init_timeout'] for call in ctor.call_args_list}, {3.0})
+
+    def test_skips_collisions_and_undecryptable_and_newlines(self):
+        broken = self._server('broken', {'Authorization': 'x'})
+        broken.headers_encrypted = 'gAAAAnotatoken'
+        smuggler = self._server('smuggler')
+        with mock.patch.object(
+            UserMcpServer, 'get_headers', return_value={'A': 'x\r\nInjected: 1'}
+        ):
+            self.assertEqual(
+                build_user_mcp_toolsets([smuggler], reserved_ids=set(), policy=POLICY), []
+            )
+        with self.assertLogs('bublik.ai.mcp', level='WARNING') as logs:
+            toolsets = build_user_mcp_toolsets(
+                [self._server('github'), broken, self._server('ok')],
+                reserved_ids={'github'},
+                policy=POLICY,
+            )
+        self.assertEqual([t.prefix for t in toolsets], ['ok_'])
+        self.assertTrue(any('collides' in line for line in logs.output))
+        self.assertTrue(any('decrypted' in line for line in logs.output))
+
+
 class AiSchemaTest(SimpleTestCase):
     @classmethod
     def setUpClass(cls):
@@ -741,6 +792,23 @@ class AiSchemaTest(SimpleTestCase):
 
     def test_embedded_default_validates(self):
         self.assertTrue(self._is_valid(self.schema['default']))
+
+    def test_user_mcp_servers_policy(self):
+        config = _config()
+        config['user_mcp_servers'] = {
+            'allowed_hosts': ['mcp.example.com', '*.tools.example'],
+            'allow_any_public_host': False,
+            'max_per_user': 3,
+            'connect_timeout_s': 5,
+        }
+        self.assertTrue(self._is_valid(config))
+        config['user_mcp_servers'] = {'unknown': 1}
+        self.assertFalse(self._is_valid(config))
+        config['user_mcp_servers'] = {'allowed_hosts': ['']}
+        self.assertFalse(self._is_valid(config))
+        # Typed defaults agree with the schema: deny-all.
+        self.assertFalse(AiConfig().user_mcp_servers.enabled)
+        self.assertEqual(AiConfig().user_mcp_servers.max_per_user, 10)
 
     def test_accepts_models_dev_field_names(self):
         config = _config(

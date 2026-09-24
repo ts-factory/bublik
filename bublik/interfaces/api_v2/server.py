@@ -46,5 +46,18 @@ class ServerViewSet(ViewSet):
             {
                 'analytics_enabled': settings.ANALYTICS_ENABLED,
                 'chat_enabled': settings.AI_CHAT_ENABLED,
+                'user_mcp_servers_enabled': _user_mcp_servers_enabled(),
             },
         )
+
+
+def _user_mcp_servers_enabled() -> bool:
+    """Whether the chat is on and the policy allows any host (a broken config allows none)."""
+    if not settings.AI_CHAT_ENABLED:
+        return False
+    from bublik.ai.config import get_ai_config  # noqa: PLC0415
+
+    try:
+        return get_ai_config().user_mcp_servers.enabled
+    except Exception:  # a broken config must not break the features endpoint
+        return False

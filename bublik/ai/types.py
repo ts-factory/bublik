@@ -177,8 +177,46 @@ class CompactionConfig(_Base):
     keep_recent: int = 8
 
 
+class UserMcpServersConfig(_Base):
+    """Policy for the MCP servers users register themselves. Deny-all by default."""
+
+    # Exact hosts, ``*.`` suffix globs or ``*``; the only way to allow private hosts.
+    allowed_hosts: list[str] = Field(default_factory=list)
+    # Also allow any public host.
+    allow_any_public_host: bool = False
+    max_per_user: int = 10
+    # Bound on connecting to a user's server at the start of a chat run.
+    connect_timeout_s: float = 10.0
+
+    @property
+    def enabled(self) -> bool:
+        """Whether the policy lets anyone register a server at all."""
+        return self.allow_any_public_host or bool(self.allowed_hosts)
+
+    def host_listed(self, host: str) -> bool:
+        """Whether ``host`` matches an ``allowed_hosts`` entry (case-insensitive)."""
+        host = host.lower().rstrip('.')
+        for pattern in self.allowed_hosts:
+            pattern = pattern.lower().rstrip('.')
+            if pattern == '*':
+                return True
+            if pattern.startswith('*.'):
+                suffix = pattern[1:]
+                if host.endswith(suffix) and len(host) > len(suffix):
+                    return True
+            elif host == pattern:
+                return True
+        return False
+
+
 class AiConfig(_Base):
     providers: list[Provider] = Field(default_factory=list)
     default_model: DefaultModel | None = None
     mcp_servers: list[McpServer] = Field(default_factory=list)
     compaction: CompactionConfig = Field(default_factory=CompactionConfig)
+    user_mcp_servers: UserMcpServersConfig = Field(default_factory=UserMcpServersConfig)
+
+    @property
+    def mcp_server_ids(self) -> frozenset[str]:
+        """Ids of the admin-configured servers, reserved as tool-name prefixes."""
+        return frozenset(server.id for server in self.mcp_servers)

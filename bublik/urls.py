@@ -35,6 +35,7 @@ api_v2_router.register(r'session_import', api_v2.JobTaskExecutionViewSet, 'sessi
 api_v2_router.register(r'importruns', api_v2.ImportrunsViewSet, 'importruns')
 api_v2_router.register(r'auth/profile', api_v2.ProfileViewSet, 'profile')
 api_v2_router.register(r'auth/admin', api_v2.AdminViewSet, 'admin')
+api_v2_router.register(r'auth/tokens', api_v2.UserTokenViewSet, 'auth-tokens')
 api_v2_router.register(r'report', api_v2.ReportViewSet, 'report')
 api_v2_router.register(
     r'tests/(?P<test_id>[0-9]+)/comments',
@@ -46,8 +47,10 @@ api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
 
 if settings.AI_CHAT_ENABLED:
     from bublik.interfaces.api_v2.ai_chat_thread import AiChatThreadViewSet
+    from bublik.interfaces.api_v2.user_mcp_server import UserMcpServerViewSet
 
     api_v2_router.register(r'chat/threads', AiChatThreadViewSet, 'chat-threads')
+    api_v2_router.register(r'chat/mcp-servers', UserMcpServerViewSet, 'chat-mcp-servers')
 
 if settings.ANALYTICS_ENABLED:
     from bublik.interfaces.api_v2.analytics import AnalyticsViewSet

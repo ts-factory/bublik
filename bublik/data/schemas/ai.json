@@ -372,6 +372,39 @@
                 }
             },
             "additionalProperties": false
+        },
+        "user_mcp_servers": {
+            "description": "Policy for the MCP servers users register themselves (Settings \u2192 MCP servers). Deny-all by default: until `allowed_hosts` is filled or `allow_any_public_host` is on, nobody can add a server and the UI hides the feature. Header values users enter are stored encrypted and never shown again. Changing the policy does not remove servers users already registered.",
+            "type": "object",
+            "properties": {
+                "allowed_hosts": {
+                    "description": "Hostnames users may point a server at: exact names (`mcp.example.com`), `*.` suffix globs (`*.tools.example.com`), or a bare `*` for every host, matched case-insensitively. Listing a host here is the only way to permit one that is, or resolves to, a loopback or private address, so `*` also opens the internal network.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "default": []
+                },
+                "allow_any_public_host": {
+                    "description": "Permit any public host in addition to `allowed_hosts`. Hosts that are, or resolve to, loopback, private or link-local addresses stay blocked unless listed.",
+                    "type": "boolean",
+                    "default": false
+                },
+                "max_per_user": {
+                    "description": "How many servers one user may register",
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 10
+                },
+                "connect_timeout_s": {
+                    "description": "Seconds to wait for a user's server to answer when a chat run starts; a server that does not answer in time is skipped for that run",
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "default": 10
+                }
+            },
+            "additionalProperties": false
         }
     },
     "required": [

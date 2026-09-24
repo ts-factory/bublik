@@ -54,11 +54,15 @@ class _StubAdapter:
         self.run_input = type('RunInput', (), {'messages': []})()
         self.messages = []
         self.model_settings = None
+        self.toolsets = None
         self._stream_factory = stream_factory
         self._native_events = list(native_events)
 
-    def run_stream_native(self, *, deps=None, capabilities=None, model_settings=None):
+    def run_stream_native(
+        self, *, deps=None, capabilities=None, model_settings=None, toolsets=None
+    ):
         self.model_settings = model_settings
+        self.toolsets = toolsets
 
         async def events():
             for event in self._native_events:
@@ -149,6 +153,103 @@ class ProduceRunCancelTest(IsolatedAsyncioTestCase):
         entries = await self._drain('run2')
         _last_id, last_fields = entries[-1]
         self.assertEqual(last_fields.get(run_store.EOT_FIELD), 'finished')
+
+
+class _StubToolset:
+    """A per-run (user MCP) toolset whose connection may fail."""
+
+    def __init__(self, prefix, fail=False):
+        self.prefix = prefix
+        self.fail = fail
+        self.entered = 0
+        self.exited = 0
+
+    async def __aenter__(self):
+        if self.fail:
+            msg = f'{self.prefix}: connection refused'
+            raise ConnectionError(msg)
+        self.entered += 1
+        return self
+
+    async def __aexit__(self, *_exc):
+        self.exited += 1
+        return False
+
+
+class ProduceRunToolsetsTest(IsolatedAsyncioTestCase):
+    """A user's unreachable MCP server is dropped; the run still finishes."""
+
+    def setUp(self):
+        server = fakeredis.FakeServer()
+        run_store._aredis = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
+        run_store._sredis = fakeredis.FakeRedis(server=server, decode_responses=True)
+
+    def tearDown(self):
+        run_store._aredis = None
+        run_store._sredis = None
+
+    async def test_unreachable_toolset_is_skipped_and_others_torn_down(self):
+        async def stream():
+            yield 'data: a\n\n'
+
+        good, bad = _StubToolset('good'), _StubToolset('bad', fail=True)
+        await run_store.register_run('run-ts', 'thread-ts', 7)
+        adapter = _StubAdapter(stream)
+        deps = AiChatDeps(thread_id='thread-ts', user_id=7, run_id='run-ts')
+
+        with self.assertLogs('bublik.ai.streaming', level='WARNING') as logs:
+            await streaming.produce_run(
+                adapter,
+                _StubAgent(),
+                'run-ts',
+                deps,
+                streaming.RunOptions(toolsets=(good, bad)),
+            )
+
+        self.assertEqual(await run_store.run_status('run-ts'), 'finished')
+        self.assertEqual(adapter.toolsets, [good])
+        self.assertEqual((good.entered, good.exited), (1, 1))
+        self.assertTrue(any('toolset bad unavailable' in line for line in logs.output))
+
+    async def test_cancel_while_connecting_closes_what_connected(self):
+        class _Hanging(_StubToolset):
+            async def __aenter__(self):
+                await asyncio.Event().wait()
+
+        async def stream():
+            yield 'data: a\n\n'  # pragma: no cover - never reached
+
+        good, hanging = _StubToolset('good'), _Hanging('hang')
+        await run_store.register_run('run-c', 'thread-c', 7)
+        deps = AiChatDeps(thread_id='thread-c', user_id=7, run_id='run-c')
+        task = asyncio.ensure_future(
+            streaming.produce_run(
+                _StubAdapter(stream),
+                _StubAgent(),
+                'run-c',
+                deps,
+                streaming.RunOptions(toolsets=(good, hanging)),
+            )
+        )
+        while not good.entered:
+            await asyncio.sleep(0.01)
+        await run_store.request_cancel('run-c')
+        await asyncio.wait_for(task, timeout=5)
+
+        self.assertEqual(await run_store.run_status('run-c'), 'cancelled')
+        self.assertEqual((good.entered, good.exited), (1, 1))
+
+    async def test_no_toolsets_passes_none(self):
+        async def stream():
+            yield 'data: a\n\n'
+
+        await run_store.register_run('run-none', 'thread-none', 7)
+        adapter = _StubAdapter(stream)
+        deps = AiChatDeps(thread_id='thread-none', user_id=7, run_id='run-none')
+        await streaming.produce_run(
+            adapter, _StubAgent(), 'run-none', deps, streaming.RunOptions()
+        )
+        self.assertIsNone(adapter.toolsets)
 
 
 class ProduceRunPartialPersistTest(IsolatedAsyncioTestCase):
