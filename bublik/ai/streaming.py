@@ -28,6 +28,7 @@ from ag_ui.encoder import EventEncoder
 
 from bublik.ai import run_store
 from bublik.ai.transcript import PartialRun, persist_messages
+from bublik.core.auth import bind_acting_user
 
 
 if TYPE_CHECKING:
@@ -166,27 +167,30 @@ async def produce_run(
     partial = PartialRun()
     heartbeat_task = asyncio.ensure_future(_heartbeat(run_id, deps.thread_id))
     try:
-        async with agent:
-            stream_task = asyncio.ensure_future(
-                _buffer_stream(adapter, run_id, deps, options, partial)
-            )
-            watch_task = asyncio.ensure_future(_watch_cancel(run_id))
-            done, _pending = await asyncio.wait(
-                {stream_task, watch_task}, return_when=asyncio.FIRST_COMPLETED
-            )
-            if watch_task in done and stream_task not in done:
-                # Cancellation requested while the stream was still running.
-                cancelled = True
-                stream_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
+        # The shared write tools read the caller from this binding.
+        with bind_acting_user(deps.user_id):
+            async with agent:
+                stream_task = asyncio.ensure_future(
+                    _buffer_stream(adapter, run_id, deps, options, partial)
+                )
+                watch_task = asyncio.ensure_future(_watch_cancel(run_id))
+                done, _pending = await asyncio.wait(
+                    {stream_task, watch_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if watch_task in done and stream_task not in done:
+                    # Cancellation requested while the stream was still running.
+                    cancelled = True
+                    stream_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await stream_task
+                else:
+                    # Stream finished (or raised) first; stop watching and
+                    # re-await it so any real failure propagates to the
+                    # handler below.
+                    watch_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await watch_task
                     await stream_task
-            else:
-                # Stream finished (or raised) first; stop watching and re-await it
-                # so any real failure propagates to the handler below.
-                watch_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await watch_task
-                await stream_task
     except asyncio.CancelledError:
         status = 'error'
         raise

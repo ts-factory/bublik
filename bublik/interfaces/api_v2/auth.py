@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from bublik.core.auth import (
     auth_required,
-    get_user_by_access_token,
+    get_request_user,
     get_user_info_from_access_token,
 )
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
@@ -151,18 +151,14 @@ class ProfileViewSet(GenericViewSet):
     @auth_required(as_admin=False)
     @action(detail=False, methods=['get'])
     def info(self, request):
-        # get access token from cookies
-        access_token = request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
+        user = get_request_user(request)
         serializer_class = self.get_serializer_class()
         return Response(serializer_class(user).data)
 
     @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def password_reset(self, request):
-        # get access token from cookies
-        access_token = request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
+        user = get_request_user(request)
         # check current password and validate new password
         passwords = request.data
         serializer_class = self.get_serializer_class()
@@ -184,9 +180,7 @@ class ProfileViewSet(GenericViewSet):
     @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def update_info(self, request):
-        # get access token from cookies
-        access_token = request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
+        user = get_request_user(request)
         serializer_class = self.get_serializer_class()
         # check if new data is valid
         serializer = serializer_class(data=request.data)
