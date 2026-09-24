@@ -6,7 +6,8 @@ Authenticating MCP callers with Bublik personal access tokens.
 A token is optional: without one the request stays anonymous and read tools
 keep working. So does a header of another scheme, such as the Basic
 credentials a reverse proxy forwards. A Bearer credential that is not a
-valid Bublik token is refused with a 401.
+valid Bublik token is refused with a 401. The in-process chat agent binds
+its user with :func:`bublik.core.auth.bind_acting_user`.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from starlette.responses import JSONResponse
 
 from bublik.core.auth import (
     action_permitted,
+    current_acting_user,
     get_bearer_token,
     get_user_by_personal_token,
     is_admin,
@@ -114,10 +116,10 @@ def build_auth_middleware() -> list[Middleware]:
 
 
 def current_mcp_user() -> User:
-    """The calling user, or ``None`` when the request is anonymous."""
+    """The calling user from the access token or the bound user, or ``None``."""
     token = get_access_token()
     if token is None:
-        return None
+        return current_acting_user()
     return User.objects.get(pk=token.claims['user_id'])
 
 
