@@ -7,6 +7,7 @@ HTTP middleware is exercised.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import ClassVar
 from unittest import mock
@@ -21,6 +22,13 @@ from rest_framework import status
 
 from bublik.core.user_token import UserTokenService
 from bublik.data.models import (
+    Config,
+    ConfigTypes,
+    MetaResult,
+    MetaTest,
+    Project,
+    Test,
+    TestIterationResult,
     TokenStatus,
     User,
     UserRoles,
@@ -118,6 +126,22 @@ class McpAnonymousAccessTest(McpAuthTestCase):
         )
         assert response.status_code == status.HTTP_200_OK, response.text
 
+    def test_the_write_tool_is_listed_but_refuses_without_a_token(self):
+        async def body(client):
+            listed = await client.list_tools()
+            names = [tool.name for tool in listed]
+            result = await client.call_tool(
+                'edit_test_comment',
+                {'test_id': 1, 'project_id': 1, 'comment': 'nope'},
+                raise_on_error=False,
+            )
+            return names, result
+
+        names, result = self.run_session(None, body)
+        assert 'edit_test_comment' in names
+        assert result.is_error
+        assert 'personal access token' in str(result.content)
+
 
 @override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
 class McpBadCredentialTest(McpAuthTestCase):
@@ -175,6 +199,49 @@ class McpBadCredentialTest(McpAuthTestCase):
 
 
 @override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class McpWriteToolTest(McpAuthTestCase):
+    def setUp(self):
+        super().setUp()
+        self.project = Project.objects.create(name='proj')
+        self.test = Test.objects.create(name='some-test')
+
+    def _comment(self, token, text='from an agent'):
+        async def body(client):
+            return await client.call_tool(
+                'edit_test_comment',
+                {
+                    'test_id': self.test.id,
+                    'project_id': self.project.id,
+                    'comment': text,
+                },
+                raise_on_error=False,
+            )
+
+        return self.run_session(token, body)
+
+    def test_an_admin_token_creates_the_comment(self):
+        result = self._comment(self._token_for(self.admin))
+        assert not result.is_error, result.content
+        assert MetaTest.objects.filter(
+            test=self.test,
+            project=self.project,
+            meta__type='comment',
+        ).exists()
+
+    def test_the_token_owners_permissions_are_what_apply(self):
+        result = self._comment(self._token_for(self.user))
+        assert result.is_error
+        assert 'not allowed' in str(result.content)
+        assert not MetaTest.objects.filter(test=self.test).exists()
+
+    def test_using_a_token_records_when_it_was_last_used(self):
+        raw = self._token_for(self.admin)
+        assert UserToken.objects.get(user=self.admin).last_used_at is None
+        self._comment(raw)
+        assert UserToken.objects.get(user=self.admin).last_used_at is not None
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
 class McpResponseCacheTest(McpAuthTestCase):
     """The response cache must never be shared between callers."""
 
@@ -221,3 +288,406 @@ class McpResponseCacheTest(McpAuthTestCase):
         expected_after_restart = 2
         self._call_get_version(self._app(), None, calls)
         assert len(calls) == expected_after_restart
+
+    def test_write_tools_are_excluded_from_the_cache(self):
+        assert 'edit_test_comment' in tools.MCP_WRITE_TOOL_NAMES
+
+        project = Project.objects.create(name='proj')
+        test = Test.objects.create(name='some-test')
+        token = self._token_for(self.admin)
+        app = self._app()
+
+        def comment(text):
+            async def body(client):
+                return await client.call_tool(
+                    'edit_test_comment',
+                    {'test_id': test.id, 'project_id': project.id, 'comment': text},
+                    raise_on_error=False,
+                )
+
+            return self.run_session(token, body, app=app)
+
+        assert not comment('first').is_error
+        # A cached write would return the first result instead of an error.
+        assert comment('first').is_error
+        assert comment('second').is_error is False
+        expected_comments = 2
+        assert MetaTest.objects.filter(test=test).count() == expected_comments
+
+    def test_admin_tools_are_excluded_from_the_cache(self):
+        assert 'list_configs' in tools.MCP_ADMIN_TOOL_NAMES
+
+        token = self._token_for(self.admin)
+        app = self._app()
+
+        def list_configs():
+            async def body(client):
+                return await client.call_tool('list_configs', {}, raise_on_error=False)
+
+            return self.run_session(token, body, app=app)
+
+        assert list_configs().data['configs'] == []
+        Config.objects.create(
+            type=ConfigTypes.SCHEDULE,
+            name='nightly',
+            project=None,
+            is_active=True,
+            description='',
+            user=self.admin,
+            content={},
+        )
+        # A cached read would still report the empty list.
+        assert len(list_configs().data['configs']) == 1
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class McpCompromisedToolTest(McpAuthTestCase):
+    def setUp(self):
+        super().setUp()
+        self.project = Project.objects.create(name='proj')
+        now = datetime.now(tz=timezone.utc)
+        self.run = TestIterationResult.objects.create(
+            start=now,
+            finish=now,
+            project=self.project,
+        )
+
+    def _call(self, token, name, arguments):
+        async def body(client):
+            return await client.call_tool(name, arguments, raise_on_error=False)
+
+        # Marking schedules a Celery task; there is no broker in tests.
+        with mock.patch('bublik.core.run.compromised.meta_categorization'):
+            return self.run_session(token, body)
+
+    def test_anonymous_callers_are_refused(self):
+        result = self._call(
+            None,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': True, 'comment': 'x'},
+        )
+        assert result.is_error
+        assert 'personal access token' in str(result.content)
+
+    def test_a_plain_user_can_mark_remark_and_clear(self):
+        token = self._token_for(self.user)
+
+        marked = self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': True, 'comment': 'broken agent'},
+        )
+        assert not marked.is_error, marked.content
+        assert marked.data['status'] is True
+        assert marked.data['comment'] == 'broken agent'
+        assert MetaResult.objects.filter(result=self.run, meta__name='compromised').exists()
+
+        # Marking again replaces the mark.
+        again = self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': True, 'comment': 'new reason'},
+        )
+        assert not again.is_error, again.content
+        assert again.data['comment'] == 'new reason'
+        assert MetaResult.objects.filter(result=self.run, meta__name='compromised').count() == 1
+
+        cleared = self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': False},
+        )
+        assert not cleared.is_error, cleared.content
+        assert cleared.data['status'] is False
+        assert not MetaResult.objects.filter(result=self.run, meta__name='compromised').exists()
+
+        assert not self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': False},
+        ).is_error
+
+    def test_the_run_comment_is_set_replaced_and_removed(self):
+        token = self._token_for(self.user)
+
+        first = self._call(token, 'edit_run_comment', {'run_id': self.run.id, 'comment': 'one'})
+        assert not first.is_error, first.content
+        assert first.data['comment'] == 'one'
+
+        second = self._call(
+            token, 'edit_run_comment', {'run_id': self.run.id, 'comment': 'two'}
+        )
+        assert second.data['comment'] == 'two'
+        assert MetaResult.objects.filter(result=self.run, meta__type='comment').count() == 1
+
+        removed = self._call(token, 'edit_run_comment', {'run_id': self.run.id})
+        assert not removed.is_error, removed.content
+        assert removed.data['comment'] is None
+        assert not MetaResult.objects.filter(result=self.run, meta__type='comment').exists()
+        assert not self._call(token, 'edit_run_comment', {'run_id': self.run.id}).is_error
+
+    def test_a_rejected_remark_keeps_the_existing_mark(self):
+        token = self._token_for(self.user)
+        self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': True, 'comment': 'original'},
+        )
+
+        result = self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': True, 'comment': ''},
+        )
+
+        assert result.is_error
+        assert MetaResult.objects.filter(result=self.run, meta__name='compromised').exists()
+
+    def test_a_comment_is_required(self):
+        token = self._token_for(self.user)
+        result = self._call(
+            token,
+            'set_run_compromised',
+            {'run_id': self.run.id, 'compromised': True, 'comment': ''},
+        )
+        assert result.is_error
+        assert 'comment is required' in str(result.content)
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class McpTestCommentToolsTest(McpAuthTestCase):
+    def setUp(self):
+        super().setUp()
+        self.project = Project.objects.create(name='proj')
+        self.test = Test.objects.create(name='some-test')
+        self.token = self._token_for(self.admin)
+
+    def _call(self, name, **arguments):
+        async def body(client):
+            return await client.call_tool(
+                name,
+                {'test_id': self.test.id, 'project_id': self.project.id, **arguments},
+                raise_on_error=False,
+            )
+
+        return self.run_session(self.token, body)
+
+    def test_list_edit_and_delete(self):
+        added = self._call('edit_test_comment', comment='first')
+        assert not added.is_error, added.content
+
+        listed = self._call('get_test_comments')
+        assert [row['comment'] for row in listed.data] == ['first']
+        comment_id = listed.data[0]['comment_id']
+        assert comment_id == added.data['comment_id']
+        assert comment_id == MetaTest.objects.get(test=self.test).meta_id
+
+        edited = self._call('edit_test_comment', comment_id=comment_id, comment='second')
+        assert not edited.is_error, edited.content
+        assert edited.data['comment'] == 'second'
+        assert edited.data['comment_id'] != comment_id
+        assert MetaTest.objects.filter(test=self.test).count() == 1
+
+        deleted = self._call('edit_test_comment', comment_id=edited.data['comment_id'])
+        assert not deleted.is_error, deleted.content
+        assert deleted.data == {'removed': edited.data['comment_id']}
+        assert not MetaTest.objects.filter(test=self.test).exists()
+
+    def test_a_read_after_a_write_is_not_stale(self):
+        app = self._app()
+
+        def call(name, **arguments):
+            async def body(client):
+                return await client.call_tool(
+                    name,
+                    {'test_id': self.test.id, 'project_id': self.project.id, **arguments},
+                    raise_on_error=False,
+                )
+
+            return self.run_session(self.token, body, app=app)
+
+        assert call('get_test_comments').data == []
+        call('edit_test_comment', comment='fresh')
+        assert [row['comment'] for row in call('get_test_comments').data] == ['fresh']
+
+    def test_an_unknown_comment_is_reported(self):
+        result = self._call('edit_test_comment', comment_id=999999)
+        assert result.is_error
+        assert 'not found' in str(result.content)
+
+    def test_nothing_to_do_is_reported(self):
+        result = self._call('edit_test_comment')
+        assert result.is_error
+        assert 'comment text' in str(result.content)
+        assert not MetaTest.objects.filter(test=self.test).exists()
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class McpConfigToolsTest(McpAuthTestCase):
+    def _call(self, token, name, arguments=None):
+        async def body(client):
+            return await client.call_tool(name, arguments or {}, raise_on_error=False)
+
+        return self.run_session(token, body)
+
+    def test_a_plain_user_is_refused_even_for_reads(self):
+        token = self._token_for(self.user)
+        result = self._call(token, 'list_configs')
+        assert result.is_error
+        assert 'administrators' in str(result.content)
+
+    def test_admin_tools_are_listed_for_everyone(self):
+        async def body(client):
+            return [tool.name for tool in await client.list_tools()]
+
+        names = self.run_session(None, body)
+        for name in tools.MCP_ADMIN_TOOL_NAMES:
+            assert name in names
+
+    def test_an_admin_can_create_edit_and_delete(self):
+        token = self._token_for(self.admin)
+
+        listed = self._call(token, 'list_configs')
+        assert listed.data['configs'] == []
+        assert any(
+            entry['type'] == ConfigTypes.SCHEDULE
+            for entry in listed.data['available_types_names']
+        )
+
+        created = self._call(
+            token,
+            'edit_config',
+            {
+                'config_type': ConfigTypes.SCHEDULE,
+                'name': 'nightly',
+                'content': {'note': 'v1'},
+                'description': 'first',
+            },
+        )
+        assert not created.is_error, created.content
+        assert created.data['created_new_version'] is True
+        assert created.data['is_active'] is True
+        assert Config.objects.get(pk=created.data['id']).user == self.admin
+
+        edited = self._call(
+            token,
+            'edit_config',
+            {'config_id': created.data['id'], 'content': {'note': 'v2'}},
+        )
+        assert not edited.is_error, edited.content
+        assert edited.data['created_new_version'] is True
+        assert edited.data['version'] == 1
+        assert edited.data['is_active'] is True
+
+        fetched = self._call(token, 'get_config', {'config_id': edited.data['id']})
+        assert fetched.data['content'] == {'note': 'v2'}
+        expected_versions = 2
+        assert len(fetched.data['versions']) == expected_versions
+
+        reactivated = self._call(
+            token,
+            'edit_config',
+            {'config_id': created.data['id'], 'is_active': True},
+        )
+        assert not reactivated.is_error, reactivated.content
+        assert reactivated.data['created_new_version'] is False
+        assert reactivated.data['is_active'] is True
+
+        deleted = self._call(token, 'delete_config', {'config_id': edited.data['id']})
+        assert not deleted.is_error, deleted.content
+        assert Config.objects.count() == 1
+
+    def test_creating_without_the_required_fields_is_reported(self):
+        token = self._token_for(self.admin)
+        result = self._call(token, 'edit_config', {'name': 'nightly'})
+        assert result.is_error
+        assert 'config_type' in str(result.content)
+        assert 'content' in str(result.content)
+        assert Config.objects.count() == 0
+
+    def test_invalid_content_is_rejected_with_the_schema_error(self):
+        token = self._token_for(self.admin)
+        result = self._call(
+            token,
+            'edit_config',
+            {
+                'config_type': ConfigTypes.GLOBAL,
+                'name': 'per_conf',
+                'content': {'NOT_A_KEY': 1},
+            },
+        )
+        assert result.is_error
+        assert 'Invalid format' in str(result.content)
+
+    def test_the_schema_is_served(self):
+        token = self._token_for(self.admin)
+        result = self._call(
+            token,
+            'get_config_schema',
+            {'config_type': ConfigTypes.GLOBAL, 'config_name': 'per_conf'},
+        )
+        assert not result.is_error, result.content
+        assert 'NOT_PERMISSION_REQUIRED_ACTIONS' in result.data['properties']
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class McpProjectToolsTest(McpAuthTestCase):
+    def _call(self, token, name, arguments):
+        async def body(client):
+            return await client.call_tool(name, arguments, raise_on_error=False)
+
+        return self.run_session(token, body)
+
+    def test_a_plain_user_is_refused(self):
+        token = self._token_for(self.user)
+        result = self._call(token, 'edit_project', {'name': 'proj'})
+        assert result.is_error
+        assert 'administrators' in str(result.content)
+        assert not Project.objects.exists()
+
+    def test_an_admin_can_create_rename_and_delete(self):
+        token = self._token_for(self.admin)
+
+        created = self._call(token, 'edit_project', {'name': 'proj'})
+        assert not created.is_error, created.content
+        assert created.data['name'] == 'proj'
+        project_id = created.data['id']
+
+        duplicate = self._call(token, 'edit_project', {'name': 'proj'})
+        assert duplicate.is_error
+
+        renamed = self._call(
+            token, 'edit_project', {'name': 'renamed', 'project_id': project_id}
+        )
+        assert not renamed.is_error, renamed.content
+        assert renamed.data == {'id': project_id, 'name': 'renamed'}
+        assert Project.objects.get(pk=project_id).name == 'renamed'
+
+        deleted = self._call(token, 'delete_project', {'project_id': project_id})
+        assert not deleted.is_error, deleted.content
+        assert not Project.objects.filter(pk=project_id).exists()
+
+    def test_a_project_with_runs_cannot_be_deleted(self):
+        token = self._token_for(self.admin)
+        project = Project.objects.create(name='proj')
+        now = datetime.now(tz=timezone.utc)
+        TestIterationResult.objects.create(start=now, finish=now, project=project)
+
+        result = self._call(token, 'delete_project', {'project_id': project.id})
+        assert result.is_error
+        assert 'runs linked' in str(result.content)
+        assert Project.objects.filter(pk=project.id).exists()
+
+
+class McpToolRegistryTest(TransactionTestCase):
+    def test_reads_of_changeable_data_are_uncached_reads(self):
+        read = {tool.__name__ for tool in tools.MCP_TOOLS}
+        assert set(tools.MCP_UNCACHED_TOOL_NAMES) <= read
+
+    def test_the_three_registries_are_disjoint(self):
+        read = {tool.__name__ for tool in tools.MCP_TOOLS}
+        write = {tool.__name__ for tool in tools.MCP_WRITE_TOOLS}
+        admin = {tool.__name__ for tool in tools.MCP_ADMIN_TOOLS}
+        assert not read & write
+        assert not read & admin
+        assert not write & admin

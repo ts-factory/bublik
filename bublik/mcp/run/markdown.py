@@ -50,8 +50,8 @@ def _flatten_stats(node: RunStatsResult | None) -> list[RunStatsResult]:
 
 
 def _comments_text(comments: list[RunStatsComment]) -> str:
-    values = [comment.comment for comment in comments]
-    return '<br>'.join(str(value) for value in values) if values else '-'
+    values = [f'[{comment.comment_id}] {comment.comment}' for comment in comments]
+    return '<br>'.join(values) if values else '-'
 
 
 def _stats_total(stats: RunStatsValues) -> int:
@@ -95,6 +95,7 @@ def render_run_overview(
     rows = [
         ('Run ID', details.id),
         ('Project', details.project_name),
+        ('Project ID', details.project_id),
         ('Status', details.status),
         ('Status by NOK', details.status_by_nok),
         ('Conclusion', details.conclusion),
@@ -130,10 +131,10 @@ def render_run_overview(
         '## Result Statistics',
         '',
         (
-            '| Result ID | Type | Path | Objective | Comments | Passed | Failed | '
+            '| Result ID | Test ID | Type | Path | Objective | Comments | Passed | Failed | '
             'Passed NOK | Failed NOK | Skipped | Skipped NOK | Abnormal | Total | NOK |'
         ),
-        '|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+        '|---:|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
     ]
 
     stat_nodes = _flatten_stats(stats)
@@ -151,11 +152,12 @@ def render_run_overview(
             node.type,
         )
         lines.append(
-            '| {result_id} | {result_type} | {path} | {objective} | {comments} | '
+            '| {result_id} | {test_id} | {result_type} | {path} | {objective} | {comments} | '
             '{passed} | {failed} | '
             '{passed_nok} | {failed_nok} | {skipped} | {skipped_nok} | '
             '{abnormal} | {total} | {nok} |'.format(
                 result_id=_cell(node.result_id),
+                test_id=_cell(node.test_id),
                 result_type=_cell(result_type),
                 path=_cell(' / '.join(node.path)),
                 objective=_cell(node.objective),
@@ -174,7 +176,7 @@ def render_run_overview(
 
     if not stat_nodes:
         lines.append(
-            '| - | - | - | - | - | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |',
+            '| - | - | - | - | - | - | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |',
         )
         if unexpected_only:
             lines.extend(
@@ -205,6 +207,11 @@ def render_run_overview(
             (
                 '*Only rows with Type = `test` (not `package`) have concrete '
                 'executions -- pass their Result ID to `get_run_leaf_results`.*'
+            ),
+            (
+                '*Comments are shown as `[comment_id] text`. To add, change or remove '
+                "one, pass the row's Test ID and the Project ID above to "
+                '`edit_test_comment`.*'
             ),
         ],
     )
