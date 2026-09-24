@@ -17,9 +17,12 @@ from django.test import TransactionTestCase
 from django.test.utils import override_settings
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
+from fastmcp.exceptions import ToolError
 import httpx
+import pytest
 from rest_framework import status
 
+from bublik.core.auth import bind_acting_user, current_acting_user
 from bublik.core.user_token import UserTokenService
 from bublik.data.models import (
     Config,
@@ -32,6 +35,7 @@ from bublik.data.models import (
     TokenStatus,
     User,
     UserRoles,
+    UserStatus,
     UserToken,
 )
 from bublik.mcp import tools
@@ -691,3 +695,54 @@ class McpToolRegistryTest(TransactionTestCase):
         assert not read & write
         assert not read & admin
         assert not write & admin
+
+
+@override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
+class McpActingUserTest(TransactionTestCase):
+    """The write tools accept an in-process caller bound by the chat agent."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='a@example.com', password='pw12345!')
+        self.admin = User.objects.create_user(
+            email='admin@example.com',
+            password='pw12345!',
+            roles=UserRoles.ADMIN,
+        )
+        self.project = Project.objects.create(name='proj')
+        self.test = Test.objects.create(name='some-test')
+
+    def _comment(self, text):
+        return async_to_sync(tools.edit_test_comment)(
+            test_id=self.test.id,
+            project_id=self.project.id,
+            comment=text,
+        )
+
+    def test_a_bound_admin_can_write(self):
+        with bind_acting_user(self.admin.id):
+            result = self._comment('bound')
+
+        assert result['comment'] == 'bound'
+        assert MetaTest.objects.filter(test=self.test).count() == 1
+
+    def test_a_bound_plain_user_is_refused_by_the_project_rule(self):
+        with bind_acting_user(self.user.id), pytest.raises(ToolError, match='not allowed'):
+            self._comment('nope')
+
+        assert not MetaTest.objects.filter(test=self.test).exists()
+
+    def test_nobody_bound_is_refused(self):
+        with pytest.raises(ToolError, match='personal access token'):
+            self._comment('nope')
+
+    def test_a_deactivated_bound_user_is_refused(self):
+        self.admin.status = UserStatus.DEACTIVATED
+        self.admin.save(update_fields=['status'])
+
+        with bind_acting_user(self.admin.id), pytest.raises(ToolError, match='access token'):
+            self._comment('nope')
+
+    def test_the_binding_does_not_leak_past_the_block(self):
+        with bind_acting_user(self.admin.id):
+            assert current_acting_user() == self.admin
+        assert current_acting_user() is None
