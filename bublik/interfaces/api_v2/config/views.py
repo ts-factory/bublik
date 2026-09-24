@@ -12,13 +12,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import auth_required, get_user_by_access_token
+from bublik.core.auth import auth_required, get_request_user, is_admin
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import UnprocessableEntityError
 from bublik.core.filter_backends import ProjectFilterBackend
 from bublik.core.shortcuts import serialize
-from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project, UserRoles
+from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project
 from bublik.data.serializers import ConfigSerializer
 from bublik.interfaces.api_v2.config.schemas import config_viewset_schema
 
@@ -45,17 +45,14 @@ class ConfigViewSet(ModelViewSet):
 
     def get_queryset(self):
         configs = self.filter_queryset(super().get_queryset())
-        access_token = self.request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
+        user = get_request_user(self.request)
 
         not_permission_required_actions_default = ConfigServices.getattr_from_global(
             GlobalConfigs.PER_CONF.name,
             'NOT_PERMISSION_REQUIRED_ACTIONS',
             project_id=None,
         )
-        if (
-            user and UserRoles.ADMIN in user.roles
-        ) or 'read_configs' in not_permission_required_actions_default:
+        if is_admin(user) or 'read_configs' in not_permission_required_actions_default:
             return configs | Config.objects.filter(project__isnull=True)
 
         project_ids = list(Project.objects.all().values_list('id', flat=True))
@@ -78,11 +75,10 @@ class ConfigViewSet(ModelViewSet):
 
     @auth_required(as_admin=True)
     def create(self, request, *args, **kwargs):
-        access_token = request.COOKIES.get('access_token')
         serializer = serialize(
             self.serializer_class,
             data=request.data,
-            context={'access_token': access_token},
+            context={'user': get_request_user(request)},
         )
         config, _ = serializer.get_or_create()
         config_data = self.get_serializer(config).data
@@ -126,12 +122,11 @@ class ConfigViewSet(ModelViewSet):
                 return Response(serializer.data)
 
         # create a new config version if the provided content differs from all existing versions
-        access_token = request.COOKIES.get('access_token')
         serializer = self.get_serializer(
             config,
             data=update_data,
             partial=True,
-            context={'access_token': access_token},
+            context={'user': get_request_user(request)},
         )
         serializer.is_valid(raise_exception=True)
         updated_config, created = serializer.get_or_create()
