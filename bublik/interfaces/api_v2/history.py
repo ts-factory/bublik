@@ -47,6 +47,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             'verdict_lookup': request.query_params.get('verdict_lookup', ''),
             'verdict_expr': request.query_params.get('verdict_expr', ''),
             'result_types': request.query_params.get('result_types', ''),
+            'search': request.query_params.get('search', ''),
         }
 
     def _get_history(self, params):
