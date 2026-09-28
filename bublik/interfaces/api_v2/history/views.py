@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from typing import ClassVar
+
 from django.core.cache import cache
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -11,6 +13,8 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.history import HistoryService
 from bublik.core.history.v2.utils import generate_hashkey
+from bublik.data.models import TestIterationResult
+from bublik.interfaces.api_v2.history.schemas import history_viewset_schema
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
@@ -23,7 +27,11 @@ __all__ = [
 ]
 
 
+@history_viewset_schema
 class HistoryViewSet(ListModelMixin, GenericViewSet):
+    serializer_class = HistoryListResponseSerializer
+    queryset = TestIterationResult.objects.none()
+    filter_backends: ClassVar[list] = []
     pagination_class = None
     add_context = None
 
