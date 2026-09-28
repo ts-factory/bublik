@@ -1,7 +1,70 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
+
+
+class HistoryListQuerySerializer(serializers.Serializer):
+    test_name = serializers.CharField(help_text='Name of the test')
+    project = serializers.IntegerField(required=False)
+    page = serializers.IntegerField(required=False, min_value=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=10000)
+    from_date = serializers.DateField(required=False)
+    to_date = serializers.DateField(required=False)
+    run_ids = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated run IDs',
+    )
+    branches = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated branches',
+    )
+    revisions = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated revisions',
+    )
+    labels = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated labels',
+    )
+    tags = serializers.CharField(required=False, help_text='Semicolon-separated tags')
+    branch_expr = serializers.CharField(required=False)
+    rev_expr = serializers.CharField(required=False)
+    label_expr = serializers.CharField(required=False)
+    tag_expr = serializers.CharField(required=False)
+    run_properties = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated run properties',
+    )
+    hash = serializers.CharField(required=False, help_text='Test iteration hash')
+    test_args = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated key=value test arguments',
+    )
+    test_arg_expr = serializers.CharField(required=False)
+    result_statuses = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated result statuses',
+    )
+    verdict = serializers.CharField(required=False)
+    verdict_lookup = serializers.CharField(
+        required=False,
+        help_text='regex, string, or none',
+    )
+    verdict_expr = serializers.CharField(required=False)
+    result_types = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated expected or unexpected values',
+    )
+
+
+class HistoryProjectQuerySerializer(serializers.Serializer):
+    project = serializers.IntegerField(required=False)
+
+
+class HistoryParamsSearchQuerySerializer(HistoryProjectQuerySerializer):
+    test_name = serializers.CharField(help_text='Name of the test')
 
 
 class HistoryCountsSerializer(serializers.Serializer):
@@ -78,6 +141,7 @@ class HistoryIterationGroupSerializer(serializers.Serializer):
     results_by_verdicts = HistoryVerdictGroupSerializer(many=True)
 
 
+@extend_schema_serializer(many=False)
 class HistoryListResponseSerializer(serializers.Serializer):
     from_date = serializers.DateField(allow_null=True)
     to_date = serializers.DateField(allow_null=True)
