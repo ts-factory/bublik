@@ -24,6 +24,7 @@ __all__ = [
 
 
 class HistoryViewSet(ListModelMixin, GenericViewSet):
+    pagination_class = None
     add_context = None
 
     def _extract_query_params(self, request):
