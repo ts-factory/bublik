@@ -21,6 +21,10 @@ from bublik.core.run.services import RunService
 from bublik.core.run.stats import generate_all_run_details, generate_runs_details, get_test_runs
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
+from bublik.interfaces.api_v2.history.serializers import (
+    HistoryGroupedResponseSerializer,
+    HistoryListResponseSerializer,
+)
 from bublik.interfaces.api_v2.run.serializers import (
     serialize_paginated_run_summary_results,
 )
@@ -654,7 +658,8 @@ async def get_history(  # noqa: PLR0913, PLR0917
         'page': page,
         'page_size': page_size,
     }
-    return await sync_to_async(HistoryService.get_history)(test_name, **filters)
+    data = await sync_to_async(HistoryService.get_history)(test_name, **filters)
+    return dict(HistoryListResponseSerializer(data).data)
 
 
 async def get_history_grouped(  # noqa: PLR0913, PLR0917
@@ -702,7 +707,8 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
         'page': page,
         'page_size': page_size,
     }
-    return await sync_to_async(HistoryService.get_history_grouped)(test_name, **filters)
+    data = await sync_to_async(HistoryService.get_history_grouped)(test_name, **filters)
+    return dict(HistoryGroupedResponseSerializer(data).data)
 
 
 # Run extension tools
