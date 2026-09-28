@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.mail import send_mail
 from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -25,7 +23,11 @@ from bublik.core.auth import (
     get_user_by_access_token,
     get_user_info_from_access_token,
 )
-from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
+from bublik.core.mail import (
+    EmailVerificationTokenGenerator,
+    send_user_mail,
+    send_verification_link_mail,
+)
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User
 from bublik.data.serializers import (
@@ -292,11 +294,10 @@ class ForgotPasswordView(generics.CreateAPIView):
         reset_link = build_absolute_uri(request, endpoint)
 
         # send the reset link to the user
-        send_mail(
+        send_user_mail(
             subject='Password Reset',
             message=f'Click the following link to reset your password: {reset_link}',
-            from_email=settings.EMAIL_FROM,
-            recipient_list=[user.email],
+            user=user,
         )
 
         return Response(
