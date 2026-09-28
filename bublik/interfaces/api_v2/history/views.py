@@ -11,6 +11,11 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.history import HistoryService
 from bublik.core.history.v2.utils import generate_hashkey
+from bublik.interfaces.api_v2.history.serializers import (
+    HistoryGroupedResponseSerializer,
+    HistoryListResponseSerializer,
+    HistoryMetasSearchOptionsSerializer,
+)
 
 
 __all__ = [
@@ -56,13 +61,21 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
         return HistoryService.get_history_grouped(**params)
 
     def list(self, request, pk=None):
-        return self._get_cached_response(request, self._get_history)
+        return self._get_cached_response(
+            request,
+            self._get_history,
+            HistoryListResponseSerializer,
+        )
 
     @action(detail=False, methods=['get'])
     def grouped(self, request, pk=None):
-        return self._get_cached_response(request, self._get_history_grouped)
+        return self._get_cached_response(
+            request,
+            self._get_history_grouped,
+            HistoryGroupedResponseSerializer,
+        )
 
-    def _get_cached_response(self, request, service_func):
+    def _get_cached_response(self, request, service_func, serializer_class):
         hashkey = generate_hashkey(request)
         response_data = cache.get(hashkey)
 
@@ -70,7 +83,7 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
             return Response(response_data)
 
         params = self._extract_query_params(request)
-        response_data = service_func(params)
+        response_data = dict(serializer_class(service_func(params)).data)
         cache.set(hashkey, response_data)
 
         add_context = getattr(self, 'add_context', None)
@@ -97,4 +110,5 @@ class HistoryViewSet(ListModelMixin, GenericViewSet):
     @action(detail=False, methods=['get'], renderer_classes=[JSONRenderer])
     def metas_search_options(self, request, pk=None):
         project_id = request.query_params.get('project')
-        return Response(HistoryService.get_metas_search_options(project_id))
+        data = HistoryService.get_metas_search_options(project_id)
+        return Response(HistoryMetasSearchOptionsSerializer(data).data)

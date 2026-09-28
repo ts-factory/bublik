@@ -10,6 +10,16 @@ from rest_framework.exceptions import ValidationError
 from bublik.core.cache import ProjectCache
 from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.exceptions import NotFoundError
+from bublik.core.history.dto import (
+    HistoryCountsDTO,
+    HistoryGroupedDTO,
+    HistoryIterationGroupDTO,
+    HistoryListDTO,
+    HistoryMetasSearchOptionsDTO,
+    HistoryPaginationDTO,
+    HistoryResultDTO,
+    HistoryTagsDTO,
+)
 from bublik.core.history.v2.utils import (
     group_results,
     group_results_by_iteration,
@@ -513,7 +523,7 @@ class HistoryService:
         page: int | None = None,
         page_size: int | None = None,
         **filters,
-    ) -> dict:
+    ) -> HistoryListDTO:
         """
         Get test history (linear format).
 
@@ -524,7 +534,7 @@ class HistoryService:
             **filters: Filter parameters (see build_history_queryset for details)
 
         Returns:
-            Dictionary with history data, counts, and pagination info
+            Typed history data, counts, and pagination info
 
         Raises:
             ValidationError: if test name is missing or pagination parameters are invalid
@@ -561,14 +571,14 @@ class HistoryService:
             data['verdicts'],
         )
 
-        return {
-            'from_date': display_to_date_in_numbers(from_date_obj),
-            'to_date': display_to_date_in_numbers(to_date_obj),
-            'counts': counts,
-            'pagination': paginated_data['pagination'],
-            'results': response_list,
-            'results_ids': list(results_ids),
-        }
+        return HistoryListDTO(
+            from_date=display_to_date_in_numbers(from_date_obj),
+            to_date=display_to_date_in_numbers(to_date_obj),
+            counts=HistoryCountsDTO(**counts),
+            pagination=HistoryPaginationDTO(**paginated_data['pagination']),
+            results=[HistoryResultDTO.from_data(result) for result in response_list],
+            results_ids=list(results_ids),
+        )
 
     @staticmethod
     def get_history_grouped(
@@ -576,7 +586,7 @@ class HistoryService:
         page: int | None = None,
         page_size: int | None = None,
         **filters,
-    ) -> dict:
+    ) -> HistoryGroupedDTO:
         """
         Get test history grouped by iteration.
 
@@ -587,7 +597,7 @@ class HistoryService:
             **filters: Filter parameters (see build_history_queryset for details)
 
         Returns:
-            Dictionary with grouped history data, counts, and pagination info
+            Typed grouped history data, counts, and pagination info
 
         Raises:
             ValidationError: if test name is missing or pagination parameters are invalid
@@ -624,14 +634,14 @@ class HistoryService:
             data['verdicts'],
         )
 
-        return {
-            'from_date': display_to_date_in_numbers(from_date_obj),
-            'to_date': display_to_date_in_numbers(to_date_obj),
-            'counts': counts,
-            'pagination': paginated_data['pagination'],
-            'results': response_list,
-            'results_ids': list(results_ids),
-        }
+        return HistoryGroupedDTO(
+            from_date=display_to_date_in_numbers(from_date_obj),
+            to_date=display_to_date_in_numbers(to_date_obj),
+            counts=HistoryCountsDTO(**counts),
+            pagination=HistoryPaginationDTO(**paginated_data['pagination']),
+            results=[HistoryIterationGroupDTO.from_data(result) for result in response_list],
+            results_ids=list(results_ids),
+        )
 
     @staticmethod
     def get_test_search_options(project_id: str | None):
@@ -663,18 +673,20 @@ class HistoryService:
         )
 
     @staticmethod
-    def get_metas_search_options(project_id: str | None) -> dict:
+    def get_metas_search_options(
+        project_id: str | None,
+    ) -> HistoryMetasSearchOptionsDTO:
         metas_cache = ProjectCache(project_id).metas
         if not any(metas_cache.get(k) for k in metas_cache.KEY_DATA_CHOICES):
             metas_cache.load()
 
-        return {
-            'tags': {
-                'important': list(metas_cache.get('important_tags').values()),
-                'relevant': list(metas_cache.get('relevant_tags').values()),
-                'all': list(metas_cache.get('all_tags').values()),
-            },
-            'branches': metas_cache.get('branches'),
-            'revisions': metas_cache.get('revisions'),
-            'labels': metas_cache.get('labels'),
-        }
+        return HistoryMetasSearchOptionsDTO(
+            tags=HistoryTagsDTO(
+                important=list(metas_cache.get('important_tags').values()),
+                relevant=list(metas_cache.get('relevant_tags').values()),
+                all=list(metas_cache.get('all_tags').values()),
+            ),
+            branches=metas_cache.get('branches'),
+            revisions=metas_cache.get('revisions'),
+            labels=metas_cache.get('labels'),
+        )
