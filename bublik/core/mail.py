@@ -10,6 +10,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.exceptions import BadGatewayError
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import GlobalConfigs
 
@@ -71,12 +72,27 @@ class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
         return str(user.is_active) + str(user.pk) + str(timestamp)
 
 
+def send_user_mail(subject, message, user):
+    """
+    Sends an email to the user, raising BadGatewayError if it cannot be sent.
+    """
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'EMAIL_FROM', None),
+            recipient_list=[user.email],
+        )
+    except OSError as e:
+        # covers SMTPException, connection, timeout and TLS errors
+        msg = 'Failed to send the email. Please try again later or contact the administrator.'
+        raise BadGatewayError(msg) from e
+
+
 def send_verification_link_mail(request, user):
     """
     Sends an email to the user with a link that activates his account when clicked.
     """
-    from_email = getattr(settings, 'EMAIL_FROM', None)
-
     email_verification_token = EmailVerificationTokenGenerator()
     user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
     token = email_verification_token.make_token(user)
@@ -85,9 +101,8 @@ def send_verification_link_mail(request, user):
     endpoint = f'v2/auth/register/activate/{user_id_b64}/{token}/'
     verify_email_link = build_absolute_uri(request, endpoint)
 
-    send_mail(
+    send_user_mail(
         subject='Verify email',
         message=f'Click the following link to verify your email: {verify_email_link}',
-        from_email=from_email,
-        recipient_list=[user.email],
+        user=user,
     )
