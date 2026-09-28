@@ -362,14 +362,14 @@
             "default": 25
         },
         "EMAIL_HOST": {
-            "description": "The SMTP server to be used for sending emails",
+            "description": "The SMTP server to be used for sending emails. The default \"localhost\" expects a mail agent (e.g. Postfix) running on the same machine and able to deliver mail",
             "type": "string",
             "default": "localhost"
         },
         "EMAIL_USE_TLS": {
-            "description": "A boolean setting that specifies whether to use TLS for email communication",
+            "description": "Whether to upgrade the SMTP connection with STARTTLS. Enable for SMTP servers reached over a public network; usually not needed for a local or internal relay (e.g. localhost). When enabled, the server's certificate must be valid for EMAIL_HOST, otherwise sending fails",
             "type": "boolean",
-            "default": true
+            "default": false
         },
         "EMAIL_TIMEOUT": {
             "description": "Sets the timeout (in seconds) for email sending operations",
