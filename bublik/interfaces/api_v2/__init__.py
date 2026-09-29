@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from .auth import (
+from .auth.views import (
     AdminViewSet,
     PasswordResetViewSet,
     ProfileViewSet,
