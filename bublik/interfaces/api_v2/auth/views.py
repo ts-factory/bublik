@@ -110,8 +110,7 @@ class RegistrationViewSet(GenericViewSet):
             and user.status == UserStatus.PENDING
             and email_verification_token.check_token(user, token)
         ):
-            user.status = UserStatus.ACTIVE
-            user.save()
+            user.activate()
             return Response(
                 {'message': 'The email is verified. You are registered.'},
             )
@@ -386,11 +385,8 @@ class AdminViewSet(GenericViewSet):
     def deactivate_user(self, request):
         # get user to delete
         deactivate_user = User.objects.get(email=request.data.get('email'))
-        # deactivate user
-        deactivate_user.status = UserStatus.DEACTIVATED
-        deactivate_user.save()
-        # end all sessions of the user
-        revoke_refresh_tokens(deactivate_user)
+        # deactivate user and end all their sessions
+        deactivate_user.deactivate()
         return Response(
             {'message': 'The user was deactivated'},
         )
