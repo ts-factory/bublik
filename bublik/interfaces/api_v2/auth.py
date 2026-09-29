@@ -266,6 +266,9 @@ class PasswordResetViewSet(GenericViewSet):
 
 
 class ProfileViewSet(GenericViewSet):
+    def get_object(self):
+        return get_user_by_access_token(self.request.COOKIES.get('access_token'))
+
     def get_serializer_class(self):
         if self.action == 'password_reset':
             return PasswordChangeSerializer
@@ -276,18 +279,13 @@ class ProfileViewSet(GenericViewSet):
     @auth_required(as_admin=False)
     @action(detail=False, methods=['get'])
     def info(self, request):
-        # get access token from cookies
-        access_token = request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
-        serializer_class = self.get_serializer_class()
-        return Response(serializer_class(user).data)
+        user = self.get_object()
+        return Response(self.get_serializer(user).data)
 
     @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def password_reset(self, request):
-        # get access token from cookies
-        access_token = request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
+        user = self.get_object()
         # check current password and validate new password
         serializer = self.get_serializer(data=request.data, context={'user': user})
         serializer.is_valid(raise_exception=True)
@@ -306,9 +304,7 @@ class ProfileViewSet(GenericViewSet):
     @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
     def update_info(self, request):
-        # get access token from cookies
-        access_token = request.COOKIES.get('access_token')
-        user = get_user_by_access_token(access_token)
+        user = self.get_object()
         # check if new data is valid
         serializer = self.get_serializer(user, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -318,6 +314,10 @@ class ProfileViewSet(GenericViewSet):
 
 
 class AdminViewSet(GenericViewSet):
+    queryset = User.objects.all()
+    # the users list isn't filterable
+    filter_backends = ()
+
     def get_serializer_class(self):
         if self.action == 'create_user':
             return RegisterSerializer
@@ -365,8 +365,7 @@ class AdminViewSet(GenericViewSet):
     @auth_required(as_admin=True)
     @method_decorator(never_cache)
     def list(self, request):
-        serializer_class = self.get_serializer_class()
         # return all Users info
         return Response(
-            serializer_class(User.objects.all(), many=True).data,
+            self.get_serializer(self.get_queryset(), many=True).data,
         )
