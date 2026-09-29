@@ -27,7 +27,7 @@ registration_viewset_schema = extend_schema_view(
     register=extend_schema(
         summary='Register user',
         description="""
-        Create an inactive user and send an email verification link
+        Create a pending user and send an email verification link
         to the passed email address. The user is activated once the link is followed.
         """,
         request=RegisterSerializer,
@@ -266,7 +266,7 @@ admin_viewset_schema = extend_schema_view(
     create_user=extend_schema(
         summary='Create user',
         description="""
-        Create an inactive user and send an email verification link
+        Create a pending user and send an email verification link
         to the user's email address. The user is activated once the link is followed.
         Requires administrator's role.
         """,

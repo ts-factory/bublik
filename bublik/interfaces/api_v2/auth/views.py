@@ -24,7 +24,7 @@ from bublik.core.auth import (
 )
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
-from bublik.data.models import User
+from bublik.data.models import User, UserStatus
 from bublik.data.serializers import (
     LoginSerializer,
     PasswordChangeSerializer,
@@ -106,7 +106,7 @@ class RegistrationViewSet(GenericViewSet):
             user = None
 
         if user and email_verification_token.check_token(user, token):
-            user.is_active = True
+            user.status = UserStatus.ACTIVE
             user.save()
             return Response(
                 {'message': 'The email is verified. You are registered.'},
@@ -383,7 +383,7 @@ class AdminViewSet(GenericViewSet):
         # get user to delete
         deactivate_user = User.objects.get(email=request.data.get('email'))
         # deactivate user
-        deactivate_user.is_active = False
+        deactivate_user.status = UserStatus.DEACTIVATED
         deactivate_user.save()
         # end all sessions of the user
         revoke_refresh_tokens(deactivate_user)

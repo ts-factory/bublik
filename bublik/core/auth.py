@@ -10,7 +10,7 @@ from rest_framework_simplejwt.exceptions import TokenBackendError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs, User, UserRoles
+from bublik.data.models import GlobalConfigs, User, UserRoles, UserStatus
 from bublik.settings import SIMPLE_JWT
 
 
@@ -25,7 +25,7 @@ def get_user_info_from_access_token(access_token):
 def get_user_by_access_token(access_token):
     try:
         user_info = get_user_info_from_access_token(access_token)
-        return User.objects.filter(pk=user_info['user_id'], is_active=True).first()
+        return User.objects.filter(pk=user_info['user_id'], status=UserStatus.ACTIVE).first()
     except TokenBackendError:
         return None
 

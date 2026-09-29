@@ -11,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from bublik.data.models import User
+from bublik.data.models import User, UserStatus
 
 
 __all__ = [
@@ -64,7 +64,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
-            is_active=False,
+            status=UserStatus.PENDING,
         )
 
         user.set_password(validated_data['password'])
@@ -120,6 +120,9 @@ class TokenPairSerializer(TokenObtainPairSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # derived from the status
+    is_active = serializers.BooleanField(read_only=True)
+
     class Meta:
         model: typing.ClassVar = User
         fields: typing.ClassVar['str'] = [
@@ -129,11 +132,13 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'roles',
+            'status',
             'is_active',
             'date_joined',
         ]
         extra_kwargs: typing.ClassVar['dict'] = {
             'password': {'write_only': True},
+            'status': {'read_only': True},
             'date_joined': {'read_only': True},
         }
 
