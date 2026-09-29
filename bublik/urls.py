@@ -20,6 +20,12 @@ from bublik.interfaces import api_v2, main_api
 importruns_router = ActionsOnlyRouter()
 importruns_router.register(r'', api_v2.ImportrunsViewSet, basename='importruns')
 
+### URL patterns for authentication ###
+auth_router = ActionsOnlyRouter()
+auth_router.register(r'', api_v2.SessionViewSet, basename='session')
+auth_router.register(r'', api_v2.RegistrationViewSet, basename='register')
+auth_router.register(r'', api_v2.PasswordResetViewSet, basename='password_reset')
+
 ### URL patterns for API-V2 ###
 api_v2_router = DefaultRouter()
 api_v2_router.register(r'runs', api_v2.RunViewSet, 'runs')
@@ -97,25 +103,7 @@ urlpatterns = [
     re_path(r'v1/tests_run/(?P<run_id>[0-9]+)$', main_api.redirect_tests_run),
     re_path(r'v1/result_log/(?:(?P<result_id>[0-9]+)?)$', main_api.redirect_result_log),
     re_path(r'next/(?:.*)/?$', main_api.redirect_next),
-    path('auth/register/', api_v2.RegisterView.as_view(), name='auth_register'),
-    path(
-        'auth/register/activate/<str:user_id_b64>/<str:token>/',
-        api_v2.ActivateView.as_view(),
-        name='auth_register_activate',
-    ),
-    path('auth/login/', api_v2.LogInView.as_view(), name='auth_login'),
-    path('auth/refresh/', api_v2.RefreshTokenView.as_view(), name='auth_refresh'),
-    path('auth/logout/', api_v2.LogOutView.as_view(), name='auth_logout'),
-    path(
-        'auth/forgot_password/',
-        api_v2.ForgotPasswordView.as_view(),
-        name='auth_forgot_password',
-    ),
-    path(
-        'auth/forgot_password/password_reset/<str:user_id_b64>/<str:token>/',
-        api_v2.ForgotPasswordResetView.as_view(),
-        name='auth_forgot_password_password_reset',
-    ),
+    path('auth/', include(auth_router.urls)),
     path('performance_check/', api_v2.PerformanceCheckView.as_view(), name='performance_check'),
     path('url_shortener/', api_v2.URLShortenerView.as_view(), name='url_shortener'),
 ]
