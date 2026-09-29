@@ -22,6 +22,7 @@ from bublik.core.auth import (
     get_user_by_access_token,
     revoke_refresh_tokens,
 )
+from bublik.core.exceptions import BublikAPIError, UserStatusError
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User, UserStatus
@@ -385,8 +386,12 @@ class AdminViewSet(GenericViewSet):
     def deactivate_user(self, request):
         # get user to delete
         deactivate_user = User.objects.get(email=request.data.get('email'))
+        admin = get_user_by_access_token(request.COOKIES.get('access_token'))
         # deactivate user and end all their sessions
-        deactivate_user.deactivate()
+        try:
+            deactivate_user.deactivate(by=admin)
+        except UserStatusError as use:
+            raise BublikAPIError(use.message) from None
         return Response(
             {'message': 'The user was deactivated'},
         )

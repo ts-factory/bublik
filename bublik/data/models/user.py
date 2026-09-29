@@ -112,11 +112,19 @@ class User(AbstractUser):
         self.status = UserStatus.ACTIVE
         self.save()
 
-    def deactivate(self):
+    def deactivate(self, by=None):
         """
         Deactivate the user and end all their sessions.
+        `by` is the user performing the deactivation, if any.
         """
         from bublik.core.auth import revoke_refresh_tokens  # noqa: PLC0415
+
+        if self.is_system:
+            msg = 'The system user cannot be deactivated'
+            raise UserStatusError(msg)
+        if by is not None and by.pk == self.pk:
+            msg = 'Users cannot deactivate themselves'
+            raise UserStatusError(msg)
 
         self.status = UserStatus.DEACTIVATED
         self.save()
