@@ -254,7 +254,7 @@ admin_viewset_schema = extend_schema_view(
     list=extend_schema(
         summary='List users',
         description="""
-        Return all users. Requires administrator's role.
+        Return all users, except the system user. Requires administrator's role.
         """,
         responses={
             200: OpenApiResponse(
