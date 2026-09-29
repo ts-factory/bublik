@@ -222,6 +222,7 @@ class UpdateUserSerializer(serializers.Serializer):
 
 
 class UpdateProfileSerializer(UpdateUserSerializer):
+    email = None
     password = None
 
     def validate(self, attrs):

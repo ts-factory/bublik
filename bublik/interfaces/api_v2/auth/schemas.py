@@ -219,7 +219,7 @@ profile_viewset_schema = extend_schema_view(
         summary='Update current user',
         description="""
         Update the first name and last name of the current user by the passed data.
-        The passed email is validated but not changed, other fields are rejected.
+        Other fields are rejected.
         """,
         request=UpdateProfileSerializer,
         responses={
