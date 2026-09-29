@@ -154,6 +154,8 @@ password_reset_viewset_schema = extend_schema_view(
         summary='Reset password',
         description="""
         Set a new password for the user by the link sent on the password reset request.
+        The sessions of the user can no longer be renewed
+        and end when their access token expires.
         """,
         request=PasswordResetSerializer,
         responses={
@@ -197,6 +199,8 @@ profile_viewset_schema = extend_schema_view(
         summary='Change current user password',
         description="""
         Change the password of the current user, which requires their current password.
+        Other sessions of the user can no longer be renewed and end when their
+        access token expires, the current one gets new tokens set in HttpOnly cookies.
         """,
         request=PasswordChangeSerializer,
         responses={
@@ -288,6 +292,8 @@ admin_viewset_schema = extend_schema_view(
         description="""
         Update the first name, last name and password of the user
         identified by the passed email by the passed data.
+        If the password is changed, the sessions of the user can no longer be renewed
+        and end when their access token expires.
         Requires administrator's role.
         """,
         request=AdminUpdateUserRequestSerializer,
