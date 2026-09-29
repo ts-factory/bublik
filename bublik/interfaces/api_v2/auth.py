@@ -29,6 +29,7 @@ from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User
 from bublik.data.serializers import (
+    PasswordChangeSerializer,
     PasswordResetSerializer,
     RegisterSerializer,
     TokenPairSerializer,
@@ -74,10 +75,9 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.validate(request.data)
-        user = serializer.create(request.data)
+        user = serializer.save()
         send_verification_link_mail(request, user)
         return Response(
             {'message': 'A verification link has been sent to your email address'},
@@ -143,7 +143,7 @@ class LogInView(TokenObtainPairView):
 class ProfileViewSet(GenericViewSet):
     def get_serializer_class(self):
         if self.action == 'password_reset':
-            return PasswordResetSerializer
+            return PasswordChangeSerializer
         if self.action == 'update_info':
             return UpdateUserSerializer
         return UserSerializer
@@ -164,14 +164,11 @@ class ProfileViewSet(GenericViewSet):
         access_token = request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
         # check current password and validate new password
-        passwords = request.data
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=passwords)
-        serializer.current_password_check(user, passwords['current_password'])
-        serializer.validate_passwords(passwords)
+        serializer = self.get_serializer(data=request.data, context={'user': user})
+        serializer.is_valid(raise_exception=True)
 
         # password reset
-        user.set_password(passwords['new_password'])
+        user.set_password(serializer.validated_data['new_password'])
         user.save()
 
         # blacklist old refresh tokens
@@ -187,15 +184,11 @@ class ProfileViewSet(GenericViewSet):
         # get access token from cookies
         access_token = request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
-        serializer_class = self.get_serializer_class()
         # check if new data is valid
-        serializer = serializer_class(data=request.data)
+        serializer = self.get_serializer(user, data=request.data)
         serializer.is_valid(raise_exception=True)
         # update user
-        updated_user = serializer.update(
-            user=user,
-            data=request.data,
-        )
+        updated_user = serializer.save()
         return Response(UserSerializer(updated_user).data)
 
 
@@ -318,11 +311,10 @@ class ForgotPasswordResetView(generics.UpdateAPIView):
 
         if user and get_user_info_from_access_token(access_token):
             # validate new password
-            new_passwords = request.data
-            serializer = self.serializer_class(data=new_passwords)
-            serializer.validate_passwords(new_passwords)
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
             # password reset
-            user.set_password(new_passwords['new_password'])
+            user.set_password(serializer.validated_data['new_password'])
             user.save()
 
             # blacklist old refresh tokens
@@ -349,11 +341,9 @@ class AdminViewSet(GenericViewSet):
     @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
     def create_user(self, request):
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.validate(request.data)
-        user = serializer.create(request.data)
+        user = serializer.save()
         send_verification_link_mail(request, user)
         return Response(
             {'message': "A verification link has been sent to the user's email address"},
@@ -364,16 +354,11 @@ class AdminViewSet(GenericViewSet):
     def update_user(self, request):
         # get user to edit
         edit_user = User.objects.get(email=request.data.get('email'))
-        # get serializer class
-        serializer_class = self.get_serializer_class()
         # check if new data is valid
-        serializer = serializer_class(data=request.data)
+        serializer = self.get_serializer(edit_user, data=request.data)
         serializer.is_valid(raise_exception=True)
         # update user
-        updated_user = serializer.update(
-            user=edit_user,
-            data=request.data,
-        )
+        updated_user = serializer.save()
         return Response(UserSerializer(updated_user).data)
 
     @auth_required(as_admin=True)
