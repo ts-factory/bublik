@@ -105,7 +105,11 @@ class RegistrationViewSet(GenericViewSet):
         except (TypeError, ValueError, OverflowError, ObjectDoesNotExist):
             user = None
 
-        if user and email_verification_token.check_token(user, token):
+        if (
+            user
+            and user.status == UserStatus.PENDING
+            and email_verification_token.check_token(user, token)
+        ):
             user.status = UserStatus.ACTIVE
             user.save()
             return Response(
