@@ -33,6 +33,13 @@ from bublik.data.serializers import (
     UserEmailSerializer,
     UserSerializer,
 )
+from bublik.interfaces.api_v2.auth.schemas import (
+    admin_viewset_schema,
+    password_reset_viewset_schema,
+    profile_viewset_schema,
+    registration_viewset_schema,
+    session_viewset_schema,
+)
 from bublik.settings import SIMPLE_JWT
 
 
@@ -63,6 +70,7 @@ __all__ = [
 ]
 
 
+@registration_viewset_schema
 class RegistrationViewSet(GenericViewSet):
     serializer_class = RegisterSerializer
 
@@ -103,6 +111,7 @@ class RegistrationViewSet(GenericViewSet):
         raise PermissionDenied(msg)
 
 
+@session_viewset_schema
 class SessionViewSet(ViewSet):
     # like the simplejwt views, don't authenticate the request itself:
     # the session is managed via the tokens passed in the cookies
@@ -193,6 +202,7 @@ class SessionViewSet(ViewSet):
             raise PermissionDenied(msg) from e
 
 
+@password_reset_viewset_schema
 class PasswordResetViewSet(GenericViewSet):
     def get_serializer_class(self):
         if self.action == 'reset_password':
@@ -265,6 +275,7 @@ class PasswordResetViewSet(GenericViewSet):
         raise PermissionDenied(msg)
 
 
+@profile_viewset_schema
 class ProfileViewSet(GenericViewSet):
     def get_object(self):
         return get_user_by_access_token(self.request.COOKIES.get('access_token'))
@@ -313,6 +324,7 @@ class ProfileViewSet(GenericViewSet):
         return Response(UserSerializer(updated_user).data)
 
 
+@admin_viewset_schema
 class AdminViewSet(GenericViewSet):
     queryset = User.objects.all()
     # the users list isn't filterable
