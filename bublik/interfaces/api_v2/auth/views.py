@@ -182,17 +182,17 @@ class SessionViewSet(ViewSet):
 
     @action(detail=False, methods=['post'])
     def logout(self, request):
-        # without a refresh token there is no session to end on the server
+        # end the session if it can still be renewed; a missing or invalid
+        # (e.g. already revoked) refresh token leaves nothing to end
         refresh_token = request.COOKIES.get('refresh_token')
         if refresh_token:
             try:
                 refresh_token = RefreshToken(refresh_token)
                 refresh_token.verify()
             except TokenError:
-                msg = 'Not a valid refresh token'
-                raise PermissionDenied(msg) from None
-
-            refresh_token.blacklist()
+                pass
+            else:
+                refresh_token.blacklist()
 
         # invalidate old cookies
         response = Response()

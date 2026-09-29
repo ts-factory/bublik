@@ -111,18 +111,14 @@ session_viewset_schema = extend_schema_view(
     logout=extend_schema(
         summary='Log out',
         description="""
-        End the session: the refresh token passed in the cookie, if any, is blacklisted,
-        the token cookies are deleted.
+        End the session: the refresh token passed in the cookie is blacklisted,
+        if it is still valid, and the token cookies are deleted.
         """,
         request=None,
         responses={
             200: OpenApiResponse(
                 response=AuthMessageResponseSerializer,
                 description='User was successfully logged out',
-            ),
-            403: OpenApiResponse(
-                response=ErrorResponseSerializer,
-                description='Refresh token is invalid',
             ),
         },
         tags=[AUTH_TAG],
