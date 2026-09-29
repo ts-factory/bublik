@@ -111,9 +111,8 @@ session_viewset_schema = extend_schema_view(
     logout=extend_schema(
         summary='Log out',
         description="""
-        End the session: the refresh token passed in the cookie is blacklisted,
-        the token cookies are deleted. If no refresh token is passed,
-        the cookies are just deleted.
+        End the session: the refresh token passed in the cookie, if any, is blacklisted,
+        the token cookies are deleted.
         """,
         request=None,
         responses={
