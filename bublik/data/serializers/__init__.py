@@ -3,6 +3,7 @@
 
 from .ai_chat_thread import AiChatThreadDetailSerializer, AiChatThreadListSerializer
 from .auth import (
+    LoginSerializer,
     PasswordChangeSerializer,
     PasswordResetSerializer,
     RegisterSerializer,
@@ -49,6 +50,7 @@ __all__ = [
     'ExpectMetaReadSerializer',
     'ExpectMetaWriteSerializer',
     'ExpectationSerializer',
+    'LoginSerializer',
     'MeasurementResultListSerializer',
     'MeasurementResultSerializer',
     'MeasurementSerializer',

@@ -2,7 +2,6 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from django.conf import settings
-from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.utils.decorators import method_decorator
@@ -29,6 +28,7 @@ from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User
 from bublik.data.serializers import (
+    LoginSerializer,
     PasswordChangeSerializer,
     PasswordResetSerializer,
     RegisterSerializer,
@@ -108,28 +108,16 @@ class ActivateView(APIView):
 
 
 class LogInView(TokenObtainPairView):
-    serializer_class = TokenPairSerializer
+    serializer_class = LoginSerializer
 
     def post(self, request):
-        # get email and password from request
-        email = request.data.get('email')
-        password = request.data.get('password')
-
-        # check if email and password are provided
-        if not email or not password:
-            msg = 'Please provide both email and password'
-            raise PermissionDenied(msg)
-
-        # authenticate user
-        user = authenticate(email=email, password=password)
-
-        # check if user is valid
-        if not user:
-            msg = 'Invalid credentials'
-            raise PermissionDenied(msg)
+        # authenticate user by email and password
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
 
         # create refresh and access token
-        refresh_token = self.serializer_class.get_token(user)
+        refresh_token = TokenPairSerializer.get_token(user)
         access_token = refresh_token.access_token
         response = Response()
         # set cookies
