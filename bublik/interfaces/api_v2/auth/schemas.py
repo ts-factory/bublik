@@ -318,6 +318,31 @@ admin_viewset_schema = extend_schema_view(
         },
         tags=[AUTH_TAG],
     ),
+    activate_user=extend_schema(
+        summary='Reactivate user',
+        description="""
+        Let the deactivated user identified by the passed email in again:
+        as a newly registered user, they wait for email verification,
+        and a verification link is sent to their email address.
+        Requires administrator's role.
+        """,
+        request=UserEmailSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=AuthMessageResponseSerializer,
+                description='User was reactivated and the verification link was sent',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='The user is not deactivated',
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Administrator privileges are required to activate users',
+            ),
+        },
+        tags=[AUTH_TAG],
+    ),
     deactivate_user=extend_schema(
         summary='Deactivate user',
         description="""

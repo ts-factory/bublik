@@ -112,6 +112,17 @@ class User(AbstractUser):
         self.status = UserStatus.ACTIVE
         self.save()
 
+    def reactivate(self):
+        """
+        Let the deactivated user in again: as a newly registered user,
+        they wait for email verification.
+        """
+        if self.status != UserStatus.DEACTIVATED:
+            msg = f'Only a deactivated user can be reactivated, the user is {self.status}'
+            raise UserStatusError(msg)
+        self.status = UserStatus.PENDING
+        self.save()
+
     def deactivate(self, by=None):
         """
         Deactivate the user and end all their sessions.
