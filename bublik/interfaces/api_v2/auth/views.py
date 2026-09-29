@@ -30,6 +30,7 @@ from bublik.data.serializers import (
     PasswordResetSerializer,
     RegisterSerializer,
     TokenPairSerializer,
+    UpdateProfileSerializer,
     UpdateUserSerializer,
     UserEmailSerializer,
     UserSerializer,
@@ -286,7 +287,7 @@ class ProfileViewSet(GenericViewSet):
         if self.action == 'password_reset':
             return PasswordChangeSerializer
         if self.action == 'update_info':
-            return UpdateUserSerializer
+            return UpdateProfileSerializer
         return UserSerializer
 
     @auth_required(as_admin=False)

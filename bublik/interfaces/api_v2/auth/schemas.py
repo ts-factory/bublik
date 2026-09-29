@@ -8,7 +8,7 @@ from bublik.data.serializers import (
     PasswordChangeSerializer,
     PasswordResetSerializer,
     RegisterSerializer,
-    UpdateUserSerializer,
+    UpdateProfileSerializer,
     UserEmailSerializer,
     UserSerializer,
 )
@@ -218,10 +218,10 @@ profile_viewset_schema = extend_schema_view(
     update_info=extend_schema(
         summary='Update current user',
         description="""
-        Update the first name, last name and password of the current user
-        by the passed data. The passed email is validated but not changed.
+        Update the first name and last name of the current user by the passed data.
+        The passed email is validated but not changed, other fields are rejected.
         """,
-        request=UpdateUserSerializer,
+        request=UpdateProfileSerializer,
         responses={
             200: OpenApiResponse(
                 response=UserSerializer,
