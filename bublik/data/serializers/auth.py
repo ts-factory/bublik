@@ -3,6 +3,7 @@
 
 import typing
 
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
@@ -14,6 +15,7 @@ from bublik.data.models import User
 
 
 __all__ = [
+    'LoginSerializer',
     'PasswordChangeSerializer',
     'PasswordResetSerializer',
     'RegisterSerializer',
@@ -68,6 +70,44 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+
+class LoginSerializer(serializers.Serializer):
+    """
+    Authenticates the user by email and password.
+    """
+
+    # the values are checked as passed, so that anything
+    # that doesn't match is denied as invalid credentials
+    email = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=False,
+    )
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=False,
+    )
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+
+        if not email or not password:
+            msg = 'Please provide both email and password'
+            raise PermissionDenied(msg)
+
+        user = authenticate(email=email, password=password)
+        if not user:
+            msg = 'Invalid credentials'
+            raise PermissionDenied(msg)
+
+        attrs['user'] = user
+        return attrs
 
 
 class TokenPairSerializer(TokenObtainPairSerializer):
