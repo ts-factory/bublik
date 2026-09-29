@@ -4,6 +4,7 @@
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -78,8 +79,10 @@ class RegistrationViewSet(GenericViewSet):
     def register(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        send_verification_link_mail(request, user)
+        # roll back the user creation if the verification link cannot be sent
+        with transaction.atomic():
+            user = serializer.save()
+            send_verification_link_mail(request, user)
         return Response(
             {'message': 'A verification link has been sent to your email address'},
         )
@@ -345,8 +348,10 @@ class AdminViewSet(GenericViewSet):
     def create_user(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        send_verification_link_mail(request, user)
+        # roll back the user creation if the verification link cannot be sent
+        with transaction.atomic():
+            user = serializer.save()
+            send_verification_link_mail(request, user)
         return Response(
             {'message': "A verification link has been sent to the user's email address"},
         )
