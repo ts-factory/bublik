@@ -147,6 +147,10 @@ password_reset_viewset_schema = extend_schema_view(
                 response=ErrorResponseSerializer,
                 description='Email is invalid or no user with this email was found',
             ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Password reset is not available for deactivated users',
+            ),
         },
         tags=[AUTH_TAG],
     ),
@@ -170,7 +174,7 @@ password_reset_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Password reset link is invalid',
+                description='Password reset link is invalid or the user is deactivated',
             ),
         },
         tags=[AUTH_TAG],

@@ -233,6 +233,10 @@ class PasswordResetViewSet(GenericViewSet):
             msg = 'No user found with this email'
             raise PermissionDenied(msg) from None
 
+        if user.status == UserStatus.DEACTIVATED:
+            msg = 'Password reset is not available for deactivated users'
+            raise PermissionDenied(msg)
+
         # generate a password reset token
         user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
@@ -267,7 +271,11 @@ class PasswordResetViewSet(GenericViewSet):
         except (TypeError, ValueError, OverflowError, ObjectDoesNotExist):
             user = None
 
-        if user and default_token_generator.check_token(user, token):
+        if (
+            user
+            and user.status != UserStatus.DEACTIVATED
+            and default_token_generator.check_token(user, token)
+        ):
             # validate new password
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
