@@ -147,71 +147,63 @@ class SessionViewSet(ViewSet):
 
     @action(detail=False, methods=['post'])
     def refresh(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+        if not refresh_token:
+            msg = 'No refresh token provided'
+            raise PermissionDenied(msg)
+
         try:
-            refresh_token = request.COOKIES.get('refresh_token')
-            if not refresh_token:
-                msg = 'No refresh token provided'
-                raise PermissionDenied(msg)
-
             refresh_token = RefreshToken(refresh_token)
+            refresh_token.verify()
+        except TokenError:
+            msg = 'Not a valid refresh token'
+            raise PermissionDenied(msg) from None
 
-            try:
-                refresh_token.verify()
-            except TokenError as te:
-                msg = 'Not a valid refresh token'
-                raise PermissionDenied(msg) from te
+        user_id = refresh_token['user_id']
+        user = User.objects.filter(pk=user_id).first()
+        if not user or not user.is_active:
+            msg = 'User is not active'
+            raise PermissionDenied(msg)
 
-            user_id = refresh_token['user_id']
-            user = User.objects.get(pk=user_id)
-            if not user.is_active:
-                msg = 'User is deactivated'
-                raise PermissionDenied(msg)
+        refresh_token.blacklist()
 
-            refresh_token.blacklist()
+        new_refresh = RefreshToken.for_user(user)
+        new_access = new_refresh.access_token
 
-            new_refresh = RefreshToken.for_user(user)
-            new_access = new_refresh.access_token
+        response = Response(
+            {
+                'message': 'Successfully refreshed token',
+            },
+        )
 
-            response = Response(
-                {
-                    'message': 'Successfully refreshed token',
-                },
-            )
+        set_auth_cookies(response, new_access, new_refresh)
 
-            set_auth_cookies(response, new_access, new_refresh)
-
-            return response
-
-        except Exception as e:
-            msg = 'Refresh process failed'
-            raise PermissionDenied(msg) from e
+        return response
 
     @action(detail=False, methods=['post'])
     def logout(self, request):
-        try:
-            refresh_token = request.COOKIES.get('refresh_token')
-            refresh_token = RefreshToken(refresh_token)
+        # without a refresh token there is no session to end on the server
+        refresh_token = request.COOKIES.get('refresh_token')
+        if refresh_token:
             try:
+                refresh_token = RefreshToken(refresh_token)
                 refresh_token.verify()
-            except TokenError as te:
+            except TokenError:
                 msg = 'Not a valid refresh token'
-                raise PermissionDenied(msg) from te
+                raise PermissionDenied(msg) from None
 
             refresh_token.blacklist()
 
-            # invalidate old cookies
-            response = Response()
-            response.delete_cookie('refresh_token')
-            response.delete_cookie('access_token')
+        # invalidate old cookies
+        response = Response()
+        response.delete_cookie('refresh_token')
+        response.delete_cookie('access_token')
 
-            response.data = {
-                'message': 'Successfully logged out',
-            }
+        response.data = {
+            'message': 'Successfully logged out',
+        }
 
-            return response
-        except Exception as e:
-            msg = 'Logout process failed'
-            raise PermissionDenied(msg) from e
+        return response
 
 
 @password_reset_viewset_schema
