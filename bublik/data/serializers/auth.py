@@ -20,6 +20,7 @@ __all__ = [
     'PasswordResetSerializer',
     'RegisterSerializer',
     'TokenPairSerializer',
+    'UpdateProfileSerializer',
     'UpdateUserSerializer',
     'UserEmailSerializer',
     'UserSerializer',
@@ -218,3 +219,15 @@ class UpdateUserSerializer(serializers.Serializer):
 
         user.save()
         return user
+
+
+class UpdateProfileSerializer(UpdateUserSerializer):
+    password = None
+
+    def validate(self, attrs):
+        unknown = set(self.initial_data) - set(self.fields)
+        if unknown:
+            raise serializers.ValidationError(
+                dict.fromkeys(unknown, 'This field is not allowed'),
+            )
+        return attrs
