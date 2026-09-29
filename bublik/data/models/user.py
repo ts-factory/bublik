@@ -67,7 +67,6 @@ class User(AbstractUser):
     last_login = None
     is_superuser = None
     is_staff = None
-    date_joined = None
     email = models.EmailField('Email address', unique=True)
     roles = models.CharField(
         'User roles',
