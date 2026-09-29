@@ -84,7 +84,7 @@ session_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Email or password was not provided or is invalid',
+                description='Credentials are missing or invalid, or the email is not verified',
             ),
         },
         tags=[AUTH_TAG],
@@ -155,7 +155,8 @@ password_reset_viewset_schema = extend_schema_view(
         description="""
         Set a new password for the user by the link sent on the password reset request.
         The sessions of the user can no longer be renewed
-        and end when their access token expires.
+        and end when their access token expires. A user waiting for email
+        verification is activated, since the link was sent to their email.
         """,
         request=PasswordResetSerializer,
         responses={
