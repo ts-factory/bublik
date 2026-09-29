@@ -104,6 +104,15 @@ class LoginSerializer(serializers.Serializer):
 
         user = authenticate(email=email, password=password)
         if not user:
+            # tell a user with a correct password that the email isn't verified yet,
+            # without revealing the account state to anyone else
+            pending_user = User.objects.filter(email=email, status=UserStatus.PENDING).first()
+            if pending_user and pending_user.check_password(password):
+                msg = (
+                    'The email is not verified. Check the inbox for the verification email. '
+                    'If the link has expired, reset the password.'
+                )
+                raise PermissionDenied(msg)
             msg = 'Invalid credentials'
             raise PermissionDenied(msg)
 
