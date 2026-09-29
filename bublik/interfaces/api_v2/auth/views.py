@@ -278,6 +278,10 @@ class PasswordResetViewSet(GenericViewSet):
             # end all sessions of the user
             revoke_refresh_tokens(user)
 
+            # the reset link was sent to the user's email, which verifies it
+            if user.status == UserStatus.PENDING:
+                user.activate()
+
             return Response(
                 {'message': 'Password reset successfully'},
             )
