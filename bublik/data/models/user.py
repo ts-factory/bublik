@@ -11,6 +11,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, models
 
+from bublik.core.exceptions import UserStatusError
+
 
 __all__ = ['User', 'UserManager', 'UserRoles', 'UserStatus']
 
@@ -106,7 +108,7 @@ class User(AbstractUser):
         """
         if self.status != UserStatus.PENDING:
             msg = f'Only a pending user can be activated, the user is {self.status}'
-            raise ValueError(msg)
+            raise UserStatusError(msg)
         self.status = UserStatus.ACTIVE
         self.save()
 
