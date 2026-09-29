@@ -411,7 +411,7 @@ class AdminViewSet(GenericViewSet):
     @auth_required(as_admin=True)
     @method_decorator(never_cache)
     def list(self, request):
-        # return all Users info
+        # return all users info, except the system user
         return Response(
-            self.get_serializer(self.get_queryset(), many=True).data,
+            self.get_serializer(self.get_queryset().filter(is_system=False), many=True).data,
         )
