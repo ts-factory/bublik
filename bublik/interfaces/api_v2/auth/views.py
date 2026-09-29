@@ -317,6 +317,7 @@ class AdminViewSet(GenericViewSet):
     queryset = User.objects.all()
     # the users list isn't filterable
     filter_backends = ()
+    pagination_class = None
 
     def get_serializer_class(self):
         if self.action == 'create_user':
