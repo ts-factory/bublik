@@ -325,6 +325,10 @@ admin_viewset_schema = extend_schema_view(
                 response=AuthMessageResponseSerializer,
                 description='User was successfully deactivated',
             ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Users cannot deactivate themselves or the system user',
+            ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Administrator privileges are required to deactivate users',
