@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.db import transaction
@@ -19,7 +20,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from bublik.core.auth import (
     auth_required,
     get_user_by_access_token,
-    get_user_info_from_access_token,
 )
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
@@ -226,11 +226,10 @@ class PasswordResetViewSet(GenericViewSet):
 
         # generate a password reset token
         user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
-        token_serializer = TokenPairSerializer()
-        access_token = token_serializer.get_token(user).access_token
+        token = default_token_generator.make_token(user)
 
         # construct the reset link URL
-        endpoint = f'v2/auth/forgot_password/password_reset/{user_id_b64}/{access_token}/'
+        endpoint = f'v2/auth/forgot_password/password_reset/{user_id_b64}/{token}/'
         reset_link = build_absolute_uri(request, endpoint)
 
         # send the reset link to the user
@@ -252,14 +251,14 @@ class PasswordResetViewSet(GenericViewSet):
     )
     def reset_password(self, request, *args, **kwargs):
         user_id_b64 = kwargs['user_id_b64']
-        access_token = kwargs['token']
+        token = kwargs['token']
         try:
             uid = urlsafe_base64_decode(user_id_b64).decode()
             user = User.objects.get(pk=uid)
         except (TypeError, ValueError, OverflowError, ObjectDoesNotExist):
             user = None
 
-        if user and get_user_info_from_access_token(access_token):
+        if user and default_token_generator.check_token(user, token):
             # validate new password
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
