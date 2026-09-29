@@ -100,6 +100,26 @@ class User(AbstractUser):
     def is_active(self):
         return self.status == UserStatus.ACTIVE
 
+    def activate(self):
+        """
+        Activate the user waiting for email verification.
+        """
+        if self.status != UserStatus.PENDING:
+            msg = f'Only a pending user can be activated, the user is {self.status}'
+            raise ValueError(msg)
+        self.status = UserStatus.ACTIVE
+        self.save()
+
+    def deactivate(self):
+        """
+        Deactivate the user and end all their sessions.
+        """
+        from bublik.core.auth import revoke_refresh_tokens  # noqa: PLC0415
+
+        self.status = UserStatus.DEACTIVATED
+        self.save()
+        revoke_refresh_tokens(self)
+
     def __repr__(self):
         return (
             f'User(id={self.pk!r}, '
