@@ -130,8 +130,12 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'roles',
             'is_active',
+            'date_joined',
         ]
-        extra_kwargs: typing.ClassVar['dict'] = {'password': {'write_only': True}}
+        extra_kwargs: typing.ClassVar['dict'] = {
+            'password': {'write_only': True},
+            'date_joined': {'read_only': True},
+        }
 
 
 class UserEmailSerializer(serializers.Serializer):
