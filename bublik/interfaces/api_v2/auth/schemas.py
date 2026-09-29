@@ -103,7 +103,7 @@ session_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Refresh token was not provided or is invalid',
+                description='Refresh token is missing or invalid, or the user is deactivated',
             ),
         },
         tags=[AUTH_TAG],
@@ -316,7 +316,7 @@ admin_viewset_schema = extend_schema_view(
     deactivate_user=extend_schema(
         summary='Deactivate user',
         description="""
-        Deactivate the user identified by the passed email.
+        Deactivate the user identified by the passed email and end all their sessions.
         Requires administrator's role.
         """,
         request=UserEmailSerializer,

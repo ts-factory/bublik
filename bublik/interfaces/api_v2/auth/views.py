@@ -159,6 +159,9 @@ class SessionViewSet(ViewSet):
 
             user_id = refresh_token['user_id']
             user = User.objects.get(pk=user_id)
+            if not user.is_active:
+                msg = 'User is deactivated'
+                raise PermissionDenied(msg)
 
             refresh_token.blacklist()
 
@@ -382,6 +385,8 @@ class AdminViewSet(GenericViewSet):
         # deactivate user
         deactivate_user.is_active = False
         deactivate_user.save()
+        # end all sessions of the user
+        revoke_refresh_tokens(deactivate_user)
         return Response(
             {'message': 'The user was deactivated'},
         )
