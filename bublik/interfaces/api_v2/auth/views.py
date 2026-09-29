@@ -22,7 +22,7 @@ from bublik.core.auth import (
     get_user_by_access_token,
     revoke_refresh_tokens,
 )
-from bublik.core.exceptions import BublikAPIError, UserStatusError
+from bublik.core.exceptions import BublikAPIError, NotFoundError, UserStatusError
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import User, UserStatus
@@ -356,6 +356,14 @@ class AdminViewSet(GenericViewSet):
     filter_backends = ()
     pagination_class = None
 
+    @staticmethod
+    def get_user_by_email(email):
+        try:
+            return User.objects.get(email=email, is_system=False)
+        except ObjectDoesNotExist:
+            msg = 'No user found with this email'
+            raise NotFoundError(msg) from None
+
     def get_serializer_class(self):
         if self.action == 'create_user':
             return RegisterSerializer
@@ -382,7 +390,7 @@ class AdminViewSet(GenericViewSet):
     @action(detail=False, methods=['post'])
     def update_user(self, request):
         # get user to edit
-        edit_user = User.objects.get(email=request.data.get('email'))
+        edit_user = self.get_user_by_email(request.data.get('email'))
         # check if new data is valid
         serializer = self.get_serializer(edit_user, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -397,7 +405,7 @@ class AdminViewSet(GenericViewSet):
     @action(detail=False, methods=['post'])
     def activate_user(self, request):
         # get user to activate
-        activate_user = User.objects.get(email=request.data.get('email'))
+        activate_user = self.get_user_by_email(request.data.get('email'))
         # let the deactivated user in again once they verify the email,
         # rolling back if the verification link cannot be sent
         try:
@@ -414,7 +422,7 @@ class AdminViewSet(GenericViewSet):
     @action(detail=False, methods=['post'])
     def deactivate_user(self, request):
         # get user to delete
-        deactivate_user = User.objects.get(email=request.data.get('email'))
+        deactivate_user = self.get_user_by_email(request.data.get('email'))
         admin = get_user_by_access_token(request.COOKIES.get('access_token'))
         # deactivate user and end all their sessions
         try:

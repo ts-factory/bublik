@@ -315,6 +315,10 @@ admin_viewset_schema = extend_schema_view(
                 response=ErrorResponseSerializer,
                 description='Administrator privileges are required to update users',
             ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='No user found with the passed email, or no email was passed',
+            ),
         },
         tags=[AUTH_TAG],
     ),
@@ -340,6 +344,10 @@ admin_viewset_schema = extend_schema_view(
                 response=ErrorResponseSerializer,
                 description='Administrator privileges are required to activate users',
             ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='No user found with the passed email, or no email was passed',
+            ),
         },
         tags=[AUTH_TAG],
     ),
@@ -357,11 +365,15 @@ admin_viewset_schema = extend_schema_view(
             ),
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Users cannot deactivate themselves or the system user',
+                description='Users cannot deactivate themselves',
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Administrator privileges are required to deactivate users',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='No user found with the passed email, or no email was passed',
             ),
         },
         tags=[AUTH_TAG],
