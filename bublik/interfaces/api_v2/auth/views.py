@@ -20,6 +20,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from bublik.core.auth import (
     auth_required,
     get_user_by_access_token,
+    revoke_refresh_tokens,
 )
 from bublik.core.mail import EmailVerificationTokenGenerator, send_verification_link_mail
 from bublik.core.shortcuts import build_absolute_uri
@@ -267,8 +268,8 @@ class PasswordResetViewSet(GenericViewSet):
             user.set_password(serializer.validated_data['new_password'])
             user.save()
 
-            # blacklist old refresh tokens
-            RefreshToken.for_user(user).blacklist()
+            # end all sessions of the user
+            revoke_refresh_tokens(user)
 
             return Response(
                 {'message': 'Password reset successfully'},
@@ -308,12 +309,14 @@ class ProfileViewSet(GenericViewSet):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
 
-        # blacklist old refresh tokens
-        RefreshToken.for_user(user).blacklist()
-
-        return Response(
+        # end all sessions of the user and start a new one for the current client
+        revoke_refresh_tokens(user)
+        refresh_token = TokenPairSerializer.get_token(user)
+        response = Response(
             {'message': 'Password reset successfully'},
         )
+        set_auth_cookies(response, refresh_token.access_token, refresh_token)
+        return response
 
     @auth_required(as_admin=False)
     @action(detail=False, methods=['post'])
@@ -366,6 +369,9 @@ class AdminViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         # update user
         updated_user = serializer.save()
+        # end all sessions of the user if the password was changed
+        if serializer.validated_data.get('password'):
+            revoke_refresh_tokens(updated_user)
         return Response(UserSerializer(updated_user).data)
 
     @auth_required(as_admin=True)
