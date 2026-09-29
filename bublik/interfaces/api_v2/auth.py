@@ -8,16 +8,12 @@ from django.utils.decorators import method_decorator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.cache import never_cache
-from rest_framework import generics
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.viewsets import GenericViewSet
+from rest_framework.viewsets import GenericViewSet, ViewSet
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from bublik.core.auth import (
     auth_required,
@@ -60,21 +56,18 @@ def set_auth_cookies(response, access_token, refresh_token):
 
 __all__ = [
     'AdminViewSet',
-    'ForgotPasswordResetView',
-    'ForgotPasswordView',
-    'LogInView',
-    'LogOutView',
+    'PasswordResetViewSet',
     'ProfileViewSet',
-    'RefreshTokenView',
-    'RegisterView',
+    'RegistrationViewSet',
+    'SessionViewSet',
 ]
 
 
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
+class RegistrationViewSet(GenericViewSet):
     serializer_class = RegisterSerializer
 
-    def create(self, request):
+    @action(detail=False, methods=['post'])
+    def register(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -83,9 +76,12 @@ class RegisterView(generics.CreateAPIView):
             {'message': 'A verification link has been sent to your email address'},
         )
 
-
-class ActivateView(APIView):
-    def get(self, request, *args, **kwargs):
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path=r'register/activate/(?P<user_id_b64>[^/]+)/(?P<token>[^/]+)',
+    )
+    def activate(self, request, *args, **kwargs):
         email_verification_token = EmailVerificationTokenGenerator()
 
         user_id_b64 = kwargs['user_id_b64']
@@ -107,12 +103,16 @@ class ActivateView(APIView):
         raise PermissionDenied(msg)
 
 
-class LogInView(TokenObtainPairView):
-    serializer_class = LoginSerializer
+class SessionViewSet(ViewSet):
+    # like the simplejwt views, don't authenticate the request itself:
+    # the session is managed via the tokens passed in the cookies
+    authentication_classes = ()
+    permission_classes = ()
 
-    def post(self, request):
+    @action(detail=False, methods=['post'])
+    def login(self, request):
         # authenticate user by email and password
-        serializer = self.get_serializer(data=request.data)
+        serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
 
@@ -126,6 +126,143 @@ class LogInView(TokenObtainPairView):
             'user': UserSerializer(user).data,
         }
         return response
+
+    @action(detail=False, methods=['post'])
+    def refresh(self, request):
+        try:
+            refresh_token = request.COOKIES.get('refresh_token')
+            if not refresh_token:
+                msg = 'No refresh token provided'
+                raise PermissionDenied(msg)
+
+            refresh_token = RefreshToken(refresh_token)
+
+            try:
+                refresh_token.verify()
+            except TokenError as te:
+                msg = 'Not a valid refresh token'
+                raise PermissionDenied(msg) from te
+
+            user_id = refresh_token['user_id']
+            user = User.objects.get(pk=user_id)
+
+            refresh_token.blacklist()
+
+            new_refresh = RefreshToken.for_user(user)
+            new_access = new_refresh.access_token
+
+            response = Response(
+                {
+                    'message': 'Successfully refreshed token',
+                },
+            )
+
+            set_auth_cookies(response, new_access, new_refresh)
+
+            return response
+
+        except Exception as e:
+            msg = 'Refresh process failed'
+            raise PermissionDenied(msg) from e
+
+    @action(detail=False, methods=['post'])
+    def logout(self, request):
+        try:
+            refresh_token = request.COOKIES.get('refresh_token')
+            refresh_token = RefreshToken(refresh_token)
+            try:
+                refresh_token.verify()
+            except TokenError as te:
+                msg = 'Not a valid refresh token'
+                raise PermissionDenied(msg) from te
+
+            refresh_token.blacklist()
+
+            # invalidate old cookies
+            response = Response()
+            response.delete_cookie('refresh_token')
+            response.delete_cookie('access_token')
+
+            response.data = {
+                'message': 'Successfully logged out',
+            }
+
+            return response
+        except Exception as e:
+            msg = 'Logout process failed'
+            raise PermissionDenied(msg) from e
+
+
+class PasswordResetViewSet(GenericViewSet):
+    def get_serializer_class(self):
+        if self.action == 'reset_password':
+            return PasswordResetSerializer
+        return UserEmailSerializer
+
+    @action(detail=False, methods=['post'])
+    def forgot_password(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+
+        try:
+            user = User.objects.get(email=email)
+        except ObjectDoesNotExist:
+            msg = 'No user found with this email'
+            raise PermissionDenied(msg) from None
+
+        # generate a password reset token
+        user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
+        token_serializer = TokenPairSerializer()
+        access_token = token_serializer.get_token(user).access_token
+
+        # construct the reset link URL
+        endpoint = f'v2/auth/forgot_password/password_reset/{user_id_b64}/{access_token}/'
+        reset_link = build_absolute_uri(request, endpoint)
+
+        # send the reset link to the user
+        send_mail(
+            subject='Password Reset',
+            message=f'Click the following link to reset your password: {reset_link}',
+            from_email=settings.EMAIL_FROM,
+            recipient_list=[user.email],
+        )
+
+        return Response(
+            {'message': 'Password reset link sent successfully'},
+        )
+
+    @action(
+        detail=False,
+        methods=['put', 'patch'],
+        url_path=r'forgot_password/password_reset/(?P<user_id_b64>[^/]+)/(?P<token>[^/]+)',
+    )
+    def reset_password(self, request, *args, **kwargs):
+        user_id_b64 = kwargs['user_id_b64']
+        access_token = kwargs['token']
+        try:
+            uid = urlsafe_base64_decode(user_id_b64).decode()
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, ObjectDoesNotExist):
+            user = None
+
+        if user and get_user_info_from_access_token(access_token):
+            # validate new password
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            # password reset
+            user.set_password(serializer.validated_data['new_password'])
+            user.save()
+
+            # blacklist old refresh tokens
+            RefreshToken.for_user(user).blacklist()
+
+            return Response(
+                {'message': 'Password reset successfully'},
+            )
+
+        msg = 'Invalid reset link'
+        raise PermissionDenied(msg)
 
 
 class ProfileViewSet(GenericViewSet):
@@ -178,142 +315,6 @@ class ProfileViewSet(GenericViewSet):
         # update user
         updated_user = serializer.save()
         return Response(UserSerializer(updated_user).data)
-
-
-class RefreshTokenView(TokenRefreshView):
-    serializer_class = TokenRefreshSerializer
-
-    def post(self, request):
-        try:
-            refresh_token = request.COOKIES.get('refresh_token')
-            if not refresh_token:
-                msg = 'No refresh token provided'
-                raise PermissionDenied(msg)
-
-            refresh_token = RefreshToken(refresh_token)
-
-            try:
-                refresh_token.verify()
-            except TokenError as te:
-                msg = 'Not a valid refresh token'
-                raise PermissionDenied(msg) from te
-
-            user_id = refresh_token['user_id']
-            user = User.objects.get(pk=user_id)
-
-            refresh_token.blacklist()
-
-            new_refresh = RefreshToken.for_user(user)
-            new_access = new_refresh.access_token
-
-            response = Response(
-                {
-                    'message': 'Successfully refreshed token',
-                },
-            )
-
-            set_auth_cookies(response, new_access, new_refresh)
-
-            return response
-
-        except Exception as e:
-            msg = 'Refresh process failed'
-            raise PermissionDenied(msg) from e
-
-
-class LogOutView(APIView):
-    def post(self, request):
-        try:
-            refresh_token = request.COOKIES.get('refresh_token')
-            refresh_token = RefreshToken(refresh_token)
-            try:
-                refresh_token.verify()
-            except TokenError as te:
-                msg = 'Not a valid refresh token'
-                raise PermissionDenied(msg) from te
-
-            refresh_token.blacklist()
-
-            # invalidate old cookies
-            response = Response()
-            response.delete_cookie('refresh_token')
-            response.delete_cookie('access_token')
-
-            response.data = {
-                'message': 'Successfully logged out',
-            }
-
-            return response
-        except Exception as e:
-            msg = 'Logout process failed'
-            raise PermissionDenied(msg) from e
-
-
-class ForgotPasswordView(generics.CreateAPIView):
-    serializer_class = UserEmailSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
-
-        try:
-            user = User.objects.get(email=email)
-        except ObjectDoesNotExist:
-            msg = 'No user found with this email'
-            raise PermissionDenied(msg) from None
-
-        # generate a password reset token
-        user_id_b64 = urlsafe_base64_encode(force_bytes(user.pk))
-        token_serializer = TokenPairSerializer()
-        access_token = token_serializer.get_token(user).access_token
-
-        # construct the reset link URL
-        endpoint = f'v2/auth/forgot_password/password_reset/{user_id_b64}/{access_token}/'
-        reset_link = build_absolute_uri(request, endpoint)
-
-        # send the reset link to the user
-        send_mail(
-            subject='Password Reset',
-            message=f'Click the following link to reset your password: {reset_link}',
-            from_email=settings.EMAIL_FROM,
-            recipient_list=[user.email],
-        )
-
-        return Response(
-            {'message': 'Password reset link sent successfully'},
-        )
-
-
-class ForgotPasswordResetView(generics.UpdateAPIView):
-    serializer_class = PasswordResetSerializer
-
-    def update(self, request, *args, **kwargs):
-        user_id_b64 = kwargs['user_id_b64']
-        access_token = kwargs['token']
-        try:
-            uid = urlsafe_base64_decode(user_id_b64).decode()
-            user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, ObjectDoesNotExist):
-            user = None
-
-        if user and get_user_info_from_access_token(access_token):
-            # validate new password
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            # password reset
-            user.set_password(serializer.validated_data['new_password'])
-            user.save()
-
-            # blacklist old refresh tokens
-            RefreshToken.for_user(user).blacklist()
-
-            return Response(
-                {'message': 'Password reset successfully'},
-            )
-
-        msg = 'Invalid reset link'
-        raise PermissionDenied(msg)
 
 
 class AdminViewSet(GenericViewSet):

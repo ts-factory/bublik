@@ -2,15 +2,11 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from .auth import (
-    ActivateView,
     AdminViewSet,
-    ForgotPasswordResetView,
-    ForgotPasswordView,
-    LogInView,
-    LogOutView,
+    PasswordResetViewSet,
     ProfileViewSet,
-    RefreshTokenView,
-    RegisterView,
+    RegistrationViewSet,
+    SessionViewSet,
 )
 from .comments import TestCommentViewSet
 from .config.views import ConfigViewSet
@@ -38,31 +34,27 @@ from .url_shortener import URLShortenerView
 
 
 __all__ = [
-    'ActivateView',
     'AdminViewSet',
     'ConfigViewSet',
     'DashboardPayload',
     'DashboardViewSet',
-    'ForgotPasswordResetView',
-    'ForgotPasswordView',
     'HistoryViewSet',
     'ImportEventViewSet',
     'ImportrunsViewSet',
     'JobTaskExecutionViewSet',
-    'LogInView',
-    'LogOutView',
     'LogViewSet',
     'MeasurementViewSet',
     'OutsideDomainsViewSet',
+    'PasswordResetViewSet',
     'PerformanceCheckView',
     'ProfileViewSet',
     'ProjectViewSet',
-    'RefreshTokenView',
-    'RegisterView',
+    'RegistrationViewSet',
     'ReportViewSet',
     'ResultViewSet',
     'RunViewSet',
     'ServerViewSet',
+    'SessionViewSet',
     'TestCommentViewSet',
     'TreeViewSet',
     'URLShortenerView',
