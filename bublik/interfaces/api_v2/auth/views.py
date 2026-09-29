@@ -361,7 +361,7 @@ class AdminViewSet(GenericViewSet):
             return RegisterSerializer
         if self.action == 'update_user':
             return UpdateUserSerializer
-        if self.action == 'deactivate_user':
+        if self.action in ('activate_user', 'deactivate_user'):
             return UserEmailSerializer
         return UserSerializer
 
@@ -392,6 +392,23 @@ class AdminViewSet(GenericViewSet):
         if serializer.validated_data.get('password'):
             revoke_refresh_tokens(updated_user)
         return Response(UserSerializer(updated_user).data)
+
+    @auth_required(as_admin=True)
+    @action(detail=False, methods=['post'])
+    def activate_user(self, request):
+        # get user to activate
+        activate_user = User.objects.get(email=request.data.get('email'))
+        # let the deactivated user in again once they verify the email,
+        # rolling back if the verification link cannot be sent
+        try:
+            with transaction.atomic():
+                activate_user.reactivate()
+                send_verification_link_mail(request, activate_user)
+        except UserStatusError as use:
+            raise BublikAPIError(use.message) from None
+        return Response(
+            {'message': "A verification link has been sent to the user's email address"},
+        )
 
     @auth_required(as_admin=True)
     @action(detail=False, methods=['post'])
