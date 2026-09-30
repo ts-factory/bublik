@@ -21,6 +21,7 @@ from bublik.core.exceptions import (
     InvalidImportDataError,
     RunAlreadyExistsError,
     RunOutsidePeriodError,
+    get_safe_error_message,
 )
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
@@ -83,7 +84,7 @@ def with_import_events(func):
             e.debug_details = debug_details
 
             is_warning_error = isinstance(e, (RunOutsidePeriodError, RunAlreadyExistsError))
-            error_data = getattr(e, 'message', type(e).__name__)
+            error_data = get_safe_error_message(e)
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
                 severity=(
