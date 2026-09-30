@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from collections import Counter
 from datetime import timezone
 
 from django.core.management import call_command
@@ -10,7 +9,8 @@ from django.db import transaction
 from bublik.core.datetime_formatting import get_run_tz, to_db_format, utc_ts_to_dt
 from bublik.core.importruns import ImportMode, identify_run
 from bublik.core.importruns.live.plan_tracking import PlanItem
-from bublik.core.importruns.milog import EntryLevel, HandlerArtifacts
+from bublik.core.importruns.milog import HandlerArtifacts
+from bublik.core.importruns.stats import collect_import_stats, counted
 from bublik.core.importruns.utils import MeasureTime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.objects import (
@@ -46,6 +46,7 @@ def handle_iterations(run_log, run, project_id, tests_nums_prologues):
         )
 
 
+@counted('iter_obj')
 def handle_iteration(
     data,
     run,
@@ -56,8 +57,6 @@ def handle_iteration(
     parent_depth,
     tests_nums_prologues,
 ):
-    handle_iteration.counter['iter_obj'] += 1
-
     if not data['name'] and data['type'] == 'session':
         data['name'] = 'session'
 
@@ -70,7 +69,6 @@ def handle_iteration(
         parent_iteration,
         parent_depth,
     )
-    handle_iteration.counter['created_iter_obj'] += add_iteration.counter['created']
 
     start_ts, end_ts = (
         (
@@ -193,8 +191,6 @@ def handle_iteration(
 def incremental_import(run_log, project_id, meta_data, run_completed, force):
     logger = get_task_or_server_logger()
 
-    handle_iteration.counter = Counter(iter_obj=0, created_iter_obj=0)
-
     run_start = meta_data.run_start
     run_finish = meta_data.run_finish if run_completed else None
 
@@ -249,26 +245,23 @@ def incremental_import(run_log, project_id, meta_data, run_completed, force):
         clear_run_count(run, 'expected_items')
 
     if run_log.get('iters') is not None:
-        handle_iterations(run_log, run, project_id, tests_nums_prologues)
+        with collect_import_stats() as stats:
+            handle_iterations(run_log, run, project_id, tests_nums_prologues)
+        logger.info(f'the number of handled iterations is {stats.counts["iter_obj"]}')
         logger.info(
-            f'the number of handled iterations is {handle_iteration.counter["iter_obj"]}',
+            f'the number of created iteration objects is {stats.counts["created_iter_obj"]}',
         )
         logger.info(
-            'the number of created iteration objects is '
-            f'{handle_iteration.counter["created_iter_obj"]}',
+            'handling measurements during handling iterations took '
+            f'[{stats.duration("measurements")}]',
         )
+        logger.info(f'the number of handled measurements is {stats.counts["meas_obj"]}')
         logger.info(
-            f'handling measurements during handling iterations took ['
-            f'{HandlerArtifacts.handle_meas_time}]',
-        )
-        logger.info(f'the number of handled measurements is {EntryLevel.counter["meas_obj"]}')
-        logger.info(
-            'the number of created measurement objects is '
-            f'{EntryLevel.counter["created_meas_obj"]}',
+            f'the number of created measurement objects is {stats.counts["created_meas_obj"]}',
         )
         logger.info(
             'the number of created measurement result objects is '
-            f'{EntryLevel.counter["created_meas_res_obj"]}',
+            f'{stats.counts["created_meas_res_obj"]}',
         )
     else:
         logger.info('there is no iterations in this run. Skip handling.')

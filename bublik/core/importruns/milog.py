@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from collections import Counter
-from datetime import datetime, timedelta
 from itertools import groupby
 import json
 from typing import ClassVar
 
 from bublik.core.exceptions import ImportrunsError
+from bublik.core.importruns.stats import counted, timed
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import serialize
 from bublik.data.models import (
@@ -155,7 +154,6 @@ class ResultLevel(InstanceLevel):
 
 class EntryLevel(InstanceLevel, Saver):
     meta_type = 'measurement_subject'
-    counter: ClassVar[Counter] = Counter()
 
     def __init__(self, entry, serial, parent: ResultLevel):
         value = InstanceLevel.pop(entry, 'value', True)
@@ -166,13 +164,10 @@ class EntryLevel(InstanceLevel, Saver):
         InstanceLevel.__init__(self, entry, self.meta_type)
         Saver.__init__(self, self.parent.parent.data + self.parent.data + self.data)
 
+    @counted('meas_obj')
     def get_measurement(self):
-        self.counter['meas_obj'] += 1
         measure_serializer = serialize(MeasurementSerializer, {'metas': self.metas})
-        measurement, created = measure_serializer.get_or_create()
-        if created:
-            self.counter['created_meas_obj'] += 1
-
+        measurement, _ = measure_serializer.get_or_create()
         return measurement
 
     def save(self, test_iter_result):
@@ -202,9 +197,7 @@ class EntryLevel(InstanceLevel, Saver):
             if measurement not in self.single_measurements:
                 self.single_measurements.append(measurement)
         mmr_serializer.is_valid(raise_exception=True)
-        _, created = mmr_serializer.get_or_create()
-        if created:
-            self.counter['created_meas_res_obj'] += 1
+        mmr_serializer.get_or_create()
 
 
 class ViewLevel(InstanceLevel):
@@ -295,8 +288,6 @@ class ViewPointLevel(ViewValueLevel):
 
 
 class HandlerArtifacts:
-    handle_meas_time = timedelta()
-
     def __init__(self, test_iter_result):
         self.test_iter_result = test_iter_result
 
@@ -360,9 +351,9 @@ class HandlerArtifacts:
             logger.error(e)
             logger.error('Failed to process views')
 
+    @timed('measurements')
     def handle_mi_artifact(self, artifact):
         logger = get_task_or_server_logger()
-        start_time = datetime.now()
         try:
             results = InstanceLevel.pop(artifact, 'results', True)
             views = InstanceLevel.pop(artifact, 'views', False)
@@ -401,8 +392,6 @@ class HandlerArtifacts:
 
             if views is not None:
                 self.handle_views(views)
-
-            HandlerArtifacts.handle_meas_time += datetime.now() - start_time
 
         except Exception as e:
             e = str(e).replace("'", '')
