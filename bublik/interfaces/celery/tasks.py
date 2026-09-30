@@ -179,7 +179,7 @@ def importruns(
     logpath = logger.handlers[0].logpath
 
     # To avoid cyclic dependency between importruns.py and this module
-    from bublik.core.importruns.import_run import import_run
+    from bublik.core.importruns.import_run import import_run  # noqa: PLC0415
 
     try:
         query_url = urljoin(
