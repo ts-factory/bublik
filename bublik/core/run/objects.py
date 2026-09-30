@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from collections import Counter
-
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Count
 
@@ -53,26 +51,20 @@ def add_relation(iteration, parent_iteration, depth):
 def add_iteration(test, iteration_params, iteration_hash, parent_iteration, parent_depth):
     logger = get_task_or_server_logger()
 
-    add_iteration.counter = Counter(created=0)
-
     def process_test():
         iteration, created = TestIteration.objects.get_or_create(test=test, hash=iteration_hash)
-        if created:
-            add_iteration.counter['created'] += 1
-            if iteration_params:
-                for n, v in iteration_params.items():
-                    arg_serializer = serialize(
-                        TestArgumentSerializer,
-                        {'name': n, 'value': v},
-                    )
-                    arg, _ = arg_serializer.get_or_create()
-                    iteration.test_arguments.add(arg)
+        if created and iteration_params:
+            for n, v in iteration_params.items():
+                arg_serializer = serialize(
+                    TestArgumentSerializer,
+                    {'name': n, 'value': v},
+                )
+                arg, _ = arg_serializer.get_or_create()
+                iteration.test_arguments.add(arg)
         return iteration
 
     def process_session_pkg():
-        iteration, created = TestIteration.objects.get_or_create(test=test, hash=None)
-        if created:
-            add_iteration.counter['created'] += 1
+        iteration, _ = TestIteration.objects.get_or_create(test=test, hash=None)
         return iteration
 
     handlers = {

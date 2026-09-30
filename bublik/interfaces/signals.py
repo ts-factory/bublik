@@ -8,15 +8,20 @@ from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 
 from bublik.core.cache import ProjectCache, RunCache
+from bublik.core.importruns.stats import current_stats
 from bublik.data.models import (
     Config,
     ConfigTypes,
     GlobalConfigs,
+    Measurement,
+    MeasurementResult,
+    MeasurementResultList,
     Meta,
     MetaResult,
     MetaTest,
     Project,
     Test,
+    TestIteration,
     TestIterationResult,
 )
 
@@ -90,6 +95,23 @@ def delete_orphan_meta(sender, instance, **kwargs):
         and not MetaResult.objects.filter(meta_id=instance.meta_id).exists()
     ):
         Meta.objects.filter(id=instance.meta_id).delete()
+
+
+CREATED_OBJECTS_STATS_KEYS = {
+    TestIteration: 'created_iter_obj',
+    Measurement: 'created_meas_obj',
+    MeasurementResult: 'created_meas_res_obj',
+    MeasurementResultList: 'created_meas_res_obj',
+}
+
+
+@receiver(post_save, sender=TestIteration)
+@receiver(post_save, sender=Measurement)
+@receiver(post_save, sender=MeasurementResult)
+@receiver(post_save, sender=MeasurementResultList)
+def count_created_import_objects(sender, created, **kwargs):
+    if created:
+        current_stats().incr(CREATED_OBJECTS_STATS_KEYS[sender])
 
 
 @contextmanager
