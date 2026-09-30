@@ -28,6 +28,21 @@ def normalize_error_details(error_details):
     ]
 
 
+def get_safe_error_message(exc):
+    """
+    Return an error message that is safe to show to users (import logs,
+    event log, UI).
+
+    Expected errors carry a user-oriented 'message'. For unexpected ones only
+    the exception type is reported, with a pointer to the server error log,
+    where the traceback is written.
+    """
+    message = getattr(exc, 'message', None)
+    if message is not None:
+        return message
+    return f'unexpected {type(exc).__name__}, see the server error log for details'
+
+
 def custom_exception_handler(exc, context):
     # Call REST framework's default exception handler first,
     # to get the standard error response.

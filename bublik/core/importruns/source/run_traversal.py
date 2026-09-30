@@ -15,6 +15,7 @@ from bublik.core.checks import check_run_file
 from bublik.core.exceptions import (
     RunCompromisedError,
     URLFetchError,
+    get_safe_error_message,
 )
 from bublik.core.importruns.utils import indicate_collision, runtime
 from bublik.core.shortcuts import build_absolute_uri
@@ -68,7 +69,7 @@ def with_path_processing_events(func):
             debug_details.append(f'Init URL: {init_url}')
             e.debug_details = debug_details
 
-            error_data = getattr(e, 'message', type(e).__name__)
+            error_data = get_safe_error_message(e)
             event_msg = (
                 f'failed processing the path {init_url} '
                 f'-- Error: {error_data} '

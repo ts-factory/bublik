@@ -18,6 +18,7 @@ from django.core.management import call_command
 import pendulum
 
 from bublik import settings
+from bublik.core.exceptions import get_safe_error_message
 from bublik.core.logging import get_task_or_server_logger, parse_log
 from bublik.core.mail import send_importruns_failed_mail
 from bublik.core.utils import create_event, get_import_job_task
@@ -236,7 +237,7 @@ def importruns(
         return task_id
 
     except Exception as e:
-        error_data = getattr(e, 'message', type(e).__name__)
+        error_data = get_safe_error_message(e)
         logger.error(
             f'Importruns failed: {error_data}',
         )
