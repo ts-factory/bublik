@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
+import time
 
 from django.core.files import locks
 
@@ -49,11 +50,11 @@ class MeasureTime:
     def __enter__(self):
         self.logger = get_task_or_server_logger()
         self.logger.info(f'{self.prefix} is started')
-        self.start_time = datetime.now()
+        self.start_time = time.perf_counter()
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        elapsed = datetime.now() - self.start_time
+        elapsed = timedelta(seconds=time.perf_counter() - self.start_time)
         self.logger.info(f'{self.prefix} is completed in [{elapsed}]')
 
     def __call__(self, func):
