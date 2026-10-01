@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from django.core.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
 
