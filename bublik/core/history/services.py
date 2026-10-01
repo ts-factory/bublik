@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db.models import Exists, F, OuterRef, Q
+from rest_framework.exceptions import ValidationError
 
 from bublik.core.cache import ProjectCache
 from bublik.core.datetime_formatting import display_to_date_in_numbers
@@ -44,7 +45,7 @@ class HistoryService:
     EXPECTED_KEY_VALUE_PARTS = 2
 
     @staticmethod
-    def build_history_queryset(  # noqa: PLR0913
+    def build_history_queryset(  # noqa: PLR0913, PLR0917
         test_name: str,
         project_id: int | None = None,
         run_ids: str | None = None,
@@ -99,6 +100,7 @@ class HistoryService:
             Tuple of (queryset, from_date_obj, to_date_obj)
 
         Raises:
+            ValidationError: if test name is missing
             NotFoundError: if test name is invalid
         """
         query_delimiter = settings.QUERY_DELIMITER
@@ -180,8 +182,13 @@ class HistoryService:
             List of test IDs
 
         Raises:
+            ValidationError: if test name is missing
             NotFoundError: if test name is invalid
         """
+        if not test_name:
+            msg = 'No test name specified'
+            raise ValidationError(msg)
+
         test_ids = get_test_ids_by_name(test_name)
         if not test_ids:
             msg = 'Test with the specified name was not found'
@@ -189,7 +196,7 @@ class HistoryService:
         return test_ids
 
     @staticmethod
-    def _apply_run_filters(  # noqa: PLR0913
+    def _apply_run_filters(  # noqa: PLR0913, PLR0917
         runs_results: TestIterationResult,
         from_date_obj,
         to_date_obj,
@@ -520,7 +527,8 @@ class HistoryService:
             Dictionary with history data, counts, and pagination info
 
         Raises:
-            UnprocessableEntityError: if invalid parameters
+            ValidationError: if test name is missing or pagination parameters are invalid
+            NotFoundError: if the test or requested page does not exist
         """
 
         # Build queryset
@@ -582,7 +590,8 @@ class HistoryService:
             Dictionary with grouped history data, counts, and pagination info
 
         Raises:
-            UnprocessableEntityError: if invalid parameters
+            ValidationError: if test name is missing or pagination parameters are invalid
+            NotFoundError: if the test or requested page does not exist
         """
 
         # Build queryset
@@ -635,10 +644,7 @@ class HistoryService:
 
     @staticmethod
     def get_params_search_options(project_id: str | None, test_name: str) -> list:
-        test_ids = get_test_ids_by_name(test_name)
-        if not test_ids:
-            msg = 'Test with the specified name was not found'
-            raise NotFoundError(msg)
+        test_ids = HistoryService._validate_test_name(test_name)
 
         iteration_ids = TestIteration.objects.filter(
             test__in=test_ids,
