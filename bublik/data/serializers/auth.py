@@ -3,6 +3,7 @@
 
 import typing
 
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
@@ -10,13 +11,16 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from bublik.data.models import User
+from bublik.data.models import User, UserStatus
 
 
 __all__ = [
+    'LoginSerializer',
+    'PasswordChangeSerializer',
     'PasswordResetSerializer',
     'RegisterSerializer',
     'TokenPairSerializer',
+    'UpdateProfileSerializer',
     'UpdateUserSerializer',
     'UserEmailSerializer',
     'UserSerializer',
@@ -36,9 +40,14 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
         required=True,
+        trim_whitespace=False,
         validators=[validate_password],
     )
-    password_confirm = serializers.CharField(write_only=True, required=True)
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        trim_whitespace=False,
+    )
 
     class Meta:
         model: typing.ClassVar = User
@@ -55,13 +64,60 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
-            is_active=False,
+            status=UserStatus.PENDING,
         )
 
         user.set_password(validated_data['password'])
         user.save()
 
         return user
+
+
+class LoginSerializer(serializers.Serializer):
+    """
+    Authenticates the user by email and password.
+    """
+
+    # the values are checked as passed, so that anything
+    # that doesn't match is denied as invalid credentials
+    email = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=False,
+    )
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=False,
+    )
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+
+        if not email or not password:
+            msg = 'Please provide both email and password'
+            raise PermissionDenied(msg)
+
+        user = authenticate(email=email, password=password)
+        if not user:
+            # tell a user with a correct password that the email isn't verified yet,
+            # without revealing the account state to anyone else
+            pending_user = User.objects.filter(email=email, status=UserStatus.PENDING).first()
+            if pending_user and pending_user.check_password(password):
+                msg = (
+                    'The email is not verified. Check the inbox for the verification email. '
+                    'If the link has expired, reset the password.'
+                )
+                raise PermissionDenied(msg)
+            msg = 'Invalid credentials'
+            raise PermissionDenied(msg)
+
+        attrs['user'] = user
+        return attrs
 
 
 class TokenPairSerializer(TokenObtainPairSerializer):
@@ -73,6 +129,9 @@ class TokenPairSerializer(TokenObtainPairSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # derived from the status
+    is_active = serializers.BooleanField(read_only=True)
+
     class Meta:
         model: typing.ClassVar = User
         fields: typing.ClassVar['str'] = [
@@ -82,9 +141,15 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'roles',
+            'status',
             'is_active',
+            'date_joined',
         ]
-        extra_kwargs: typing.ClassVar['dict'] = {'password': {'write_only': True}}
+        extra_kwargs: typing.ClassVar['dict'] = {
+            'password': {'write_only': True},
+            'status': {'read_only': True},
+            'date_joined': {'read_only': True},
+        }
 
 
 class UserEmailSerializer(serializers.Serializer):
@@ -102,31 +167,45 @@ class UserEmailSerializer(serializers.Serializer):
 
 
 class PasswordResetSerializer(serializers.Serializer):
-    current_password = serializers.CharField(
-        write_only=True,
-        required=False,
-    )
     new_password = serializers.CharField(
         write_only=True,
         required=True,
+        trim_whitespace=False,
         validators=[validate_password],
     )
-    new_password_confirm = serializers.CharField(write_only=True, required=True)
+    new_password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        trim_whitespace=False,
+    )
 
-    def validate_passwords(self, passwords):
-        # Check if new password and its confirmation were passed
-        # and if the new password is valid
-        self.is_valid(raise_exception=True)
-        # Check if the new password fields match
-        if passwords['new_password'] != passwords['new_password_confirm']:
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError({'new_password': "Password fields don't match"})
+        return attrs
 
-    def current_password_check(self, user, current_password):
-        # Check if the passed current password is valid for the passed user
-        if not user.check_password(current_password):
+
+class PasswordChangeSerializer(PasswordResetSerializer):
+    """
+    Changes the password of the user passed in the context,
+    which requires their current password.
+    """
+
+    current_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=False,
+    )
+
+    def validate_current_password(self, value):
+        # an invalid current password is denied before any other error is reported
+        if not self.context['user'].check_password(value):
             raise PermissionDenied(
                 {'current_password': 'Invalid password'},
             )
+        return value
 
 
 class UpdateUserSerializer(serializers.Serializer):
@@ -136,12 +215,14 @@ class UpdateUserSerializer(serializers.Serializer):
     password = serializers.CharField(
         write_only=True,
         required=False,
+        trim_whitespace=False,
         validators=[validate_password],
     )
 
-    def update(self, user, data):
-        first_name = data.get('first_name', None)
-        last_name = data.get('last_name', None)
+    def update(self, instance, validated_data):
+        user = instance
+        first_name = validated_data.get('first_name', None)
+        last_name = validated_data.get('last_name', None)
 
         # Update the fields according to the passed data
         if first_name:
@@ -150,9 +231,22 @@ class UpdateUserSerializer(serializers.Serializer):
             user.last_name = last_name
 
         # Update the password if provided
-        password = data.get('password', None)
+        password = validated_data.get('password', None)
         if password:
             user.set_password(password)
 
         user.save()
         return user
+
+
+class UpdateProfileSerializer(UpdateUserSerializer):
+    email = None
+    password = None
+
+    def validate(self, attrs):
+        unknown = set(self.initial_data) - set(self.fields)
+        if unknown:
+            raise serializers.ValidationError(
+                dict.fromkeys(unknown, 'This field is not allowed'),
+            )
+        return attrs

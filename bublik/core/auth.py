@@ -7,9 +7,10 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs, User, UserRoles
+from bublik.data.models import GlobalConfigs, User, UserRoles, UserStatus
 from bublik.settings import SIMPLE_JWT
 
 
@@ -24,9 +25,20 @@ def get_user_info_from_access_token(access_token):
 def get_user_by_access_token(access_token):
     try:
         user_info = get_user_info_from_access_token(access_token)
-        return User.objects.get(pk=user_info['user_id'])
+        return User.objects.filter(pk=user_info['user_id'], status=UserStatus.ACTIVE).first()
     except TokenBackendError:
         return None
+
+
+def revoke_refresh_tokens(user):
+    """
+    Blacklists all outstanding refresh tokens of the user.
+    """
+    tokens = OutstandingToken.objects.filter(user=user, blacklistedtoken__isnull=True)
+    BlacklistedToken.objects.bulk_create(
+        [BlacklistedToken(token=token) for token in tokens],
+        ignore_conflicts=True,
+    )
 
 
 def get_request(*args, **kwargs):

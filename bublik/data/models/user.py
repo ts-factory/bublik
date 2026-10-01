@@ -11,8 +11,10 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, models
 
+from bublik.core.exceptions import UserStatusError
 
-__all__ = ['User', 'UserManager', 'UserRoles']
+
+__all__ = ['User', 'UserManager', 'UserRoles', 'UserStatus']
 
 
 class UserManager(BaseUserManager):
@@ -28,6 +30,7 @@ class UserManager(BaseUserManager):
         if not email:
             msg = 'The email must be set'
             raise ValueError(msg)
+        extra_fields.setdefault('status', UserStatus.ACTIVE)
         user = self.model(email=self.normalize_email(email), **extra_fields)
         user.set_password(password)
         user.save()
@@ -37,11 +40,11 @@ class UserManager(BaseUserManager):
         """
         Create and save an admin user with the given email and password.
         """
-        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('status', UserStatus.ACTIVE)
         extra_fields.setdefault('roles', UserRoles.ADMIN)
 
-        if extra_fields.get('is_active') is not True:
-            msg = 'Admin must have is_active=True'
+        if extra_fields.get('status') != UserStatus.ACTIVE:
+            msg = 'Admin must have status=active'
             raise ValueError(msg)
         if extra_fields.get('roles') is not UserRoles.ADMIN:
             msg = 'Admin must have roles=admin'
@@ -52,7 +55,7 @@ class UserManager(BaseUserManager):
         """
         Create and save the system user.
         """
-        system_user = self.model(is_system=True)
+        system_user = self.model(is_system=True, status=UserStatus.ACTIVE)
         system_user.save()
         return system_user
 
@@ -62,12 +65,17 @@ class UserRoles(models.TextChoices):
     USER = 'user'
 
 
+class UserStatus(models.TextChoices):
+    PENDING = 'pending'
+    ACTIVE = 'active'
+    DEACTIVATED = 'deactivated'
+
+
 class User(AbstractUser):
     username = None
     last_login = None
     is_superuser = None
     is_staff = None
-    date_joined = None
     email = models.EmailField('Email address', unique=True)
     roles = models.CharField(
         'User roles',
@@ -78,11 +86,60 @@ class User(AbstractUser):
     first_name = models.CharField('First name', max_length=64)
     last_name = models.CharField('Last name', max_length=64)
     is_system = models.BooleanField(default=False)
+    status = models.CharField(
+        'User status',
+        choices=UserStatus.choices,
+        max_length=16,
+        default=UserStatus.PENDING,
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS: typing.ClassVar[list] = []
 
     objects = UserManager()
+
+    @property
+    def is_active(self):
+        return self.status == UserStatus.ACTIVE
+
+    def activate(self):
+        """
+        Activate the user waiting for email verification.
+        """
+        if self.status != UserStatus.PENDING:
+            msg = f'Only a pending user can be activated, the user is {self.status}'
+            raise UserStatusError(msg)
+        self.status = UserStatus.ACTIVE
+        self.save()
+
+    def reactivate(self):
+        """
+        Let the deactivated user in again: as a newly registered user,
+        they wait for email verification.
+        """
+        if self.status != UserStatus.DEACTIVATED:
+            msg = f'Only a deactivated user can be reactivated, the user is {self.status}'
+            raise UserStatusError(msg)
+        self.status = UserStatus.PENDING
+        self.save()
+
+    def deactivate(self, by=None):
+        """
+        Deactivate the user and end all their sessions.
+        `by` is the user performing the deactivation, if any.
+        """
+        from bublik.core.auth import revoke_refresh_tokens  # noqa: PLC0415
+
+        if self.is_system:
+            msg = 'The system user cannot be deactivated'
+            raise UserStatusError(msg)
+        if by is not None and by.pk == self.pk:
+            msg = 'Users cannot deactivate themselves'
+            raise UserStatusError(msg)
+
+        self.status = UserStatus.DEACTIVATED
+        self.save()
+        revoke_refresh_tokens(self)
 
     def __repr__(self):
         return (
