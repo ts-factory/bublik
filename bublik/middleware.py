@@ -13,7 +13,11 @@ class DynamicSettingsMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        project_id = request.GET.get('project', None)
+        project_id = request.GET.get('project')
+        try:
+            project_id = int(project_id) if project_id else None
+        except ValueError:
+            project_id = None
 
         def get_setting(attr):
             return ConfigServices.getattr_from_global(
