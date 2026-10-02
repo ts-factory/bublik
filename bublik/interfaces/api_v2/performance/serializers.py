@@ -12,3 +12,9 @@ class PerformanceCheckQuerySerializer(serializers.Serializer):
         required=False,
         help_text='Project ID to use for performance configuration lookup',
     )
+
+
+class PerformanceCheckResponseSerializer(serializers.Serializer):
+    label = serializers.CharField()
+    url = serializers.URLField(allow_null=True)
+    timeout = serializers.IntegerField()
