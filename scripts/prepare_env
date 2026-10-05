@@ -8,11 +8,29 @@ source "$(dirname $0)/exports"
 
 set -e
 
+ENV_BACKUP="${ENV_DIR}.backup"
+
 pushd "${BUBLIK_SRC}"
 
-rm -rf "${ENV_DIR}"
-virtualenv --python=python3 "${ENV_DIR}"
-source "${ENV_DIR}/bin/activate"
-python3 -m pip install -r requirements.txt
-deactivate
+# A leftover backup means the previous run was killed while rebuilding
+# the environment, so the current one may be incomplete: restore the backup
+if [[ -d "${ENV_BACKUP}" ]] ; then
+  rm -rf "${ENV_DIR}"
+  mv "${ENV_BACKUP}" "${ENV_DIR}"
+fi
+
+# Keep the current environment to restore it if the new one fails to build
+[[ ! -d "${ENV_DIR}" ]] || mv "${ENV_DIR}" "${ENV_BACKUP}"
+
+if ! { virtualenv --python=python3 "${ENV_DIR}" \
+       && "${ENV_DIR}/bin/python" -m pip install -r requirements.txt ; } ; then
+  rm -rf "${ENV_DIR}"
+  if [[ -d "${ENV_BACKUP}" ]] ; then
+    mv "${ENV_BACKUP}" "${ENV_DIR}"
+    fail "Failed to prepare virtual environment, the previous one is restored"
+  fi
+  fail "Failed to prepare virtual environment"
+fi
+
+rm -rf "${ENV_BACKUP}"
 popd
