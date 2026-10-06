@@ -42,6 +42,7 @@ export BUBLIK_DOCS_DIST="ts-factory"
 export TE_BASE="${BUBLIK_HOME}/te/build/inst/default/bin"
 export TEMPLATES_DIR="${BUBLIK_SRC}/templates"
 export ENV_DIR="${BUBLIK_SRC}/.env"
+export ENV_PYTHON="python3"
 export SCRIPTS_DIR="${BUBLIK_SRC}/scripts"
 
 # Database
