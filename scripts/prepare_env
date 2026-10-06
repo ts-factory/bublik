@@ -8,6 +8,26 @@ source "$(dirname $0)/exports"
 
 set -e
 
+: "${ENV_PYTHON:=python3}"
+
+# If deploy is run from a shell with an activated virtual environment,
+# its bin directory comes first in PATH and the interpreter would be looked
+# up there. `deactivate` is a function of that shell and is not inherited
+# by this script, so do the same as it does: drop the directory from PATH
+# (split PATH by ':', remove the exact entry, join it back) and unset
+# VIRTUAL_ENV.
+if [[ -n "${VIRTUAL_ENV}" ]] ; then
+  PATH="$(tr ':' '\n' <<< "${PATH}" | grep -vxF "${VIRTUAL_ENV}/bin" | paste -sd ':')"
+  unset VIRTUAL_ENV
+fi
+
+python_bin="$(command -v "${ENV_PYTHON}")" \
+  || fail "ENV_PYTHON is \"${ENV_PYTHON}\", which is not found:" \
+          "install it or specify an installed interpreter"
+"${python_bin}" -c 'import sys; sys.exit(sys.version_info < (3, 10))' \
+  || fail "ENV_PYTHON is \"${ENV_PYTHON}\"" \
+          "($("${python_bin}" --version 2>&1)), expected Python 3.10 or newer"
+
 ENV_BACKUP="${ENV_DIR}.backup"
 
 pushd "${BUBLIK_SRC}"
@@ -22,7 +42,7 @@ fi
 # Keep the current environment to restore it if the new one fails to build
 [[ ! -d "${ENV_DIR}" ]] || mv "${ENV_DIR}" "${ENV_BACKUP}"
 
-if ! { python3 -m venv "${ENV_DIR}" \
+if ! { "${python_bin}" -m venv "${ENV_DIR}" \
        && "${ENV_DIR}/bin/python" -m pip install -r requirements.txt ; } ; then
   rm -rf "${ENV_DIR}"
   if [[ -d "${ENV_BACKUP}" ]] ; then
