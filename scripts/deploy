@@ -232,7 +232,7 @@ function install_server_packages() {
     python3-pip
     rabbitmq-server
     nginx
-    python3-virtualenv
+    python3-venv
     postgresql-client
     gettext-base
     libdate-manip-perl
