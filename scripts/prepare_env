@@ -22,7 +22,7 @@ fi
 # Keep the current environment to restore it if the new one fails to build
 [[ ! -d "${ENV_DIR}" ]] || mv "${ENV_DIR}" "${ENV_BACKUP}"
 
-if ! { virtualenv --python=python3 "${ENV_DIR}" \
+if ! { python3 -m venv "${ENV_DIR}" \
        && "${ENV_DIR}/bin/python" -m pip install -r requirements.txt ; } ; then
   rm -rf "${ENV_DIR}"
   if [[ -d "${ENV_BACKUP}" ]] ; then
