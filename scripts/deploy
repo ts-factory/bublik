@@ -655,6 +655,7 @@ function create_log_dir_handler {
 function run_side_servers_handler() {
   step "Run redis, rabbitmq, nginx servers (requires root)" && {
     source "${ENV_DIR}/bin/activate"
+    local ACTION=""
     read -p "Choose an action {start|restart|stop|status}: " ACTION
     case "${ACTION}" in
       start|restart|stop|status)
@@ -670,6 +671,7 @@ function run_side_servers_handler() {
 function run_services_handler() {
   step "Run services" && {
     source "${ENV_DIR}/bin/activate"
+    local ACTION=""
     if ! "${QUIET}" ; then
       read -p "Choose an action {start|restart|stop|status} (restart by default): " ACTION
     fi
