@@ -109,6 +109,7 @@ class HistoryExpectedResultSerializer(serializers.Serializer):
     result_type = serializers.CharField(allow_null=True)
     verdicts = serializers.ListField(child=serializers.CharField())
     keys = HistoryKeySerializer(many=True)
+    notes = serializers.ListField(child=serializers.CharField())
 
 
 class HistoryObtainedResultSerializer(serializers.Serializer):
