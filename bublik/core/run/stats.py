@@ -1,17 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 from collections import OrderedDict
+from dataclasses import asdict
 import json
-import re
 
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
-from django.db.models import Exists, F, OuterRef, Q, Value
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, When
 from django.db.models.functions import Concat
 
 from bublik.core.cache import RunCache
+from bublik.core.classification import (
+    SUPPRESSED_RELATION_FILTER,
+    build_rule_result_info,
+    suppressed_subquery,
+)
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import (
     period_to_str,
@@ -21,6 +26,7 @@ from bublik.core.measurement.services import exist_measurement_results
 from bublik.core.meta.categorization import get_metas_by_category
 from bublik.core.meta.match_references import build_revision_references
 from bublik.core.queries import MetaResultsQuery, get_or_none
+from bublik.core.references import REF_PATTERN, resolve_ref
 from bublik.core.run.compromised import get_compromised_details, is_run_compromised
 from bublik.core.run.data import (
     get_metadata_by_runs,
@@ -39,6 +45,7 @@ from bublik.core.run.dto import (
     RunSummaryStats,
 )
 from bublik.core.run.filter_expression import filter_by_expression
+from bublik.core.run.tests_organization import build_test_paths
 from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
 from bublik.data.models import (
     GlobalConfigs,
@@ -139,7 +146,13 @@ def generate_result(
             all_skipped = skipped(test_iterations).count()
             all_abnormal = abnormal(test_iterations).count()
 
-            unexpected = test_iterations.filter(meta_results__meta__type='err')
+            # Subtract effectively-expected results (stamped by an expected rule
+            # on an open issue) from the unexpected set.
+            unexpected = (
+                test_iterations.filter(meta_results__meta__type='err')
+                .exclude(**SUPPRESSED_RELATION_FILTER)
+                .distinct()
+            )
 
             passed_unexpected = passed(unexpected).distinct().count()
             failed_unexpected = failed(unexpected).distinct().count()
@@ -418,7 +431,14 @@ def get_run_stats(run_id):
             iteration__hash__isnull=False,
         )
         stats['total'] = run_results.count()
-        stats['unexpected'] = run_results.filter(meta_results__meta__type='err').count()
+        # Subtract effectively-expected results (stamped by an expected rule on
+        # an open issue) from the unexpected count.
+        stats['unexpected'] = (
+            run_results.filter(meta_results__meta__type='err')
+            .exclude(**SUPPRESSED_RELATION_FILTER)
+            .distinct()
+            .count()
+        )
 
         plan_meta_result = get_or_none(
             MetaResult.objects,
@@ -508,40 +528,27 @@ def get_expected_results(result):
         if meta_expect_results.exists():
             key_string = meta_expect_results.first().meta.name
 
-            for ref in re.findall(r'ref://[^, ]+', key_string):
+            for match in REF_PATTERN.finditer(key_string):
+                ref = match.group(0)
                 # Add the information that is before the first ref
                 key_info_part = key_string.partition(ref)[0]
                 if key_info_part:
                     key_part = {'name': key_info_part, 'url': None}
                     expected_result['keys'].append(key_part)
 
-                # Parse the ref
-                ref_type, ref_tail = re.search(r'ref://(.*)/(.*)', ref).group(1, 2)
-
-                # Forming the ref name
-                ref_name = f'{ref_type}:{ref_tail}'
-                key_part = {'name': ref_name, 'url': None}
-
-                # Form the link address, if possible
-                logs = ConfigServices.getattr_from_global(
-                    GlobalConfigs.REFERENCES.name,
-                    'ISSUES',
-                    result.project.id,
-                )
-                if ref_type in logs and ref_tail:
-                    ref_uri = logs[ref_type]['uri']
-                    ref_url = f'{ref_uri}{ref_tail}'
-                    key_part['url'] = ref_url
-
-                expected_result['keys'].append(key_part)
+                resolved = resolve_ref(ref, result.project.id)
+                if resolved is not None:
+                    ref_type, ref_tail, url = resolved
+                    expected_result['keys'].append(
+                        {'name': f'{ref_type}:{ref_tail}', 'url': url}
+                    )
 
                 # Trim the key string by the current ref
                 key_string = key_string.partition(ref)[2]
 
             # Add what is left in the key string
             if key_string:
-                key_part = {'name': key_string, 'url': None}
-                expected_result['keys'].append(key_part)
+                expected_result['keys'].append({'name': key_string, 'url': None})
 
         expected_results.append(expected_result)
     return expected_results
@@ -554,13 +561,25 @@ def get_nok_results_distribution(run):
             test_run=run,
             iteration__test__result_type=ResultType.conv('test'),
         )
-        .annotate(is_nok=Exists(unexpected_result))
+        .annotate(
+            _has_err=Exists(unexpected_result),
+            _suppressed=Exists(suppressed_subquery()),
+            is_nok=Case(
+                When(_has_err=True, _suppressed=False, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+        )
         .values_list('is_nok', flat=True)
         .order_by('id')
     )
 
 
 def generate_results_details(test_results):
+    test_results = list(test_results)
+    test_ids = {tr.iteration.test_id for tr in test_results if tr.iteration}
+    test_paths = build_test_paths(test_ids)
+
     # Gather all results details
     results_details = []
     for test_result in test_results:
@@ -606,8 +625,18 @@ def generate_results_details(test_results):
         parameters = OrderedDict(sorted(parameters.items()))
         parameters_list = key_value_dict_transforming(parameters)
 
+        # Classifications stamped on this result: needed both to list them for
+        # display and to compute effective_expected (suppressed by an expected
+        # rule on an open issue).
+        rule_results = list(
+            test_result.rule_results.select_related('issue_rule__issue').all(),
+        )
+        issues = [asdict(build_rule_result_info(rr)) for rr in rule_results]
+        effective_expected = any(rr.is_suppressing for rr in rule_results)
+
         data = {
             'name': iteration.test.name if iteration else None,
+            'path': test_paths.get(iteration.test_id, '') if iteration else None,
             'result_id': result_id,
             'run_id': test_result.root.id if test_result.root else None,
             'project_id': project.id if project else None,
@@ -622,6 +651,8 @@ def generate_results_details(test_results):
             'requirements': requirements,
             'has_error': is_result_unexpected(test_result),
             'has_measurements': exist_measurement_results(test_result),
+            'issues': issues,
+            'effective_expected': effective_expected,
         }
 
         results_details.append(data)

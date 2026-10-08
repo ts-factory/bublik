@@ -3,6 +3,7 @@
 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
+from rest_framework.filters import OrderingFilter as DRFOrderingFilter
 
 
 class AllDjangoFilterBackend(DjangoFilterBackend):
@@ -34,3 +35,18 @@ class ProjectFilterBackend(BaseFilterBackend):
         if project:
             return queryset.filter(project=project)
         return queryset
+
+
+class StableOrderingFilter(DRFOrderingFilter):
+    """
+    Same as DRF's OrderingFilter, but always appends -id as a final
+    ordering key - whatever field is actually ordered by (the view's
+    default, or one requested via ?ordering=), rows tying on it still
+    come back in a fixed order, so paging stays stable.
+    """
+
+    def filter_queryset(self, request, queryset, view):
+        ordering = list(self.get_ordering(request, queryset, view) or [])
+        if 'id' not in ordering and '-id' not in ordering:
+            ordering.append('-id')
+        return queryset.order_by(*ordering)

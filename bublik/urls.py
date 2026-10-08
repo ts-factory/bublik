@@ -36,6 +36,7 @@ api_v2_router.register(r'importruns', api_v2.ImportrunsViewSet, 'importruns')
 api_v2_router.register(r'auth/profile', api_v2.ProfileViewSet, 'profile')
 api_v2_router.register(r'auth/admin', api_v2.AdminViewSet, 'admin')
 api_v2_router.register(r'report', api_v2.ReportViewSet, 'report')
+api_v2_router.register(r'tests/picker', api_v2.TestPickerViewSet, basename='tests_picker')
 api_v2_router.register(
     r'tests/(?P<test_id>[0-9]+)/comments',
     api_v2.TestCommentViewSet,
@@ -43,6 +44,9 @@ api_v2_router.register(
 )
 api_v2_router.register(r'config', api_v2.ConfigViewSet, 'config')
 api_v2_router.register(r'projects', api_v2.ProjectViewSet, 'projects')
+api_v2_router.register(r'issues/picker', api_v2.IssuePickerViewSet, basename='issues_picker')
+api_v2_router.register(r'issues', api_v2.IssueViewSet, 'issues')
+api_v2_router.register(r'issue_rules', api_v2.IssueRuleViewSet, 'issue_rules')
 
 if settings.AI_CHAT_ENABLED:
     from bublik.interfaces.api_v2.ai_chat_thread import AiChatThreadViewSet

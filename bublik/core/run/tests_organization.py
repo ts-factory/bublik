@@ -74,6 +74,49 @@ def get_test_by_full_path(full_test_name):
         return None
 
 
+def build_test_paths(test_ids):
+    """
+    Reassemble '/'-joined name paths (package1/package2/.../test) for the
+    given Test ids, walking each test's `parent` chain - the inverse of
+    `get_test_by_full_path()`.
+
+    Batches one query per hierarchy level shared by all requested tests,
+    instead of one query per level per test, so it's safe to call for a
+    whole page of rows at once.
+
+    Args:
+        test_ids: Iterable of Test ids to build paths for
+
+    Returns:
+        Dict of {test_id: path}. An id with no matching Test is omitted.
+    """
+    test_ids = set(test_ids)
+    resolved = {}  # id -> (name, parent_id)
+    to_fetch = set(test_ids)
+
+    while to_fetch:
+        rows = models.Test.objects.filter(id__in=to_fetch).values('id', 'name', 'parent_id')
+        to_fetch = set()
+        for row in rows:
+            resolved[row['id']] = (row['name'], row['parent_id'])
+            parent_id = row['parent_id']
+            if parent_id is not None and parent_id not in resolved:
+                to_fetch.add(parent_id)
+
+    def _path(test_id):
+        segments = []
+        current_id = test_id
+        seen = set()
+        while current_id is not None and current_id not in seen and current_id in resolved:
+            seen.add(current_id)
+            name, parent_id = resolved[current_id]
+            segments.append(name)
+            current_id = parent_id
+        return '/'.join(reversed(segments))
+
+    return {test_id: _path(test_id) for test_id in test_ids if test_id in resolved}
+
+
 def get_test_ids_by_name(test_name):
     if test_name.startswith('../') or '/' not in test_name:
         # In some projects ../ is a valid part of a test name.

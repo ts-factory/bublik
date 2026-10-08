@@ -3,9 +3,10 @@
 
 from collections import defaultdict, deque
 
-from django.db.models import Exists, F, OuterRef
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Value, When
 from treelib import Tree as TreeLib
 
+from bublik.core.classification import suppressed_subquery
 from bublik.core.queries import get_or_none
 from bublik.data.models import Meta, MetaResult, ResultType, TestIterationResult
 
@@ -60,8 +61,14 @@ def tree_representation(result):
             name=F('iteration__test__name'),
             entity=F('iteration__test__result_type'),
             parent_id=F('parent_package__id'),
-            has_error=Exists(
+            _has_err=Exists(
                 MetaResult.objects.filter(result__id=OuterRef('id'), meta__type='err'),
+            ),
+            _suppressed=Exists(suppressed_subquery()),
+            has_error=Case(
+                When(_has_err=True, _suppressed=False, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
             ),
             skipped=Exists(
                 MetaResult.objects.filter(result__id=OuterRef('id'), meta__in=skipped_meta_ids),

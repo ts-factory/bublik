@@ -9,9 +9,10 @@ from enum import Enum
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef
 from rest_framework.exceptions import ValidationError
 
+from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import NotFoundError
@@ -73,7 +74,7 @@ class RunService:
             NotFoundError: if run not found
         """
         try:
-            return models.TestIterationResult.objects.get(id=run_id)
+            return models.TestIterationResult.objects.get(id=run_id, test_run_id__isnull=True)
         except ObjectDoesNotExist as e:
             msg = f'Run {run_id} not found'
             raise NotFoundError(msg) from e
@@ -388,7 +389,17 @@ class RunService:
             .values('test_run_id')
             .annotate(
                 total=Count('id', distinct=True),
-                nok=Count('id', filter=Q(meta_results__meta__type='err'), distinct=True),
+                nok=Count(
+                    'id',
+                    filter=Exists(
+                        models.MetaResult.objects.filter(
+                            result_id=OuterRef('id'),
+                            meta__type='err',
+                        ),
+                    )
+                    & ~Exists(suppressed_subquery()),
+                    distinct=True,
+                ),
             )
         )
 

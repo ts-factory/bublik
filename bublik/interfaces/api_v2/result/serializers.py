@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
-from drf_spectacular.utils import extend_schema_serializer
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
+
+from bublik.data.models import IssueCategory, IssueState, RuleResultOrigin
 
 
 class ResultListQuerySerializer(serializers.Serializer):
@@ -12,6 +14,7 @@ class ResultListQuerySerializer(serializers.Serializer):
     results = serializers.CharField(required=False)
     result_properties = serializers.CharField(required=False)
     requirements = serializers.CharField(required=False)
+    issue = serializers.CharField(required=False)
 
 
 class ResultKeySerializer(serializers.Serializer):
@@ -30,8 +33,23 @@ class ObtainedResultSerializer(serializers.Serializer):
     verdicts = serializers.ListField(child=serializers.CharField())
 
 
+class ResultIssueSerializer(serializers.Serializer):
+    """One RuleResult stamp on a result - see build_rule_result_info()."""
+
+    issue_id = serializers.IntegerField()
+    issue_title = serializers.CharField()
+    issue_state = serializers.ChoiceField(choices=IssueState.choices)
+    bug_key = serializers.CharField(allow_null=True)
+    bug_url = serializers.CharField(allow_null=True)
+    category = serializers.ChoiceField(choices=IssueCategory.choices)
+    expected = serializers.BooleanField(allow_null=True)
+    rule_id = serializers.IntegerField()
+    origin = serializers.ChoiceField(choices=RuleResultOrigin.choices)
+
+
 class ResultDetailsSerializer(serializers.Serializer):
     name = serializers.CharField()
+    path = serializers.CharField(allow_null=True)
     result_id = serializers.IntegerField()
     run_id = serializers.IntegerField()
     project_id = serializers.IntegerField()
@@ -46,6 +64,8 @@ class ResultDetailsSerializer(serializers.Serializer):
     requirements = serializers.ListField(child=serializers.CharField())
     has_error = serializers.BooleanField()
     has_measurements = serializers.BooleanField()
+    issues = ResultIssueSerializer(many=True)
+    effective_expected = serializers.BooleanField()
 
 
 @extend_schema_serializer(many=False)
@@ -76,3 +96,55 @@ class ResultMeasurementsResponseSerializer(serializers.Serializer):
     iteration_id = serializers.IntegerField()
     charts = serializers.ListField(child=serializers.DictField())
     tables = serializers.ListField(child=serializers.DictField())
+
+
+@extend_schema_field(
+    {
+        'oneOf': [
+            {'type': 'integer', 'description': 'ID of an existing Issue to reuse.'},
+            {
+                'type': 'object',
+                'description': 'Data to create a new Issue.',
+                'properties': {
+                    'title': {'type': 'string'},
+                    'description': {'type': 'string', 'nullable': True},
+                    'bug_key': {
+                        'type': 'string',
+                        'nullable': True,
+                        'description': 'External bug reference, e.g. ref://JIRA/FOO-123.',
+                    },
+                },
+                'required': ['title'],
+            },
+        ],
+    },
+)
+class IssueRefField(serializers.JSONField):
+    """Accepts either an existing Issue ID or a payload to create a new one."""
+
+
+class ClassifyRequestSerializer(serializers.Serializer):
+    issue = IssueRefField(
+        help_text='Existing issue ID, or {title, description?, bug_key?} to create a new one.',
+    )
+    category = serializers.ChoiceField(
+        choices=IssueCategory.choices,
+        default=IssueCategory.TO_INVESTIGATE,
+    )
+    expected = serializers.BooleanField(required=False, allow_null=True)
+    scope = serializers.ChoiceField(choices=['future', 'oneoff'], default='future')
+    matcher = serializers.JSONField(required=False, default=dict)
+
+    def validate_issue(self, value):
+        if isinstance(value, int) or (isinstance(value, str) and str(value).isdigit()):
+            return value
+        from bublik.data.serializers import IssueSerializer  # noqa: PLC0415
+
+        serializer = IssueSerializer(data=value if isinstance(value, dict) else {})
+        serializer.is_valid(raise_exception=True)
+        return value
+
+
+class ClassifyResponseSerializer(serializers.Serializer):
+    issue_id = serializers.IntegerField()
+    rule_id = serializers.IntegerField()

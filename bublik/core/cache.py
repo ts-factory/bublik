@@ -42,6 +42,13 @@ class RunCache:
     }
     KEYS_EARLY_CACHE: ClassVar[set] = {'livelog'}
     KEYS_TMP_CACHE: ClassVar[set] = {'tree'}
+    KEYS_CLASSIFICATION_AFFECTED: ClassVar[set] = {
+        'stats',
+        'stats_sum',
+        'stats_reqs',
+        'dashboard-v2',
+        'tree',
+    }
 
     def __init__(self, run, data_key):
         self.run = run
@@ -105,6 +112,18 @@ class RunCache:
         for data_key in data_keys:
             self = cls.by_obj(run, data_key)
             del self.data
+
+    @classmethod
+    def invalidate_classification_affected(cls, run_ids):
+        """
+        Drop cached data that depends on classification state (stats, dashboard,
+        tree) for the given runs, so that a subsequent read recomputes it.
+
+        Args:
+            run_ids: IDs of runs whose classification-affected cache should be dropped
+        """
+        for run in models.TestIterationResult.objects.filter(id__in=run_ids):
+            cls.delete_data_for_obj(run, data_keys=cls.KEYS_CLASSIFICATION_AFFECTED)
 
 
 def cache_page_if_run_done(timeout):
