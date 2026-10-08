@@ -36,6 +36,7 @@ class HistoryExpectedResultDTO:
     result_type: str | None
     verdicts: list[str]
     keys: list[HistoryKeyDTO]
+    notes: list[str]
 
 
 @dataclass
@@ -77,6 +78,7 @@ class HistoryResultDTO:
                     result_type=expected['result_type'],
                     verdicts=expected['verdicts'],
                     keys=[HistoryKeyDTO(**key) for key in expected['keys']],
+                    notes=expected['notes'],
                 )
                 for expected in data['expected_results']
             ],

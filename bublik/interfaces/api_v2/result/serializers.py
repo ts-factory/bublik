@@ -27,6 +27,7 @@ class ExpectedResultSerializer(serializers.Serializer):
     result_type = serializers.CharField(allow_null=True)
     verdicts = serializers.ListField(child=serializers.CharField())
     keys = ResultKeySerializer(many=True)
+    notes = serializers.ListField(child=serializers.CharField())
 
 
 class ObtainedResultSerializer(serializers.Serializer):

@@ -517,6 +517,7 @@ def get_expected_results(result):
             'result_type': None,
             'verdicts': [],
             'keys': [],
+            'notes': [],
         }
 
         result_metas = [em.meta for em in meta_expect if em.meta.type == 'result']
@@ -528,6 +529,12 @@ def get_expected_results(result):
             em.meta.value
             for em in sorted(meta_expect, key=lambda em: em.serial)
             if em.meta.type == 'verdict_expected'
+        ]
+
+        expected_result['notes'] = [
+            em.meta.value
+            for em in sorted(meta_expect, key=lambda em: em.serial)
+            if em.meta.type == 'note'
         ]
 
         key_metas = [em.meta for em in meta_expect if em.meta.type == 'key']

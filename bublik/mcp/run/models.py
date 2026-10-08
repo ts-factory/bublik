@@ -40,6 +40,7 @@ class RunExpectedResult(BaseModel):
     result_type: str
     verdicts: list[str]
     keys: list[RunExpectedKey]
+    notes: list[str]
 
 
 class RunObtainedResult(BaseModel):
