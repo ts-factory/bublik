@@ -132,11 +132,15 @@ def handle_iteration(
 
         expected = data.get('expected')
         if expected:
-            keys = [expected['key']] if 'key' in expected else []
-            notes = [expected['notes']] if 'notes' in expected else []
+            # Top-level key and notes apply to every expected result,
+            # per-result ones apply only to the result they belong to.
+            common_keys = [expected['key']] if 'key' in expected else []
+            common_notes = [expected['notes']] if 'notes' in expected else []
             for expected_result in expected['results']:
+                keys = common_keys.copy()
                 if 'key' in expected_result:
                     keys.append(expected_result['key'])
+                notes = common_notes.copy()
                 if 'notes' in expected_result:
                     notes.append(expected_result['notes'])
                 add_expected_result(
