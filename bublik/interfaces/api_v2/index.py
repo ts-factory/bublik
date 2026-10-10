@@ -41,7 +41,7 @@ def render_docs(request):
             relative_path = str(index_path.relative_to(base_dir))
             return serve(request, relative_path, document_root=settings.BUBLIK_DOCS_STATIC)
 
-    html_file_path = base_file_path.with_suffix('.html')
+    html_file_path = base_file_path.with_name(f'{base_file_path.name}.html')
     if html_file_path.exists():
         relative_path = str(html_file_path.relative_to(base_dir))
         return serve(request, relative_path, document_root=settings.BUBLIK_DOCS_STATIC)
