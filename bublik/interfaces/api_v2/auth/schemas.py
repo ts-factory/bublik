@@ -40,6 +40,10 @@ registration_viewset_schema = extend_schema_view(
                 response=ErrorResponseSerializer,
                 description='Invalid registration data was provided',
             ),
+            502: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Verification link could not be sent, the user was not created',
+            ),
         },
         tags=[AUTH_TAG],
     ),
@@ -145,6 +149,10 @@ password_reset_viewset_schema = extend_schema_view(
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Password reset is not available for deactivated users',
+            ),
+            502: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Password reset link could not be sent',
             ),
         },
         tags=[AUTH_TAG],
@@ -284,6 +292,10 @@ admin_viewset_schema = extend_schema_view(
                 response=ErrorResponseSerializer,
                 description='Administrator privileges are required to create users',
             ),
+            502: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Verification link could not be sent, the user was not created',
+            ),
         },
         tags=[AUTH_TAG],
     ),
@@ -342,6 +354,10 @@ admin_viewset_schema = extend_schema_view(
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='No user found with the passed email, or no email was passed',
+            ),
+            502: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Verification link could not be sent, the user stays deactivated',
             ),
         },
         tags=[AUTH_TAG],
