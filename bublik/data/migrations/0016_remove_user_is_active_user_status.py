@@ -17,7 +17,7 @@ def set_is_active_from_status(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('data', '0014_user_date_joined'),
+        ('data', '0015_user_date_joined'),
     ]
 
     operations = [

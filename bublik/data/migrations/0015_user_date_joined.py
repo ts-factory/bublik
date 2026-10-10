@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('data', '0013_ai_chat'),
+        ('data', '0014_alter_config_user'),
     ]
 
     operations = [
