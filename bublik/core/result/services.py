@@ -213,18 +213,7 @@ class ResultService:
             for req_meta in available_req_metas:
                 queryset = queryset.filter(meta_results__meta=req_meta)
 
-        return (
-            queryset.order_by('-start', 'id')
-            .select_related('iteration', 'project')
-            .prefetch_related(
-                'expectations',
-                'expectations__expectmeta_set',
-                'measurement_results',
-                'meta_results__meta',
-                'iteration__test_arguments',
-            )
-            .distinct('id', 'start')
-        )
+        return queryset.order_by('-start', 'id').distinct('id', 'start')
 
     @staticmethod
     def list_results_paginated(
