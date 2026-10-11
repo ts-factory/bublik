@@ -56,6 +56,23 @@ def get_request(*args, **kwargs):
     return request
 
 
+def require_user(request, as_admin=False):
+    """
+    Raise PermissionDenied unless the request comes from an authenticated
+    user (an administrator if `as_admin`).
+    """
+    access_token = request.COOKIES.get('access_token')
+    user = get_user_by_access_token(access_token)
+    if not user:
+        msg = 'Not Authenticated'
+        raise PermissionDenied(msg)
+    # check if user is admin
+    if as_admin and UserRoles.ADMIN not in user.roles:
+        msg = 'You are not authorized to perform this action'
+        raise PermissionDenied(msg)
+    return user
+
+
 def auth_required(as_admin=False):
     def decorator(function):
         @wraps(function)
@@ -65,15 +82,7 @@ def auth_required(as_admin=False):
                 # handle regular function call without a request object
                 msg = 'Wrong request'
                 raise PermissionDenied(msg)
-            access_token = request.COOKIES.get('access_token')
-            user = get_user_by_access_token(access_token)
-            if not user:
-                msg = 'Not Authenticated'
-                raise PermissionDenied(msg)
-            # check if user is admin
-            if as_admin and UserRoles.ADMIN not in user.roles:
-                msg = 'You are not authorized to perform this action'
-                raise PermissionDenied(msg)
+            require_user(request, as_admin=as_admin)
             return function(*args, **kwargs)
 
         return wrapper
