@@ -90,23 +90,47 @@ def auth_required(as_admin=False):
     return decorator
 
 
+def check_action_permission_for_projects(request, action, project_ids):
+    """
+    Check the action against the projects it touches.
+
+    The action is allowed without authorization only if the settings of each
+    of the projects allow it, otherwise the request must come from an
+    administrator. With no projects the global settings apply.
+
+    Use it in place of `check_action_permission` when the projects are told
+    by the objects the request changes: the `project` query param is chosen
+    by the client, so it can't be trusted to name them.
+    """
+    for project_id in set(project_ids) or {None}:
+        not_permission_required_actions = ConfigServices.getattr_from_global(
+            GlobalConfigs.PER_CONF.name,
+            'NOT_PERMISSION_REQUIRED_ACTIONS',
+            project_id=project_id,
+        )
+        if action not in not_permission_required_actions:
+            require_user(request, as_admin=True)
+            return
+
+
 def check_action_permission(action):
     """
     Check if the action requires permission.
+
+    The settings of the project from the `project` query param apply, which
+    suits requests that merely filter by project. A request that changes
+    particular objects should use `check_action_permission_for_projects` instead.
     """
 
     def wrapper(func):
         @wraps(func)
         def inner(self, request, *args, **kwargs):
-            project = request.query_params.get('project')
-            not_permission_required_actions = ConfigServices.getattr_from_global(
-                GlobalConfigs.PER_CONF.name,
-                'NOT_PERMISSION_REQUIRED_ACTIONS',
-                project_id=project,
+            check_action_permission_for_projects(
+                request,
+                action,
+                [request.query_params.get('project')],
             )
-            if action in not_permission_required_actions:
-                return func(self, request, *args, **kwargs)
-            return auth_required(as_admin=True)(func)(self, request, *args, **kwargs)
+            return func(self, request, *args, **kwargs)
 
         return inner
 
