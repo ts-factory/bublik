@@ -71,10 +71,6 @@ def get_measurement_results_or_none(result_id):
     return measurement_results
 
 
-def exist_measurement_results(test_result):
-    return test_result.measurement_results.exists()
-
-
 def get_views(result_id):
     return View.objects.filter(chart_views__result_id=result_id).distinct('id')
 
