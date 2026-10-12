@@ -12,6 +12,9 @@ from bublik.interfaces.api_v2.issue.serializers import (
     IssueListQuerySerializer,
     IssuePickerOptionSerializer,
     IssuePickerQuerySerializer,
+    IssueResultsFacetsSerializer,
+    IssueResultsQuerySerializer,
+    IssueResultsResponseSerializer,
     IssueRuleFacetsSerializer,
     IssueRuleListQuerySerializer,
     TestPickerOptionSerializer,
@@ -63,6 +66,47 @@ issue_viewset_schema = extend_schema_view(
         summary='Get issue details',
         responses={
             200: IssueSerializer,
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Issue was not found',
+            ),
+        },
+        tags=[ISSUE_TAG],
+    ),
+    results=extend_schema(
+        summary='List results stamped under an issue',
+        description="""
+        Returns one page of the results classified under the issue, across
+        every run, newest first, narrowed by the result table's filters.
+        """,
+        parameters=[IssueResultsQuerySerializer],
+        responses={
+            200: OpenApiResponse(
+                response=IssueResultsResponseSerializer,
+                description='Issue results were successfully retrieved',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='A filter or page parameter is invalid',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Issue was not found',
+            ),
+        },
+        tags=[ISSUE_TAG],
+    ),
+    results_facets=extend_schema(
+        summary="List the values an issue's result filters can take",
+        description="""
+        Returns every value each result filter can take over the issue's
+        results, unfiltered, for the filter bar's option lists.
+        """,
+        responses={
+            200: OpenApiResponse(
+                response=IssueResultsFacetsSerializer,
+                description='Facets were successfully retrieved',
+            ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='Issue was not found',
