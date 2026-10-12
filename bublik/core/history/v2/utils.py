@@ -4,6 +4,7 @@
 from datetime import datetime, timedelta
 import hashlib
 from itertools import groupby
+import json
 import urllib
 
 from deepdiff import DeepHash
@@ -18,14 +19,15 @@ from bublik.data.models import ResultStatus, TestIterationResult
 
 
 def generate_hashkey(request):
-    hashkey = hashlib.md5()
-
-    for key, value in request.GET.items():
-        if any(key == k for k in ('page', 'clicksearch', 'subsearch')) or not value:
-            continue
-        hashkey.update(f'{key}={value!s}%'.encode())
-
-    return hashkey.hexdigest()
+    # QueryDict.items() uses the last value, matching the view's parameter lookup.
+    parameters = sorted(
+        (key, value)
+        for key, value in request.GET.items()
+        if key not in ('clicksearch', 'subsearch')
+    )
+    payload = json.dumps([request.path, parameters], separators=(',', ':'))
+    digest = hashlib.md5(payload.encode()).hexdigest()
+    return f'history:v2:{digest}'
 
 
 def prepare_list_results(
