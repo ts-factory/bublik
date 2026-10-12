@@ -15,6 +15,7 @@ from django_filters.utils import translate_validation
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.generics import get_object_or_404
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
@@ -32,6 +33,7 @@ from bublik.core.classification import (
     rules_state_query,
 )
 from bublik.core.filter_backends import StableOrderingFilter
+from bublik.core.issue_results import IssueResultsFilters, IssueResultsService
 from bublik.core.pagination import PerProjectPageNumberPagination
 from bublik.core.run.classification import ClassificationService
 from bublik.core.run.tests_organization import build_test_paths, get_test_ids_by_name
@@ -57,6 +59,9 @@ from bublik.interfaces.api_v2.issue.serializers import (
     ActionResultSerializer,
     BulkIdsRequestSerializer,
     IssuePickerOptionSerializer,
+    IssueResultsFacetsSerializer,
+    IssueResultsQuerySerializer,
+    IssueResultsResponseSerializer,
     TestPickerOptionSerializer,
 )
 
@@ -224,6 +229,41 @@ class IssueViewSet(ModelViewSet):
             _ISSUE_FACET_PARAMS,
             _issue_facet_counts,
         )
+
+    @action(detail=True, methods=['get'], pagination_class=None)
+    def results(self, request, pk=None):
+        issue = get_object_or_404(Issue, pk=pk)
+        query = IssueResultsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        params = query.validated_data
+        result_properties = params.get('result_properties')
+
+        page = IssueResultsService.page(
+            issue.id,
+            IssueResultsFilters(
+                results=params.get('results'),
+                result_properties=(
+                    settings.QUERY_DELIMITER.join(result_properties)
+                    if result_properties
+                    else None
+                ),
+                requirements=params.get('requirements'),
+                categories=params.get('category', []),
+                classifications=params.get('classification', []),
+                verdicts=params.get('verdict', []),
+                artifacts=params.get('artifact', []),
+                parameters=params.get('parameter', []),
+            ),
+            page=params.get('page'),
+            page_size=params.get('page_size'),
+        )
+        return Response(IssueResultsResponseSerializer(page).data)
+
+    @action(detail=True, methods=['get'], url_path='results/facets', pagination_class=None)
+    def results_facets(self, request, pk=None):
+        issue = get_object_or_404(Issue, pk=pk)
+        facets = IssueResultsService.facets(issue.id)
+        return Response(IssueResultsFacetsSerializer(facets).data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
