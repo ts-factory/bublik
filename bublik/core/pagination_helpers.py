@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
+from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
@@ -72,7 +73,9 @@ class PaginatedResult:
             msg = f'Page size must be <= {max_page_size}, got {page_size}'
             raise ValidationError(msg)
 
-        total_count = len(queryset)
+        # A queryset is counted in the database; evaluating it would build
+        # every row to page over a handful.
+        total_count = queryset.count() if isinstance(queryset, QuerySet) else len(queryset)
         total_pages = max((total_count + page_size - 1) // page_size, 1)
 
         if page > total_pages:
@@ -81,7 +84,9 @@ class PaginatedResult:
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
 
-        paginated_data = queryset[start_idx:end_idx]
+        # Materialised so callers get a list whichever way they came in,
+        # not a lazy slice re-run as a subquery wherever it is used.
+        paginated_data = list(queryset[start_idx:end_idx])
 
         pagination = OrderedDict(
             [
