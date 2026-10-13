@@ -34,7 +34,7 @@ from .project.views import ProjectViewSet
 from .report.views import ReportViewSet
 from .result.views import ResultViewSet
 from .run.views import RunViewSet
-from .server import ServerViewSet
+from .server.views import ServerViewSet
 from .tree.views import TreeViewSet
 from .url_shortener.views import URLShortenerView
 
