@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.classification import parse_issue_ids
@@ -16,7 +16,7 @@ from bublik.core.measurement.services import (
 )
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.queries import get_or_none
-from bublik.core.result.dto import ClassifyOptionsDTO, ClassifyTestDTO
+from bublik.core.result.dto import ClassifyOptionsDTO, ClassifyTestDTO, UnclassifyDTO
 from bublik.core.run.data import (
     get_parameters_by_iterations,
     get_tags_by_runs,
@@ -297,6 +297,88 @@ class ResultService:
 
         if errors:
             raise ValidationError({'matchers': errors})
+
+    @staticmethod
+    def get_rule_results_by_ids(rule_result_ids: list[int]) -> dict[int, models.RuleResult]:
+        """
+        Get RuleResult stamps by their IDs, with what is needed to judge them.
+
+        Args:
+            rule_result_ids: The IDs of the stamps
+
+        Returns:
+            Dict mapping a stamp ID to the stamp, for the stamps that exist
+        """
+        return {
+            rule_result.id: rule_result
+            for rule_result in models.RuleResult.objects.filter(
+                pk__in=rule_result_ids,
+            ).select_related('result__test_run', 'issue_rule__issue')
+        }
+
+    @staticmethod
+    def unclassify_results(
+        rule_result_ids: list[int],
+        found: dict[int, models.RuleResult],
+    ) -> UnclassifyDTO:
+        """
+        Take classification off results: delete the given manual RuleResult
+        stamps (those of one-off and persistent classification, and of
+        applying the rules on demand). The rules
+        left without any stamp are deleted, and then the issues left without
+        rules. Only what this call has left without stamps or rules is
+        deleted, so nothing else goes with it, and the rules that stay are
+        left as they are, active or not.
+
+        Args:
+            rule_result_ids: The IDs of the stamps to take off
+            found: The stamps found by these IDs (see get_rule_results_by_ids)
+
+        Returns:
+            UnclassifyDTO telling what was deleted
+
+        Raises:
+            ValidationError: if any stamp is not found, or comes from import,
+                which is recomputed on every import, so there is nothing to
+                take off
+        """
+        missing = [rr_id for rr_id in rule_result_ids if rr_id not in found]
+        if missing:
+            raise ValidationError({'rule_result_ids': f'Stamps not found: {missing}.'})
+        imported = [
+            rr_id
+            for rr_id in rule_result_ids
+            if found[rr_id].origin == models.RuleResultOrigin.IMPORT
+        ]
+        if imported:
+            msg = (
+                f'Classification by import cannot be taken off: {imported}. '
+                'Delete the rule to take that off.'
+            )
+            raise ValidationError({'rule_result_ids': msg})
+
+        outcome = UnclassifyDTO()
+        rules = {
+            found[rr_id].issue_rule_id: found[rr_id].issue_rule for rr_id in rule_result_ids
+        }
+        outcome.deleted_rule_result_ids = sorted(rule_result_ids)
+        models.RuleResult.objects.filter(id__in=rule_result_ids).delete()
+
+        orphaned = models.IssueRule.objects.filter(
+            ~Exists(models.RuleResult.objects.filter(issue_rule=OuterRef('pk'))),
+            id__in=rules,
+        )
+        outcome.deleted_rule_ids = sorted(orphaned.values_list('id', flat=True))
+        orphaned.delete()
+
+        emptied = {rules[rule_id].issue_id for rule_id in outcome.deleted_rule_ids}
+        outcome.deleted_issue_ids = sorted(
+            issue_id
+            for issue_id in emptied
+            if not models.IssueRule.objects.filter(issue_id=issue_id).exists()
+        )
+        models.Issue.objects.filter(id__in=outcome.deleted_issue_ids).delete()
+        return outcome
 
     @staticmethod
     def list_results(  # noqa: C901
