@@ -14,6 +14,8 @@ from bublik.interfaces.api_v2.result.serializers import (
     ResultListResponseSerializer,
     ResultMeasurementsResponseSerializer,
     ResultRetrieveResponseSerializer,
+    UnclassifyRequestSerializer,
+    UnclassifyResponseSerializer,
 )
 
 
@@ -155,6 +157,52 @@ result_viewset_schema = extend_schema_view(
                     'unknown results, results of different runs, a result that is not '
                     'a test result, an unknown issue, or matchers that are missing for a '
                     'test or contain what not all its results have)'
+                ),
+            ),
+            403: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'The user is not authenticated, or is authenticated but lacks '
+                    'admin privileges required to manage classifications'
+                ),
+            ),
+        },
+        tags=[RESULT_TAG],
+    ),
+    unclassify=extend_schema(
+        summary='Take the classification off results',
+        description="""
+        Takes classification off results: deletes the given stamps of the
+        manual classification (`scope=oneoff` and `scope=future`) and of
+        applying the rules on demand (the stamp is the `rule_result_id` of an
+        item of the issues of a result). The stamps may be of results of
+        different runs.
+
+        The rules left without any stamp are deleted along with them, and then
+        the issues left without rules; only what this request has left empty
+        is deleted. A one-off rule is inactive, so nothing brings its stamp
+        back. The rules that stay are never changed: a rule of `scope=future`
+        that stays active classifies the results again when a run is imported
+        again or the rules are applied to it, until the rule is deactivated or
+        deleted by its own endpoints. The classification made by import cannot
+        be taken off, as it is recomputed on every import: such a request is
+        rejected without changing anything, and the rule is what has to be
+        deleted.
+
+        The response tells which stamps were taken off and which rules and
+        issues were deleted.
+        """,
+        request=UnclassifyRequestSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=UnclassifyResponseSerializer,
+                description='The classification was successfully taken off',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description=(
+                    'Request validation failed (a missing field, unknown stamps, or '
+                    'stamps of the classification by import)'
                 ),
             ),
             403: OpenApiResponse(

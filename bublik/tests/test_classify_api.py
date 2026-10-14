@@ -168,3 +168,58 @@ class ClassifyTest(ClassifyDataMixin, APITestCase):
         with data.allow_without_login(self.project.id):
             response = self.client.post(url, body, format='json')
         assert response.status_code == status.HTTP_201_CREATED, response.data
+
+
+@data.isolated_caches
+class UnclassifyTest(ClassifyDataMixin, APITestCase):
+    def setUp(self):
+        data.login(self.client, self.admin)
+        response = self._classify()
+        self.issue_id = response.data['issue_id']
+        self.rule_id = response.data['rule_ids'][0]
+        self.vm_stamp, self.hw_stamp = (
+            models.RuleResult.objects.get(result=result, issue_rule_id=self.rule_id).id
+            for result in (self.vm, self.hw)
+        )
+
+    def _unclassify(self, rule_result_ids):
+        return self.client.post(
+            self._url('results-unclassify'),
+            {'rule_result_ids': rule_result_ids},
+            format='json',
+        )
+
+    def test_takes_off_stamps_and_deletes_only_what_it_left_empty(self):
+        response = self._unclassify([self.vm_stamp])
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data == {
+            'deleted_rule_result_ids': [self.vm_stamp],
+            'deleted_rule_ids': [],
+            'deleted_issue_ids': [],
+        }
+        response = self._unclassify([self.hw_stamp])
+        assert response.data == {
+            'deleted_rule_result_ids': [self.hw_stamp],
+            'deleted_rule_ids': [self.rule_id],
+            'deleted_issue_ids': [self.issue_id],
+        }
+        assert not models.Issue.objects.filter(id=self.issue_id).exists()
+
+    def test_stamps_of_import_cannot_be_taken_off(self):
+        imported = data.stamp(self.reset, data.rule(data.issue(self.project), self.tree.reset))
+        response = self._unclassify([self.vm_stamp, imported.id])
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert models.RuleResult.objects.filter(id=self.vm_stamp).exists()
+
+    def test_unknown_stamps_are_rejected(self):
+        response = self._unclassify([999999])
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_judged_by_the_project_of_the_results(self):
+        self.client.cookies.clear()
+        url = f'{self._url("results-unclassify")}?project={self.other_project.id}'
+        with data.allow_without_login(self.other_project.id):
+            response = self.client.post(
+                url, {'rule_result_ids': [self.vm_stamp]}, format='json'
+            )
+        assert response.status_code == status.HTTP_403_FORBIDDEN

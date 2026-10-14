@@ -42,3 +42,16 @@ class ClassifyOptionsDTO:
     run_id: int
     tags: dict[str, list[str]]
     tests: list[ClassifyTestDTO] = field(default_factory=list)
+
+
+@dataclass
+class UnclassifyDTO:
+    """
+    What taking a classification off results did: the stamps deleted, the
+    rules left without stamps that were deleted, and the issues left without
+    rules that were deleted.
+    """
+
+    deleted_rule_result_ids: list[int] = field(default_factory=list)
+    deleted_rule_ids: list[int] = field(default_factory=list)
+    deleted_issue_ids: list[int] = field(default_factory=list)

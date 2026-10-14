@@ -245,3 +245,29 @@ class ClassifyOptionsResponseSerializer(serializers.Serializer):
     run_id = serializers.IntegerField()
     tags = ClassifyOptionsTagsSerializer()
     tests = ClassifyOptionsTestSerializer(many=True)
+
+
+class UnclassifyRequestSerializer(serializers.Serializer):
+    rule_result_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+        help_text='The stamps to take off (`rule_result_id` of the issues of a result).',
+    )
+
+    def validate_rule_result_ids(self, value):
+        return list(dict.fromkeys(value))
+
+
+class UnclassifyResponseSerializer(serializers.Serializer):
+    deleted_rule_result_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text='The stamps that were taken off.',
+    )
+    deleted_rule_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text='The rules left without stamps that were deleted.',
+    )
+    deleted_issue_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text='The issues left without rules that were deleted.',
+    )
