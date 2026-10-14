@@ -34,6 +34,8 @@ from bublik.interfaces.api_v2.result.serializers import (
     ClassifyOptionsResponseSerializer,
     ClassifyRequestSerializer,
     ClassifyResponseSerializer,
+    UnclassifyRequestSerializer,
+    UnclassifyResponseSerializer,
 )
 
 
@@ -176,6 +178,35 @@ class ResultViewSet(ModelViewSet):
 
         data = ClassifyResponseSerializer({'issue_id': issue.id, 'rule_ids': rule_ids}).data
         return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], serializer_class=UnclassifyRequestSerializer)
+    def unclassify(self, request):
+        body_serializer = self.get_serializer(data=request.data)
+        body_serializer.is_valid(raise_exception=True)
+        body = body_serializer.validated_data
+
+        found = ResultService.get_rule_results_by_ids(body['rule_result_ids'])
+        # Before anything is told about the stamps, as it depends on their projects.
+        check_action_permission_for_projects(
+            request,
+            'manage_issues',
+            [rule_result.result.project_id for rule_result in found.values()],
+        )
+
+        with transaction.atomic():
+            outcome = ResultService.unclassify_results(
+                body['rule_result_ids'],
+                found,
+            )
+
+        runs = {
+            rule_result.result.test_run_id: rule_result.result.test_run
+            for rule_result in found.values()
+        }
+        for run in runs.values():
+            RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
+
+        return Response(UnclassifyResponseSerializer(outcome).data)
 
     def _get_or_create_rule(
         self,
