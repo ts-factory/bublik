@@ -23,6 +23,7 @@ from bublik.core.result import ResultService
 from bublik.core.run.services import RunService
 from bublik.core.run.stats import generate_all_run_details, generate_runs_details, get_test_runs
 from bublik.core.server import ServerService
+from bublik.core.server.dto import RepoRevisionsDTO  # noqa: TC001
 from bublik.core.tree.services import TreeService
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
@@ -764,12 +765,12 @@ async def get_run_report_configs(run_id: int) -> list[dict]:
 # Server tools
 
 
-async def get_server_version() -> dict:
+async def get_server_version() -> RepoRevisionsDTO:
     """
     Get server version information.
 
     Returns:
-        Dictionary with repository revision information
+        RepoRevisionsDTO with repository revision information
     """
     return await sync_to_async(ServerService.get_version)()
 
