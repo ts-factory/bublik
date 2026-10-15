@@ -11,6 +11,8 @@ from rest_framework.viewsets import ViewSet
 from bublik.core.config.services import ConfigServices
 from bublik.core.server import ServerService
 from bublik.data.models import GlobalConfigs
+from bublik.interfaces.api_v2.server.schemas import server_viewset_schema
+from bublik.interfaces.api_v2.server.serializers import RepoRevisionsSerializer
 
 
 __all__ = [
@@ -18,13 +20,15 @@ __all__ = [
 ]
 
 
+@server_viewset_schema
 class ServerViewSet(ViewSet):
     filter_backends: typing.ClassVar['list'] = []
 
     @action(detail=False, methods=['get'])
     def version(self, request):
-        data = ServerService.get_version()
-        return Response(data=data)
+        data_dto = ServerService.get_version()
+        serializer = RepoRevisionsSerializer(instance=data_dto)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def tab_title_prefix(self, _request):
