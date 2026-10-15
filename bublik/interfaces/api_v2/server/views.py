@@ -11,7 +11,12 @@ from rest_framework.viewsets import ViewSet
 from bublik.core.config.services import ConfigServices
 from bublik.core.server import ServerService
 from bublik.data.models import GlobalConfigs
-from bublik.interfaces.api_v2.server.serializers import RepoRevisionsResponseSerializer
+from bublik.interfaces.api_v2.server.schemas import server_viewset_schema
+from bublik.interfaces.api_v2.server.serializers import (
+    FeaturesResponseSerializer,
+    RepoRevisionsResponseSerializer,
+    TabTitlePrefixResponseSerializer,
+)
 
 
 __all__ = [
@@ -19,6 +24,7 @@ __all__ = [
 ]
 
 
+@server_viewset_schema
 class ServerViewSet(ViewSet):
     filter_backends: typing.ClassVar['list'] = []
 
@@ -31,22 +37,21 @@ class ServerViewSet(ViewSet):
     @action(detail=False, methods=['get'])
     def tab_title_prefix(self, _request):
         project_id = self.request.query_params.get('project_id')
-
-        return Response(
-            {
-                'tab_title_prefix': ConfigServices.getattr_from_global(
-                    GlobalConfigs.PER_CONF.name,
-                    'TAB_TITLE_PREFIX',
-                    project_id,
-                ),
-            },
-        )
+        data = {
+            'tab_title_prefix': ConfigServices.getattr_from_global(
+                GlobalConfigs.PER_CONF.name,
+                'TAB_TITLE_PREFIX',
+                project_id,
+            ),
+        }
+        serializer = TabTitlePrefixResponseSerializer(instance=data)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def features(self, _request):
-        return Response(
-            {
-                'analytics_enabled': settings.ANALYTICS_ENABLED,
-                'chat_enabled': settings.AI_CHAT_ENABLED,
-            },
-        )
+        data = {
+            'analytics_enabled': settings.ANALYTICS_ENABLED,
+            'chat_enabled': settings.AI_CHAT_ENABLED,
+        }
+        serializer = FeaturesResponseSerializer(instance=data)
+        return Response(serializer.data)
