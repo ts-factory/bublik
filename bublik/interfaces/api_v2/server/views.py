@@ -11,6 +11,7 @@ from rest_framework.viewsets import ViewSet
 from bublik.core.config.services import ConfigServices
 from bublik.core.server import ServerService
 from bublik.data.models import GlobalConfigs
+from bublik.interfaces.api_v2.server.schemas import server_viewset_schema
 from bublik.interfaces.api_v2.server.serializers import RepoRevisionsSerializer
 
 
@@ -19,6 +20,7 @@ __all__ = [
 ]
 
 
+@server_viewset_schema
 class ServerViewSet(ViewSet):
     filter_backends: typing.ClassVar['list'] = []
 

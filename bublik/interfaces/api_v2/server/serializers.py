@@ -15,3 +15,12 @@ class RepoRevisionsSerializer(serializers.Serializer):
     repo_branch = serializers.CharField()
     repo_tag = serializers.CharField()
     latest_commit = LatestCommitSerializer()
+
+
+class TabTitlePrefixResponseSerializer(serializers.Serializer):
+    tab_title_prefix = serializers.CharField()
+
+
+class FeaturesResponse(serializers.Serializer):
+    analytics_enabled = serializers.BooleanField(default=False)
+    chat_enabled = serializers.BooleanField(default=False)
