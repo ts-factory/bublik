@@ -11,7 +11,11 @@ class TreeNodeSerializer(serializers.Serializer):
     entity = serializers.CharField(allow_null=True)
     has_error = serializers.BooleanField()
     skipped = serializers.BooleanField()
-    children = serializers.ListField(child=serializers.IntegerField(), required=False)
+    children = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text='Child node IDs; omitted for leaf nodes',
+    )
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -21,9 +25,20 @@ class TreeNodeSerializer(serializers.Serializer):
 
 
 class TreeResponseSerializer(serializers.Serializer):
-    tree = serializers.DictField(child=TreeNodeSerializer())
-    main_package = serializers.IntegerField(allow_null=True)
+    tree = serializers.DictField(
+        child=TreeNodeSerializer(),
+        help_text='Nodes keyed by result ID; JSON object keys are strings',
+    )
+    main_package = serializers.IntegerField(
+        allow_null=True,
+        help_text=(
+            'Main package ID, or the requested node ID for a subtree; null when unavailable'
+        ),
+    )
 
 
 class PathTreeSerializer(serializers.Serializer):
-    path = serializers.ListField(child=serializers.IntegerField())
+    path = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text='Ancestor node IDs followed by the requested result ID',
+    )
