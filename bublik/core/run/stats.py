@@ -481,29 +481,31 @@ def get_run_stats_summary(run_id):
 def get_expected_results(result):
     expected_results = []
     for expectation in result.expectations.all():
-        meta_expect = expectation.expectmeta_set.all()
+        # The metas are picked out of the loaded ones rather than queried by
+        # type, so that a prefetched set (see generate_results_details())
+        # takes no queries. The first meta of a type is the one with the
+        # lowest ID, the verdicts go in the order of their serials.
+        meta_expect = sorted(expectation.expectmeta_set.all(), key=lambda em: em.pk)
         expected_result = {
             'result_type': None,
             'verdicts': [],
             'keys': [],
         }
 
-        meta_expect_results = meta_expect.filter(meta__type='result')
-        if not meta_expect_results.exists():
+        result_metas = [em.meta for em in meta_expect if em.meta.type == 'result']
+        if not result_metas:
             continue
-        expected_result['result_type'] = meta_expect_results.first().meta.value
+        expected_result['result_type'] = result_metas[0].value
 
-        meta_expect_results = meta_expect.filter(meta__type='verdict_expected')
-        if meta_expect_results.exists():
-            expected_result['verdicts'] = list(
-                meta_expect_results.all()
-                .order_by('serial')
-                .values_list('meta__value', flat=True),
-            )
+        expected_result['verdicts'] = [
+            em.meta.value
+            for em in sorted(meta_expect, key=lambda em: em.serial)
+            if em.meta.type == 'verdict_expected'
+        ]
 
-        meta_expect_results = meta_expect.filter(meta__type='key')
-        if meta_expect_results.exists():
-            key_string = meta_expect_results.first().meta.name
+        key_metas = [em.meta for em in meta_expect if em.meta.type == 'key']
+        if key_metas:
+            key_string = key_metas[0].name
 
             for match in REF_PATTERN.finditer(key_string):
                 ref = match.group(0)
@@ -554,7 +556,7 @@ def generate_results_details(test_results):
         'test_run',
         'iteration__test',
         'iteration__test_arguments',
-        'expectations__expectmeta_set',
+        'expectations__expectmeta_set__meta',
         'meta_results__meta',
     )
     with_measurements = set(
