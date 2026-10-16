@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from bublik.core.cache import RunCache
 from bublik.core.result.services import ResultService
+from bublik.core.tree.dto import GetTreeDTO, TreeDTO
 from bublik.core.tree.representation import path_to_node, tree_representation
 
 
 class TreeService:
     @staticmethod
-    def get_tree(run_id: int) -> dict:
+    def get_tree(run_id: int) -> GetTreeDTO:
         """
         Get tree representation of a run.
 
@@ -18,7 +19,7 @@ class TreeService:
             run_id: The ID of the test run
 
         Returns:
-            Dictionary with 'tree' (linear dict) and 'main_package' (int or None)
+            DTO with nodes keyed by ID and an optional main package ID
 
         Raises:
             NotFoundError: if run not found
@@ -44,10 +45,10 @@ class TreeService:
         # Convert to linear dict format
         tree_dict = tree.to_linear_dict(with_data=True)
 
-        return {
-            'tree': tree_dict,
-            'main_package': main_package,
-        }
+        return GetTreeDTO(
+            tree={node_id: TreeDTO(**node) for node_id, node in tree_dict.items()},
+            main_package=main_package,
+        )
 
     @staticmethod
     def get_tree_path(result_id: int) -> list[int]:
