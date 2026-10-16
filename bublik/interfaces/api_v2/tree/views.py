@@ -9,6 +9,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.tree.services import TreeService
 from bublik.data.models import TestIterationResult
+from bublik.interfaces.api_v2.tree.schemas import tree_viewset_schema
 from bublik.interfaces.api_v2.tree.serializers import (
     PathTreeSerializer,
     TreeResponseSerializer,
@@ -20,7 +21,9 @@ __all__ = [
 ]
 
 
+@tree_viewset_schema
 class TreeViewSet(RetrieveModelMixin, GenericViewSet):
+    serializer_class = TreeResponseSerializer
     queryset = TestIterationResult.objects.all()
 
     def retrieve(self, request, pk=None):
