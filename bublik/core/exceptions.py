@@ -15,9 +15,15 @@ logger = logging.getLogger(__name__)
 def normalize_error_details(error_details):
     if isinstance(error_details, dict):
         if 'detail' in error_details:
-            return [error_details['detail']]
+            return [str(error_details['detail'])]
         return {
-            field: [str(e) for e in (errors if isinstance(errors, (list, tuple)) else [errors])]
+            field: (
+                normalize_error_details(errors)
+                if isinstance(errors, dict)
+                else [
+                    str(e) for e in (errors if isinstance(errors, (list, tuple)) else [errors])
+                ]
+            )
             for field, errors in error_details.items()
         }
     return [

@@ -4,6 +4,8 @@
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
+from bublik.interfaces.api_v2.result.serializers import ResultIssueSerializer
+
 
 class HistoryListQuerySerializer(serializers.Serializer):
     test_name = serializers.CharField(help_text='Name of the test')
@@ -56,6 +58,22 @@ class HistoryListQuerySerializer(serializers.Serializer):
     result_types = serializers.CharField(
         required=False,
         help_text='Semicolon-separated expected or unexpected values',
+    )
+    categories = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated issue rule categories',
+    )
+    issue = serializers.CharField(
+        required=False,
+        help_text='Semicolon-separated issue IDs',
+    )
+    explained = serializers.CharField(
+        required=False,
+        help_text='true to keep only results with at least one classification',
+    )
+    untriaged = serializers.CharField(
+        required=False,
+        help_text='true to keep only failed results with no classification at all',
     )
 
 
@@ -116,6 +134,7 @@ class HistoryResultSerializer(serializers.Serializer):
     result_id = serializers.IntegerField()
     iteration_id = serializers.IntegerField()
     report_config_id = serializers.IntegerField(allow_null=True)
+    issues = ResultIssueSerializer(many=True)
 
 
 class HistoryVerdictResultSerializer(serializers.Serializer):
@@ -164,6 +183,12 @@ class HistoryTagsSerializer(serializers.Serializer):
     important = serializers.ListField(child=serializers.CharField())
     relevant = serializers.ListField(child=serializers.CharField())
     all = serializers.ListField(child=serializers.CharField())
+
+
+class HistoryIssueSearchOptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    bug_key = serializers.CharField(allow_null=True)
 
 
 class HistoryMetasSearchOptionsSerializer(serializers.Serializer):

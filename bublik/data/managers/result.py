@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from django.db.models import Manager, Q, QuerySet
+from django.db.models import Exists, Manager, OuterRef, Q, QuerySet
 
 from bublik.core.config.services import ConfigServices
 from bublik.data.managers.utils import create_metas_query
@@ -53,19 +53,27 @@ class TestIterationResultQuerySet(QuerySet):
 
         return self
 
+    def stamped_under(self, issue_ids):
+        """Results carrying a stamp of a rule of any of the given issues."""
+        return self.filter(rule_results__issue_rule__issue_id__in=issue_ids)
+
     def filter_by_result_classification(self, properties):
         if 'expected' in properties and 'unexpected' in properties:
             return self
 
-        err_meta_ids = list(Meta.objects.filter(type='err').values_list('id', flat=True))
-        err_query = Q(meta_results__meta__in=err_meta_ids)
+        # Imported lazily: bublik.core.classification imports data models, which
+        # import this manager -> a top-level import would be circular.
+        from bublik.core.classification import suppressed_subquery  # noqa: PLC0415
+        from bublik.data.models.result import MetaResult  # noqa: PLC0415
 
+        has_err = Exists(MetaResult.objects.filter(result_id=OuterRef('id'), meta__type='err'))
+        not_suppressed = ~Exists(suppressed_subquery())
+
+        # Effectively unexpected = has an err meta AND is not suppressed.
         if 'expected' in properties:
-            self = self.exclude(err_query)
-
-        elif 'unexpected' in properties:
-            self = self.filter(err_query)
-
+            return self.exclude(has_err & not_suppressed)
+        if 'unexpected' in properties:
+            return self.filter(has_err & not_suppressed)
         return self
 
     def filter_by_run_metas(self, metas, meta_types=None):
@@ -96,6 +104,5 @@ class TestIterationResultQuerySet(QuerySet):
         return self.filter(start__gte=from_d, start__lte=to_d)
 
 
-class TestIterationResultManager(Manager):
-    def get_queryset(self):
-        return TestIterationResultQuerySet(self.model, using=self._db)
+class TestIterationResultManager(Manager.from_queryset(TestIterationResultQuerySet)):
+    """The queryset's filters are callable on `TestIterationResult.objects` too."""

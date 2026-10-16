@@ -3,6 +3,8 @@
 
 from collections import OrderedDict
 
+from django.core.paginator import EmptyPage, PageNotAnInteger
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -12,7 +14,35 @@ class DefaultPageNumberPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 10000
 
+    def paginate_queryset(self, queryset, request, view=None):
+        self.request = request
+        page_size = self.get_page_size(request)
+        if not page_size:
+            return None
+
+        paginator = self.django_paginator_class(queryset, page_size)
+        page_number = self.get_page_number(request, paginator)
+
+        # The causes are dropped (`from None`): these are plain 400s, which
+        # the exception handler would otherwise log as errors.
+        try:
+            self.page = paginator.page(page_number)
+        except PageNotAnInteger as exc:
+            raise ValidationError({'page': [str(exc)]}) from None
+        except EmptyPage as exc:
+            # A number below 1 is as invalid as one that is not a number; only
+            # a page past the last one is an empty page.
+            if int(page_number) < 1:
+                raise ValidationError({'page': [str(exc)]}) from None
+            self.page = None
+            self._count = paginator.count
+            return []
+
+        return list(self.page)
+
     def get_pagination(self):
+        if self.page is None:
+            return OrderedDict([('count', self._count), ('next', None), ('previous', None)])
         return OrderedDict(
             [
                 ('count', self.page.paginator.count),
