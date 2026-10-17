@@ -59,11 +59,11 @@ def redirect_flower(request):
 
 
 def redirect_short(request, view_endpoint_hash):
-    view, endpoint_hash = view_endpoint_hash.split('/', 1)
+    _, endpoint_hash = view_endpoint_hash.split('/', 1)
     try:
-        endpoint_by_hash = EndpointURL.objects.get(hash=endpoint_hash).endpoint
+        endpoint_url = EndpointURL.objects.get(hash=endpoint_hash)
     except ObjectDoesNotExist:
         return HttpResponseNotFound('<h1>Page not found</h1>')
-    new_endpoint = f'{settings.UI_PREFIX}/{view}{endpoint_by_hash}'
+    new_endpoint = f'{settings.UI_PREFIX}/{endpoint_url.view}{endpoint_url.endpoint}'
     new_view_path = build_absolute_uri(request, new_endpoint)
     return redirect(new_view_path)
