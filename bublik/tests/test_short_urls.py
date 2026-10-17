@@ -18,7 +18,7 @@ def short_url(path):
 
 @override_settings(CACHES={'default': _DUMMY, 'run': _DUMMY, 'project': _DUMMY})
 class ShortURLRedirectTest(TestCase):
-    def assert_redirects_to_endpoint(self, endpoint_hash):
+    def assert_redirects_to_endpoint(self, endpoint_hash, url_view='log'):
         EndpointURL.objects.create(
             created=timezone.now(),
             view='log',
@@ -26,7 +26,7 @@ class ShortURLRedirectTest(TestCase):
             hash=endpoint_hash,
         )
 
-        response = self.client.get(short_url(f'log/{endpoint_hash}'))
+        response = self.client.get(short_url(f'{url_view}/{endpoint_hash}'))
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith('/log/123?focusId=456'))
@@ -39,3 +39,6 @@ class ShortURLRedirectTest(TestCase):
 
     def test_hash_with_plus(self):
         self.assert_redirects_to_endpoint('4n6xo+knTPQ=')
+
+    def test_view_mismatch(self):
+        self.assert_redirects_to_endpoint('4n6xo_knTPQ=', url_view='runs')
