@@ -58,8 +58,7 @@ def redirect_flower(request):
     return redirect(flower_url)
 
 
-def redirect_short(request, view_endpoint_hash):
-    _, endpoint_hash = view_endpoint_hash.split('/', 1)
+def redirect_short(request, endpoint_hash):
     try:
         endpoint_url = EndpointURL.objects.get(hash=endpoint_hash)
     except ObjectDoesNotExist:

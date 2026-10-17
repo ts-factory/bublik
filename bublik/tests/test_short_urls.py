@@ -42,3 +42,11 @@ class ShortURLRedirectTest(TestCase):
 
     def test_view_mismatch(self):
         self.assert_redirects_to_endpoint('4n6xo_knTPQ=', url_view='runs')
+
+    def test_hash_with_slash(self):
+        self.assert_redirects_to_endpoint('4n6xo/knTPQ=')
+
+    def test_missing_view(self):
+        response = self.client.get(short_url('4n6xo_knTPQ='))
+
+        self.assertEqual(response.status_code, 404)
