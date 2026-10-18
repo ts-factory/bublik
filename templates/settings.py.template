@@ -367,6 +367,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PARSER_CLASSES': (
+        'bublik.core.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ),
     'DEFAULT_FILTER_BACKENDS': ('bublik.core.filter_backends.AllDjangoFilterBackend',),
     'DEFAULT_PAGINATION_CLASS': 'bublik.core.pagination.DefaultPageNumberPagination',
     'EXCEPTION_HANDLER': 'bublik.core.exceptions.custom_exception_handler',
