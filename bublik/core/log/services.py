@@ -5,15 +5,21 @@ from __future__ import annotations
 
 from http import HTTPStatus
 import os.path
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 import requests
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import BadGatewayError, UnprocessableEntityError
+from bublik.core.log.dto import LogContentDTO, LogUrlsDTO
 from bublik.core.result.services import ResultService
 from bublik.core.run.external_links import get_result_log, get_sources
 from bublik.core.url import get_url
+
+
+if TYPE_CHECKING:
+    from pydantic import JsonValue
 
 
 class LogService:
@@ -22,7 +28,7 @@ class LogService:
         result_id: int,
         page: int | None = None,
         request_origin: str | None = None,
-    ) -> dict:
+    ) -> LogUrlsDTO:
         """
         Get JSON log and attachments URLs for a result.
 
@@ -32,7 +38,7 @@ class LogService:
             request_origin: Optional origin URL for proxy mode (e.g., 'https://example.com')
 
         Returns:
-            Dictionary with 'url' and 'attachments_url' keys
+            DTO with JSON log and attachments URLs, or None for unavailable URLs
 
         Raises:
             UnprocessableEntityError: if result not found or invalid page parameter
@@ -41,7 +47,7 @@ class LogService:
         run_source_link = get_sources(result)
 
         if not run_source_link:
-            return {'url': None, 'attachments_url': None}
+            return LogUrlsDTO(url=None, attachments_url=None)
 
         # Validate page parameter
         if page is not None and not isinstance(page, int):
@@ -75,9 +81,9 @@ class LogService:
                 f'{protocol}://{request_origin}{settings.PREFIX}/api/v2/logs/proxy/?url={url}'
             )
             attachments_url = f'{protocol}://{request_origin}{settings.PREFIX}/api/v2/logs/proxy/?url={attachments_url}'
-            return {'url': forwarding_url, 'attachments_url': attachments_url}
+            return LogUrlsDTO(url=forwarding_url, attachments_url=attachments_url)
 
-        return {'url': url, 'attachments_url': attachments_url}
+        return LogUrlsDTO(url=url, attachments_url=attachments_url)
 
     @staticmethod
     def get_html_log_url(result_id: int) -> str | None:
@@ -97,7 +103,7 @@ class LogService:
         return get_result_log(result)
 
     @staticmethod
-    def fetch_log_content(url: str, allow_not_found: bool = True) -> dict | None:
+    def fetch_log_content(url: str, allow_not_found: bool = True) -> JsonValue:
         """
         Fetch JSON content from URL.
 
@@ -105,7 +111,7 @@ class LogService:
             url: URL to fetch from
 
         Returns:
-            Parsed JSON dict or error dict with 'error' key
+            Parsed JSON value, or None when the remote content is not found
 
         Raises:
             UnprocessableEntityError: if URL is missing
@@ -136,7 +142,7 @@ class LogService:
             raise ValidationError(msg) from e
 
     @staticmethod
-    def get_log_json(result_id: int, page: int | None = None) -> dict:
+    def get_log_json(result_id: int, page: int | None = None) -> LogContentDTO:
         """
         Fetch and return actual JSON log content.
 
@@ -145,10 +151,7 @@ class LogService:
             page: Optional page number (0 for all pages combined)
 
         Returns:
-            Dictionary with:
-                - log: Parsed JSON log content (or error dict)
-                - attachments: Parsed attachments content (or None/error dict)
-                - urls: Dict with 'url' and 'attachments_url'
+            DTO with log URLs and the original JSON log and attachments values
 
         Raises:
             UnprocessableEntityError: if result not found or invalid parameters
@@ -156,20 +159,16 @@ class LogService:
         # Get URLs (without proxy for direct fetching)
         urls = LogService.get_json_log_urls(result_id, page, request_origin=None)
 
-        result = {
-            'urls': urls,
-            'log': None,
-            'attachments': None,
-        }
+        result = LogContentDTO(urls=urls)
 
         # Fetch log content
-        if urls['url']:
-            result['log'] = LogService.fetch_log_content(urls['url'])
+        if urls.url:
+            result.log = LogService.fetch_log_content(urls.url)
 
         # Fetch attachments content
-        if urls['attachments_url']:
-            result['attachments'] = LogService.fetch_log_content(
-                urls['attachments_url'],
+        if urls.attachments_url:
+            result.attachments = LogService.fetch_log_content(
+                urls.attachments_url,
                 allow_not_found=True,
             )
 
