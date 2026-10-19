@@ -19,6 +19,11 @@ from bublik.analytics.serializers import (
 )
 from bublik.core.analytics.services import AnalyticsService
 from bublik.core.auth import auth_required
+from bublik.interfaces.api_v2.analytics.serializers import (
+    AnalyticsChartsResponseSerializer,
+    AnalyticsFacetsResponseSerializer,
+    AnalyticsOverviewResponseSerializer,
+)
 
 
 __all__ = ['AnalyticsViewSet']
@@ -63,18 +68,22 @@ class AnalyticsViewSet(ListModelMixin, GenericViewSet):
     @action(detail=False, methods=['get'])
     def overview(self, request):
         queryset = self.get_queryset()
-        return Response(data=AnalyticsService.get_overview(queryset))
+        result = AnalyticsService.get_overview(queryset)
+        serializer = AnalyticsOverviewResponseSerializer(result)
+        return Response(serializer.data)
 
     @auth_required(as_admin=True)
     @action(detail=False, methods=['get'])
     def facets(self, request):
         queryset = self.get_queryset()
-        return Response(data=AnalyticsService.get_facets(queryset))
+        result = AnalyticsService.get_facets(queryset)
+        serializer = AnalyticsFacetsResponseSerializer(result)
+        return Response(serializer.data)
 
     @auth_required(as_admin=True)
     @action(detail=False, methods=['get'])
     def charts(self, request):
         queryset = self.get_queryset()
-        return Response(
-            data=AnalyticsService.get_charts_for_query(queryset, request.query_params),
-        )
+        result = AnalyticsService.get_charts_for_query(queryset, request.query_params)
+        serializer = AnalyticsChartsResponseSerializer(result)
+        return Response(serializer.data)
