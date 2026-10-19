@@ -9,6 +9,7 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.log.services import LogService
 from bublik.data.models import TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
+from bublik.interfaces.api_v2.log.serializers import LogJsonResponseSerializer
 
 
 __all__ = [
@@ -33,7 +34,7 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
         # Let LogService handle validation and raise appropriate exceptions
         # The custom exception handler will format the response
         urls = LogService.get_json_log_urls(int(pk), page, request_origin)
-        return Response(data=urls)
+        return Response(LogJsonResponseSerializer(urls).data)
 
     @action(detail=True, methods=['get'])
     def html(self, request, pk=None):
