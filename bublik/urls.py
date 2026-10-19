@@ -56,7 +56,7 @@ if settings.AI_CHAT_ENABLED:
     api_v2_router.register(r'chat/threads', AiChatThreadViewSet, 'chat-threads')
 
 if settings.ANALYTICS_ENABLED:
-    from bublik.interfaces.api_v2.analytics import AnalyticsViewSet
+    from bublik.interfaces.api_v2.analytics.views import AnalyticsViewSet
 
     api_v2_router.register(r'analytics', AnalyticsViewSet, 'analytics')
 
