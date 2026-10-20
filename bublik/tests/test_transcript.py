@@ -58,6 +58,29 @@ class TranscriptTest(SimpleTestCase):
         self.assertIn('report.csv', tool_call['output'])
         self.assertEqual(transcript[1]['parts'][2]['type'], 'tool-result')
 
+    def test_failed_tool_call_is_an_error(self):
+        messages = [
+            ModelResponse(
+                parts=[ToolCallPart(tool_name='get_run', tool_call_id='call-1', args={})],
+            ),
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(
+                        tool_name='get_run',
+                        tool_call_id='call-1',
+                        content='Run 1 not found',
+                        outcome='retried',
+                    )
+                ]
+            ),
+        ]
+
+        tool_call, tool_result = serialize_messages(messages)[0]['parts']
+
+        self.assertEqual(tool_call['state'], 'error')
+        self.assertEqual(tool_call['error'], 'Run 1 not found')
+        self.assertEqual(tool_result['state'], 'error')
+
 
 class TranscriptPersistenceTest(TestCase):
     def test_missing_thread_is_ignored(self):

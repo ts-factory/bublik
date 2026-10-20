@@ -190,10 +190,10 @@ def _transcript(messages: list[ModelMessage]) -> str:
             elif isinstance(part, ToolCallPart):
                 args = _truncate(part.args_as_json_str(), 500)
                 lines.append(f'Assistant called tool {part.tool_name}({args})')
-            elif isinstance(part, ToolReturnPart):
+            elif isinstance(part, ToolReturnPart) and part.outcome == 'success':
                 content = _truncate(str(part.content), _TRANSCRIPT_TOOL_RESULT_CHARS)
                 lines.append(f'Tool {part.tool_name} returned: {content}')
-            elif isinstance(part, RetryPromptPart):
+            elif isinstance(part, (ToolReturnPart, RetryPromptPart)):
                 lines.append(f'Tool error: {_truncate(str(part.content), 500)}')
     return '\n\n'.join(lines)
 

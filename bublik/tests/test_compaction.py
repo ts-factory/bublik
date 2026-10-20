@@ -125,6 +125,21 @@ class TranscriptTest(TestCase):
         self.assertNotIn('pondering', transcript)  # thinking is dropped
         self.assertIn('chars truncated', transcript)  # tool result capped
 
+    def test_renders_failed_tool_call_as_error(self):
+        failed = ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name='get_run',
+                    content='Run 1 not found',
+                    tool_call_id='c1',
+                    outcome='retried',
+                ),
+            ],
+        )
+        transcript = _transcript([_tool_call('get_run'), failed])
+        self.assertIn('Tool error: Run 1 not found', transcript)
+        self.assertNotIn('returned', transcript)
+
 
 class _Ctx:
     """Minimal RunContext stand-in: the compactor only reads ``deps``."""
