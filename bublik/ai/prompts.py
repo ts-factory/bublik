@@ -20,6 +20,18 @@ SYSTEM_PROMPT = (
 )
 
 
+DOCS_GUIDE = (
+    '\n\n## Bublik Documentation\n\n'
+    'For questions about Bublik itself -- how a feature or page works, project '
+    'or report configuration, deployment and Docker, importing logs, management '
+    'commands, MCP or chat setup, or what changed in a release -- call '
+    '`search_docs` first (use `scope="blog"` or `"all"` for release notes), then '
+    '`get_doc` to read the page or just the relevant `heading`. Base such answers '
+    'on the documentation text and link the `url` the tools return; do not '
+    'answer from memory or invent documentation links.'
+)
+
+
 FILES_GUIDE = (
     '\n\n## Generating Files\n\n'
     'Use the `generate_file` tool when the user asks for a downloadable '
@@ -52,7 +64,7 @@ def build_system_instructions() -> str:
     """The system prompt, extended with URL patterns when the FQDN is known."""
     fqdn = getattr(settings, 'BUBLIK_FQDN', '').strip()
     if not fqdn:
-        return SYSTEM_PROMPT + FILES_GUIDE
+        return SYSTEM_PROMPT + DOCS_GUIDE + FILES_GUIDE
 
     prefix = settings.URL_PREFIX.strip('/')
     base = f'/{prefix}/v2' if prefix else '/v2'
@@ -82,4 +94,4 @@ def build_system_instructions() -> str:
         f'Always use exact ids from tool results. When you reference a run or '
         f'result, include a clickable link to the relevant page using the pattern above.'
     )
-    return SYSTEM_PROMPT + url_guide + FILES_GUIDE
+    return SYSTEM_PROMPT + url_guide + DOCS_GUIDE + FILES_GUIDE

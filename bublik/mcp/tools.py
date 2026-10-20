@@ -31,6 +31,7 @@ from bublik.interfaces.api_v2.history.serializers import (
 from bublik.interfaces.api_v2.run.serializers import (
     serialize_paginated_run_summary_results,
 )
+from bublik.mcp import docs
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
 from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, render_run_overview
@@ -774,6 +775,66 @@ async def get_server_version() -> dict:
     return await sync_to_async(ServerService.get_version)()
 
 
+# Documentation tools
+
+
+async def search_docs(query: str, limit: int = 10, scope: str = 'docs') -> dict:
+    """
+    Search the Bublik documentation for pages matching a query.
+
+    Use this when the question is about Bublik itself rather than about test
+    data: how a feature or page works, project and report configuration,
+    deployment and Docker setup, importing logs, management commands, MCP or
+    chat setup, or what changed in a release. Follow up with ``get_doc`` to
+    read the matching page or section, and cite the returned ``url``.
+
+    Args:
+        query: Free-text search terms (plain words, setting names, identifiers)
+        limit: Maximum number of pages to return (1-50)
+        scope: 'docs' for the user guide (default), 'blog' for release notes,
+            'all' for both
+
+    Returns:
+        Dictionary with ranked ``hits`` (path, title, best matching heading,
+        anchor, snippet, score, url), the number of pages searched, and a
+        ``message`` when nothing matched or documentation is not deployed
+    """
+    return await sync_to_async(docs.search_docs)(query=query, limit=limit, scope=scope)
+
+
+async def get_doc(path: str, heading: str | None = None) -> dict:
+    """
+    Read one documentation page, or one section of it, as Markdown.
+
+    Args:
+        path: Page path as returned by ``search_docs`` or ``list_docs``,
+            e.g. ``configuration/mcp`` (a leading ``/docs/`` or a ``.md``
+            suffix is tolerated)
+        heading: Optional section heading (text or anchor) to return only that
+            section and its subsections instead of the whole page
+
+    Returns:
+        Dictionary with path, title, url, the page's headings and ``markdown``,
+        or a ``message`` when documentation is not deployed
+    """
+    return await sync_to_async(docs.get_doc)(path=path, heading=heading)
+
+
+async def list_docs(scope: str = 'docs') -> dict:
+    """
+    List the documentation table of contents.
+
+    Args:
+        scope: 'docs' for the user guide (default), 'blog' for release notes
+            (newest first), 'all' for both
+
+    Returns:
+        Dictionary with ``pages`` (path, title, summary, category, url) and a
+        ``message`` when documentation is not deployed
+    """
+    return await sync_to_async(docs.list_docs)(scope=scope)
+
+
 # Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
 # server (see register_tools) and directly by the in-process chat agent
 # (see bublik.ai.agent), so both expose exactly the same tools.
@@ -802,6 +863,9 @@ MCP_TOOLS = [
     get_run_comment,
     get_run_report_configs,
     get_server_version,
+    search_docs,
+    get_doc,
+    list_docs,
 ]
 
 
