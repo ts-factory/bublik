@@ -59,7 +59,9 @@ def _append_tool_result(
     transcript: list[dict],
     part: ToolReturnPart | NativeToolReturnPart | RetryPromptPart,
 ) -> None:
-    if isinstance(part, (ToolReturnPart, NativeToolReturnPart)):
+    # A failed call (e.g. a tool raising ModelRetry) is a ToolReturnPart whose
+    # outcome is not 'success'; RetryPromptPart is the older, deprecated carrier.
+    if isinstance(part, (ToolReturnPart, NativeToolReturnPart)) and part.outcome == 'success':
         state = 'complete'
         content = _content(part.content)
         error = None
