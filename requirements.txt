@@ -12,7 +12,7 @@ beautifulsoup4==4.14.2
 billiard==4.2.2
 boto3==1.43.41
 celery==5.5.3
-certifi==2024.8.30
+certifi==2026.10.23
 cffi==2.0.0
 chardet==3.0.4
 click==8.1.2
@@ -31,15 +31,15 @@ django-six==1.0.4
 django-static-jquery==2.1.4
 Django==5.2.18
 djangorestframework-simplejwt
-djangorestframework==3.18.1
+djangorestframework==3.18.3
 drf-spectacular-sidecar==2024.11.1
 drf-spectacular==0.27.2
 fakeredis==2.36.2
-fastmcp==3.4.4
+fastmcp==3.4.10
 flower==2.0.1
 future==1.0.0
 gitdb==4.0.2
-GitPython==3.2.0
+GitPython==3.2.1
 graphviz==0.10.1
 gunicorn==23.0.0
 html-for-docx==1.1.6
@@ -66,7 +66,7 @@ pre-commit==3.3.2
 psycopg2-binary==2.9.10
 py-key-value-aio[disk]==0.4.4
 pycparser==2.19
-pydantic-ai[ag-ui]==2.13.0
+pydantic-ai[ag-ui]==2.61.0
 pydot==2.0.0
 pykerberos==1.2.4
 pyparsing==3.1.2
