@@ -67,7 +67,6 @@ _FIXED_ENDPOINT_TYPES = (
     'together',
     'fireworks',
     'cerebras',
-    'moonshotai',
     'github',
     'nebius',
     'ovhcloud',
