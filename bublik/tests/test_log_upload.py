@@ -142,6 +142,84 @@ class OpenLogTarTest(SimpleTestCase):
                 self.assert_invalid(make_tar(files), fragment)
 
 
+def bundle_files(**extra):
+    """The files of a bundle made outside TE, with pages and attachments already made."""
+    return {
+        'meta_data.json': meta_data(),
+        'bublik.json': b'{}',
+        'json/node_1_0.json': b'{}',
+        'attachments/node_id5/attachments.json': b'{}',
+        'attachments/node_id5/test-failed-1.png': b'png',
+        'attachments/node_id5/video.webm': b'webm',
+        '.done': b'',
+        **extra,
+    }
+
+
+def directory(name):
+    info = tarfile.TarInfo(name)
+    info.type = tarfile.DIRTYPE
+    return info
+
+
+class OpenBundleTarTest(SimpleTestCase):
+    def assert_invalid(self, fileobj, fragment):
+        with self.assertRaises(UploadError) as caught:
+            open_log_tar(fileobj)
+        self.assertIn(fragment, caught.exception.message)
+
+    def test_valid_bundle(self):
+        tar = make_tar(bundle_files(), extra=[directory('json'), directory('attachments')])
+        log_tar = open_log_tar(tar)
+        self.assertEqual(log_tar.subpath, 'sockapi-ts/2026/09/23/bench1-10:11:12')
+        # Directory entries are dropped: only files are stored.
+        self.assertEqual(sorted(m.name for m in log_tar.members), sorted(bundle_files()))
+
+    def test_unsafe_paths_are_rejected(self):
+        for name in ('json/../../evil', './meta_data.json', 'json//x.json', '/etc/x'):
+            with self.subTest(name=name):
+                tar = make_tar(bundle_files(**{name: b'x'}))
+                self.assert_invalid(tar, 'plain relative path')
+
+    def test_nested_files_outside_the_bundle_dirs_are_rejected(self):
+        self.assert_invalid(make_tar(bundle_files(**{'html/x.html': b'x'})), 'must lie under')
+        self.assert_invalid(make_tar(bundle_files(), extra=[directory('html')]), 'directories')
+
+    def test_extra_top_level_files_are_rejected(self):
+        self.assert_invalid(make_tar(bundle_files(**{'notes.md': b'x'})), 'top level')
+
+    def test_symlinks_are_rejected(self):
+        link = tarfile.TarInfo('json/node_2.json')
+        link.type = tarfile.SYMTYPE
+        link.linkname = '/etc/passwd'
+        self.assert_invalid(make_tar(bundle_files(), extra=[link]), 'regular files')
+
+    def test_missing_meta_data_is_rejected(self):
+        files = bundle_files()
+        del files['meta_data.json']
+        self.assert_invalid(make_tar(files), 'meta_data.json')
+
+    def test_bad_meta_data_is_rejected(self):
+        files = bundle_files(**{'meta_data.json': meta_data(version=2)})
+        self.assert_invalid(make_tar(files), 'version')
+
+    def test_names_may_be_longer_than_the_log_servers(self):
+        preview = 'ui-okt-limonikas-tanstack-table-v9'
+        files = bundle_files(**{'meta_data.json': meta_data({**METAS, 'CFG': preview})})
+        self.assertEqual(
+            open_log_tar(make_tar(files)).subpath,
+            f'sockapi-ts/2026/09/23/{preview}-10:11:12',
+        )
+        # A TE tarball keeps the log server's limit.
+        te_files = {
+            'meta_data.json': meta_data({**METAS, 'CFG': preview}),
+            'raw_log_bundle.tpxz': b'',
+        }
+        self.assert_invalid(make_tar(te_files), 'invalid meta CFG')
+        too_long = bundle_files(**{'meta_data.json': meta_data({**METAS, 'CFG': 'x' * 65})})
+        self.assert_invalid(make_tar(too_long), 'invalid meta CFG')
+
+
 class StorageSubpathTest(SimpleTestCase):
     def test_matches_the_log_server_layout(self):
         cases = {
@@ -192,6 +270,22 @@ class PublishLogTarTest(SimpleTestCase):
             [prefix + 'meta_data.json', prefix + 'raw_log_bundle.tpxz'],
         )
         upload_bytes.assert_called_once()
+        self.assertEqual(upload_bytes.call_args.args[0], prefix + '.done')
+
+    @mock.patch('bublik.core.s3.upload_bytes')
+    @mock.patch('bublik.core.s3.upload_fileobj')
+    @mock.patch('bublik.core.s3.object_exists', new=mock.Mock(return_value=False))
+    def test_stores_a_bundle_as_it_is(self, upload_fileobj, upload_bytes):
+        upload.publish_log_tar(open_log_tar(make_tar(bundle_files())), self.storage)
+        prefix = 'uploads/sockapi-ts/2026/09/23/bench1-10:11:12/'
+        stored = {c.args[0]: c.args[2] for c in upload_fileobj.call_args_list}
+        self.assertEqual(
+            sorted(stored),
+            sorted(prefix + name for name in bundle_files() if name != '.done'),
+        )
+        self.assertEqual(stored[prefix + 'json/node_1_0.json'], 'application/json')
+        self.assertEqual(stored[prefix + 'attachments/node_id5/test-failed-1.png'], 'image/png')
+        self.assertEqual(stored[prefix + 'attachments/node_id5/video.webm'], 'video/webm')
         self.assertEqual(upload_bytes.call_args.args[0], prefix + '.done')
 
     @mock.patch('bublik.core.s3.upload_fileobj')

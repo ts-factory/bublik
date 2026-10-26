@@ -1,19 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 """
-Uploaded TE log tarballs.
+Uploaded log tarballs.
 
 Test Environment's ``publish_logs`` packs a run as a flat tar holding
 ``meta_data.json`` and ``raw_log_bundle.tpxz``. A TE log server unpacks such
 tars with ``publish-logs-unpack.sh``; an upload goes through the same checks
 and gets the same storage layout, ``TS_NAME/YYYY/MM/DD/CFG[-USER]-HH:MM:SS``,
 but lands under the project's S3 upload base instead of the server's disk.
+
+A tar holding ``bublik.json`` instead is a run made outside TE (a converted
+Playwright report, say): its log pages are already made, under ``json/``, and
+its attachments lie under ``attachments/``, so it is stored as it is and
+served without generating anything.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import mimetypes
 import re
 import tarfile
 from typing import IO, TYPE_CHECKING
@@ -32,9 +38,18 @@ META_VERSION = 1
 MANDATORY_FILES = (META_DATA_JSON, 'raw_log_bundle.tpxz')
 ALLOWED_FILES = (*MANDATORY_FILES, 'trc-brief.html', 'trc-stats.txt', DONE_MARKER)
 
+BUBLIK_JSON = 'bublik.json'
+BUNDLE_MANDATORY_FILES = (META_DATA_JSON, BUBLIK_JSON)
+BUNDLE_TOP_LEVEL_FILES = (*BUNDLE_MANDATORY_FILES, DONE_MARKER)
+# Where a bundle's pages and attachments lie; nothing else may be nested.
+BUNDLE_DIRS = ('json', 'attachments')
+
 # The same rules as test-environment's publish-logs-unpack.sh.
 DATE_RE = re.compile(r'^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$')
 NAME_RE = re.compile(r'^[-_:0-9a-zA-Z]{1,32}$')
+# A bundle's names are not bound by the log server's limit: its CFG may be a
+# preview's name, a DNS label of up to 63 characters.
+BUNDLE_NAME_RE = re.compile(r'^[-_:0-9a-zA-Z]{1,64}$')
 # START_TIMESTAMP is ISO 8601; the path keeps its HH:MM:SS.
 TIME_RE = re.compile(
     r'^(?:.*T)?(?P<time>([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9])(?:$|[.+\-Z])'
@@ -47,6 +62,10 @@ CONTENT_TYPES = {
     '.json': 'application/json',
     '.html': 'text/html; charset=utf-8',
     '.txt': 'text/plain; charset=utf-8',
+    # A bundle's attachments, which a slim image's mimetypes may not know.
+    '.png': 'image/png',
+    '.webm': 'video/webm',
+    '.zip': 'application/zip',
 }
 
 
@@ -66,15 +85,16 @@ class UploadTooLargeError(UploadError):
 
 @dataclass
 class LogTar:
-    """A validated TE log tarball, open for reading its members."""
+    """A validated log tarball, open for reading its members."""
 
     tar: tarfile.TarFile
     members: list[tarfile.TarInfo]
     metas: dict[str, str]
+    bundle: bool = False
 
     @property
     def subpath(self) -> str:
-        return storage_subpath(self.metas)
+        return storage_subpath(self.metas, BUNDLE_NAME_RE if self.bundle else NAME_RE)
 
     @property
     def project_name(self) -> str | None:
@@ -86,7 +106,7 @@ def _invalid(message: str) -> UploadError:
 
 
 def open_log_tar(fileobj: IO[bytes]) -> LogTar:
-    """Open and validate an uploaded tarball.
+    """Open and validate an uploaded tarball, a TE one or a bundle.
 
     Raises :class:`UploadError` naming the first problem found.
     """
@@ -97,6 +117,19 @@ def open_log_tar(fileobj: IO[bytes]) -> LogTar:
         raise _invalid(msg) from None
 
     members = tar.getmembers()
+    bundle = any(member.name == BUBLIK_JSON for member in members)
+    if bundle:
+        members = _check_bundle_members(members)
+    else:
+        _check_te_members(members)
+
+    metas = _read_metas(tar, tar.getmember(META_DATA_JSON))
+    log_tar = LogTar(tar=tar, members=members, metas=metas, bundle=bundle)
+    log_tar.subpath  # noqa: B018 -- validates the path-building metas
+    return log_tar
+
+
+def _check_te_members(members: list[tarfile.TarInfo]) -> None:
     names = [member.name for member in members]
     for member in members:
         if not member.isreg():
@@ -120,10 +153,44 @@ def open_log_tar(fileobj: IO[bytes]) -> LogTar:
         msg = f'missing mandatory files: {", ".join(missing)}'
         raise _invalid(msg)
 
-    metas = _read_metas(tar, tar.getmember(META_DATA_JSON))
-    log_tar = LogTar(tar=tar, members=members, metas=metas)
-    storage_subpath(metas)  # validates the path-building metas
-    return log_tar
+
+def _check_bundle_members(members: list[tarfile.TarInfo]) -> list[tarfile.TarInfo]:
+    """Check a bundle's members; return its files (directory entries dropped)."""
+    files = []
+    for member in members:
+        parts = member.name.split('/')
+        if '\\' in member.name or any(part in ('', '.', '..') for part in parts):
+            msg = f'{member.name}: not a plain relative path'
+            raise _invalid(msg)
+        if member.isdir():
+            if parts[0] not in BUNDLE_DIRS:
+                msg = f'{member.name}: only {", ".join(BUNDLE_DIRS)} directories are allowed'
+                raise _invalid(msg)
+            continue
+        if not member.isreg():
+            msg = f'{member.name}: only regular files and directories are allowed'
+            raise _invalid(msg)
+        if len(parts) == 1 and member.name not in BUNDLE_TOP_LEVEL_FILES:
+            msg = (
+                f'{member.name}: files not allowed at the top level '
+                f'(allowed: {", ".join(BUNDLE_TOP_LEVEL_FILES)})'
+            )
+            raise _invalid(msg)
+        if len(parts) > 1 and parts[0] not in BUNDLE_DIRS:
+            msg = f'{member.name}: files must lie under {" or ".join(BUNDLE_DIRS)}'
+            raise _invalid(msg)
+        files.append(member)
+
+    names = [member.name for member in files]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        msg = f'duplicate files: {", ".join(duplicates)}'
+        raise _invalid(msg)
+    missing = [name for name in BUNDLE_MANDATORY_FILES if name not in names]
+    if missing:
+        msg = f'missing mandatory files: {", ".join(missing)}'
+        raise _invalid(msg)
+    return files
 
 
 def _read_metas(tar: tarfile.TarFile, member: tarfile.TarInfo) -> dict[str, str]:
@@ -160,15 +227,15 @@ def _mandatory_meta(metas: dict[str, str], name: str, pattern: re.Pattern | None
     return value
 
 
-def storage_subpath(metas: dict[str, str]) -> str:
+def storage_subpath(metas: dict[str, str], name_re: re.Pattern = NAME_RE) -> str:
     """The run's path under a logs base: ``TS_NAME/YYYY/MM/DD/CFG[-USER]-HH:MM:SS``."""
     campaign_date = _mandatory_meta(metas, 'CAMPAIGN_DATE', DATE_RE)
-    ts_name = _mandatory_meta(metas, 'TS_NAME', NAME_RE)
-    cfg = _mandatory_meta(metas, 'CFG', NAME_RE)
+    ts_name = _mandatory_meta(metas, 'TS_NAME', name_re)
+    cfg = _mandatory_meta(metas, 'CFG', name_re)
     timestamp = _mandatory_meta(metas, 'START_TIMESTAMP')
 
     user = metas.get('USER', '')
-    if user and not NAME_RE.match(user):
+    if user and not name_re.fullmatch(user):
         msg = f'invalid meta USER: {user!r}'
         raise _invalid(msg)
 
@@ -226,4 +293,5 @@ def _content_type(name: str) -> str:
     for suffix, content_type in CONTENT_TYPES.items():
         if name.endswith(suffix):
             return content_type
-    return 'application/octet-stream'
+    content_type, _ = mimetypes.guess_type(name)
+    return content_type or 'application/octet-stream'

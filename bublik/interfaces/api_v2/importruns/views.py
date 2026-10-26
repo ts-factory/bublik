@@ -94,10 +94,11 @@ class ImportrunsViewSet(ViewSet):
     @auth_required(as_admin=True)
     def upload(self, request):
         """
-        Store an uploaded TE log tarball in the project's S3 upload base and
+        Store an uploaded log tarball in the project's S3 upload base and
         import it.
 
-        Multipart form: ``file`` (the tar made by TE's publish_logs), optional
+        Multipart form: ``file`` (the tar made by TE's publish_logs, or a
+        bundle holding ``bublik.json`` and its ``json/`` pages), optional
         ``project`` (id; defaults to the PROJECT meta of the tarball) and
         ``force``. Answers like ``source``, plus the run's ``url``.
         """
