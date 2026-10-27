@@ -27,9 +27,16 @@ class RunRevision:
 
 
 @dataclass
+class RunSpecialCategoryValue:
+    name: str | None
+    value: str | None
+    url: str | None
+
+
+@dataclass
 class RunSpecialCategory:
     name: str
-    values: list[str]
+    values: list[RunSpecialCategoryValue]
 
 
 @dataclass
