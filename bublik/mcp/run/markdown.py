@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from bublik.core.report.dto import RunReportConfigDTO
     from bublik.core.run.dto import (
         RunDetailsResult,
+        RunSpecialCategoryValue,
         RunStatsComment,
         RunStatsResult,
         RunStatsValues,
@@ -79,7 +80,9 @@ def _stats_unexpected(stats: RunStatsValues) -> int:
     )
 
 
-def _special_categories(details: RunDetailsResult) -> dict[str, list[str]]:
+def _special_categories(
+    details: RunDetailsResult,
+) -> dict[str, list[RunSpecialCategoryValue]]:
     return {category.name: category.values for category in details.special_categories}
 
 

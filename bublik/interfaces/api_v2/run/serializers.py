@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         RunDetailsResult,
         RunRevision,
         RunSpecialCategory,
+        RunSpecialCategoryValue,
         RunStatsComment,
         RunStatsResult,
         RunStatsValues,
@@ -73,6 +74,12 @@ class RevisionSerializer(serializers.Serializer):
     url = serializers.CharField(allow_blank=True)
 
 
+class SpecialCategoryValueSerializer(serializers.Serializer):
+    name = serializers.CharField(allow_null=True)
+    value = serializers.CharField(allow_null=True)
+    url = serializers.CharField(allow_null=True)
+
+
 class RunSummaryStatsSerializer(serializers.Serializer):
     tests_total = serializers.IntegerField()
     tests_total_plan_percent = serializers.IntegerField(allow_null=True)
@@ -119,7 +126,7 @@ class RunDetailsResponseSerializer(serializers.Serializer):
     revisions = RevisionSerializer(many=True)
     labels = serializers.ListField(child=serializers.CharField())
     special_categories = serializers.DictField(
-        child=serializers.ListField(child=serializers.CharField()),
+        child=SpecialCategoryValueSerializer(many=True),
     )
     configuration = serializers.CharField(allow_null=True)
 
@@ -315,8 +322,21 @@ def serialize_run_revision(revision: RunRevision):
     }
 
 
+def serialize_run_special_category_value(value: RunSpecialCategoryValue):
+    return {
+        'name': value.name,
+        'value': value.value,
+        'url': value.url,
+    }
+
+
 def serialize_run_special_categories(categories: list[RunSpecialCategory]):
-    return {category.name: category.values for category in categories}
+    return {
+        category.name: [
+            serialize_run_special_category_value(value) for value in category.values
+        ]
+        for category in categories
+    }
 
 
 def serialize_run_details(run_details: RunDetailsResult):
