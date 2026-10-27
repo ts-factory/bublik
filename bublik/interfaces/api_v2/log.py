@@ -12,6 +12,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.log.s3_logs import (
     LogGenerationError,
+    list_generated_directory,
     list_run_directory,
     open_log_item,
     storage_for,
@@ -78,6 +79,8 @@ def s3_log(request, bucket, key=''):
     """
     Serve a file of a run stored under an S3 logs base, generating missing
     JSON and HTML log pages from the run's bundle, as a TE log server does.
+    A directory gets an index of what is in it; a run's json/ and html/ are
+    generated whole for it.
     Route: /api/v2/logs/s3/<bucket>/<key>.
     """
     storage = storage_for(bucket, key)
@@ -101,7 +104,11 @@ def s3_log(request, bucket, key=''):
 
 
 def _directory_listing(storage, prefix):
-    directories, files = list_run_directory(storage, prefix)
+    try:
+        generated = list_generated_directory(storage, prefix)
+    except LogGenerationError as error:
+        return HttpResponse(error.message, status=503, content_type='text/plain')
+    directories, files = generated or list_run_directory(storage, prefix)
     if not directories and not files:
         raise Http404
     title = escape(f'{storage.target.bucket}/{prefix}')

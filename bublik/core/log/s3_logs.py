@@ -9,22 +9,31 @@ whose 404 handler generates JSON and HTML log pages on demand from the run's
 runs under an S3 logs base Bublik hands out URLs of its own endpoint
 (:func:`browser_url`) and does the same job itself (:func:`open_log_item`):
 an object that exists is streamed; a missing ``json/`` or ``html/`` item is
-generated from the bundle, cached locally, and written back to S3 so the next
-request is a plain object read.
+generated from the bundle into a local cache and served from there.
+
+S3 keeps only what was uploaded: a TE tarball's ``meta_data.json`` and bundle,
+or a bundle's ready-made pages and attachments. Generated pages are never
+written to it. A run's cache folder (its downloaded bundle and the pages made
+from it) is deleted once the run goes unused for ``LOGS_S3_CACHE_TTL`` seconds
+(:func:`prune_cache`); opening the run again makes them anew.
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 import fcntl
 import mimetypes
 import os
+import shutil
 import subprocess
 import tempfile
+import threading
+import time
 from typing import IO, TYPE_CHECKING
 from urllib.parse import quote
 
+from botocore.exceptions import ClientError
 from django.conf import settings
 
 from bublik.core import s3
@@ -42,6 +51,21 @@ BUNDLE = 'raw_log_bundle.tpxz'
 GENERATED_DIRS = ('json', 'html')
 GENERATOR = 'rgt-log-get-item'
 DEFAULT_GENERATION_TIMEOUT = 600
+# How long a run's cache folder outlives its last use, in seconds.
+DEFAULT_CACHE_TTL = 3600
+# How often requests sweep the cache for unused folders, at most.
+PRUNE_INTERVAL = 300
+# In a run's cache folder: the lock, whose mtime marks the last use.
+LOCK = '.lock'
+# In a run's cache folder: json/ or html/ was generated whole.
+COMPLETE = '.{}-complete'
+# In the cache root: the last sweep's time.
+PRUNED = '.pruned'
+# In a run's cache folder: where a page is generated before it is moved into place.
+SCRATCH = '.generating-'
+
+# One sweep at a time in this process.
+_sweep = threading.Lock()
 
 
 class LogGenerationError(BublikServerError):
@@ -61,17 +85,16 @@ def browser_url(url: str | None, origin: str | None = None) -> str | None:
     """The URL a browser can open for a log ``url``.
 
     ``s3://`` URLs become URLs of Bublik's own endpoint; anything else (a TE
-    log server) is returned unchanged. ``origin`` is Bublik's
-    ``scheme://host/prefix/``; without it the URL is host-relative.
+    log server) is returned unchanged. The URL is made absolute with
+    ``origin``, the ``scheme://host`` of the request, or else with
+    ``BUBLIK_FQDN``; with neither it is host-relative.
     """
     if not url or not is_s3_url(url):
         return url
     bucket, key = parse_s3_url(url)
-    path = f'{ROUTE}{quote(bucket)}/{quote(key)}'
-    if origin:
-        return origin.rstrip('/') + '/' + path
+    host = (origin or getattr(settings, 'BUBLIK_FQDN', '') or '').rstrip('/')
     prefix = f'/{settings.URL_PREFIX}' if settings.URL_PREFIX else ''
-    return f'{prefix}/{path}'
+    return f'{host}{prefix}/{ROUTE}{quote(bucket)}/{quote(key)}'
 
 
 def direct_url(url: str, project_id: int | None = None) -> str | None:
@@ -92,7 +115,14 @@ def direct_url(url: str, project_id: int | None = None) -> str | None:
 
 
 def storage_for(bucket: str, key: str) -> LogsStorage | None:
-    """The S3 logs base holding ``key``; only keys under a configured base are served."""
+    """The S3 logs base holding ``key``; only keys under a configured base are served.
+
+    A key with ``.`` or ``..`` segments is not: a gateway might collapse it
+    into one outside the base.
+    """
+    parts = key.split('/')
+    if any(part in ('.', '..') for part in parts) or '' in parts[:-1]:
+        return None
     return find_s3_storage(f's3://{bucket}/{key}')
 
 
@@ -136,21 +166,72 @@ def open_log_item(storage: LogsStorage, key: str) -> LogItem | None:
         )
 
     split = split_generated(key)
+    # json/ and html/ themselves are listed (list_generated_directory).
+    if split is None or split[1] in GENERATED_DIRS:
+        return None
+    run_prefix, item = split
+    top, _, below = item.partition('/')
+    # A sweep may delete the folder between generating the page and opening
+    # it; it is generated again then.
+    for _ in range(2):
+        if '/' in below:
+            # Deeper than json/<page> or html/<page> (html/images/...): made
+            # only with the whole directory.
+            path = generate_item(storage, run_prefix, top)
+            if path is not None:
+                path = os.path.join(path, *below.split('/'))
+        else:
+            path = generate_item(storage, run_prefix, item)
+        if path is None:
+            return None
+        try:
+            stream = open(path, 'rb')  # noqa: SIM115
+        except (FileNotFoundError, IsADirectoryError):
+            continue
+        maybe_prune_cache()
+        return LogItem(
+            stream=stream,
+            content_type=content_type_of(path),
+            length=os.fstat(stream.fileno()).st_size,
+        )
+    return None
+
+
+def list_generated_directory(
+    storage: LogsStorage,
+    prefix: str,
+) -> tuple[list[str], list[str]] | None:
+    """Sub-directories and files of ``<run>/json/`` or ``<run>/html/`` (or below).
+
+    The directory is generated whole first, as a TE log server does. ``None``
+    if ``prefix`` is not in one, or its run has no bundle (a bundle's
+    ready-made ``json/`` is listed from S3). Raises
+    :class:`LogGenerationError` as :func:`open_log_item` does.
+    """
+    split = split_generated(prefix.rstrip('/'))
     if split is None:
         return None
     run_prefix, item = split
-    path = generate_item(storage, run_prefix, item)
-    if path is None:
+    top, _, below = item.partition('/')
+    if not s3.object_exists(run_prefix + BUNDLE, target=storage.target):
         return None
-
-    content_type = content_type_of(path)
-    with open(path, 'rb') as generated:
-        s3.upload_fileobj(key, generated, content_type, target=target)
-    return LogItem(
-        stream=open(path, 'rb'),
-        content_type=content_type,
-        length=os.path.getsize(path),
-    )
+    for _ in range(2):
+        path = generate_item(storage, run_prefix, top)
+        if path is None:
+            return None
+        if below:
+            path = os.path.join(path, *below.split('/'))
+        try:
+            entries = sorted(os.scandir(path), key=lambda entry: entry.name)
+        except NotADirectoryError:
+            return None
+        except FileNotFoundError:
+            continue
+        maybe_prune_cache()
+        directories = [f'{entry.name}/' for entry in entries if entry.is_dir()]
+        files = [entry.name for entry in entries if entry.is_file()]
+        return directories, files
+    return None
 
 
 def cache_root() -> str:
@@ -162,52 +243,242 @@ def cache_root() -> str:
     )
 
 
+def cache_ttl() -> int:
+    return int(getattr(settings, 'LOGS_S3_CACHE_TTL', DEFAULT_CACHE_TTL))
+
+
+def _same_file(opened: IO, path: str) -> bool:
+    try:
+        on_disk = os.stat(path)
+    except FileNotFoundError:
+        return False
+    mine = os.fstat(opened.fileno())
+    return (mine.st_dev, mine.st_ino) == (on_disk.st_dev, on_disk.st_ino)
+
+
 @contextmanager
 def _run_lock(run_dir: str):
-    """Serialize generation for one run, across threads and worker processes."""
-    with open(os.path.join(run_dir, '.lock'), 'w') as lock_file:
-        fcntl.flock(lock_file, fcntl.LOCK_EX)
+    """Serialize work on one run's folder, across threads and worker processes.
+
+    A sweep may delete the folder, lock included, while this waits for the
+    lock: the folder is then made and locked anew.
+    """
+    lock_path = os.path.join(run_dir, LOCK)
+    while True:
         try:
-            yield
-        finally:
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
+            os.makedirs(run_dir, mode=0o700, exist_ok=True)
+            lock_file = open(lock_path, 'a')  # noqa: SIM115
+        except FileNotFoundError:
+            # A sweep removed a parent folder meanwhile.
+            continue
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        if _same_file(lock_file, lock_path):
+            break
+        lock_file.close()
+    try:
+        yield
+    finally:
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
+
+
+def _mark_used(run_dir: str) -> None:
+    with suppress(FileNotFoundError):
+        os.utime(os.path.join(run_dir, LOCK))
+
+
+def _is_generated(run_dir: str, item: str, item_path: str) -> bool:
+    if item in GENERATED_DIRS:
+        return os.path.isfile(os.path.join(run_dir, COMPLETE.format(item)))
+    return os.path.isfile(item_path)
 
 
 def generate_item(storage: LogsStorage, run_prefix: str, item: str) -> str | None:
-    """Generate ``item`` of the run at ``run_prefix``; return its local path.
+    """Generate ``item`` of the run at ``run_prefix`` into the cache; return its local path.
 
-    ``None`` if the run has no bundle to generate from.
+    ``item`` is a file under ``json/`` or ``html/``, or one of those
+    directories, generated whole. Marks the run's folder used. ``None`` if the
+    run has no bundle to generate from.
     """
     run_dir = os.path.join(cache_root(), storage.target.bucket, *run_prefix.split('/'))
     item_path = os.path.normpath(os.path.join(run_dir, *item.split('/')))
     if not item_path.startswith(os.path.normpath(run_dir) + os.sep):
         return None
-    if os.path.isfile(item_path):
+    if _is_generated(run_dir, item, item_path):
+        _mark_used(run_dir)
         return item_path
 
-    os.makedirs(run_dir, mode=0o700, exist_ok=True)
+    # Settled before the folder and its lock are made: a request for a path
+    # above real runs must not leave a lock there, which the sweep would take
+    # for a run folder and delete the runs below with it.
+    bundle_key = run_prefix + BUNDLE
+    bundle_path = os.path.join(run_dir, BUNDLE)
+    if not os.path.isfile(bundle_path) and not s3.object_exists(
+        bundle_key,
+        target=storage.target,
+    ):
+        return None
+
     with _run_lock(run_dir):
+        _mark_used(run_dir)
         # Another request may have generated it while this one waited.
-        if os.path.isfile(item_path):
-            return item_path
-        bundle_path = os.path.join(run_dir, BUNDLE)
-        if not os.path.isfile(bundle_path) and not _download_bundle(
-            storage,
-            run_prefix + BUNDLE,
-            bundle_path,
-        ):
+        if not _is_generated(run_dir, item, item_path):
+            if not os.path.isfile(bundle_path) and not _download_bundle(
+                storage,
+                bundle_key,
+                bundle_path,
+            ):
+                return None
+            _generate(bundle_path, run_dir, item, item_path)
+    return item_path if _is_generated(run_dir, item, item_path) else None
+
+
+def _generate(bundle_path: str, run_dir: str, item: str, item_path: str) -> None:
+    """Generate ``item`` in a scratch folder and move it into place once whole.
+
+    A generation that fails, times out or dies with its worker thus leaves
+    nothing a later request would take for a finished page.
+    """
+    for entry in os.scandir(run_dir):
+        if entry.name.startswith(SCRATCH):
+            shutil.rmtree(entry.path, ignore_errors=True)
+    scratch = tempfile.mkdtemp(dir=run_dir, prefix=SCRATCH)
+    try:
+        scratch_item = os.path.join(scratch, *item.split('/'))
+        os.makedirs(os.path.dirname(scratch_item), exist_ok=True)
+        _run_generator(bundle_path, scratch_item)
+        if item in GENERATED_DIRS:
+            if not os.path.isdir(scratch_item):
+                return
+            # Pages made one by one before are superseded.
+            shutil.rmtree(item_path, ignore_errors=True)
+            os.replace(scratch_item, item_path)
+            with open(os.path.join(run_dir, COMPLETE.format(item)), 'w'):
+                pass
+        else:
+            # The page, and whatever the generator made beside it.
+            os.makedirs(os.path.dirname(item_path), exist_ok=True)
+            for entry in os.scandir(os.path.dirname(scratch_item)):
+                target = os.path.join(os.path.dirname(item_path), entry.name)
+                if entry.is_dir(follow_symlinks=False) and os.path.isdir(target):
+                    shutil.rmtree(target, ignore_errors=True)
+                os.replace(entry.path, target)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def prune_cache(now: float | None = None, ttl: int | None = None) -> int:
+    """Delete the cache folders of runs unused for ``ttl`` seconds; return how many.
+
+    ``ttl`` defaults to ``LOGS_S3_CACHE_TTL``.
+
+    A folder holds a run's downloaded bundle and the pages generated from it,
+    all of which can be made again from S3. One in use (locked) is kept.
+    """
+    root = cache_root()
+    if not os.path.isdir(root):
+        return 0
+    cutoff = (time.time() if now is None else now) - (cache_ttl() if ttl is None else ttl)
+    pruned = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        if LOCK not in filenames:
+            continue
+        # A run's folder: nothing below it is another run's.
+        dirnames.clear()
+        if _prune_run_dir(dirpath, cutoff):
+            pruned += 1
+            _remove_empty_parents(dirpath, root)
+    return pruned
+
+
+def _unused_since(lock_path: str, cutoff: float) -> bool:
+    try:
+        return os.stat(lock_path).st_mtime < cutoff
+    except FileNotFoundError:
+        return False
+
+
+def _prune_run_dir(run_dir: str, cutoff: float) -> bool:
+    lock_path = os.path.join(run_dir, LOCK)
+    if not _unused_since(lock_path, cutoff):
+        return False
+    try:
+        lock_file = open(lock_path, 'a')  # noqa: SIM115
+    except FileNotFoundError:
+        return False
+    with lock_file:
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        # Used, or pruned and made again, since the check above.
+        if not _same_file(lock_file, lock_path) or not _unused_since(lock_path, cutoff):
+            return False
+        shutil.rmtree(run_dir, ignore_errors=True)
+    return True
+
+
+def _remove_empty_parents(path: str, root: str) -> None:
+    root = os.path.normpath(root)
+    parent = os.path.dirname(os.path.normpath(path))
+    while parent != root and parent.startswith(root + os.sep):
+        try:
+            os.rmdir(parent)
+        except OSError:
+            return
+        parent = os.path.dirname(parent)
+
+
+def maybe_prune_cache() -> threading.Thread | None:
+    """Start :func:`prune_cache` in the background; return the thread, if one was started.
+
+    At most every ``PRUNE_INTERVAL`` seconds across processes, and one at a
+    time in this one, so no request waits for a sweep.
+    """
+    root = cache_root()
+    marker = os.path.join(root, PRUNED)
+    now = time.time()
+    try:
+        if now - os.stat(marker).st_mtime < min(PRUNE_INTERVAL, max(cache_ttl(), 0)):
             return None
-        _run_generator(bundle_path, item_path)
-    return item_path if os.path.isfile(item_path) else None
+    except FileNotFoundError:
+        pass
+    if not _sweep.acquire(blocking=False):
+        return None
+    logger = get_task_or_server_logger()
+    try:
+        with open(marker, 'a'):
+            pass
+        os.utime(marker, (now, now))
+    except OSError as error:
+        _sweep.release()
+        logger.warning(f'failed to prune {root}: {error}')
+        return None
+
+    def sweep():
+        try:
+            prune_cache(now)
+        except OSError as error:
+            logger.warning(f'failed to prune {root}: {error}')
+        finally:
+            _sweep.release()
+
+    thread = threading.Thread(target=sweep, name='prune-logs-cache', daemon=True)
+    thread.start()
+    return thread
 
 
 def _download_bundle(storage: LogsStorage, key: str, path: str) -> bool:
-    if not s3.object_exists(key, target=storage.target):
-        return False
+    """Download the bundle to ``path``; ``False`` if it is gone meanwhile."""
     fd, partial = tempfile.mkstemp(dir=os.path.dirname(path), suffix='.part')
     os.close(fd)
     try:
-        s3.download_file(key, partial, target=storage.target)
+        try:
+            s3.download_file(key, partial, target=storage.target)
+        except ClientError as exc:
+            if s3.is_missing(exc):
+                return False
+            raise
         os.replace(partial, path)
     finally:
         if os.path.exists(partial):
