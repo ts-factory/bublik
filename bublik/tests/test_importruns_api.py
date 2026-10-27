@@ -1,84 +1,89 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from datetime import datetime
-import logging
-import os
-from pprint import pformat
+import json
+from pathlib import Path
+import tempfile
+from unittest import mock
 
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from bublik.core.logging import get_task_or_server_logger
-from bublik.core.shortcuts import serialize
+from bublik.core.cache import RunCache
 from bublik.data import models
-from bublik.data.serializers import MetaSerializer
+from bublik.tests.fake_generator import gen_test_iteration_result_simple
 
 
-logger = logging.getLogger()
+VIEWS = 'bublik.interfaces.api_v2.importruns.views'
+LOGS_BASE = 'https://logs.example.com/'
 
 
-class ImportrunsTest(APITestCase):
-    def test_import_from_source(self):
-        """Call run import from source."""
+class ImportFromSourceTest(APITestCase):
+    def setUp(self):
+        models.Project.objects.create(name='test')
+        patcher = mock.patch('bublik.interfaces.api_v2.importruns.serializers.ConfigServices')
+        patcher.start().getattr_from_global.return_value = [{'uri': [LOGS_BASE]}]
+        self.addCleanup(patcher.stop)
 
-        endpoint = reverse('importruns-source')
-        logger.info('TEST: (GET) /importruns/source/?url=')
-        response = self.client.get(endpoint, {'url': ''})
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        logger.info('PASSED')
+    def source(self, url):
+        return self.client.get(reverse('api-v2:importruns-source'), {'url': url})
 
-        logger.info('TEST: (POST) /importruns/source/?url=')
-        response = self.client.post(f'{endpoint}?url=')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        logger.info('PASSED')
+    def test_url_outside_logs_bases_is_rejected(self):
+        response = self.source('https://elsewhere.example.com/run/')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'url' in response.data['messages']
 
-    def test_life_import(self):
-        """Perform 'init' and 'feed' stages of life import."""
+    def test_import_is_scheduled_as_a_job(self):
+        url = f'{LOGS_BASE}run/'
+        with mock.patch(f'{VIEWS}.schedule_runs', return_value=[]) as schedule_runs:
+            response = self.source(url)
+        assert response.status_code == status.HTTP_200_OK
+        job = models.ImportJob.objects.get(id=response.data['job_id'])
+        assert job.url == url
+        assert job.finished_at is not None
+        assert schedule_runs.call_args.kwargs['url'] == url
 
-        endpoint = reverse('importruns-init')
-        logger.info('TEST: (POST) /importruns/init/')
-        response = self.client.post(endpoint, {})
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        logger.info('PASSED')
 
-        endpoint = reverse('importruns-feed')
-        logger.info('TEST: (POST) /importruns/feed/?run=1')
-        response = self.client.post(f'{endpoint}?run=1')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        logger.info('PASSED')
+class LiveImportTest(APITestCase):
+    def post(self, name, body, **params):
+        return self.client.post(
+            reverse(f'api-v2:importruns-{name}'),
+            body,
+            content_type='application/json',
+            query_params=params,
+        )
 
-    def test_getting_import_logs(self):
-        """Get importruns log for a certain run."""
+    def test_init_rejects_malformed_json(self):
+        response = self.post('init', '{')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data == {'message': 'malformed JSON'}
 
-        import_id = 'test'
-        os.environ['TASK_ID'] = import_id
+    def test_init_requires_heartbeat_interval(self):
+        response = self.post('init', '{}')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data == {'message': 'heartbeat interval is required'}
 
-        logger = get_task_or_server_logger()
-        logpath = logger.handlers[0].logpath
-        logger.info(f'Create test log: {logpath}')
-        open(logpath, 'w+').close()
+    def test_feed_of_unknown_session_is_rejected(self):
+        run = gen_test_iteration_result_simple('2026.01.01')
+        del RunCache.by_id(run.id, 'livelog').data
+        response = self.post('feed', '[]', run=run.id)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data == {'message': 'unknown session'}
 
-        try:
-            run = models.TestIterationResult.objects.create(start=datetime.now(), finish=None)
-            logger.info(f'Create run (id={run.id})')
 
-            m_data = dict(name='import_id', type='import', value=import_id)
-            m_serializer = serialize(MetaSerializer, m_data)
-            meta, _ = m_serializer.get_or_create()
-            logger.info(f'Create import meta: {pformat(m_data)}')
-
-            models.MetaResult.objects.get_or_create(result=run, meta=meta)
-            logger.info('Create meta result with these run and meta')
-
-            endpoint = reverse('importruns-logs')
-            logger.info(f'TEST: (GET) /importruns/logs/?run={run.id}')
-            response = self.client.get(endpoint, {'run': run.id})
-
-        finally:
-            os.remove(logpath)
-            logger.info(f'Remove test log: {logpath}')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        logger.info('PASSED')
+class ImportLogTest(APITestCase):
+    def test_log_lines_are_returned_as_json(self):
+        line = {'asctime': '2026-01-01 00:00:00,000', 'levelname': 'INFO'}
+        line.update({'module': 'importruns', 'message': 'imported'})
+        with tempfile.TemporaryDirectory() as tmp:
+            logpath = Path(tmp, 'task')
+            logpath.write_text(f'{json.dumps(line)}\nnot json\n')
+            with mock.patch(f'{VIEWS}.get_local_log', return_value=logpath) as get_local_log:
+                response = self.client.get(
+                    reverse('api-v2:importruns-log'), {'task_id': 'task'}
+                )
+        get_local_log.assert_called_once_with('task')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data[0] == line
+        assert response.data[1]['message'] == 'not json'
