@@ -9,33 +9,36 @@ https://github.com/joke2k/faker
 https://factoryboy.readthedocs.io
 """
 
+from django.utils import timezone
+
 from bublik.core.argparse import parser_type_date
-from bublik.data.models import TestIterationResult
+from bublik.data.models import Project, TestIterationResult
 
 
-def gen_meta_data(v=0, set_data={}):
+def gen_meta_data(v=0, set_data=None):
     mock_data = f't{v}'
     data = dict.fromkeys(('name', 'type', 'value'), mock_data)
-    data.update(set_data)
+    data.update(set_data or {})
     return data
 
 
-def gen_reference_data(v=0, set_data={}):
-    data = dict(name=f't{v}1', uri=f't{v}2')
-    data.update(set_data)
+def gen_reference_data(v=0, set_data=None):
+    data = {'name': f't{v}1', 'uri': f't{v}2'}
+    data.update(set_data or {})
     return data
 
 
-def gen_expect_meta_data(v=0, set_data={}):
-    data = dict(meta=gen_meta_data(v), reference=gen_reference_data(v), serial=v)
-    data.update(set_data)
+def gen_expect_meta_data(v=0, set_data=None):
+    data = {'meta': gen_meta_data(v), 'reference': gen_reference_data(v), 'serial': v}
+    data.update(set_data or {})
     return data
 
 
 def gen_expectation_data(n=2):
-    return dict(expectmeta_set=[gen_expect_meta_data(v) for v in range(n)])
+    return {'expectmeta_set': [gen_expect_meta_data(v) for v in range(n)]}
 
 
 def gen_test_iteration_result_simple(date):
-    date = parser_type_date(date)
-    return TestIterationResult.objects.create(start=date, finish=date)
+    date = timezone.make_aware(parser_type_date(date))
+    project, _ = Project.objects.get_or_create(name='test')
+    return TestIterationResult.objects.create(start=date, finish=date, project=project)
