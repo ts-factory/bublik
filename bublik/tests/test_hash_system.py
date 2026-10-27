@@ -6,11 +6,11 @@ from pprint import pformat
 
 from django.test import TestCase
 
-from bublik.core.hash_system import HashedModelSerializer
 from bublik.core.shortcuts import serialize
 from bublik.data import models
 from bublik.data.serializers import (
     ExpectationSerializer,
+    MeasurementSerializer,
     MetaSerializer,
 )
 from bublik.tests.fake_generator import gen_expectation_data, gen_meta_data
@@ -32,13 +32,13 @@ class HashSystemTest(TestCase):
 
         logger.info('TEST: Compare hashes of 3 the same dicts with unordered elements')
 
-        d1 = {1: 3, 0: {0: 0, 1: [0, 1, 2]}}
-        d2 = {1: 3, 0: {1: [0, 1, 2], 0: 0}}
-        d3 = {1: 3, 0: {0: 0, 1: [2, 0, 1]}}
+        d1 = {'metas': [{'name': 0, 'value': [0, 1, 2]}, {'name': 1}]}
+        d2 = {'metas': [{'value': [0, 1, 2], 'name': 0}, {'name': 1}]}
+        d3 = {'metas': [{'name': 1}, {'name': 0, 'value': [2, 0, 1]}]}
 
-        h1 = HashedModelSerializer(data=d1).create_hash(d1)
-        h2 = HashedModelSerializer(data=d2).create_hash(d2)
-        h3 = HashedModelSerializer(data=d3).create_hash(d3)
+        h1 = MeasurementSerializer().create_hash(d1)
+        h2 = MeasurementSerializer().create_hash(d2)
+        h3 = MeasurementSerializer().create_hash(d3)
 
         logger.info(f'{d1} -> {h1}')
         logger.info(f'{d2} -> {h2}')
@@ -99,7 +99,7 @@ class HashSystemTest(TestCase):
         m3_hash = m3.hash
         logger.info(f'Value: {m3.value}, hash: {m3_hash}')
 
-        self.assertTrue(m1_hash == m3_hash and m1_hash != m2_hash and m2_hash != m3_hash)
+        self.assertTrue(m1_hash == m3_hash != m2_hash)
         logger.info('PASSED')
 
     def test_update_many_hashed(self):
