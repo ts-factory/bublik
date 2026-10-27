@@ -2,6 +2,8 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 import os.path
+import re
+from urllib.parse import urlparse
 
 from django.shortcuts import get_object_or_404
 
@@ -10,6 +12,10 @@ from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.data import models
 from bublik.data.models import GlobalConfigs
+
+
+NUMBER_PATTERN = re.compile(r'[0-9]+')
+COMMIT_HASH_PATTERN = re.compile(r'[0-9a-fA-F]{7,40}')
 
 
 def get_sources(result, source=None):
@@ -106,3 +112,27 @@ def get_trc_brief(result):
     except Exception:
         # TODO: Should be writen to a runtime debug logger
         return None
+
+
+def is_http_url(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+    return parsed.scheme in {'http', 'https'} and bool(parsed.netloc)
+
+
+def shorten_url(url):
+    """
+    Return '#<number>' for a URL ending with a number,
+    the 7-character prefix for a URL ending with a commit hash,
+    and the URL itself otherwise.
+    """
+    last_segment = urlparse(url).path.rstrip('/').rsplit('/', 1)[-1]
+    if NUMBER_PATTERN.fullmatch(last_segment):
+        return f'#{last_segment}'
+    if COMMIT_HASH_PATTERN.fullmatch(last_segment):
+        return last_segment[:7]
+    return url
