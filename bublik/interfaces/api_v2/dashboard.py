@@ -15,7 +15,7 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.config.services import ConfigServices
 from bublik.core.dashboard import DashboardService
 from bublik.core.report.services import ReportService
-from bublik.core.run.external_links import get_sources
+from bublik.core.run.external_links import get_sources, is_http_url, shorten_url
 from bublik.core.utils import get_difference
 from bublik.data.models import ConfigTypes, GlobalConfigs, TestIterationResult
 
@@ -337,3 +337,21 @@ class DashboardPayload:
                         },
                     },
                 )
+
+    def go_url(self, data, run):
+        # Cells with several values are rendered as plain text,
+        # so they keep their full URLs.
+        if len(data) != 1:
+            return data
+        for item in data:
+            url = item.get('value')
+            if is_http_url(url):
+                item.update(
+                    {
+                        'value': shorten_url(url),
+                        'payload': {
+                            'url': url,
+                        },
+                    },
+                )
+        return data
