@@ -571,8 +571,8 @@ class LiveLogContext:
                         obtained['status'],
                         obtained.get('verdicts'),
                         tags_expr,
-                        obtained.get('key'),
-                        obtained.get('notes'),
+                        [obtained['key']] if 'key' in obtained else None,
+                        [obtained['notes']] if 'notes' in obtained else None,
                     )
             else:
                 for expected in expected_results:
@@ -581,8 +581,8 @@ class LiveLogContext:
                         expected['status'],
                         expected.get('verdicts'),
                         tags_expr,
-                        expected.get('key'),
-                        expected.get('notes'),
+                        [expected['key']] if 'key' in expected else None,
+                        [expected['notes']] if 'notes' in expected else None,
                     )
 
         self.pop_stack_item()
