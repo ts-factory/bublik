@@ -560,7 +560,10 @@ class LiveLogContext:
                 error,
             )
 
-            # Register expected results
+            # Register expected results. Top-level key and notes apply to every
+            # expected result, per-result ones apply only to the result they belong to.
+            common_keys = [event['exp_key']] if 'exp_key' in event else []
+            common_notes = [event['exp_notes']] if 'exp_notes' in event else []
             if expected_results is None:
                 if error is None:
                     # No error and no explicitly mentioned expectations.
@@ -571,8 +574,8 @@ class LiveLogContext:
                         obtained['status'],
                         obtained.get('verdicts'),
                         tags_expr,
-                        [obtained['key']] if 'key' in obtained else None,
-                        [obtained['notes']] if 'notes' in obtained else None,
+                        common_keys + ([obtained['key']] if 'key' in obtained else []),
+                        common_notes + ([obtained['notes']] if 'notes' in obtained else []),
                     )
             else:
                 for expected in expected_results:
@@ -581,8 +584,8 @@ class LiveLogContext:
                         expected['status'],
                         expected.get('verdicts'),
                         tags_expr,
-                        [expected['key']] if 'key' in expected else None,
-                        [expected['notes']] if 'notes' in expected else None,
+                        common_keys + ([expected['key']] if 'key' in expected else []),
+                        common_notes + ([expected['notes']] if 'notes' in expected else []),
                     )
 
         self.pop_stack_item()
