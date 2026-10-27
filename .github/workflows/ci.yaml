@@ -44,3 +44,113 @@ jobs:
       - name: Run Ruff linter
         run: |
           echo "${{ needs.detect-changes.outputs.python_files }}" | xargs ruff check
+
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    # In a container the services are reached by name, under GitHub and act
+    # alike, and no host ports are taken.
+    container: python:3.12-bookworm
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: bublik
+          POSTGRES_PASSWORD: bublik
+          POSTGRES_DB: bublik
+        options: >-
+          --health-cmd "pg_isready -U bublik"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system packages
+        # pykerberos has no wheels and builds against libkrb5.
+        run: apt-get update && apt-get install -y --no-install-recommends libkrb5-dev gettext-base
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      - name: Generate settings
+        id: settings
+        # As scripts/deploy does, with the values of a local install.
+        env:
+          BUBLIK_HOST: http://localhost
+          URL_PREFIX: ''
+          BUBLIK_UI_DIR: /tmp/bublik-ui
+          BUBLIK_UI_APP: bublik-v2
+          BUBLIK_DOCS_DIR: /tmp/bublik-docs
+          BUBLIK_DOCS_DIST: ts-factory
+          BUBLIK_WEB_STATIC: ''
+          ANALYTICS_ENABLED: 'false'
+          ANALYTICS_DB_PATH: /tmp/analytics.db
+          AI_CHAT_ENABLED: 'false'
+          AI_CHAT_FILE_STORAGE_BACKEND: local
+          AI_CHAT_FILE_STORAGE_DIR: /tmp/ai-chat-files
+          MANAGEMENT_COMMANDS_LOG: /tmp/bublik-management-commands
+          PER_CONF_DIR: ''
+          DB_NAME: bublik
+          DB_USER: bublik
+          DB_PASSWORD: bublik
+          DB_HOST: postgres
+          DB_PORT: '5432'
+          CELERY_APP: bublik.interfaces
+          CELERY_BROKER_URL: amqp://localhost
+          CELERY_RESULT_BACKEND: rpc://
+          CELERY_ACCEPT_CONTENT: "['application/json']"
+          CELERY_TASK_SERIALIZER: json
+          CELERY_RESULT_SERIALIZER: json
+          CELERY_CREATE_DIRS: '1'
+          S3_ENDPOINT_URL: http://localhost:8333
+          S3_PUBLIC_ENDPOINT_URL: ''
+          S3_BUCKET: bublik-ai-chat-files
+          S3_REGION: us-east-1
+          S3_PRESIGN_EXPIRY: '300'
+        run: |
+          envsubst < templates/settings.py.template > bublik/settings.py
+          # The template has Redis at a fixed local address.
+          sed -i 's#redis://127.0.0.1:6379#redis://redis:6379#' bublik/settings.py
+          if grep -nE 'redis://(127\.0\.0\.1|localhost)' bublik/settings.py; then
+            echo 'Redis addresses left unchanged in the settings' >&2
+            exit 1
+          fi
+          # Tests go down error paths on purpose. Write the console logs to
+          # sys.stderr as it is at each record, so that --buffer shows them only
+          # for a failing test.
+          cat >> bublik/settings.py <<'EOF'
+
+
+          class _CurrentStderrHandler(logging.StreamHandler):
+              @property
+              def stream(self):
+                  return sys.stderr
+
+              @stream.setter
+              def stream(self, value):
+                  pass
+
+
+          for _handler in LOGGING['handlers'].values():
+              if _handler['class'] == 'logging.StreamHandler':
+                  del _handler['class']
+                  _handler['()'] = _CurrentStderrHandler
+          EOF
+          python scripts/generate_secret_key.py secret.txt
+          mkdir -p logs
+
+      - name: Run Django tests
+        # --buffer shows what a test prints only if it fails.
+        run: python manage.py test bublik.tests --noinput --buffer
+
+      - name: Run MCP tests
+        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
+        run: python -m pytest bublik/mcp/tests
