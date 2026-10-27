@@ -147,7 +147,7 @@ def handle_iteration(
                     iteration_result,
                     expected_result['status'],
                     expected_result.get('verdicts'),
-                    obtained.get('tag_expression'),
+                    expected.get('tag_expression'),
                     keys,
                     notes,
                 )
