@@ -40,12 +40,14 @@ from bublik.core.run.dto import (
     RunDetailsResult,
     RunRevision,
     RunSpecialCategory,
+    RunSpecialCategoryValue,
     RunStatsComment,
     RunStatsResult,
     RunStatsValues,
     RunSummaryResult,
     RunSummaryStats,
 )
+from bublik.core.run.external_links import is_http_url, shorten_url
 from bublik.core.run.filter_expression import filter_by_expression
 from bublik.core.run.tests_organization import build_test_paths
 from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
@@ -743,6 +745,16 @@ def get_run_conclusion(run):
     )
 
 
+def prepare_special_category_value(meta):
+    value = meta.get('value')
+    url = value if is_http_url(value) else None
+    return RunSpecialCategoryValue(
+        name=meta.get('name'),
+        value=shorten_url(url) if url else value,
+        url=url,
+    )
+
+
 def generate_all_run_details(run):
     logger.debug('[run_details]: enter')
     run_id = run.id
@@ -774,7 +786,7 @@ def generate_all_run_details(run):
     categories = [
         RunSpecialCategory(
             name=category,
-            values=list(key_value_list_transforming(category_values)),
+            values=[prepare_special_category_value(meta) for meta in category_values],
         )
         for category, category_values in get_metas_by_category(
             run_meta_results,
