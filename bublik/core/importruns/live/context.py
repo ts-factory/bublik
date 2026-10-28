@@ -564,7 +564,8 @@ class LiveLogContext:
             if expected_results is None:
                 if error is None:
                     # No error and no explicitly mentioned expectations.
-                    # This means the obtained result was expected.
+                    # This means the obtained result was expected, so the
+                    # expectation is taken from it, along with its key and notes.
                     add_expected_result(
                         test_iteration_result,
                         obtained['status'],
