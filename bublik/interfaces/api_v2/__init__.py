@@ -37,6 +37,7 @@ from .run.views import RunViewSet
 from .server import ServerViewSet
 from .tree.views import TreeViewSet
 from .url_shortener.views import URLShortenerView
+from .user_token.views import UserTokenViewSet
 
 
 __all__ = [
@@ -68,6 +69,7 @@ __all__ = [
     'TestPickerViewSet',
     'TreeViewSet',
     'URLShortenerView',
+    'UserTokenViewSet',
     'clear_all_runs_stats_cache',
     'local_logs',
     'meta_categorization',
