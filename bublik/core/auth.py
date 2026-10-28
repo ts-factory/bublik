@@ -4,14 +4,28 @@
 from functools import wraps
 
 from django.conf import settings
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.request import Request
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs, User, UserRoles, UserStatus
+from bublik.data.models import (
+    TOKEN_PREFIX,
+    GlobalConfigs,
+    User,
+    UserRoles,
+    UserToken,
+    UserTokenError,
+)
+
+
+NOT_AUTHENTICATED = 'Not Authenticated'
+NOT_AUTHORIZED = 'You are not authorized to perform this action'
+
+# Marks a request whose caller has not been resolved yet; None is a resolved anonymous.
+_UNRESOLVED = object()
 
 
 def get_user_info_from_access_token(access_token):
@@ -23,11 +37,81 @@ def get_user_info_from_access_token(access_token):
 
 
 def get_user_by_access_token(access_token):
+    """Resolve the user behind a JWT access token, or ``None`` if invalid or inactive."""
+    if not access_token:
+        return None
     try:
         user_info = get_user_info_from_access_token(access_token)
-        return User.objects.filter(pk=user_info['user_id'], status=UserStatus.ACTIVE).first()
-    except TokenBackendError:
+        user = User.objects.get(pk=user_info['user_id'])
+    except (TokenBackendError, User.DoesNotExist):
         return None
+    return user if user.is_active else None
+
+
+def get_user_by_personal_token(raw_token):
+    """Resolve the owner of a personal access token, or raise ``UserTokenError``."""
+    return UserToken.objects.authenticate(raw_token)
+
+
+def get_bearer_token(authorization):
+    """The personal access token in an Authorization header, if there is one."""
+    if not authorization:
+        return None
+    scheme, _, credentials = authorization.partition(' ')
+    if scheme.lower() != 'bearer':
+        return None
+    credentials = credentials.strip()
+    return credentials if credentials.startswith(TOKEN_PREFIX) else None
+
+
+def resolve_user(authorization=None, access_token=None):
+    """Resolve a caller from a bearer token or the login cookie, or ``None``.
+
+    A bearer token takes precedence, and a bad one raises instead of falling
+    back to the cookie.
+    """
+    raw_token = get_bearer_token(authorization)
+    if raw_token:
+        return get_user_by_personal_token(raw_token)
+    return get_user_by_access_token(access_token)
+
+
+def get_request_user(request):
+    """:func:`resolve_user` for a DRF request, memoised on the request.
+
+    A refused token raises ``AuthenticationFailed`` with the reason.
+    """
+    user = getattr(request, '_bublik_user', _UNRESOLVED)
+    if user is _UNRESOLVED:
+        authorization = request.headers.get('Authorization')
+        try:
+            user = resolve_user(
+                authorization=authorization,
+                access_token=request.COOKIES.get('access_token'),
+            )
+        except UserTokenError as exc:
+            raise AuthenticationFailed(exc.message) from None
+        request._bublik_user = user
+        request._bublik_by_token = user is not None and bool(get_bearer_token(authorization))
+    return user
+
+
+def require_login_session(request):
+    """Refuse a request authenticated with a personal access token.
+
+    For the actions that would let a leaked token outlive itself, such as
+    administering users: setting a user's password gives the token holder a
+    login session. Decided from how the caller was resolved, not by looking
+    at the header again.
+    """
+    get_request_user(request)
+    if getattr(request, '_bublik_by_token', False):
+        msg = 'This action needs a login session; access tokens are not accepted'
+        raise PermissionDenied(msg)
+
+
+def is_admin(user):
+    return user is not None and user.roles == UserRoles.ADMIN
 
 
 def revoke_refresh_tokens(user):
@@ -61,15 +145,12 @@ def require_user(request, as_admin=False):
     Raise PermissionDenied unless the request comes from an authenticated
     user (an administrator if `as_admin`).
     """
-    access_token = request.COOKIES.get('access_token')
-    user = get_user_by_access_token(access_token)
+    user = get_request_user(request)
     if not user:
-        msg = 'Not Authenticated'
-        raise PermissionDenied(msg)
+        raise PermissionDenied(NOT_AUTHENTICATED)
     # check if user is admin
-    if as_admin and UserRoles.ADMIN not in user.roles:
-        msg = 'You are not authorized to perform this action'
-        raise PermissionDenied(msg)
+    if as_admin and not is_admin(user):
+        raise PermissionDenied(NOT_AUTHORIZED)
     return user
 
 

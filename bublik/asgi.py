@@ -29,7 +29,7 @@ from django.conf import settings  # noqa: E402
 from starlette.applications import Starlette  # noqa: E402
 from starlette.routing import Mount  # noqa: E402
 
-from bublik.ai import build_chat_routes  # noqa: E402
+from bublik.ai import CHAT_EXCEPTION_HANDLERS, build_chat_routes  # noqa: E402
 
 
 chat_routes = build_chat_routes() if settings.AI_CHAT_ENABLED else []
@@ -39,4 +39,5 @@ application = Starlette(
         *chat_routes,
         Mount('/', app=django_application),
     ],
+    exception_handlers=CHAT_EXCEPTION_HANDLERS if settings.AI_CHAT_ENABLED else {},
 )
