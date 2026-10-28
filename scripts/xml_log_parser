@@ -36,6 +36,14 @@ my $same_tz = 1;
 
 my @cur_nodes = ();
 
+# Elements whose text is cached, and the keys of the caches
+my %text_elements = ("start-ts" => "start_ts",
+                     "end-ts" => "end_ts",
+                     "duration" => "duration",
+                     "objective" => "objective",
+                     "verdict" => "verdict",
+                     "artifact" => "artifact");
+
 sub parse_result
 {
     my ($line_idx, $lines) = @_;
@@ -316,21 +324,16 @@ sub handle_start
 
     # cache strings in the event itself to guarantee deterministic data integrity
     # http://perl-xml.sourceforge.net/faq/#char_events
-    $p->{start_ts} = '';
-    $p->{end_ts} = '';
-    $p->{duration} = '';
-    $p->{verdict} = '';
-    $p->{artifact} = '';
-    $p->{tags_parsed} = 0;
-    $p->{tags} = '';
-    $p->{plan_parsed} = 0;
-    $p->{plan} = '';
-    $p->{objective} = '';
-    $p->{level} = '';
-
-    if (defined($attrs{level}))
+    # A cached string is reset only when its own element starts, since
+    # the text may be split by nested <br/> elements.
+    if (exists($text_elements{$e}))
     {
-        $p->{level} = $attrs{level};
+        $p->{$text_elements{$e}} = '';
+    }
+
+    if ($e eq "artifact")
+    {
+        $p->{level} = defined($attrs{level}) ? $attrs{level} : '';
     }
 
     if ($e eq "pkg" || $e eq "session" ||
@@ -399,6 +402,10 @@ sub handle_start
     elsif ($e eq "msg")
     {
         $tester_msg_parsed = 0;
+        $p->{tags_parsed} = 0;
+        $p->{tags} = '';
+        $p->{plan_parsed} = 0;
+        $p->{plan} = '';
 
         if ($attrs{entity} eq "Tester" &&
             $attrs{user} eq "Run")
@@ -429,11 +436,21 @@ sub handle_start
     }
     elsif ($e eq "br")
     {
+        my $parent = $p->current_element();
+
         if ($tester_msg_parsed)
         {
             push(@{$tester_msg}, $cur_tester_msg);
             $cur_tester_msg = '';
         }
+
+        if (defined($parent) and exists($text_elements{$parent}))
+        {
+            $p->{$text_elements{$parent}} .= "\n";
+        }
+
+        $p->{tags} .= "\n" if ($p->{tags_parsed});
+        $p->{plan} .= "\n" if ($p->{plan_parsed});
     }
 }
 
@@ -785,14 +802,20 @@ sub handle_end
         }
     }
 
-    if ($p->{tags_parsed})
+    if ($e eq "msg")
     {
-        parse_tags($p->{tags});
-    }
+        if ($p->{tags_parsed})
+        {
+            parse_tags($p->{tags});
+        }
 
-    if ($p->{plan_parsed})
-    {
-        parse_plan($p->{plan});
+        if ($p->{plan_parsed})
+        {
+            parse_plan($p->{plan});
+        }
+
+        $p->{tags_parsed} = 0;
+        $p->{plan_parsed} = 0;
     }
 }
 
