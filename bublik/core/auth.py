@@ -3,6 +3,7 @@
 
 from functools import wraps
 
+from django.conf import settings
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework_simplejwt.backends import TokenBackend
@@ -11,13 +12,12 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 
 from bublik.core.config.services import ConfigServices
 from bublik.data.models import GlobalConfigs, User, UserRoles, UserStatus
-from bublik.settings import SIMPLE_JWT
 
 
 def get_user_info_from_access_token(access_token):
     token_backend = TokenBackend(
-        algorithm=SIMPLE_JWT['ALGORITHM'],
-        signing_key=SIMPLE_JWT['SIGNING_KEY'],
+        algorithm=settings.SIMPLE_JWT['ALGORITHM'],
+        signing_key=settings.SIMPLE_JWT['SIGNING_KEY'],
     )
     return token_backend.decode(access_token, verify=True)
 

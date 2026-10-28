@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -46,7 +47,6 @@ from bublik.interfaces.api_v2.auth.schemas import (
     registration_viewset_schema,
     session_viewset_schema,
 )
-from bublik.settings import SIMPLE_JWT
 
 
 def set_auth_cookies(response, access_token, refresh_token):
@@ -54,14 +54,14 @@ def set_auth_cookies(response, access_token, refresh_token):
     response.set_cookie(
         key='access_token',
         value=str(access_token),
-        max_age=int(SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+        max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
         httponly=True,
         samesite='Strict',
     )
     response.set_cookie(
         key='refresh_token',
         value=str(refresh_token),
-        max_age=int(SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
+        max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
         httponly=True,
         samesite='Strict',
     )
