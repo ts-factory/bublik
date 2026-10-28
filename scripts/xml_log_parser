@@ -28,6 +28,7 @@ my $tester_msg_parsed = 0;
 my $tester_msg = [];
 my $cur_tester_msg = '';
 my $first_ts = "";
+my $first_ts_val;
 my $last_ts = "";
 my $last_ts_val;
 my $ref_tv;
@@ -737,12 +738,15 @@ sub handle_end
 
         $cur_iter->{start_ts} = format_ts($start_sec, $start_ms);
         $cur_iter->{end_ts} = format_ts($end_sec, $end_ms);
+        $cur_iter->{start_ts_utc} = $start_ts_val;
+        $cur_iter->{end_ts_utc} = $end_ts_val;
 
         $ref_tv = $start_ts_val;
 
         if ($first_ts eq '')
         {
             $first_ts = $cur_iter->{start_ts};
+            $first_ts_val = $start_ts_val;
         }
         if (not defined($last_ts_val) or $end_ts_val > $last_ts_val)
         {
@@ -857,6 +861,8 @@ sub parse_xml_log
     $parser->parsefile($fname);
     $parsed_data->{start_ts} = $first_ts;
     $parsed_data->{end_ts} = $last_ts;
+    $parsed_data->{start_ts_utc} = $first_ts_val if (defined($first_ts_val));
+    $parsed_data->{end_ts_utc} = $last_ts_val if (defined($last_ts_val));
 }
 
 my $fname = $ARGV[0];
