@@ -695,7 +695,7 @@ sub parse_tags
                 my $name = "";
                 my $value = "";
 
-                ($name, $value) = split(/:/, $tag);
+                ($name, $value) = split(/:/, $tag, 2);
                 $parsed_data->{tags}->{$name} = $value;
             }
         }
