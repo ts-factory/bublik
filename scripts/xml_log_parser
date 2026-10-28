@@ -16,7 +16,6 @@ my $parser = XML::Parser->new(Handlers =>
                                   Char => \&handle_char });
 
 my $parsed_data = { iters => [],
-                    tags => {},
                     start_ts => "",
                     end_ts => "" };
 
@@ -34,6 +33,8 @@ my $last_ts_val;
 my $ref_tv;
 my $log_tz_off;
 my $same_tz = 1;
+my $scenario_parsed = 0;
+my $step_depth = 0;
 
 my @cur_nodes = ();
 
@@ -43,7 +44,8 @@ my %text_elements = ("start-ts" => "start_ts",
                      "duration" => "duration",
                      "objective" => "objective",
                      "verdict" => "verdict",
-                     "artifact" => "artifact");
+                     "artifact" => "artifact",
+                     "step" => "step");
 
 # Parse a list of verdicts or artifacts, each terminated by ';'.
 # An item may span several lines. The list ends with an empty line, or
@@ -422,6 +424,20 @@ sub handle_start
     elsif ($e eq "param")
     {
         $cur_iter->{params}->{$attrs{name}} = $attrs{value};
+
+        if (defined($attrs{description}))
+        {
+            $cur_iter->{param_docs}->{$attrs{name}} = $attrs{description};
+        }
+    }
+    elsif ($e eq "scenario")
+    {
+        $scenario_parsed = 1;
+        $cur_iter->{scenario} = [];
+    }
+    elsif ($e eq "step" and $scenario_parsed)
+    {
+        $step_depth = int($attrs{depth});
     }
     elsif ($e eq "req")
     {
@@ -514,6 +530,10 @@ sub handle_char
         elsif ($cur_elm eq "artifact")
         {
             $p->{artifact} .= $str;
+        }
+        elsif ($cur_elm eq "step")
+        {
+            $p->{step} .= $str;
         }
         elsif ($cur_elm eq "msg")
         {
@@ -676,6 +696,8 @@ sub parse_tags
 {
     my $tags = $_[0];
 
+    $parsed_data->{tags} = {} if (not exists($parsed_data->{tags}));
+
     if ($tags =~ /^\s*{/)
     {
         # TRC tags in JSON format
@@ -769,6 +791,15 @@ sub handle_end
         }
 
         push(@{$result->{verdicts}}, $p->{verdict});
+    }
+    elsif ($e eq "step" and $scenario_parsed)
+    {
+        push(@{$cur_iter->{scenario}}, { depth => $step_depth,
+                                         text => $p->{step} });
+    }
+    elsif ($e eq "scenario")
+    {
+        $scenario_parsed = 0;
     }
     elsif ($e eq "artifact")
     {
