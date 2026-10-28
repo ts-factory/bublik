@@ -9,7 +9,7 @@ import typing
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import IntegrityError, models
+from django.db import IntegrityError, models, transaction
 
 from bublik.core.exceptions import UserStatusError
 
@@ -125,10 +125,12 @@ class User(AbstractUser):
 
     def deactivate(self, by=None):
         """
-        Deactivate the user and end all their sessions.
+        Deactivate the user, end all their sessions and revoke their tokens,
+        so that a later reactivation does not bring them back.
         `by` is the user performing the deactivation, if any.
         """
         from bublik.core.auth import revoke_refresh_tokens  # noqa: PLC0415
+        from bublik.data.models.user_token import UserToken  # noqa: PLC0415
 
         if self.is_system:
             msg = 'The system user cannot be deactivated'
@@ -137,9 +139,11 @@ class User(AbstractUser):
             msg = 'Users cannot deactivate themselves'
             raise UserStatusError(msg)
 
-        self.status = UserStatus.DEACTIVATED
-        self.save()
-        revoke_refresh_tokens(self)
+        with transaction.atomic():
+            self.status = UserStatus.DEACTIVATED
+            self.save()
+            revoke_refresh_tokens(self)
+            UserToken.objects.revoke_all_for(self, revoked_by=by)
 
     def __repr__(self):
         return (
