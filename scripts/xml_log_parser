@@ -458,15 +458,7 @@ sub handle_char
         }
         elsif ($cur_elm eq "objective")
         {
-            if ($p->{objective} eq '')
-            {
-                $p->{objective} .= $str;
-            }
-            else
-            {
-                $p->{objective} .= "\n";
-                $p->{objective} .= $str;
-            }
+            $p->{objective} .= $str;
         }
         elsif ($cur_elm eq "verdict")
         {
