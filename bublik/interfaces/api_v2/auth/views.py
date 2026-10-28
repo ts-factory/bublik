@@ -19,6 +19,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from bublik.core.auth import (
     auth_required,
     get_request_user,
+    require_login_session,
     revoke_refresh_tokens,
 )
 from bublik.core.exceptions import BublikAPIError, NotFoundError, UserStatusError
@@ -344,10 +345,21 @@ class ProfileViewSet(GenericViewSet):
 
 @admin_viewset_schema
 class AdminViewSet(GenericViewSet):
+    """
+    User administration.
+
+    Requires the login cookie: update_user sets a password without the current
+    one, so a leaked admin token could otherwise obtain a session of its own.
+    """
+
     queryset = User.objects.all()
     # the users list isn't filterable
     filter_backends = ()
     pagination_class = None
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        require_login_session(request)
 
     @staticmethod
     def get_user_by_email(email):

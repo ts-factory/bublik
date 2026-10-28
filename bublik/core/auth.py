@@ -83,15 +83,31 @@ def get_request_user(request):
     """
     user = getattr(request, '_bublik_user', _UNRESOLVED)
     if user is _UNRESOLVED:
+        authorization = request.headers.get('Authorization')
         try:
             user = resolve_user(
-                authorization=request.headers.get('Authorization'),
+                authorization=authorization,
                 access_token=request.COOKIES.get('access_token'),
             )
         except UserTokenError as exc:
             raise AuthenticationFailed(exc.message) from None
         request._bublik_user = user
+        request._bublik_by_token = user is not None and bool(get_bearer_token(authorization))
     return user
+
+
+def require_login_session(request):
+    """Refuse a request authenticated with a personal access token.
+
+    For the actions that would let a leaked token outlive itself: minting or
+    revoking tokens, and administering users, since setting a user's password
+    gives the token holder a login session. Decided from how the caller was
+    resolved, not by looking at the header again.
+    """
+    get_request_user(request)
+    if getattr(request, '_bublik_by_token', False):
+        msg = 'This action needs a login session; access tokens are not accepted'
+        raise PermissionDenied(msg)
 
 
 def is_admin(user):

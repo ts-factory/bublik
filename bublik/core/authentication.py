@@ -32,8 +32,10 @@ class PersonalTokenAuthentication(BaseAuthentication):
             user = get_user_by_personal_token(raw_token)
         except UserTokenError as exc:
             raise AuthenticationFailed(exc.message) from None
-        # Spares get_request_user() a second lookup.
+        # Spares get_request_user() a second lookup, and tells
+        # require_login_session() how the caller authenticated.
         request._bublik_user = user
+        request._bublik_by_token = True
         return user, None
 
     def authenticate_header(self, request):
