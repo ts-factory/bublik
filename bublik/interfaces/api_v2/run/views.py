@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import check_action_permission_for_projects, get_user_by_access_token
+from bublik.core.auth import check_action_permission_for_projects, get_request_user
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
 from bublik.core.run.classification import ClassificationService
@@ -213,7 +213,7 @@ class RunViewSet(ModelViewSet):
     def apply_rules(self, request, pk=None):
         run = RunService.get_run(pk)
         check_action_permission_for_projects(request, 'manage_issues', [run.project_id])
-        actor = get_user_by_access_token(request.COOKIES.get('access_token'))
+        actor = get_request_user(request)
         created = ClassificationService.apply_active_rules_manual(run, actor=actor)
         RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
         data = ApplyRulesResponseSerializer({'stamps_created': created}).data

@@ -11,7 +11,6 @@ from jsonschema import FormatChecker, validate
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
-from bublik.core.auth import get_user_by_access_token
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.data.models import Config, ConfigTypes, GlobalConfigs, Project
@@ -49,9 +48,9 @@ class ConfigSerializer(ModelSerializer):
             internal['user'] = get_user_model().get_or_create_system_user()
         else:
             internal = super().to_internal_value(data)
-            access_token = self.context.get('access_token', None)
-            if access_token:
-                internal['user'] = get_user_by_access_token(access_token)
+            user = self.context.get('user', None)
+            if user:
+                internal['user'] = user
         return internal
 
     def validate_type(self, config_type):

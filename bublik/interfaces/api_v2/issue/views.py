@@ -20,7 +20,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
-from bublik.core.auth import check_action_permission_for_projects, get_user_by_access_token
+from bublik.core.auth import check_action_permission_for_projects, get_request_user
 from bublik.core.cache import RunCache
 from bublik.core.classification import (
     DISPOSITION_TO_EXPECTED,
@@ -67,7 +67,7 @@ from bublik.interfaces.api_v2.issue.serializers import (
 
 
 def _actor(request):
-    return get_user_by_access_token(request.COOKIES.get('access_token'))
+    return get_request_user(request)
 
 
 def _action_ids(request):

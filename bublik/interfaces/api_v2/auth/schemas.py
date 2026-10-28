@@ -266,7 +266,7 @@ admin_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Administrator privileges are required to list users',
+                description='Not authenticated, authenticated with a token, or not an admin',
             ),
         },
         tags=[AUTH_TAG],
@@ -290,7 +290,7 @@ admin_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Administrator privileges are required to create users',
+                description='Not authenticated, authenticated with a token, or not an admin',
             ),
             502: OpenApiResponse(
                 response=ErrorResponseSerializer,
@@ -320,7 +320,7 @@ admin_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Administrator privileges are required to update users',
+                description='Not authenticated, authenticated with a token, or not an admin',
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
@@ -349,7 +349,7 @@ admin_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Administrator privileges are required to activate users',
+                description='Not authenticated, authenticated with a token, or not an admin',
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,
@@ -380,7 +380,7 @@ admin_viewset_schema = extend_schema_view(
             ),
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
-                description='Administrator privileges are required to deactivate users',
+                description='Not authenticated, authenticated with a token, or not an admin',
             ),
             404: OpenApiResponse(
                 response=ErrorResponseSerializer,

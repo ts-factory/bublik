@@ -37,7 +37,7 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from bublik.ai import run_store
-from bublik.ai.access import resolve_user, user_may_access_thread
+from bublik.ai.access import refused_token_response, resolve_user, user_may_access_thread
 from bublik.ai.agent import build_agent, build_model
 from bublik.ai.compaction import Compactor, make_usage_reporter
 from bublik.ai.config import (
@@ -55,7 +55,7 @@ from bublik.ai.downloads import download_file
 from bublik.ai.streaming import RunOptions, spawn_run, stream_run_events
 from bublik.ai.transcript import persist_messages
 from bublik.ai.types import AiChatDeps
-from bublik.data.models import AiChatThread
+from bublik.data.models import AiChatThread, UserTokenError
 
 
 if TYPE_CHECKING:
@@ -246,6 +246,10 @@ async def _cancel_chat(request: Request) -> Response:
 def _chat_base_path() -> str:
     prefix = settings.URL_PREFIX.strip('/')
     return f'/{prefix}/api/v2/chat' if prefix else '/api/v2/chat'
+
+
+# The exceptions the chat routes let propagate, for ``Starlette(exception_handlers=...)``.
+CHAT_EXCEPTION_HANDLERS = {UserTokenError: refused_token_response}
 
 
 def build_chat_routes() -> list[Route]:
