@@ -18,7 +18,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from bublik.core.auth import (
     auth_required,
-    get_user_by_access_token,
+    get_request_user,
     revoke_refresh_tokens,
 )
 from bublik.core.exceptions import BublikAPIError, NotFoundError, UserStatusError
@@ -294,7 +294,7 @@ class PasswordResetViewSet(GenericViewSet):
 @profile_viewset_schema
 class ProfileViewSet(GenericViewSet):
     def get_object(self):
-        return get_user_by_access_token(self.request.COOKIES.get('access_token'))
+        return get_request_user(self.request)
 
     def get_serializer_class(self):
         if self.action == 'password_reset':
@@ -416,7 +416,7 @@ class AdminViewSet(GenericViewSet):
     def deactivate_user(self, request):
         # get user to delete
         deactivate_user = self.get_user_by_email(request.data.get('email'))
-        admin = get_user_by_access_token(request.COOKIES.get('access_token'))
+        admin = get_request_user(request)
         # deactivate user and end all their sessions
         try:
             deactivate_user.deactivate(by=admin)
