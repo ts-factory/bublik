@@ -22,8 +22,8 @@ def create_mcp_server() -> FastMCP:
     mcp = FastMCP(name='bublik-mcp')
 
     # In memory: each server starts with an empty cache that no other process
-    # or instance on the host shares. Bounded, since an entry lives for up to
-    # an hour and may reach the 1 MB item limit.
+    # or instance on the host shares. Bounded, since entries are kept per
+    # caller token, live for up to an hour and may reach the 1 MB item limit.
     mcp.add_middleware(
         ResponseCachingMiddleware(
             cache_storage=MemoryStore(max_entries_per_collection=CACHE_MAX_ENTRIES),
