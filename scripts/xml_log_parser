@@ -81,6 +81,33 @@ sub parse_list
     return ($next_idx, $items);
 }
 
+# Parse "Key:" and "Notes:" lines up to an empty line.
+#
+# Returns the index of the empty line (or the number of lines).
+sub parse_key_notes
+{
+    my ($line_idx, $lines, $parsed) = @_;
+    my $lines_num = scalar(@{$lines});
+
+    for ( ; $line_idx < $lines_num; $line_idx++)
+    {
+        my $line = $lines->[$line_idx];
+
+        if ($line =~ /^Key:\s*(.*)$/)
+        {
+            $parsed->{key} = $1;
+        }
+        elsif ($line =~ /^Notes:\s*(.*)$/)
+        {
+            $parsed->{notes} = $1;
+        }
+
+        last if (length($line) == 0);
+    }
+
+    return $line_idx;
+}
+
 sub parse_result
 {
     my ($line_idx, $lines) = @_;
@@ -104,21 +131,7 @@ sub parse_result
         return ($line_idx, $parsed);
     }
 
-    for ( ; $line_idx < $lines_num; $line_idx++)
-    {
-        $line = $lines->[$line_idx];
-
-        if ($line =~ /^Key:\s*(.*)$/)
-        {
-            $parsed->{key} = $1;
-        }
-        elsif ($line =~ /^Notes:\s*(.*)$/)
-        {
-            $parsed->{notes} = $1;
-        }
-
-        last if (length($line) == 0);
-    }
+    $line_idx = parse_key_notes($line_idx, $lines, $parsed);
 
     if ($line_idx < $lines_num - 1)
     {
@@ -127,6 +140,8 @@ sub parse_result
         {
             ($line_idx, $parsed->{artifacts}) = parse_list($line_idx + 2,
                                                            $lines);
+            # Key and notes of an expected result follow its artifacts
+            $line_idx = parse_key_notes($line_idx, $lines, $parsed);
         }
     }
 
