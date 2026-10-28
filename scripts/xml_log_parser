@@ -17,7 +17,6 @@ my $parser = XML::Parser->new(Handlers =>
 
 my $parsed_data = { iters => [],
                     tags => {},
-                    plan => {},
                     start_ts => "",
                     end_ts => "" };
 
