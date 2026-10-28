@@ -44,6 +44,43 @@ my %text_elements = ("start-ts" => "start_ts",
                      "verdict" => "verdict",
                      "artifact" => "artifact");
 
+# Parse a list of verdicts or artifacts, each terminated by ';'.
+# An item may span several lines. The list ends with an empty line, or
+# with a "Key:"/"Notes:" line between items. Lines after the last
+# terminated item are not consumed.
+#
+# Returns the index of the first line not consumed and the list.
+sub parse_list
+{
+    my ($line_idx, $lines) = @_;
+    my $lines_num = scalar(@{$lines});
+    my $items = [];
+    my @pending = ();
+    my $next_idx = $line_idx;
+
+    for ( ; $line_idx < $lines_num; $line_idx++)
+    {
+        my $line = $lines->[$line_idx];
+
+        last if (length($line) == 0);
+        last if (not @pending and $line =~ /^(Key|Notes):/);
+
+        if ($line =~ /^(.*);$/)
+        {
+            push(@pending, $1);
+            push(@{$items}, join("\n", @pending));
+            @pending = ();
+            $next_idx = $line_idx + 1;
+        }
+        else
+        {
+            push(@pending, $line);
+        }
+    }
+
+    return ($next_idx, $items);
+}
+
 sub parse_result
 {
     my ($line_idx, $lines) = @_;
@@ -58,21 +95,8 @@ sub parse_result
 
         if ($2)
         {
-            $parsed->{verdicts} = [];
-
-            for ($line_idx++; $line_idx < $lines_num; $line_idx++)
-            {
-                $line = $lines->[$line_idx];
-
-                if ($line =~ /^(.*);$/)
-                {
-                    push(@{$parsed->{verdicts}}, $1)
-                }
-                else
-                {
-                    last;
-                }
-            }
+            ($line_idx, $parsed->{verdicts}) = parse_list($line_idx + 1,
+                                                          $lines);
         }
     }
     else
@@ -101,20 +125,8 @@ sub parse_result
         $line = $lines->[$line_idx + 1];
         if ($line =~ /^Artifacts:/)
         {
-            $parsed->{artifacts} = [];
-            for ($line_idx += 2; $line_idx < $lines_num; $line_idx++)
-            {
-                $line = $lines->[$line_idx];
-
-                if ($line =~ /^(.*);$/)
-                {
-                    push(@{$parsed->{artifacts}}, $1)
-                }
-                else
-                {
-                    last;
-                }
-            }
+            ($line_idx, $parsed->{artifacts}) = parse_list($line_idx + 2,
+                                                           $lines);
         }
     }
 
