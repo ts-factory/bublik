@@ -179,24 +179,9 @@ class IssueViewSet(ModelViewSet):
         query = IssueResultsQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        result_properties = params.get('result_properties')
-
         page = IssueResultsService.page(
             issue.id,
-            IssueResultsFilters(
-                results=params.get('results'),
-                result_properties=(
-                    settings.QUERY_DELIMITER.join(result_properties)
-                    if result_properties
-                    else None
-                ),
-                requirements=params.get('requirements'),
-                categories=params.get('category', []),
-                classifications=params.get('classification', []),
-                verdicts=params.get('verdict', []),
-                artifacts=params.get('artifact', []),
-                parameters=params.get('parameter', []),
-            ),
+            IssueResultsFilters.from_params(params),
             page=params.get('page'),
             page_size=params.get('page_size'),
         )

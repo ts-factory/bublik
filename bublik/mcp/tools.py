@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from asgiref.sync import sync_to_async
 from django.db import transaction
+from django_filters.utils import translate_validation
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.comment import TestCommentService
@@ -19,6 +20,12 @@ from bublik.core.config.management import ConfigManagementService
 from bublik.core.config.services import ConfigServices
 from bublik.core.dashboard import DashboardService
 from bublik.core.history.services import HistoryService
+from bublik.core.issue import (
+    IssueManagementService,
+    issues_queryset,
+    rules_queryset,
+)
+from bublik.core.issue_results import IssueResultsFilters, IssueResultsService
 from bublik.core.log.services import LogService
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.project import ProjectService
@@ -27,18 +34,28 @@ from bublik.core.project.dto import (
 )
 from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
+from bublik.core.run.classification import ClassificationService
 from bublik.core.run.compromised import get_compromised_details, is_run_compromised
 from bublik.core.run.services import RunService
-from bublik.core.run.stats import generate_all_run_details, generate_runs_details, get_test_runs
+from bublik.core.run.stats import (
+    generate_all_run_details,
+    generate_results_details,
+    generate_runs_details,
+    get_test_runs,
+)
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
 from bublik.data.models import Config, MetaTest
-from bublik.data.serializers import ConfigSerializer
+from bublik.data.serializers import ConfigSerializer, IssueRuleSerializer, IssueSerializer
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
 )
+from bublik.interfaces.api_v2.issue.filters import IssueFilterSet
+from bublik.interfaces.api_v2.issue.serializers import IssueResultsQuerySerializer
+from bublik.interfaces.api_v2.result.serializers import ClassifyOptionsResponseSerializer
 from bublik.interfaces.api_v2.run.serializers import (
+    RunIssueSummarySerializer,
     serialize_paginated_run_summary_results,
 )
 from bublik.mcp.auth import mcp_auth_required, mcp_caller
@@ -153,7 +170,10 @@ async def get_run_leaf_results(
             results or result_properties
 
     Returns:
-        Markdown table with the matching concrete executions and pagination
+        Markdown table with the matching concrete executions and pagination.
+        Classification tells whether a result counts as unexpected once its
+        classification is applied; Issues lists the stamps it carries, each
+        with the issue, the rule's category and disposition, and the stamp id.
     """
     payload = await sync_to_async(_get_run_leaf_results)(
         leaf_result_id=leaf_result_id,
@@ -175,7 +195,11 @@ async def get_result_details(result_id: int) -> dict:
         result_id: The ID of the test result
 
     Returns:
-        Dictionary with full result details
+        Dictionary with full result details, including `issues`: the stamps
+        the result carries, each with the issue, the rule's category and
+        disposition and the stamp id (rule_result_id), and
+        `effective_expected`: whether the result counts as expected once an
+        expected classification is applied
     """
     return await sync_to_async(ResultService.get_result_details)(result_id)
 
@@ -637,6 +661,10 @@ async def get_history(  # noqa: PLR0913, PLR0917
     branches: str | None = None,
     labels: str | None = None,
     tags: str | None = None,
+    categories: str | None = None,
+    issue: str | None = None,
+    explained: bool | None = None,
+    untriaged: bool | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
@@ -652,11 +680,18 @@ async def get_history(  # noqa: PLR0913, PLR0917
         branches: Semicolon-separated branch names
         labels: Semicolon-separated labels
         tags: Semicolon-separated tags
+        categories: Semicolon-separated classification categories; keeps the
+            results stamped by a rule of any of them (e.g., 'known-issue;flaky')
+        issue: Semicolon-separated issue IDs; keeps the results classified under them
+        explained: true keeps only the results with a classification
+        untriaged: true keeps only the failed results without any classification
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
 
     Returns:
-        Dictionary with history results, counts, date range, and pagination
+        Dictionary with history results, counts, date range, and pagination.
+        Each result lists its issues: the stamps it carries, with the issue,
+        the rule's category, the disposition and the stamp id (rule_result_id).
     """
     # Set default date range if not provided
     if from_date is None and to_date is None:
@@ -670,6 +705,10 @@ async def get_history(  # noqa: PLR0913, PLR0917
         'branches': branches or '',
         'labels': labels or '',
         'tags': tags or '',
+        'categories': categories or '',
+        'issue': issue or '',
+        'explained': 'true' if explained else '',
+        'untriaged': 'true' if untriaged else '',
         'page': page,
         'page_size': page_size,
     }
@@ -686,6 +725,10 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
     branches: str | None = None,
     labels: str | None = None,
     tags: str | None = None,
+    categories: str | None = None,
+    issue: str | None = None,
+    explained: bool | None = None,
+    untriaged: bool | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
@@ -701,6 +744,11 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
         branches: Semicolon-separated branch names
         labels: Semicolon-separated labels
         tags: Semicolon-separated tags
+        categories: Semicolon-separated classification categories; keeps the
+            results stamped by a rule of any of them (e.g., 'known-issue;flaky')
+        issue: Semicolon-separated issue IDs; keeps the results classified under them
+        explained: true keeps only the results with a classification
+        untriaged: true keeps only the failed results without any classification
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
 
@@ -719,6 +767,10 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
         'branches': branches or '',
         'labels': labels or '',
         'tags': tags or '',
+        'categories': categories or '',
+        'issue': issue or '',
+        'explained': 'true' if explained else '',
+        'untriaged': 'true' if untriaged else '',
         'page': page,
         'page_size': page_size,
     }
@@ -1204,6 +1256,261 @@ async def delete_project(project_id: int) -> dict:
     return await sync_to_async(_delete)()
 
 
+# Classification tools. Issues, their rules and the stamps on results, as the
+# REST API shows them.
+
+
+def _issue_data(issue) -> dict:
+    return dict(IssueSerializer(issue).data)
+
+
+def _rule_data(rule) -> dict:
+    return dict(IssueRuleSerializer(rule).data)
+
+
+def _paginated_result_details(queryset, page, page_size) -> dict:
+    paged = PaginatedResult.paginate_queryset(queryset, page, page_size)
+    return {
+        'pagination': paged['pagination'],
+        'results': generate_results_details(paged['results']),
+    }
+
+
+async def list_issues(
+    project_id: int | None = None,
+    state: str | None = None,
+    category: str | None = None,
+    rules: str | None = None,
+    search: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List the issues results are classified under, newest first.
+
+    An issue names a known problem (optionally with a bug key such as
+    `ref://JIRA/NET-1`) and owns rules; a rule stamps the results of one test
+    that match its parameters, verdicts and run tags, under a category
+    (`known-issue`, `flaky`, `to-investigate`, ...) and with a disposition
+    (`expected` makes the stamped failures count as expected).
+
+    Args:
+        project_id: Optional project ID to filter by
+        state: Semicolon-separated issue states: 'open', 'closed'
+        category: Semicolon-separated categories; issues having an active
+            rule of any of them
+        rules: Semicolon-separated rules states: 'enforced' (an active rule
+            of an open issue), 'dormant', 'deactivated', 'unruled'
+        search: Text to look for in the title, description and bug key, or
+            '#<id>' for an issue by ID
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with pagination metadata and the issues, each with its
+        rule, active rule and result counts and its active rules in brief
+    """
+
+    def _list():
+        given = {
+            'project': project_id,
+            'state': state,
+            'category': category,
+            'rules': rules,
+            'search': search,
+        }
+        params = {name: value for name, value in given.items() if value not in (None, '')}
+        filterset = IssueFilterSet(data=params, queryset=issues_queryset())
+        if not filterset.is_valid():
+            raise translate_validation(filterset.errors)
+        paged = PaginatedResult.paginate_queryset(filterset.qs, page, page_size)
+        return {
+            'pagination': paged['pagination'],
+            'issues': [_issue_data(issue) for issue in paged['results']],
+        }
+
+    return await sync_to_async(_list)()
+
+
+async def get_issue(issue_id: int) -> dict:
+    """
+    Get an issue with all of its rules.
+
+    Args:
+        issue_id: The ID of the issue
+
+    Returns:
+        Dictionary with `issue` (as list_issues shows it) and `rules`: every
+        rule of the issue, active or not, with its test, matcher (parameters,
+        verdicts, tags), category and disposition
+    """
+
+    def _get():
+        issue = IssueManagementService.get(issue_id)
+        rules = rules_queryset().filter(issue=issue).order_by('id')
+        return {'issue': _issue_data(issue), 'rules': [_rule_data(rule) for rule in rules]}
+
+    return await sync_to_async(_get)()
+
+
+async def get_run_issues(
+    run_id: int,
+    search: str | None = None,
+    state: str | None = None,
+    category: str | None = None,
+    effect: str | None = None,
+) -> list[dict]:
+    """
+    Summarize the issues the results of a run are classified under.
+
+    Args:
+        run_id: The ID of the test run
+        search: Text to look for in the issue titles and bug keys
+        state: Semicolon-separated issue states: 'open', 'closed'
+        category: Semicolon-separated rule categories
+        effect: Semicolon-separated effects of the rules on the run:
+            'suppressed' (failures counted as expected), 'marked', 'stale'
+            (the issue is closed)
+
+    Returns:
+        One entry per issue: its id, title, state, bug key and URL, the
+        number of results stamped under it in this run, and the rules that
+        stamped them with their category, disposition and effect
+    """
+
+    def _summary():
+        run = RunService.get_run(run_id)
+        summaries = ClassificationService.filter_issues_summary(
+            ClassificationService.run_issues_summary(run),
+            search=search,
+            state=state,
+            category=category,
+            effect=effect,
+        )
+        return [dict(row) for row in RunIssueSummarySerializer(summaries, many=True).data]
+
+    return await sync_to_async(_summary)()
+
+
+async def get_run_issue_results(
+    run_id: int,
+    issue_id: int,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List the results of a run classified under an issue, newest first.
+
+    Args:
+        run_id: The ID of the test run
+        issue_id: The ID of the issue, as get_run_issues shows it
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with pagination metadata and the results as get_result_details
+        shows them, with their issues and stamp ids
+    """
+
+    def _results():
+        run = RunService.get_run(run_id)
+        IssueManagementService.get(issue_id)
+        return _paginated_result_details(
+            ClassificationService.run_issue_results(run, issue_id),
+            page,
+            page_size,
+        )
+
+    return await sync_to_async(_results)()
+
+
+async def get_issue_results(
+    issue_id: int,
+    results: str | None = None,
+    result_properties: str | None = None,
+    requirements: str | None = None,
+    category: str | None = None,
+    classification: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List every result classified under an issue, across runs, newest first.
+
+    Args:
+        issue_id: The ID of the issue
+        results: Semicolon-separated obtained result statuses
+            (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
+        result_properties: Semicolon-separated result properties
+            (e.g., 'expected;unexpected;not_run')
+        requirements: Semicolon-separated requirements the results carry
+        category: Semicolon-separated categories of this issue's rules that
+            stamped the results
+        classification: Semicolon-separated classifications shown for the
+            results: 'suppressed', 'marked', 'stale'
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 1000)
+
+    Returns:
+        Dictionary with pagination metadata and the results as get_result_details
+        shows them, each with the tags of its run
+    """
+
+    def _results():
+        IssueManagementService.get(issue_id)
+        given = {
+            'results': results,
+            'result_properties': result_properties,
+            'requirements': requirements,
+            'category': category,
+            'classification': classification,
+            'page': page,
+            'page_size': page_size,
+        }
+        query = IssueResultsQuerySerializer(
+            data={name: value for name, value in given.items() if value is not None},
+        )
+        query.is_valid(raise_exception=True)
+        params = query.validated_data
+        return IssueResultsService.page(
+            issue_id,
+            IssueResultsFilters.from_params(params),
+            page=params.get('page'),
+            page_size=params.get('page_size'),
+        )
+
+    return await sync_to_async(_results)()
+
+
+async def get_classify_options(result_ids: list[int]) -> dict:
+    """
+    Tell what a rule classifying the given results may contain.
+
+    The results must be test results of one run. A rule belongs to one test
+    and must match every result it classifies, so for each test among the
+    results this lists the parameters all of its results share, the
+    different verdict lists they have, and the run's tags a rule may use.
+
+    Args:
+        result_ids: Result IDs, as shown by get_run_leaf_results
+
+    Returns:
+        Dictionary with the run id, the tags (`default`: the run's important
+        tags, `allowed`: every tag a rule may contain) and, per test, its id,
+        name, path, result ids, shared parameters and verdict lists
+    """
+
+    def _options():
+        ids = list(dict.fromkeys(result_ids))
+        found = ResultService.get_results_by_ids(ids)
+        options = ResultService.get_classify_options(
+            ResultService.validate_results_for_classification(ids, found),
+        )
+        return dict(ClassifyOptionsResponseSerializer(options).data)
+
+    return await sync_to_async(_options)()
+
+
 # Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
 # server (see register_tools) and directly by the in-process chat agent
 # (see bublik.ai.agent), so both expose exactly the same tools.
@@ -1233,6 +1540,12 @@ MCP_TOOLS = [
     get_run_report_configs,
     get_server_version,
     get_test_comments,
+    list_issues,
+    get_issue,
+    get_run_issues,
+    get_run_issue_results,
+    get_issue_results,
+    get_classify_options,
 ]
 
 
@@ -1269,6 +1582,12 @@ MCP_UNCACHED_TOOLS = [
     get_run_comment,
     get_run_report_configs,
     get_test_comments,
+    list_issues,
+    get_issue,
+    get_run_issues,
+    get_run_issue_results,
+    get_issue_results,
+    get_classify_options,
 ]
 
 MCP_WRITE_TOOL_NAMES = [tool.__name__ for tool in MCP_WRITE_TOOLS]

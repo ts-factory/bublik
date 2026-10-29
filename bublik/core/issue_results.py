@@ -67,6 +67,23 @@ class IssueResultsFilters:
     artifacts: list[str] = field(default_factory=list)
     parameters: list[str] = field(default_factory=list)
 
+    @classmethod
+    def from_params(cls, params: dict) -> IssueResultsFilters:
+        """The filters named by the validated query parameters of the results listing."""
+        result_properties = params.get('result_properties')
+        return cls(
+            results=params.get('results'),
+            result_properties=(
+                settings.QUERY_DELIMITER.join(result_properties) if result_properties else None
+            ),
+            requirements=params.get('requirements'),
+            categories=params.get('category', []),
+            classifications=params.get('classification', []),
+            verdicts=params.get('verdict', []),
+            artifacts=params.get('artifact', []),
+            parameters=params.get('parameter', []),
+        )
+
 
 class IssueResultsService:
     """
