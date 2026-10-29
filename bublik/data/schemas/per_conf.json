@@ -83,6 +83,10 @@
                             {
                                 "const": "go_report",
                                 "description": "Go to Report (Most Recent)"
+                            },
+                            {
+                                "const": "go_url",
+                                "description": "Go to URL"
                             }
                         ]
                     },
