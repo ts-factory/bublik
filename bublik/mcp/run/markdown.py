@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     )
 
     from .models import (
+        RunLeafResultIssue,
         RunLeafResultsPayload,
     )
 
@@ -223,6 +224,18 @@ def _expected_result_text(expected_results) -> str:
     return ', '.join(values) if values else '-'
 
 
+def _issues_text(issues: list[RunLeafResultIssue]) -> str:
+    """One line per stamp: the issue, the rule's category and disposition, the stamp id."""
+    lines = []
+    for issue in issues:
+        disposition = {True: 'expected', False: 'unexpected', None: 'no disposition'}
+        lines.append(
+            f'#{issue.issue_id} {issue.issue_title} ({issue.issue_state}) '
+            f'[{issue.category}, {disposition[issue.expected]}; stamp {issue.rule_result_id}]',
+        )
+    return '<br>'.join(lines) if lines else '-'
+
+
 def render_run_leaf_results(payload: RunLeafResultsPayload) -> str:
     leaf = payload.leaf
     pagination = payload.pagination
@@ -236,9 +249,9 @@ def render_run_leaf_results(payload: RunLeafResultsPayload) -> str:
         '',
         (
             '| Result ID | Parameters | Start | Obtained | Expected | '
-            'Classification | Verdicts | Artifacts |'
+            'Classification | Issues | Verdicts | Artifacts |'
         ),
-        '|---:|---|---|---|---|---|---|---|',
+        '|---:|---|---|---|---|---|---|---|---|',
     ]
     for result in payload.results:
         obtained = result.obtained_result
@@ -249,11 +262,12 @@ def render_run_leaf_results(payload: RunLeafResultsPayload) -> str:
             f'{_cell(obtained.result_type)} | '
             f'{_cell(_expected_result_text(result.expected_results))} | '
             f'{_cell(result.classification)} | '
+            f'{_cell(_issues_text(result.issues))} | '
             f'{_cell("<br>".join(obtained.verdicts))} | '
             f'{_cell("<br>".join(result.artifacts))} |',
         )
     if not payload.results:
-        lines.append('| - | - | - | - | - | - | - | - |')
+        lines.append('| - | - | - | - | - | - | - | - | - |')
 
     lines.extend(
         [
