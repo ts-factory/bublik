@@ -93,6 +93,7 @@ class SystemInstructionsTest(SimpleTestCase):
         text = build_system_instructions()
 
         assert 'set_run_compromised' in text
+        assert 'classify_results' in text
         assert 'Editing Configs' not in text
 
     @override_settings(BUBLIK_FQDN='')
