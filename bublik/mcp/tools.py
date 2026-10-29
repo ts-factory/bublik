@@ -15,6 +15,7 @@ from django.db import transaction
 from django_filters.utils import translate_validation
 from rest_framework.exceptions import ValidationError
 
+from bublik.core.cache import RunCache
 from bublik.core.comment import TestCommentService
 from bublik.core.config.management import ConfigManagementService
 from bublik.core.config.services import ConfigServices
@@ -22,6 +23,7 @@ from bublik.core.dashboard import DashboardService
 from bublik.core.history.services import HistoryService
 from bublik.core.issue import (
     IssueManagementService,
+    IssueRuleManagementService,
     issues_queryset,
     rules_queryset,
 )
@@ -34,6 +36,7 @@ from bublik.core.project.dto import (
 )
 from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
+from bublik.core.result.services import UNSET
 from bublik.core.run.classification import ClassificationService
 from bublik.core.run.compromised import get_compromised_details, is_run_compromised
 from bublik.core.run.services import RunService
@@ -53,12 +56,15 @@ from bublik.interfaces.api_v2.history.serializers import (
 )
 from bublik.interfaces.api_v2.issue.filters import IssueFilterSet
 from bublik.interfaces.api_v2.issue.serializers import IssueResultsQuerySerializer
-from bublik.interfaces.api_v2.result.serializers import ClassifyOptionsResponseSerializer
+from bublik.interfaces.api_v2.result.serializers import (
+    ClassifyOptionsResponseSerializer,
+    ClassifyRequestSerializer,
+)
 from bublik.interfaces.api_v2.run.serializers import (
     RunIssueSummarySerializer,
     serialize_paginated_run_summary_results,
 )
-from bublik.mcp.auth import mcp_auth_required, mcp_caller
+from bublik.mcp.auth import authorize_action, mcp_auth_required, mcp_caller
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
 from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, render_run_overview
@@ -173,7 +179,8 @@ async def get_run_leaf_results(
         Markdown table with the matching concrete executions and pagination.
         Classification tells whether a result counts as unexpected once its
         classification is applied; Issues lists the stamps it carries, each
-        with the issue, the rule's category and disposition, and the stamp id.
+        with the issue, the rule's category and disposition, and the stamp id
+        that unclassify_results takes.
     """
     payload = await sync_to_async(_get_run_leaf_results)(
         leaf_result_id=leaf_result_id,
@@ -1511,6 +1518,415 @@ async def get_classify_options(result_ids: list[int]) -> dict:
     return await sync_to_async(_options)()
 
 
+# Classification write tools. Each needs a token and the `manage_issues`
+# permission in the projects of what it changes, as the REST endpoints do.
+
+MANAGE_ISSUES = 'manage_issues'
+
+
+def _bulk_data(outcome) -> dict:
+    return asdict(outcome)
+
+
+@mcp_auth_required()
+async def classify_results(
+    result_ids: list[int],
+    categories: list[str],
+    matchers: list[dict],
+    issue_id: int | None = None,
+    new_issue: dict | None = None,
+    scope: str = 'future',
+    expected: bool | None = None,
+) -> dict:
+    """
+    Classify results of one run under an issue, acting as the caller.
+
+    Pass either `issue_id` (an existing issue of the results' project) or
+    `new_issue` ({title, description?, bug_key?}) to create one. Each test
+    among the results gets a rule per category, built from its matcher:
+    {test_id, parameters, verdicts, tags}. Take the matcher's contents from
+    get_classify_options: `parameters` any part of the shared ones ({} for
+    none), `verdicts` null to ignore them or all the verdict lists of the
+    test's results (a rule each), `tags` any of the allowed ones ([] for
+    none). `scope='future'` makes rules that also classify later imports;
+    'oneoff' only stamps these results. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        result_ids: The results, all of one run, as shown by get_run_leaf_results
+        categories: 'known-issue', 'flaky', 'to-investigate', ... (a rule for each)
+        matchers: One matcher per test among the results
+        issue_id: The issue to classify under
+        new_issue: The fields of an issue to create instead: title (required),
+            description, bug_key (e.g. 'ref://JIRA/NET-1')
+        scope: 'future' (default) or 'oneoff'
+        expected: Whether the results are expected; omit for the category's own
+            disposition (known-issue and flaky: expected, to-investigate: none)
+
+    Returns:
+        The issue id and the ids of the rules the results are stamped with
+    """
+
+    def _classify():
+        if (issue_id is None) == (new_issue is None):
+            msg = 'Pass exactly one of issue_id and new_issue.'
+            raise ValidationError(msg)
+        body = ClassifyRequestSerializer(
+            data={
+                'result_ids': result_ids,
+                'issue': issue_id if issue_id is not None else new_issue,
+                'categories': categories,
+                'matchers': matchers,
+                'scope': scope,
+                **({'expected': expected} if expected is not None else {}),
+            },
+        )
+        body.is_valid(raise_exception=True)
+        fields = body.validated_data
+
+        found = ResultService.get_results_by_ids(fields['result_ids'])
+        # Before anything is told about the results, as it depends on their projects.
+        actor = authorize_action(MANAGE_ISSUES, [r.project_id for r in found.values()])
+        results = ResultService.validate_results_for_classification(fields['result_ids'], found)
+        outcome = ResultService.classify(
+            results,
+            issue=fields['issue'],
+            categories=fields['categories'],
+            matchers=fields['matchers'],
+            scope=fields['scope'],
+            expected=fields.get('expected', UNSET),
+            actor=actor,
+        )
+        return asdict(outcome)
+
+    return await sync_to_async(_classify)()
+
+
+@mcp_auth_required()
+async def unclassify_results(rule_result_ids: list[int]) -> dict:
+    """
+    Take a manual classification off results, acting as the caller.
+
+    Deletes the given stamps (the `rule_result_id` of a result's issues, as
+    get_run_leaf_results and get_result_details show them), then the rules
+    left without stamps and the issues left without rules. Stamps made by
+    import cannot be taken off: deactivate or delete the rule instead.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_result_ids: The stamps to take off
+
+    Returns:
+        The ids of the stamps, rules and issues deleted
+    """
+
+    def _unclassify():
+        ids = list(dict.fromkeys(rule_result_ids))
+        found = ResultService.get_rule_results_by_ids(ids)
+        # Before anything is told about the stamps, as it depends on their projects.
+        authorize_action(MANAGE_ISSUES, [rr.result.project_id for rr in found.values()])
+        return asdict(ResultService.unclassify_results(ids, found))
+
+    return await sync_to_async(_unclassify)()
+
+
+@mcp_auth_required()
+async def apply_run_rules(run_id: int) -> dict:
+    """
+    Apply the project's active rules to a run, acting as the caller.
+
+    Adds the stamps that are missing on the run's results; nothing is
+    removed, so it is safe to repeat. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        run_id: The ID of the test run
+
+    Returns:
+        The number of stamps created
+    """
+
+    def _apply():
+        run = RunService.get_run(run_id)
+        actor = authorize_action(MANAGE_ISSUES, [run.project_id])
+        created = ClassificationService.apply_active_rules_manual(run, actor=actor)
+        RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
+        return {'stamps_created': created}
+
+    return await sync_to_async(_apply)()
+
+
+@mcp_auth_required()
+async def edit_issue(
+    issue_id: int | None = None,
+    project_id: int | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    bug_key: str | None = None,
+) -> dict:
+    """
+    Create an issue, or change one, acting as the caller.
+
+    Without `issue_id` a new issue is created in `project_id` with `title`
+    (required). With it, the fields passed replace the issue's: pass an empty
+    string to clear the description or the bug key. The state is changed by
+    close_issues and reopen_issues. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        issue_id: The issue to change; omit it to create one
+        project_id: The project of a new issue (or to move an issue without stamps to)
+        title: The title
+        description: Internal notes
+        bug_key: The bug, as 'ref://TRACKER/KEY' with a tracker of the
+            project's references config, or a plain key
+
+    Returns:
+        The issue as list_issues shows it
+    """
+
+    def _edit():
+        given = {
+            'project': project_id,
+            'title': title,
+            'description': description,
+            'bug_key': bug_key,
+        }
+        fields = {name: value for name, value in given.items() if value is not None}
+        if issue_id is None:
+            serializer = IssueManagementService.validate(fields)
+            actor = authorize_action(MANAGE_ISSUES, [serializer.validated_data['project'].id])
+            issue = IssueManagementService.create(serializer, actor)
+        else:
+            issue = IssueManagementService.get(issue_id)
+            serializer = IssueManagementService.validate(fields, issue)
+            # The issue may be moved to another project, both must allow it.
+            new_project = serializer.validated_data.get('project')
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [issue.project_id, new_project.id if new_project else issue.project_id],
+            )
+            issue = IssueManagementService.update(serializer, actor)
+        return _issue_data(IssueManagementService.get(issue.id))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def delete_issue(issue_id: int) -> dict:
+    """
+    Delete an issue with its rules and stamps for good, acting as the caller.
+
+    Prefer close_issues: a closed issue keeps its history and stops
+    classifying. Requires an access token and the `manage_issues` permission.
+
+    Args:
+        issue_id: The issue to delete
+
+    Returns:
+        `{'deleted': issue_id}`
+    """
+
+    def _delete():
+        issue = IssueManagementService.get(issue_id)
+        authorize_action(MANAGE_ISSUES, [issue.project_id])
+        IssueManagementService.delete(issue)
+        return {'deleted': issue_id}
+
+    return await sync_to_async(_delete)()
+
+
+@mcp_auth_required()
+async def close_issues(issue_ids: list[int]) -> dict:
+    """
+    Close issues, acting as the caller.
+
+    Closing deactivates the issue's rules, so they classify nothing new; the
+    stamps stay and are shown as stale. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        issue_ids: The issues to close
+
+    Returns:
+        The ids split into updated, unchanged (already closed) and not_found
+    """
+
+    def _close():
+        ids = list(dict.fromkeys(issue_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
+        return _bulk_data(IssueManagementService.close(ids, actor))
+
+    return await sync_to_async(_close)()
+
+
+@mcp_auth_required()
+async def reopen_issues(issue_ids: list[int]) -> dict:
+    """
+    Reopen closed issues, acting as the caller.
+
+    The rules stay deactivated: activate the ones wanted with activate_rules.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        issue_ids: The issues to reopen
+
+    Returns:
+        The ids split into updated, unchanged (already open) and not_found
+    """
+
+    def _reopen():
+        ids = list(dict.fromkeys(issue_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
+        return _bulk_data(IssueManagementService.reopen(ids, actor))
+
+    return await sync_to_async(_reopen)()
+
+
+@mcp_auth_required()
+async def edit_issue_rule(  # noqa: PLR0913, PLR0917
+    rule_id: int | None = None,
+    issue_id: int | None = None,
+    test_id: int | None = None,
+    category: str | None = None,
+    parameters: dict | None = None,
+    verdicts: list[str] | None = None,
+    ignore_verdicts: bool | None = None,
+    tags: list[str] | None = None,
+    expected: bool | None = None,
+) -> dict:
+    """
+    Create a rule of an issue, or change one, acting as the caller.
+
+    A rule stamps the results of `test_id` whose parameters include
+    `parameters`, whose verdicts are exactly `verdicts` (in order; [] for
+    none) unless `ignore_verdicts` is true, in runs carrying every one of
+    `tags`. Without `rule_id` all of issue_id, test_id, category, parameters,
+    tags and either verdicts or ignore_verdicts are required. With it, the
+    fields passed replace the rule's; the matcher of a rule that has
+    classified results cannot change, create a new rule instead. Requires
+    an access token and the `manage_issues` permission.
+
+    Args:
+        rule_id: The rule to change; omit it to create one
+        issue_id: The issue the rule belongs to
+        test_id: The test, as shown by get_run_overview
+        category: 'known-issue', 'flaky', 'to-investigate', ...
+        parameters: Test parameters as {name: value}; {} restricts nothing
+        verdicts: The verdicts a result must have, in order; [] for none
+        ignore_verdicts: true to match whatever the verdicts are
+        tags: Run tags as 'name=value' or 'name'; [] restricts nothing
+        expected: Whether the stamped results count as expected; omit for
+            the category's own disposition when creating
+
+    Returns:
+        The rule as get_issue shows it
+    """
+
+    def _edit():
+        given = {
+            'issue': issue_id,
+            'test': test_id,
+            'category': category,
+            'parameters': parameters,
+            'verdicts': None if ignore_verdicts else verdicts,
+            'tags': tags,
+            'expected': expected,
+        }
+        fields = {name: value for name, value in given.items() if value is not None}
+        if ignore_verdicts:
+            fields['verdicts'] = None
+        if rule_id is None:
+            serializer = IssueRuleManagementService.validate(fields)
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [serializer.validated_data['issue'].project_id],
+            )
+            rule = IssueRuleManagementService.create(serializer, actor)
+        else:
+            rule = IssueRuleManagementService.get(rule_id)
+            serializer = IssueRuleManagementService.validate(fields, rule)
+            # The rule may be moved to an issue of another project, both must allow it.
+            new_issue = serializer.validated_data.get('issue')
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [rule.issue.project_id, (new_issue or rule.issue).project_id],
+            )
+            rule = IssueRuleManagementService.update(serializer, actor)
+        return _rule_data(IssueRuleManagementService.get(rule.id))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def delete_issue_rule(rule_id: int) -> dict:
+    """
+    Delete a rule with its stamps for good, acting as the caller.
+
+    Prefer deactivate_rules, which keeps the stamps. Requires an access token
+    and the `manage_issues` permission.
+
+    Args:
+        rule_id: The rule to delete
+
+    Returns:
+        `{'deleted': rule_id}`
+    """
+
+    def _delete():
+        rule = IssueRuleManagementService.get(rule_id)
+        authorize_action(MANAGE_ISSUES, [rule.issue.project_id])
+        IssueRuleManagementService.delete(rule)
+        return {'deleted': rule_id}
+
+    return await sync_to_async(_delete)()
+
+
+@mcp_auth_required()
+async def activate_rules(rule_ids: list[int]) -> dict:
+    """
+    Activate rules, acting as the caller, so they classify later imports.
+
+    The rules of a closed issue cannot be activated: reopen it first.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_ids: The rules to activate
+
+    Returns:
+        The ids split into updated, unchanged (already active) and not_found
+    """
+
+    def _activate():
+        ids = list(dict.fromkeys(rule_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
+        return _bulk_data(IssueRuleManagementService.activate(ids, actor))
+
+    return await sync_to_async(_activate)()
+
+
+@mcp_auth_required()
+async def deactivate_rules(rule_ids: list[int]) -> dict:
+    """
+    Deactivate rules, acting as the caller; their stamps stay.
+
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_ids: The rules to deactivate
+
+    Returns:
+        The ids split into updated, unchanged (already inactive) and not_found
+    """
+
+    def _deactivate():
+        ids = list(dict.fromkeys(rule_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
+        return _bulk_data(IssueRuleManagementService.deactivate(ids, actor))
+
+    return await sync_to_async(_deactivate)()
+
+
 # Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
 # server (see register_tools) and directly by the in-process chat agent
 # (see bublik.ai.agent), so both expose exactly the same tools.
@@ -1554,6 +1970,17 @@ MCP_WRITE_TOOLS = [
     edit_test_comment,
     edit_run_comment,
     set_run_compromised,
+    classify_results,
+    unclassify_results,
+    apply_run_rules,
+    edit_issue,
+    delete_issue,
+    close_issues,
+    reopen_issues,
+    edit_issue_rule,
+    delete_issue_rule,
+    activate_rules,
+    deactivate_rules,
 ]
 
 # Tools only an administrator may call, reads included.

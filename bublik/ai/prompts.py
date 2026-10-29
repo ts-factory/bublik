@@ -51,6 +51,20 @@ WRITE_GUIDE = (
     'the user unless they explicitly asked for exactly that. If a tool '
     'refuses because the user is not allowed to do something, say so plainly '
     'and do not try again with other arguments.'
+    '\n\n## Triaging Failures\n\n'
+    'Failures are explained by classifying results under issues. Look before '
+    'you classify: `get_run_issues` shows what a run is already classified '
+    "under, the leaf results and `get_result_details` show each result's "
+    'stamps, `list_issues` finds an existing issue to reuse, and '
+    '`get_classify_options` tells what a matcher for chosen results may '
+    'contain. Then `classify_results` stamps the results, under an existing '
+    'issue or a new one, and `apply_run_rules` adds the stamps of rules '
+    'created since a run was imported. `edit_issue`, `close_issues`, '
+    '`reopen_issues`, `edit_issue_rule`, `activate_rules` and '
+    '`deactivate_rules` manage issues and rules; `unclassify_results`, '
+    '`delete_issue` and `delete_issue_rule` remove things and need the same '
+    "confirmation as any removal. A rule with `scope='future'` keeps "
+    'classifying later runs, so say so when you create one.'
 )
 
 
