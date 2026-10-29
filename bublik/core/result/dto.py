@@ -68,3 +68,16 @@ class UnclassifyDTO:
     deleted_rule_result_ids: list[int] = field(default_factory=list)
     deleted_rule_ids: list[int] = field(default_factory=list)
     deleted_issue_ids: list[int] = field(default_factory=list)
+
+
+@dataclass
+class ClassifyDTO:
+    """
+    What classifying results did: the issue they are stamped under, and the
+    rules they are stamped with, test by test in the order the tests first
+    appear among the results, within a test by verdict list in the order of
+    the matcher, and then in the order of the categories.
+    """
+
+    issue_id: int
+    rule_ids: list[int] = field(default_factory=list)
