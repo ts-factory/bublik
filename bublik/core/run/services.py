@@ -16,6 +16,7 @@ from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import NotFoundError
+from bublik.core.log.s3_logs import browser_url
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.run.compromised import (
     is_run_compromised,
@@ -125,18 +126,20 @@ class RunService:
         return get_run_stats_detailed_with_comments(run_id, requirements)
 
     @staticmethod
-    def get_run_source(run_id: int) -> str:
+    def get_run_source(run_id: int, origin: str | None = None) -> str:
         """
         Get source URL for a run.
 
         Args:
             run_id: The ID of the test run
+            origin: Bublik's ``scheme://host`` as the client sees it, to make
+                the URL of a run stored in S3 absolute (else BUBLIK_FQDN is used)
 
         Returns:
             Source URL string
         """
         run = RunService.get_run(run_id)
-        return get_sources(run)
+        return browser_url(get_sources(run), origin)
 
     @staticmethod
     def get_run_compromised(run_id: int) -> bool:
@@ -198,7 +201,7 @@ class RunService:
         unmark_run_compromised(run_id)
 
     @staticmethod
-    def list_runs_queryset(  # noqa: PLR0913
+    def list_runs_queryset(  # noqa: PLR0913, PLR0917
         start_date: str | None = None,
         finish_date: str | None = None,
         project_id: int | None = None,

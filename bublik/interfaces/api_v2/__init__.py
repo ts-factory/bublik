@@ -25,7 +25,7 @@ from .issue.views import (
     TestPickerViewSet,
 )
 from .job_task.views import JobTaskExecutionViewSet
-from .log import LogViewSet
+from .log import LogViewSet, local_log, s3_log
 from .management import clear_all_runs_stats_cache, local_logs, meta_categorization
 from .measurement.views import MeasurementViewSet
 from .outside_domains import OutsideDomainsViewSet
@@ -37,6 +37,7 @@ from .run.views import RunViewSet
 from .server import ServerViewSet
 from .tree.views import TreeViewSet
 from .url_shortener.views import URLShortenerView
+from .user_token.views import UserTokenViewSet
 
 
 __all__ = [
@@ -68,9 +69,12 @@ __all__ = [
     'TestPickerViewSet',
     'TreeViewSet',
     'URLShortenerView',
+    'UserTokenViewSet',
     'clear_all_runs_stats_cache',
+    'local_log',
     'local_logs',
     'meta_categorization',
     'render_docs',
     'render_react',
+    's3_log',
 ]

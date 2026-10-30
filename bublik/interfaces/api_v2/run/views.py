@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import check_action_permission_for_projects, get_user_by_access_token
+from bublik.core.auth import check_action_permission_for_projects, get_request_user
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
 from bublik.core.run.classification import ClassificationService
@@ -18,6 +18,7 @@ from bublik.core.run.stats import (
     generate_results_details,
     generate_runs_details,
 )
+from bublik.core.shortcuts import get_origin
 from bublik.core.utils import get_difference
 from bublik.data.models import GlobalConfigs
 from bublik.data.serializers import (
@@ -139,8 +140,8 @@ class RunViewSet(ModelViewSet):
         return Response({'requirements': RunService.get_run_requirements(pk)})
 
     @action(detail=True, methods=['get'])
-    def source(self, _request, pk=None):
-        return Response({'url': RunService.get_run_source(pk)})
+    def source(self, request, pk=None):
+        return Response({'url': RunService.get_run_source(pk, get_origin(request))})
 
     @action(detail=True, methods=['get'])
     def status(self, _request, pk=None):
@@ -213,7 +214,7 @@ class RunViewSet(ModelViewSet):
     def apply_rules(self, request, pk=None):
         run = RunService.get_run(pk)
         check_action_permission_for_projects(request, 'manage_issues', [run.project_id])
-        actor = get_user_by_access_token(request.COOKIES.get('access_token'))
+        actor = get_request_user(request)
         created = ClassificationService.apply_active_rules_manual(run, actor=actor)
         RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
         data = ApplyRulesResponseSerializer({'stamps_created': created}).data

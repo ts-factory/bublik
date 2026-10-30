@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from argparse import ArgumentTypeError
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import URLValidator
 from rest_framework import serializers
 
 from bublik.core.argparse import (
@@ -12,11 +14,20 @@ from bublik.core.argparse import (
     parser_type_force,
 )
 from bublik.core.config.services import ConfigServices
+from bublik.core.logs_storage import (
+    LogsStorageError,
+    is_local_url,
+    is_s3_url,
+    parse_file_url,
+    parse_s3_url,
+)
 from bublik.data.models import GlobalConfigs, Project
 
 
 class ImportrunsSerializer(serializers.Serializer):
-    url = serializers.URLField()
+    # http(s) URLs of a TE log server, s3:// URLs of an S3 logs base, or
+    # file:// URLs of a local one.
+    url = serializers.CharField()
     project = serializers.IntegerField(required=False, allow_null=True)
     date_from = serializers.CharField(required=False, allow_null=True)
     date_to = serializers.CharField(required=False, allow_null=True)
@@ -31,6 +42,18 @@ class ImportrunsSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
     def validate_url(self, url):
+        if is_s3_url(url) or is_local_url(url):
+            try:
+                (parse_s3_url if is_s3_url(url) else parse_file_url)(url)
+            except LogsStorageError as error:
+                raise serializers.ValidationError(error.message) from None
+        else:
+            try:
+                URLValidator(schemes=['http', 'https'])(url)
+            except DjangoValidationError:
+                msg = 'Enter a valid http(s)://, s3:// or file:// URL.'
+                raise serializers.ValidationError(msg) from None
+
         project_id = self.initial_data.get('project')
         project_ids = (
             Project.objects.filter(id=project_id)
@@ -95,3 +118,26 @@ class ImportrunsSerializer(serializers.Serializer):
             ),
             'force': data.get('force', False),
         }
+
+
+class ImportUploadSerializer(serializers.Serializer):
+    """Form fields of a log tarball upload."""
+
+    file = serializers.FileField()
+    project = serializers.IntegerField(required=False, allow_null=True)
+    force = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
+    def validate_project(self, project_id):
+        if project_id is None:
+            return None
+        project = Project.objects.filter(id=project_id).first()
+        if project is None:
+            msg = f'Project {project_id} does not exist'
+            raise serializers.ValidationError(msg)
+        return project
+
+    def validate_force(self, force):
+        try:
+            return parser_type_force(force) if force else False
+        except ArgumentTypeError as ate:
+            raise serializers.ValidationError(ate) from None

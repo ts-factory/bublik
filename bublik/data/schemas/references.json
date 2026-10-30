@@ -16,17 +16,225 @@
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "pattern": "^https?://"
+                            "pattern": "^(https?|s3|file)://"
                         },
                         "minItems": 1,
                         "uniqueItems": true
+                    },
+                    "storage": {
+                        "description": "Where the files behind this base's URIs are, so that Bublik can store uploaded tarballs there. 'fs' is the directory a TE log server serves the base's http(s) URIs from, as Bublik sees it; 's3' is the bucket behind s3:// URIs, served by Bublik itself. For 's3' every field but 'type' is optional and falls back to the matching S3_* Django setting (the bundled SeaweedFS). Credentials are never stored in the config: they are ${env:LOGS_NAME} or ${settings:LOGS_NAME} references.",
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "enum": [
+                                    "s3",
+                                    "fs",
+                                    "local"
+                                ]
+                            },
+                            "root": {
+                                "description": "fs: absolute path of the log server's storage directory, where publish-logs-unpack.sh puts runs. Uploads are unpacked there in the same layout.",
+                                "type": "string",
+                                "pattern": "^/"
+                            },
+                            "endpoint_url": {
+                                "description": "S3 endpoint Bublik reaches the bucket at.",
+                                "type": "string",
+                                "pattern": "^https?://"
+                            },
+                            "public_endpoint_url": {
+                                "description": "Browser-reachable S3 endpoint. When set, log pages that already exist are served to the browser as presigned URLs on it.",
+                                "type": "string",
+                                "pattern": "^https?://"
+                            },
+                            "region": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "access_key": {
+                                "description": "Reference to the access key, e.g. ${env:LOGS_S3_ACCESS_KEY}.",
+                                "type": "string",
+                                "pattern": "^\\$\\{(env|settings):LOGS_[A-Z0-9_]+\\}$"
+                            },
+                            "secret_key": {
+                                "description": "Reference to the secret key, e.g. ${env:LOGS_S3_SECRET_KEY}.",
+                                "type": "string",
+                                "pattern": "^\\$\\{(env|settings):LOGS_[A-Z0-9_]+\\}$"
+                            },
+                            "upload": {
+                                "description": "Tarballs uploaded to this project are stored under this base. Without such a base, uploads to the project are refused.",
+                                "type": "boolean",
+                                "default": false
+                            }
+                        },
+                        "required": [
+                            "type"
+                        ],
+                        "additionalProperties": false,
+                        "allOf": [
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "fs"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "required": [
+                                        "root"
+                                    ],
+                                    "propertyNames": {
+                                        "enum": [
+                                            "type",
+                                            "root",
+                                            "upload"
+                                        ]
+                                    }
+                                },
+                                "else": {
+                                    "propertyNames": {
+                                        "not": {
+                                            "const": "root"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "local"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "propertyNames": {
+                                        "enum": [
+                                            "type",
+                                            "upload"
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
                     }
                 },
                 "required": [
                     "name",
                     "uri"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "A logs base: the URIs runs' logs live under. By default these are http(s) URIs of a TE log server, which an 'fs' storage block may also name the directory of. With an 's3' storage block they are s3://bucket/prefix/ URIs, with a 'local' one file:///path/ URIs of a directory Bublik serves itself.",
+                "allOf": [
+                    {
+                        "if": {
+                            "required": [
+                                "storage"
+                            ],
+                            "properties": {
+                                "storage": {
+                                    "required": [
+                                        "type"
+                                    ],
+                                    "properties": {
+                                        "type": {
+                                            "const": "s3"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "uri": {
+                                    "items": {
+                                        "pattern": "^s3://[^/]+/"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "required": [
+                                "storage"
+                            ],
+                            "properties": {
+                                "storage": {
+                                    "required": [
+                                        "type"
+                                    ],
+                                    "properties": {
+                                        "type": {
+                                            "const": "local"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "uri": {
+                                    "items": {
+                                        "pattern": "^file:///"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "not": {
+                                "anyOf": [
+                                    {
+                                        "required": [
+                                            "storage"
+                                        ],
+                                        "properties": {
+                                            "storage": {
+                                                "required": [
+                                                    "type"
+                                                ],
+                                                "properties": {
+                                                    "type": {
+                                                        "const": "s3"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "required": [
+                                            "storage"
+                                        ],
+                                        "properties": {
+                                            "storage": {
+                                                "required": [
+                                                    "type"
+                                                ],
+                                                "properties": {
+                                                    "type": {
+                                                        "const": "local"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "uri": {
+                                    "items": {
+                                        "pattern": "^https?://"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
             },
             "minItems": 1,
             "uniqueItems": true,

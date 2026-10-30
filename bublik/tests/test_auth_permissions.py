@@ -9,7 +9,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from rest_framework_simplejwt.tokens import AccessToken
 
-from bublik.core.auth import check_action_permission_for_projects
+from bublik.core.auth import check_action_permission_for_projects, get_request_user
 from bublik.core.config.services import ConfigServices
 from bublik.data import models
 
@@ -53,3 +53,12 @@ class CheckActionPermissionForProjectsTest(TestCase):
             status=models.UserStatus.ACTIVE,
         )
         self._check([ALLOWED_PROJECT, OTHER_PROJECT], user=admin)
+
+
+class GetRequestUserTest(TestCase):
+    def test_an_anonymous_request_is_resolved_once(self):
+        request = Request(APIRequestFactory().get('/'))
+        with mock.patch('bublik.core.auth.resolve_user', return_value=None) as resolve:
+            assert get_request_user(request) is None
+            assert get_request_user(request) is None
+        assert resolve.call_count == 1

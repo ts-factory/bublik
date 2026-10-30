@@ -4,8 +4,8 @@
 Authentication and authorization for the chat endpoints.
 
 The chat routes (:mod:`bublik.ai.app`, :mod:`bublik.ai.streaming`,
-:mod:`bublik.ai.downloads`) resolve the requesting user from the
-``access_token`` cookie and gate access to threads and generated files by
+:mod:`bublik.ai.downloads`) resolve the requesting user from the login cookie
+or a personal access token, and gate access to threads and generated files by
 ownership. This is the ORM/permission layer for those routes, kept apart from
 the route wiring so it can be unit-tested on its own.
 """
@@ -16,9 +16,10 @@ from typing import TYPE_CHECKING
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ValidationError
+from starlette.responses import JSONResponse
 
-from bublik.core.auth import get_user_by_access_token
-from bublik.data.models import AiChatFile, AiChatThread
+from bublik.core.auth import resolve_user as _resolve_user
+from bublik.data.models import AiChatFile, AiChatThread, UserTokenError
 
 
 if TYPE_CHECKING:
@@ -26,11 +27,23 @@ if TYPE_CHECKING:
 
 
 async def resolve_user(request: Request):
-    """Resolve the requesting user from the ``access_token`` cookie, or ``None``."""
-    access_token = request.cookies.get('access_token')
-    if not access_token:
-        return None
-    return await sync_to_async(get_user_by_access_token)(access_token)
+    """Resolve the requesting user from either credential, or ``None``.
+
+    A refused token raises ``UserTokenError`` for :func:`refused_token_response`.
+    """
+    return await sync_to_async(_resolve_user)(
+        authorization=request.headers.get('authorization'),
+        access_token=request.cookies.get('access_token'),
+    )
+
+
+def refused_token_response(request: Request, exc: UserTokenError) -> JSONResponse:
+    """The 401 for a presented but unusable token, with the reason."""
+    return JSONResponse(
+        {'detail': exc.message},
+        status_code=401,
+        headers={'WWW-Authenticate': 'Bearer error="invalid_token"'},
+    )
 
 
 @sync_to_async

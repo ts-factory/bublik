@@ -6,6 +6,7 @@ import os.path
 from django.shortcuts import get_object_or_404
 
 from bublik.core.config.services import ConfigServices
+from bublik.core.log.s3_logs import browser_url
 from bublik.core.queries import get_or_none
 from bublik.core.run.tests_organization import get_run_root
 from bublik.data import models
@@ -102,7 +103,7 @@ def get_trc_brief(result):
         run_source_link = get_sources(result)
         if not run_source_link:
             return None
-        return os.path.join(run_source_link, 'trc-brief.html')
+        return browser_url(os.path.join(run_source_link, 'trc-brief.html'))
     except Exception:
         # TODO: Should be writen to a runtime debug logger
         return None

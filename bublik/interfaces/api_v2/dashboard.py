@@ -14,6 +14,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.dashboard import DashboardService
+from bublik.core.log.s3_logs import browser_url
 from bublik.core.report.services import ReportService
 from bublik.core.run.external_links import get_sources
 from bublik.core.utils import get_difference
@@ -320,7 +321,7 @@ class DashboardPayload:
             item.update(
                 {
                     'payload': {
-                        'url': get_sources(run),
+                        'url': browser_url(get_sources(run)),
                     },
                 },
             )
