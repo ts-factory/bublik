@@ -28,6 +28,7 @@ from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
 )
+from bublik.interfaces.api_v2.log.serializers import LogJsonResponseSerializer
 from bublik.interfaces.api_v2.run.serializers import (
     serialize_paginated_run_summary_results,
 )
@@ -425,11 +426,12 @@ async def get_log_urls(result_id: int, page: int | None = None) -> dict:
     Returns:
         Dictionary with 'url' and 'attachments_url' keys
     """
-    return await sync_to_async(LogService.get_json_log_urls)(
+    urls = await sync_to_async(LogService.get_json_log_urls)(
         result_id,
         page,
         request_origin=None,
     )
+    return dict(LogJsonResponseSerializer(urls).data)
 
 
 async def get_log_html_url(result_id: int) -> str | None:
@@ -474,7 +476,7 @@ async def get_log_overview(
 
     def _get_overview():
         log_data = LogService.get_log_json(result_id, page)
-        validated_log = JsonLog.model_validate(log_data['log'])
+        validated_log = JsonLog.model_validate(log_data.log)
 
         processor = LogProcessor(validated_log)
         overview = processor.get_overview(
@@ -528,7 +530,7 @@ async def get_log_lines(  # noqa: PLR0913, PLR0917
 
     def _get_lines():
         log_data = LogService.get_log_json(result_id, page)
-        validated_log = JsonLog.model_validate(log_data['log'])
+        validated_log = JsonLog.model_validate(log_data.log)
 
         processor = LogProcessor(validated_log)
         result = processor.get_lines(
@@ -574,7 +576,7 @@ async def get_log_line(
 
     def _get_line():
         log_data = LogService.get_log_json(result_id, page)
-        validated_log = JsonLog.model_validate(log_data['log'])
+        validated_log = JsonLog.model_validate(log_data.log)
 
         processor = LogProcessor(validated_log)
 
