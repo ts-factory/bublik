@@ -9,7 +9,10 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.log.services import LogService
 from bublik.data.models import TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
-from bublik.interfaces.api_v2.log.serializers import LogJsonResponseSerializer
+from bublik.interfaces.api_v2.log.serializers import (
+    LogJsonQuerySerializer,
+    LogJsonResponseSerializer,
+)
 
 
 __all__ = [
@@ -23,12 +26,10 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=True, methods=['get'])
     def json(self, request, pk=None):
-        """
-        Return the URLs of the corresponding JSON log file and attachments file.
-        Route: /api/v2/logs/<ID>/json/?page=<page\\>.
-        """
-        page_str = request.query_params.get('page')
-        page = int(page_str) if page_str else None
+        # Preserve explicit empty values so the optional field rejects ?page=.
+        serializer = LogJsonQuerySerializer(data=request.query_params.dict())
+        serializer.is_valid(raise_exception=True)
+        page = serializer.validated_data.get('page')
         request_origin = request.get_host() if request else None
 
         # Let LogService handle validation and raise appropriate exceptions

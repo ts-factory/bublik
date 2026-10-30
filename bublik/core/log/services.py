@@ -41,18 +41,24 @@ class LogService:
             DTO with JSON log and attachments URLs, or None for unavailable URLs
 
         Raises:
-            UnprocessableEntityError: if result not found or invalid page parameter
+            NotFoundError: if result not found
+            UnprocessableEntityError: if page is not a non-negative integer
         """
+        if page is not None:
+            if not isinstance(page, int):
+                msg = f'Incorrect value for page parameter: {page}. Expecting number'
+                raise UnprocessableEntityError(msg)
+            if page < 0:
+                msg = (
+                    f'Incorrect value for page parameter: {page}. Expecting non-negative number'
+                )
+                raise UnprocessableEntityError(msg)
+
         result = ResultService.get_result(result_id)
         run_source_link = get_sources(result)
 
         if not run_source_link:
             return LogUrlsDTO(url=None, attachments_url=None)
-
-        # Validate page parameter
-        if page is not None and not isinstance(page, int):
-            msg = f'Incorrect value for page parameter: {page}. Expecting number'
-            raise UnprocessableEntityError(msg)
 
         # Build node name
         if not result.test_run:
@@ -97,7 +103,8 @@ class LogService:
             URL string or None if not available
 
         Raises:
-            UnprocessableEntityError: if result not found
+            NotFoundError: if result not found
+            UnprocessableEntityError: if page is not a non-negative integer
         """
         result = ResultService.get_result(result_id)
         return get_result_log(result)
@@ -115,6 +122,7 @@ class LogService:
 
         Raises:
             UnprocessableEntityError: if URL is missing
+            BadGatewayError: if remote content could not be fetched or is not valid JSON
         """
         if not url:
             msg = 'URL parameter is missing'
@@ -154,7 +162,8 @@ class LogService:
             DTO with log URLs and the original JSON log and attachments values
 
         Raises:
-            UnprocessableEntityError: if result not found or invalid parameters
+            NotFoundError: if result not found
+            UnprocessableEntityError: if page is not a non-negative integer
         """
         # Get URLs (without proxy for direct fetching)
         urls = LogService.get_json_log_urls(result_id, page, request_origin=None)
