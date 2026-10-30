@@ -2,14 +2,12 @@
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
 from collections import Counter
+from dataclasses import asdict
 import json
 import typing
 
 from django.conf import settings
-from django.db import transaction
-from django.db.models import Count, Exists, F, IntegerField, Max, OuterRef, Q, Subquery
-from django.db.models.functions import Coalesce
-from django.utils import timezone
+from django.db.models import Count, Exists, Max, OuterRef, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.utils import translate_validation
 from rest_framework import status
@@ -20,22 +18,25 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
-from bublik.core.auth import check_action_permission_for_projects, get_user_by_access_token
-from bublik.core.cache import RunCache
+from bublik.core.auth import check_action_permission_for_projects, get_request_user
 from bublik.core.classification import (
     DISPOSITION_TO_EXPECTED,
     RulesState,
-    active_rule_subquery,
     active_rules_prefetch,
-    any_rule_subquery,
     disposition_query,
     effect_for,
     rules_state_query,
 )
 from bublik.core.filter_backends import StableOrderingFilter
+from bublik.core.issue import (
+    IssueManagementService,
+    IssueRuleManagementService,
+    issues_queryset,
+    issues_with_rules_state,
+    rules_queryset,
+)
 from bublik.core.issue_results import IssueResultsFilters, IssueResultsService
 from bublik.core.pagination import PerProjectPageNumberPagination
-from bublik.core.run.classification import ClassificationService
 from bublik.core.run.tests_organization import build_test_paths, get_test_ids_by_name
 from bublik.data.models import (
     Issue,
@@ -67,7 +68,7 @@ from bublik.interfaces.api_v2.issue.serializers import (
 
 
 def _actor(request):
-    return get_user_by_access_token(request.COOKIES.get('access_token'))
+    return get_request_user(request)
 
 
 def _action_ids(request):
@@ -77,16 +78,8 @@ def _action_ids(request):
     return list(dict.fromkeys(serializer.validated_data['ids']))
 
 
-def _action_summary(ids, existing_ids, updated_ids):
-    """The IDs of a bulk action split by outcome, each in the order requested."""
-    updated_ids = set(updated_ids)
-    data = {
-        'requested': len(ids),
-        'updated': [i for i in ids if i in updated_ids],
-        'unchanged': [i for i in ids if i in existing_ids and i not in updated_ids],
-        'not_found': [i for i in ids if i not in existing_ids],
-    }
-    return ActionResultSerializer(data).data
+def _action_response(outcome):
+    return Response(ActionResultSerializer(asdict(outcome)).data)
 
 
 def _grouped_counts(qs, group_field, count_field='id'):
@@ -140,34 +133,6 @@ def _issue_facet_counts(dim_key, qs):
     return _grouped_counts(qs, 'project_id')
 
 
-def _per_issue_count(queryset, issue_field, count_field):
-    """
-    The number of distinct `count_field` values of `queryset` for the outer
-    issue, as a scalar subquery: it is computed only for the issues a page
-    returns (for every filtered issue when the list is ordered by it), not by
-    joining every rule and stamp of every filtered issue before the page is
-    cut.
-    """
-    return Coalesce(
-        Subquery(
-            queryset.order_by()
-            .values(issue_field)
-            .annotate(count=Count(count_field, distinct=True))
-            .values('count'),
-            output_field=IntegerField(),
-        ),
-        0,
-    )
-
-
-def _issues_with_rules_state():
-    """Issues annotated with what the `rules` filter and rules_state read."""
-    return Issue.objects.annotate(
-        has_any_rule=Exists(any_rule_subquery()),
-        has_active_rule=Exists(active_rule_subquery()),
-    )
-
-
 class IssueRulePagination(PerProjectPageNumberPagination):
     project_field = 'issue__project_id'
 
@@ -175,29 +140,7 @@ class IssueRulePagination(PerProjectPageNumberPagination):
 @issue_viewset_schema
 class IssueViewSet(ModelViewSet):
     serializer_class = IssueSerializer
-    queryset = (
-        _issues_with_rules_state()
-        .select_related('project', 'created_by', 'updated_by', 'closed_by')
-        .annotate(
-            rule_count=_per_issue_count(
-                IssueRule.objects.filter(issue=OuterRef('pk')),
-                'issue',
-                'id',
-            ),
-            active_rule_count=_per_issue_count(
-                IssueRule.objects.filter(issue=OuterRef('pk'), active=True),
-                'issue',
-                'id',
-            ),
-            result_count=_per_issue_count(
-                RuleResult.objects.filter(issue_rule__issue=OuterRef('pk')),
-                'issue_rule__issue',
-                'result',
-            ),
-        )
-        .prefetch_related(active_rules_prefetch())
-        .order_by('-created_at')
-    )
+    queryset = issues_queryset()
     http_method_names: typing.ClassVar[list] = [
         'get',
         'post',
@@ -225,7 +168,7 @@ class IssueViewSet(ModelViewSet):
         return _facets(
             request,
             IssueFilterSet,
-            _issues_with_rules_state(),
+            issues_with_rules_state(),
             _ISSUE_FACET_PARAMS,
             _issue_facet_counts,
         )
@@ -236,24 +179,9 @@ class IssueViewSet(ModelViewSet):
         query = IssueResultsQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        result_properties = params.get('result_properties')
-
         page = IssueResultsService.page(
             issue.id,
-            IssueResultsFilters(
-                results=params.get('results'),
-                result_properties=(
-                    settings.QUERY_DELIMITER.join(result_properties)
-                    if result_properties
-                    else None
-                ),
-                requirements=params.get('requirements'),
-                categories=params.get('category', []),
-                classifications=params.get('classification', []),
-                verdicts=params.get('verdict', []),
-                artifacts=params.get('artifact', []),
-                parameters=params.get('parameter', []),
-            ),
+            IssueResultsFilters.from_params(params),
             page=params.get('page'),
             page_size=params.get('page_size'),
         )
@@ -266,20 +194,18 @@ class IssueViewSet(ModelViewSet):
         return Response(IssueResultsFacetsSerializer(facets).data)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        serializer = IssueManagementService.validate(request.data)
         check_action_permission_for_projects(
             request,
             'manage_issues',
             [serializer.validated_data['project'].id],
         )
-        serializer.save(created_by=_actor(request))
+        IssueManagementService.create(serializer, _actor(request))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
+        serializer = IssueManagementService.validate(request.data, instance)
         # The issue may be moved to another project, both must allow it.
         new_project = serializer.validated_data.get('project')
         check_action_permission_for_projects(
@@ -287,69 +213,34 @@ class IssueViewSet(ModelViewSet):
             'manage_issues',
             [instance.project_id, new_project.id if new_project else instance.project_id],
         )
-        # Nothing an issue's PATCH may change decides suppression: the state
-        # is changed by close/reopen, and the bug key and the project can't
-        # be changed once the issue has stamps.
-        serializer.save(updated_by=_actor(request))
+        IssueManagementService.update(serializer, _actor(request))
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         check_action_permission_for_projects(request, 'manage_issues', [instance.project_id])
-        run_ids = ClassificationService.runs_for_issues([instance.id])
-        instance.delete()
-        RunCache.invalidate_classification_affected(run_ids)
+        IssueManagementService.delete(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])
     def close(self, request, *args, **kwargs):
         ids = _action_ids(request)
-        rows = list(Issue.objects.filter(id__in=ids).values_list('id', 'state', 'project_id'))
-        check_action_permission_for_projects(request, 'manage_issues', [row[2] for row in rows])
-        existing_ids = {issue_id for issue_id, _, _ in rows}
-        updated_ids = [issue_id for issue_id, state, _ in rows if state == IssueState.OPEN]
-
-        actor = _actor(request)
-        now = timezone.now()
-        with transaction.atomic():
-            Issue.objects.filter(id__in=updated_ids).update(
-                state=IssueState.CLOSED,
-                closed_by=actor,
-                closed_at=now,
-                updated_by=actor,
-                updated_at=now,
-            )
-            IssueRule.objects.filter(issue_id__in=updated_ids, active=True).update(
-                active=False,
-                deactivated_by=actor,
-                deactivated_at=now,
-                updated_by=actor,
-                updated_at=now,
-            )
-        RunCache.invalidate_classification_affected(
-            ClassificationService.runs_for_issues(updated_ids),
+        check_action_permission_for_projects(
+            request,
+            'manage_issues',
+            IssueManagementService.projects_of(ids),
         )
-        return Response(_action_summary(ids, existing_ids, updated_ids))
+        return _action_response(IssueManagementService.close(ids, _actor(request)))
 
     @action(detail=False, methods=['post'])
     def reopen(self, request, *args, **kwargs):
         ids = _action_ids(request)
-        rows = list(Issue.objects.filter(id__in=ids).values_list('id', 'state', 'project_id'))
-        check_action_permission_for_projects(request, 'manage_issues', [row[2] for row in rows])
-        existing_ids = {issue_id for issue_id, _, _ in rows}
-        updated_ids = [issue_id for issue_id, state, _ in rows if state == IssueState.CLOSED]
-
-        Issue.objects.filter(id__in=updated_ids).update(
-            state=IssueState.OPEN,
-            closed_by=None,
-            closed_at=None,
-            updated_by=_actor(request),
-            updated_at=timezone.now(),
+        check_action_permission_for_projects(
+            request,
+            'manage_issues',
+            IssueManagementService.projects_of(ids),
         )
-        RunCache.invalidate_classification_affected(
-            ClassificationService.runs_for_issues(updated_ids),
-        )
-        return Response(_action_summary(ids, existing_ids, updated_ids))
+        return _action_response(IssueManagementService.reopen(ids, _actor(request)))
 
 
 _RULE_FACET_PARAMS = {
@@ -421,11 +312,7 @@ def _rule_facet_counts(dim_key, qs):
 @issue_rule_viewset_schema
 class IssueRuleViewSet(ModelViewSet):
     serializer_class = IssueRuleSerializer
-    queryset = (
-        IssueRule.objects.select_related('issue__project', 'test')
-        .annotate(test_name=F('test__name'), issue_title=F('issue__title'))
-        .order_by('-created_at')
-    )
+    queryset = rules_queryset()
     http_method_names: typing.ClassVar[list] = [
         'get',
         'post',
@@ -457,20 +344,18 @@ class IssueRuleViewSet(ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        serializer = IssueRuleManagementService.validate(request.data)
         check_action_permission_for_projects(
             request,
             'manage_issues',
             [serializer.validated_data['issue'].project_id],
         )
-        serializer.save(created_by=_actor(request))
+        IssueRuleManagementService.create(serializer, _actor(request))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
+        serializer = IssueRuleManagementService.validate(request.data, instance)
         # The rule may be moved to an issue of another project, both must allow it.
         new_issue = serializer.validated_data.get('issue')
         check_action_permission_for_projects(
@@ -478,17 +363,7 @@ class IssueRuleViewSet(ModelViewSet):
             'manage_issues',
             [instance.issue.project_id, (new_issue or instance.issue).project_id],
         )
-        # Of what may change on a rule with stamps, only `expected` decides
-        # whether they suppress their results.
-        expected_changed = (
-            'expected' in serializer.validated_data
-            and serializer.validated_data['expected'] != instance.expected
-        )
-        serializer.save(updated_by=_actor(request))
-        if expected_changed:
-            RunCache.invalidate_classification_affected(
-                ClassificationService.runs_for_rules([instance.id]),
-            )
+        IssueRuleManagementService.update(serializer, _actor(request))
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
@@ -498,75 +373,28 @@ class IssueRuleViewSet(ModelViewSet):
             'manage_issues',
             [instance.issue.project_id],
         )
-        run_ids = ClassificationService.runs_for_rules([instance.id])
-        instance.delete()
-        RunCache.invalidate_classification_affected(run_ids)
+        IssueRuleManagementService.delete(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])
     def activate(self, request, *args, **kwargs):
         ids = _action_ids(request)
-        rows = list(
-            IssueRule.objects.filter(id__in=ids).values_list(
-                'id',
-                'active',
-                'issue__state',
-                'issue__project_id',
-            ),
+        check_action_permission_for_projects(
+            request,
+            'manage_issues',
+            IssueRuleManagementService.projects_of(ids),
         )
-        check_action_permission_for_projects(request, 'manage_issues', [row[3] for row in rows])
-        existing_ids = {rule_id for rule_id, _, _, _ in rows}
-        updated_ids = [rule_id for rule_id, active, _, _ in rows if not active]
-
-        # Closing an issue deactivates its rules, so they can't be switched
-        # back on until the issue is reopened.
-        closed_issue_rule_ids = [
-            rule_id
-            for rule_id, active, issue_state, _ in rows
-            if not active and issue_state == IssueState.CLOSED
-        ]
-        if closed_issue_rule_ids:
-            msg = (
-                'Rules of closed issues cannot be activated, '
-                f'reopen the issue first: {closed_issue_rule_ids}.'
-            )
-            raise ValidationError({'ids': msg})
-
-        IssueRule.objects.filter(id__in=updated_ids).update(
-            active=True,
-            deactivated_by=None,
-            deactivated_at=None,
-            updated_by=_actor(request),
-            updated_at=timezone.now(),
-        )
-        # Whether a rule is active doesn't decide what its stamps suppress.
-        return Response(_action_summary(ids, existing_ids, updated_ids))
+        return _action_response(IssueRuleManagementService.activate(ids, _actor(request)))
 
     @action(detail=False, methods=['post'])
     def deactivate(self, request, *args, **kwargs):
         ids = _action_ids(request)
-        rows = list(
-            IssueRule.objects.filter(id__in=ids).values_list(
-                'id',
-                'active',
-                'issue__project_id',
-            ),
+        check_action_permission_for_projects(
+            request,
+            'manage_issues',
+            IssueRuleManagementService.projects_of(ids),
         )
-        check_action_permission_for_projects(request, 'manage_issues', [row[2] for row in rows])
-        existing_ids = {rule_id for rule_id, _, _ in rows}
-        updated_ids = [rule_id for rule_id, active, _ in rows if active]
-
-        actor = _actor(request)
-        now = timezone.now()
-        IssueRule.objects.filter(id__in=updated_ids).update(
-            active=False,
-            deactivated_by=actor,
-            deactivated_at=now,
-            updated_by=actor,
-            updated_at=now,
-        )
-        # Whether a rule is active doesn't decide what its stamps suppress.
-        return Response(_action_summary(ids, existing_ids, updated_ids))
+        return _action_response(IssueRuleManagementService.deactivate(ids, _actor(request)))
 
 
 @issue_picker_viewset_schema

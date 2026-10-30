@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     )
 
     from .models import (
+        RunLeafResultIssue,
         RunLeafResultsPayload,
     )
 
@@ -50,8 +51,8 @@ def _flatten_stats(node: RunStatsResult | None) -> list[RunStatsResult]:
 
 
 def _comments_text(comments: list[RunStatsComment]) -> str:
-    values = [comment.comment for comment in comments]
-    return '<br>'.join(str(value) for value in values) if values else '-'
+    values = [f'[{comment.comment_id}] {comment.comment}' for comment in comments]
+    return '<br>'.join(values) if values else '-'
 
 
 def _stats_total(stats: RunStatsValues) -> int:
@@ -95,6 +96,7 @@ def render_run_overview(
     rows = [
         ('Run ID', details.id),
         ('Project', details.project_name),
+        ('Project ID', details.project_id),
         ('Status', details.status),
         ('Status by NOK', details.status_by_nok),
         ('Conclusion', details.conclusion),
@@ -130,10 +132,10 @@ def render_run_overview(
         '## Result Statistics',
         '',
         (
-            '| Result ID | Type | Path | Objective | Comments | Passed | Failed | '
+            '| Result ID | Test ID | Type | Path | Objective | Comments | Passed | Failed | '
             'Passed NOK | Failed NOK | Skipped | Skipped NOK | Abnormal | Total | NOK |'
         ),
-        '|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+        '|---:|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
     ]
 
     stat_nodes = _flatten_stats(stats)
@@ -151,11 +153,12 @@ def render_run_overview(
             node.type,
         )
         lines.append(
-            '| {result_id} | {result_type} | {path} | {objective} | {comments} | '
+            '| {result_id} | {test_id} | {result_type} | {path} | {objective} | {comments} | '
             '{passed} | {failed} | '
             '{passed_nok} | {failed_nok} | {skipped} | {skipped_nok} | '
             '{abnormal} | {total} | {nok} |'.format(
                 result_id=_cell(node.result_id),
+                test_id=_cell(node.test_id),
                 result_type=_cell(result_type),
                 path=_cell(' / '.join(node.path)),
                 objective=_cell(node.objective),
@@ -174,7 +177,7 @@ def render_run_overview(
 
     if not stat_nodes:
         lines.append(
-            '| - | - | - | - | - | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |',
+            '| - | - | - | - | - | - | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |',
         )
         if unexpected_only:
             lines.extend(
@@ -206,6 +209,11 @@ def render_run_overview(
                 '*Only rows with Type = `test` (not `package`) have concrete '
                 'executions -- pass their Result ID to `get_run_leaf_results`.*'
             ),
+            (
+                '*Comments are shown as `[comment_id] text`. To add, change or remove '
+                "one, pass the row's Test ID and the Project ID above to "
+                '`edit_test_comment`.*'
+            ),
         ],
     )
     return '\n'.join(lines)
@@ -214,6 +222,18 @@ def render_run_overview(
 def _expected_result_text(expected_results) -> str:
     values = [item.result_type for item in expected_results if item.result_type]
     return ', '.join(values) if values else '-'
+
+
+def _issues_text(issues: list[RunLeafResultIssue]) -> str:
+    """One line per stamp: the issue, the rule's category and disposition, the stamp id."""
+    lines = []
+    for issue in issues:
+        disposition = {True: 'expected', False: 'unexpected', None: 'no disposition'}
+        lines.append(
+            f'#{issue.issue_id} {issue.issue_title} ({issue.issue_state}) '
+            f'[{issue.category}, {disposition[issue.expected]}; stamp {issue.rule_result_id}]',
+        )
+    return '<br>'.join(lines) if lines else '-'
 
 
 def render_run_leaf_results(payload: RunLeafResultsPayload) -> str:
@@ -229,9 +249,9 @@ def render_run_leaf_results(payload: RunLeafResultsPayload) -> str:
         '',
         (
             '| Result ID | Parameters | Start | Obtained | Expected | '
-            'Classification | Verdicts | Artifacts |'
+            'Classification | Issues | Verdicts | Artifacts |'
         ),
-        '|---:|---|---|---|---|---|---|---|',
+        '|---:|---|---|---|---|---|---|---|---|',
     ]
     for result in payload.results:
         obtained = result.obtained_result
@@ -242,11 +262,12 @@ def render_run_leaf_results(payload: RunLeafResultsPayload) -> str:
             f'{_cell(obtained.result_type)} | '
             f'{_cell(_expected_result_text(result.expected_results))} | '
             f'{_cell(result.classification)} | '
+            f'{_cell(_issues_text(result.issues))} | '
             f'{_cell("<br>".join(obtained.verdicts))} | '
             f'{_cell("<br>".join(result.artifacts))} |',
         )
     if not payload.results:
-        lines.append('| - | - | - | - | - | - | - | - |')
+        lines.append('| - | - | - | - | - | - | - | - | - |')
 
     lines.extend(
         [

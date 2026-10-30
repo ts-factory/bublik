@@ -1,33 +1,121 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
+import contextlib
+from contextvars import ContextVar
 from functools import wraps
 
-from rest_framework.exceptions import PermissionDenied
+from django.conf import settings
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.request import Request
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.exceptions import TokenBackendError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs, User, UserRoles, UserStatus
-from bublik.settings import SIMPLE_JWT
+from bublik.data.models import (
+    TOKEN_PREFIX,
+    GlobalConfigs,
+    User,
+    UserRoles,
+    UserToken,
+    UserTokenError,
+)
+
+
+NOT_AUTHENTICATED = 'Not Authenticated'
+NOT_AUTHORIZED = 'You are not authorized to perform this action'
+
+# Marks a request whose caller has not been resolved yet; None is a resolved anonymous.
+_UNRESOLVED = object()
 
 
 def get_user_info_from_access_token(access_token):
     token_backend = TokenBackend(
-        algorithm=SIMPLE_JWT['ALGORITHM'],
-        signing_key=SIMPLE_JWT['SIGNING_KEY'],
+        algorithm=settings.SIMPLE_JWT['ALGORITHM'],
+        signing_key=settings.SIMPLE_JWT['SIGNING_KEY'],
     )
     return token_backend.decode(access_token, verify=True)
 
 
 def get_user_by_access_token(access_token):
+    """Resolve the user behind a JWT access token, or ``None`` if invalid or inactive."""
+    if not access_token:
+        return None
     try:
         user_info = get_user_info_from_access_token(access_token)
-        return User.objects.filter(pk=user_info['user_id'], status=UserStatus.ACTIVE).first()
-    except TokenBackendError:
+        user = User.objects.get(pk=user_info['user_id'])
+    except (TokenBackendError, User.DoesNotExist):
         return None
+    return user if user.is_active else None
+
+
+def get_user_by_personal_token(raw_token):
+    """Resolve the owner of a personal access token, or raise ``UserTokenError``."""
+    return UserToken.objects.authenticate(raw_token)
+
+
+def get_bearer_token(authorization):
+    """The personal access token in an Authorization header, if there is one."""
+    if not authorization:
+        return None
+    scheme, _, credentials = authorization.partition(' ')
+    if scheme.lower() != 'bearer':
+        return None
+    credentials = credentials.strip()
+    return credentials if credentials.startswith(TOKEN_PREFIX) else None
+
+
+def resolve_user(authorization=None, access_token=None):
+    """Resolve a caller from a bearer token or the login cookie, or ``None``.
+
+    A bearer token takes precedence, and a bad one raises instead of falling
+    back to the cookie.
+    """
+    raw_token = get_bearer_token(authorization)
+    if raw_token:
+        return get_user_by_personal_token(raw_token)
+    return get_user_by_access_token(access_token)
+
+
+def get_request_user(request):
+    """:func:`resolve_user` for a DRF request, memoised on the request.
+
+    A refused token raises ``AuthenticationFailed`` with the reason.
+    """
+    user = getattr(request, '_bublik_user', _UNRESOLVED)
+    if user is _UNRESOLVED:
+        authorization = request.headers.get('Authorization')
+        try:
+            user = resolve_user(
+                authorization=authorization,
+                access_token=request.COOKIES.get('access_token'),
+            )
+        except UserTokenError as exc:
+            raise AuthenticationFailed(exc.message) from None
+        request._bublik_user = user
+        request._bublik_by_token = user is not None and bool(get_bearer_token(authorization))
+    return user
+
+
+def require_login_session(request):
+    """Refuse a request authenticated with a personal access token.
+
+    For the actions that would let a leaked token outlive itself: minting or
+    revoking tokens, and administering users, since setting a user's password
+    gives the token holder a login session. Decided from how the caller was
+    resolved, not by looking at the header again.
+    """
+    get_request_user(request)
+    if getattr(request, '_bublik_by_token', False):
+        msg = 'This action needs a login session; access tokens are not accepted'
+        raise PermissionDenied(msg)
+
+
+def is_admin(user):
+    return user is not None and user.roles == UserRoles.ADMIN
 
 
 def revoke_refresh_tokens(user):
@@ -39,6 +127,35 @@ def revoke_refresh_tokens(user):
         [BlacklistedToken(token=token) for token in tokens],
         ignore_conflicts=True,
     )
+
+
+# The user that code outside an HTTP request (the chat agent) acts as.
+_acting_user_id: ContextVar[int | None] = ContextVar('bublik_acting_user_id', default=None)
+
+
+@contextlib.contextmanager
+def bind_acting_user(user_id):
+    """Run the enclosed block as ``user_id``.
+
+    Spawned tasks and ``sync_to_async`` threads inherit the binding.
+    """
+    token = _acting_user_id.set(user_id)
+    try:
+        yield
+    finally:
+        _acting_user_id.reset(token)
+
+
+def current_acting_user():
+    """The bound user, or ``None`` when nobody is bound or they are inactive."""
+    user_id = _acting_user_id.get()
+    if user_id is None:
+        return None
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return None
+    return user if user.is_active else None
 
 
 def get_request(*args, **kwargs):
@@ -61,15 +178,12 @@ def require_user(request, as_admin=False):
     Raise PermissionDenied unless the request comes from an authenticated
     user (an administrator if `as_admin`).
     """
-    access_token = request.COOKIES.get('access_token')
-    user = get_user_by_access_token(access_token)
+    user = get_request_user(request)
     if not user:
-        msg = 'Not Authenticated'
-        raise PermissionDenied(msg)
+        raise PermissionDenied(NOT_AUTHENTICATED)
     # check if user is admin
-    if as_admin and UserRoles.ADMIN not in user.roles:
-        msg = 'You are not authorized to perform this action'
-        raise PermissionDenied(msg)
+    if as_admin and not is_admin(user):
+        raise PermissionDenied(NOT_AUTHORIZED)
     return user
 
 
@@ -90,6 +204,26 @@ def auth_required(as_admin=False):
     return decorator
 
 
+def action_is_open(action, project_id=None):
+    """Whether the project lets anyone perform ``action``."""
+    return action in ConfigServices.getattr_from_global(
+        GlobalConfigs.PER_CONF.name,
+        'NOT_PERMISSION_REQUIRED_ACTIONS',
+        project_id=project_id,
+    )
+
+
+def action_permitted(action, user, project_ids=()):
+    """Whether ``user`` may perform ``action`` in every one of the projects.
+
+    The same rule as `check_action_permission_for_projects`, for callers
+    without a request: with no projects the global settings apply.
+    """
+    if all(action_is_open(action, project_id) for project_id in set(project_ids) or {None}):
+        return True
+    return is_admin(user) and user.is_active
+
+
 def check_action_permission_for_projects(request, action, project_ids):
     """
     Check the action against the projects it touches.
@@ -103,12 +237,7 @@ def check_action_permission_for_projects(request, action, project_ids):
     by the client, so it can't be trusted to name them.
     """
     for project_id in set(project_ids) or {None}:
-        not_permission_required_actions = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'NOT_PERMISSION_REQUIRED_ACTIONS',
-            project_id=project_id,
-        )
-        if action not in not_permission_required_actions:
+        if not action_is_open(action, project_id):
             require_user(request, as_admin=True)
             return
 

@@ -3,15 +3,31 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import asdict
 from datetime import date, timedelta
+import json
 import logging
 from typing import TYPE_CHECKING
 
 from asgiref.sync import sync_to_async
+from django.db import transaction
+from django_filters.utils import translate_validation
+from rest_framework.exceptions import ValidationError
 
+from bublik.core.cache import RunCache
+from bublik.core.comment import TestCommentService
+from bublik.core.config.management import ConfigManagementService
+from bublik.core.config.services import ConfigServices
 from bublik.core.dashboard import DashboardService
 from bublik.core.history.services import HistoryService
+from bublik.core.issue import (
+    IssueManagementService,
+    IssueRuleManagementService,
+    issues_queryset,
+    rules_queryset,
+)
+from bublik.core.issue_results import IssueResultsFilters, IssueResultsService
 from bublik.core.log.services import LogService
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.project import ProjectService
@@ -20,17 +36,35 @@ from bublik.core.project.dto import (
 )
 from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
+from bublik.core.result.services import UNSET
+from bublik.core.run.classification import ClassificationService
+from bublik.core.run.compromised import get_compromised_details, is_run_compromised
 from bublik.core.run.services import RunService
-from bublik.core.run.stats import generate_all_run_details, generate_runs_details, get_test_runs
+from bublik.core.run.stats import (
+    generate_all_run_details,
+    generate_results_details,
+    generate_runs_details,
+    get_test_runs,
+)
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
+from bublik.data.models import Config, MetaTest
+from bublik.data.serializers import ConfigSerializer, IssueRuleSerializer, IssueSerializer
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
 )
+from bublik.interfaces.api_v2.issue.filters import IssueFilterSet
+from bublik.interfaces.api_v2.issue.serializers import IssueResultsQuerySerializer
+from bublik.interfaces.api_v2.result.serializers import (
+    ClassifyOptionsResponseSerializer,
+    ClassifyRequestSerializer,
+)
 from bublik.interfaces.api_v2.run.serializers import (
+    RunIssueSummarySerializer,
     serialize_paginated_run_summary_results,
 )
+from bublik.mcp.auth import authorize_action, mcp_auth_required, mcp_caller
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
 from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, render_run_overview
@@ -68,10 +102,11 @@ async def get_run_overview(
     """
     Get a complete Markdown overview of a test run.
 
-    The overview combines run metadata, status, conclusion, source,
-    compromised details, and the aggregate result statistics tree. Each
-    test row includes a Result ID that can be passed to
-    get_run_leaf_results for concrete executions.
+    The overview combines run metadata (including the Project ID), status,
+    conclusion, source, compromised details, and the aggregate result
+    statistics tree. Each test row includes a Result ID that can be passed to
+    get_run_leaf_results for concrete executions, a Test ID for the test
+    comment tools, and the test's comments as `[comment_id] text`.
 
     Args:
         run_id: The ID of the test run
@@ -141,7 +176,11 @@ async def get_run_leaf_results(
             results or result_properties
 
     Returns:
-        Markdown table with the matching concrete executions and pagination
+        Markdown table with the matching concrete executions and pagination.
+        Classification tells whether a result counts as unexpected once its
+        classification is applied; Issues lists the stamps it carries, each
+        with the issue, the rule's category and disposition, and the stamp id
+        that unclassify_results takes.
     """
     payload = await sync_to_async(_get_run_leaf_results)(
         leaf_result_id=leaf_result_id,
@@ -163,7 +202,11 @@ async def get_result_details(result_id: int) -> dict:
         result_id: The ID of the test result
 
     Returns:
-        Dictionary with full result details
+        Dictionary with full result details, including `issues`: the stamps
+        the result carries, each with the issue, the rule's category and
+        disposition and the stamp id (rule_result_id), and
+        `effective_expected`: whether the result counts as expected once an
+        expected classification is applied
     """
     return await sync_to_async(ResultService.get_result_details)(result_id)
 
@@ -625,6 +668,10 @@ async def get_history(  # noqa: PLR0913, PLR0917
     branches: str | None = None,
     labels: str | None = None,
     tags: str | None = None,
+    categories: str | None = None,
+    issue: str | None = None,
+    explained: bool | None = None,
+    untriaged: bool | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
@@ -640,11 +687,18 @@ async def get_history(  # noqa: PLR0913, PLR0917
         branches: Semicolon-separated branch names
         labels: Semicolon-separated labels
         tags: Semicolon-separated tags
+        categories: Semicolon-separated classification categories; keeps the
+            results stamped by a rule of any of them (e.g., 'known-issue;flaky')
+        issue: Semicolon-separated issue IDs; keeps the results classified under them
+        explained: true keeps only the results with a classification
+        untriaged: true keeps only the failed results without any classification
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
 
     Returns:
-        Dictionary with history results, counts, date range, and pagination
+        Dictionary with history results, counts, date range, and pagination.
+        Each result lists its issues: the stamps it carries, with the issue,
+        the rule's category, the disposition and the stamp id (rule_result_id).
     """
     # Set default date range if not provided
     if from_date is None and to_date is None:
@@ -658,6 +712,10 @@ async def get_history(  # noqa: PLR0913, PLR0917
         'branches': branches or '',
         'labels': labels or '',
         'tags': tags or '',
+        'categories': categories or '',
+        'issue': issue or '',
+        'explained': 'true' if explained else '',
+        'untriaged': 'true' if untriaged else '',
         'page': page,
         'page_size': page_size,
     }
@@ -674,6 +732,10 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
     branches: str | None = None,
     labels: str | None = None,
     tags: str | None = None,
+    categories: str | None = None,
+    issue: str | None = None,
+    explained: bool | None = None,
+    untriaged: bool | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
@@ -689,6 +751,11 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
         branches: Semicolon-separated branch names
         labels: Semicolon-separated labels
         tags: Semicolon-separated tags
+        categories: Semicolon-separated classification categories; keeps the
+            results stamped by a rule of any of them (e.g., 'known-issue;flaky')
+        issue: Semicolon-separated issue IDs; keeps the results classified under them
+        explained: true keeps only the results with a classification
+        untriaged: true keeps only the failed results without any classification
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
 
@@ -707,6 +774,10 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
         'branches': branches or '',
         'labels': labels or '',
         'tags': tags or '',
+        'categories': categories or '',
+        'issue': issue or '',
+        'explained': 'true' if explained else '',
+        'untriaged': 'true' if untriaged else '',
         'page': page,
         'page_size': page_size,
     }
@@ -774,6 +845,1088 @@ async def get_server_version() -> dict:
     return await sync_to_async(ServerService.get_version)()
 
 
+# Test comment tools. A comment is identified by its meta id, as in the REST API.
+
+
+def _comment_row(metatest) -> dict:
+    value = metatest.meta.value
+    with contextlib.suppress(ValueError, TypeError):
+        value = json.loads(value)
+    return {
+        'comment_id': metatest.meta_id,
+        'test_id': metatest.test_id,
+        'project_id': metatest.project_id,
+        'comment': value,
+        'serial': metatest.serial,
+        'updated': metatest.updated,
+    }
+
+
+def _comment_rows(test_id, project_id) -> list[dict]:
+    comments = (
+        TestCommentService.list_for_test(test_id, project_id)
+        .select_related('meta')
+        .order_by('serial')
+    )
+    return [_comment_row(metatest) for metatest in comments]
+
+
+async def get_test_comments(test_id: int, project_id: int) -> list[dict]:
+    """
+    List the comments left on a test within a project.
+
+    get_run_overview already shows each test's comments as `[comment_id] text`;
+    use this when you need them for a test outside a run overview.
+
+    Args:
+        test_id: The test
+        project_id: The project the comments belong to
+
+    Returns:
+        List of comments with comment_id, comment, serial and updated. The
+        `comment_id` is what edit_test_comment takes to change or remove one.
+    """
+    return await sync_to_async(_comment_rows)(test_id, project_id)
+
+
+@mcp_auth_required(action='manage_test_comments')
+async def edit_test_comment(
+    test_id: int,
+    project_id: int,
+    comment: str | None = None,
+    comment_id: int | None = None,
+) -> dict:
+    """
+    Add, change or remove a comment on a test, acting as the caller.
+
+    What happens follows from the arguments: text without `comment_id` adds
+    a new comment; text with `comment_id` replaces that comment (its position
+    is kept, its id changes); `comment_id` without text removes it.
+    `comment_id` is the id shown in get_run_overview's Comments column or by
+    get_test_comments; `test_id` and `project_id` come from the same overview.
+
+    Requires an access token and the `manage_test_comments` permission.
+
+    Args:
+        test_id: The test
+        project_id: The project the comment belongs to
+        comment: The comment text; omit it to remove `comment_id`
+        comment_id: The comment to change or remove; omit it to add a new one
+
+    Returns:
+        The resulting comment, or `{'removed': comment_id}` after a removal
+    """
+
+    def _edit():
+        has_text = bool(comment and comment.strip())
+        if comment_id is None:
+            if not has_text:
+                msg = 'Pass the comment text to add a comment.'
+                raise ValidationError(msg)
+            created = TestCommentService.add(
+                test_id=test_id,
+                project_id=project_id,
+                comment=comment,
+            )
+            return _comment_row(MetaTest.objects.select_related('meta').get(pk=created['id']))
+
+        metatest = TestCommentService.get(test_id, project_id, comment_id)
+        if not has_text:
+            TestCommentService.delete(metatest)
+            return {'removed': comment_id}
+        updated = TestCommentService.update(metatest, comment)
+        return _comment_row(MetaTest.objects.select_related('meta').get(pk=updated['id']))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def edit_run_comment(run_id: int, comment: str | None = None) -> dict:
+    """
+    Set or remove the comment on a run, acting as the caller.
+
+    A run has at most one comment. Text replaces whatever is there, adding
+    the comment when there is none; omitting the text removes the comment.
+    Requires an access token.
+
+    Args:
+        run_id: The run
+        comment: The comment text; omit it to remove the run's comment
+
+    Returns:
+        The run id and its resulting comment (None once removed)
+    """
+
+    def _edit():
+        if comment and comment.strip():
+            result = RunService.create_run_comment(run_id, comment)
+            return {'run_id': run_id, 'comment': result.comment}
+        # Raises only when there is no comment, which is already the goal.
+        with contextlib.suppress(ValidationError):
+            RunService.delete_run_comment(run_id)
+        return {'run_id': run_id, 'comment': None}
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def set_run_compromised(
+    run_id: int,
+    compromised: bool,
+    comment: str | None = None,
+    bug_id: str | None = None,
+    reference_key: str | None = None,
+) -> dict:
+    """
+    Mark a run as compromised, change the mark, or clear it, acting as the caller.
+
+    `compromised=true` marks the run with `comment` (mandatory), replacing an
+    existing mark; `compromised=false` clears it. To link a bug, pass `bug_id`
+    and `reference_key` together: `reference_key` is a key of ISSUES in the
+    project's `references` config, and the bug URL is built from that
+    reference's URI plus the bug id. Requires an access token.
+
+    Args:
+        run_id: The run
+        compromised: The desired state
+        comment: Why the run is compromised (required when marking)
+        bug_id: Optional bug identifier
+        reference_key: Optional key of the bug tracker in the references config
+
+    Returns:
+        The run's compromised details: status, comment, bug_id and bug_url
+    """
+
+    def _set():
+        # Atomic, so a rejected new mark keeps the old one.
+        with transaction.atomic():
+            if compromised:
+                if is_run_compromised(run_id):
+                    RunService.unmark_run_compromised(run_id)
+                RunService.mark_run_compromised(run_id, comment, bug_id, reference_key)
+            elif is_run_compromised(run_id):
+                RunService.unmark_run_compromised(run_id)
+        return get_compromised_details(run_id)
+
+    return await sync_to_async(_set)()
+
+
+# Config tools. Admin only, reads included, like the REST endpoints.
+
+
+def _config_data(config: Config) -> dict:
+    return dict(ConfigSerializer(config).data)
+
+
+@mcp_auth_required(admin=True)
+async def list_configs(project_id: int | None = None) -> dict:
+    """
+    List configs, one row per (project, type, name), plus what may be created.
+
+    Requires an administrator's access token.
+
+    Args:
+        project_id: Only this project's configs; omit for every project.
+            Default (no-project) configs have `project` null.
+
+    Returns:
+        `configs`: id, version, is_active, type, name, description, project,
+        created (the active version, else the newest). `available_types_names`:
+        the config types, and for `global` the allowed names, with whether
+        each is required.
+    """
+
+    def _list():
+        configs = Config.objects.all()
+        if project_id is not None:
+            configs = configs.filter(project_id=project_id)
+        return {
+            'configs': ConfigManagementService.summarize(configs),
+            'available_types_names': ConfigManagementService.available_types_names(),
+        }
+
+    return await sync_to_async(_list)()
+
+
+@mcp_auth_required(admin=True)
+async def get_config(config_id: int) -> dict:
+    """
+    Get one config version with its content, and the other versions of it.
+
+    Requires an administrator's access token.
+
+    Args:
+        config_id: The config version (an id from list_configs or `versions`)
+
+    Returns:
+        The config (id, type, name, project, version, is_active, description,
+        user, content) plus `versions`: every version of the same config with
+        id, version, is_active, description and created
+    """
+
+    def _get():
+        config = ConfigManagementService.get(config_id)
+        data = _config_data(config)
+        data['versions'] = list(
+            Config.objects.get_all_versions(config.type, config.name, config.project).values(
+                'id',
+                'version',
+                'is_active',
+                'description',
+                'created',
+            ),
+        )
+        return data
+
+    return await sync_to_async(_get)()
+
+
+@mcp_auth_required(admin=True)
+async def get_config_schema(config_type: str, config_name: str | None = None) -> dict:
+    """
+    The JSON schema a config's content must satisfy.
+
+    Requires an administrator's access token. Fetch it before writing content:
+    edit_config validates content against it.
+
+    Args:
+        config_type: `global`, `report` or `schedule`
+        config_name: For `global` configs, the name (e.g. `per_conf`)
+
+    Returns:
+        The JSON schema
+    """
+
+    def _schema():
+        schema = ConfigServices.get_schema(config_type, config_name)
+        if schema is None:
+            msg = (
+                f'There is no JSON schema for config type {config_type!r}, name {config_name!r}'
+            )
+            raise ValidationError(msg)
+        return schema
+
+    return await sync_to_async(_schema)()
+
+
+@mcp_auth_required(admin=True)
+async def edit_config(
+    config_id: int | None = None,
+    config_type: str | None = None,
+    name: str | None = None,
+    project_id: int | None = None,
+    content: dict | str | None = None,
+    description: str | None = None,
+    is_active: bool | None = None,
+) -> dict:
+    """
+    Create a config, or change an existing one, acting as the caller.
+
+    Without `config_id` a config is created: `config_type`, `name` and
+    `content` are required, `project_id` omitted means the default
+    (no-project) config, and it becomes the active version unless
+    `is_active` is false. With `config_id` only the arguments given change:
+    new `content` creates a new version (attributed to the caller) and
+    activates it if the edited version was active, while content equal to an
+    existing version switches to that version; `is_active` alone activates or
+    deactivates the version; `name` renames every version. Fetch the current
+    content with get_config first and pass the whole edited content back:
+    content is replaced, not merged, and validated against get_config_schema.
+    Removing a version is a separate, irreversible tool: delete_config.
+
+    Requires an administrator's access token.
+
+    Args:
+        config_id: The config version to change; omit it to create a config
+        config_type: `global`, `report` or `schedule` (creation only)
+        name: The config name; for `global` one of the names in list_configs
+        project_id: The project of a new config; omit for the default config
+        content: The config content, as a JSON object or a JSON string
+        description: A short description
+        is_active: Whether this version is the active one
+
+    Returns:
+        The resulting config version, with `created_new_version`
+    """
+
+    def _edit():
+        user = mcp_caller()
+        if config_id is None:
+            required = {'config_type': config_type, 'name': name, 'content': content}
+            missing = [key for key, value in required.items() if value is None]
+            if missing:
+                msg = f'Creating a config requires {", ".join(missing)}.'
+                raise ValidationError(msg)
+            data = {
+                'type': config_type,
+                'name': name,
+                'project': project_id,
+                'description': description or '',
+                'is_active': True if is_active is None else is_active,
+                'content': content,
+            }
+            config = ConfigManagementService.create(data, user)
+            return {**_config_data(config), 'created_new_version': True}
+
+        if config_type is not None or project_id is not None:
+            msg = (
+                'The type and project of an existing config cannot be changed; '
+                'create a new config instead.'
+            )
+            raise ValidationError(msg)
+        changes = {
+            'content': content,
+            'description': description,
+            'is_active': is_active,
+            'name': name,
+        }
+        data = {key: value for key, value in changes.items() if value is not None}
+        config = ConfigManagementService.get(config_id)
+        config, created = ConfigManagementService.update(config, data, user)
+        return {**_config_data(config), 'created_new_version': created}
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required(admin=True)
+async def delete_config(config_id: int) -> dict:
+    """
+    Delete one config version. Irreversible.
+
+    Requires an administrator's access token. Other versions of the same
+    config are kept; delete them one by one if that is what is wanted. To
+    retire a version without losing it, deactivate it with edit_config.
+
+    Args:
+        config_id: The config version to delete
+
+    Returns:
+        The id of the deleted config version
+    """
+
+    def _delete():
+        ConfigManagementService.delete(ConfigManagementService.get(config_id), mcp_caller())
+        return {'deleted': config_id}
+
+    return await sync_to_async(_delete)()
+
+
+# Project tools that write. Admin only, like the REST endpoints.
+
+
+@mcp_auth_required(admin=True)
+async def edit_project(name: str, project_id: int | None = None) -> dict:
+    """
+    Create a project, or rename an existing one, acting as the caller.
+
+    Without `project_id` a project called `name` is created; with it, that
+    project is renamed. Project names are unique. Requires an administrator's
+    access token.
+
+    Args:
+        name: The project name
+        project_id: The project to rename; omit it to create a project
+
+    Returns:
+        The resulting project: id and name
+    """
+
+    def _edit():
+        if project_id is None:
+            project = ProjectService.create_project({'name': name})
+        else:
+            project = ProjectService.update_project(project_id, {'name': name}, partial=True)
+        return ProjectService.get_project(project.id)
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required(admin=True)
+async def delete_project(project_id: int) -> dict:
+    """
+    Delete a project. Irreversible.
+
+    Refused while any run belongs to the project. Requires an administrator's
+    access token.
+
+    Args:
+        project_id: The project to delete
+
+    Returns:
+        The id of the deleted project
+    """
+
+    def _delete():
+        ProjectService.delete_project(project_id)
+        return {'deleted': project_id}
+
+    return await sync_to_async(_delete)()
+
+
+# Classification tools. Issues, their rules and the stamps on results, as the
+# REST API shows them.
+
+
+def _issue_data(issue) -> dict:
+    return dict(IssueSerializer(issue).data)
+
+
+def _rule_data(rule) -> dict:
+    return dict(IssueRuleSerializer(rule).data)
+
+
+def _paginated_result_details(queryset, page, page_size) -> dict:
+    paged = PaginatedResult.paginate_queryset(queryset, page, page_size)
+    return {
+        'pagination': paged['pagination'],
+        'results': generate_results_details(paged['results']),
+    }
+
+
+async def list_issues(
+    project_id: int | None = None,
+    state: str | None = None,
+    category: str | None = None,
+    rules: str | None = None,
+    search: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List the issues results are classified under, newest first.
+
+    An issue names a known problem (optionally with a bug key such as
+    `ref://JIRA/NET-1`) and owns rules; a rule stamps the results of one test
+    that match its parameters, verdicts and run tags, under a category
+    (`known-issue`, `flaky`, `to-investigate`, ...) and with a disposition
+    (`expected` makes the stamped failures count as expected).
+
+    Args:
+        project_id: Optional project ID to filter by
+        state: Semicolon-separated issue states: 'open', 'closed'
+        category: Semicolon-separated categories; issues having an active
+            rule of any of them
+        rules: Semicolon-separated rules states: 'enforced' (an active rule
+            of an open issue), 'dormant', 'deactivated', 'unruled'
+        search: Text to look for in the title, description and bug key, or
+            '#<id>' for an issue by ID
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with pagination metadata and the issues, each with its
+        rule, active rule and result counts and its active rules in brief
+    """
+
+    def _list():
+        given = {
+            'project': project_id,
+            'state': state,
+            'category': category,
+            'rules': rules,
+            'search': search,
+        }
+        params = {name: value for name, value in given.items() if value not in (None, '')}
+        filterset = IssueFilterSet(data=params, queryset=issues_queryset())
+        if not filterset.is_valid():
+            raise translate_validation(filterset.errors)
+        paged = PaginatedResult.paginate_queryset(filterset.qs, page, page_size)
+        return {
+            'pagination': paged['pagination'],
+            'issues': [_issue_data(issue) for issue in paged['results']],
+        }
+
+    return await sync_to_async(_list)()
+
+
+async def get_issue(issue_id: int) -> dict:
+    """
+    Get an issue with all of its rules.
+
+    Args:
+        issue_id: The ID of the issue
+
+    Returns:
+        Dictionary with `issue` (as list_issues shows it) and `rules`: every
+        rule of the issue, active or not, with its test, matcher (parameters,
+        verdicts, tags), category and disposition
+    """
+
+    def _get():
+        issue = IssueManagementService.get(issue_id)
+        rules = rules_queryset().filter(issue=issue).order_by('id')
+        return {'issue': _issue_data(issue), 'rules': [_rule_data(rule) for rule in rules]}
+
+    return await sync_to_async(_get)()
+
+
+async def get_run_issues(
+    run_id: int,
+    search: str | None = None,
+    state: str | None = None,
+    category: str | None = None,
+    effect: str | None = None,
+) -> list[dict]:
+    """
+    Summarize the issues the results of a run are classified under.
+
+    Args:
+        run_id: The ID of the test run
+        search: Text to look for in the issue titles and bug keys
+        state: Semicolon-separated issue states: 'open', 'closed'
+        category: Semicolon-separated rule categories
+        effect: Semicolon-separated effects of the rules on the run:
+            'suppressed' (failures counted as expected), 'marked', 'stale'
+            (the issue is closed)
+
+    Returns:
+        One entry per issue: its id, title, state, bug key and URL, the
+        number of results stamped under it in this run, and the rules that
+        stamped them with their category, disposition and effect
+    """
+
+    def _summary():
+        run = RunService.get_run(run_id)
+        summaries = ClassificationService.filter_issues_summary(
+            ClassificationService.run_issues_summary(run),
+            search=search,
+            state=state,
+            category=category,
+            effect=effect,
+        )
+        return [dict(row) for row in RunIssueSummarySerializer(summaries, many=True).data]
+
+    return await sync_to_async(_summary)()
+
+
+async def get_run_issue_results(
+    run_id: int,
+    issue_id: int,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List the results of a run classified under an issue, newest first.
+
+    Args:
+        run_id: The ID of the test run
+        issue_id: The ID of the issue, as get_run_issues shows it
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with pagination metadata and the results as get_result_details
+        shows them, with their issues and stamp ids
+    """
+
+    def _results():
+        run = RunService.get_run(run_id)
+        IssueManagementService.get(issue_id)
+        return _paginated_result_details(
+            ClassificationService.run_issue_results(run, issue_id),
+            page,
+            page_size,
+        )
+
+    return await sync_to_async(_results)()
+
+
+async def get_issue_results(
+    issue_id: int,
+    results: str | None = None,
+    result_properties: str | None = None,
+    requirements: str | None = None,
+    category: str | None = None,
+    classification: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List every result classified under an issue, across runs, newest first.
+
+    Args:
+        issue_id: The ID of the issue
+        results: Semicolon-separated obtained result statuses
+            (e.g., 'PASSED;FAILED;SKIPPED;KILLED;CORED;FAKED;INCOMPLETE')
+        result_properties: Semicolon-separated result properties
+            (e.g., 'expected;unexpected;not_run')
+        requirements: Semicolon-separated requirements the results carry
+        category: Semicolon-separated categories of this issue's rules that
+            stamped the results
+        classification: Semicolon-separated classifications shown for the
+            results: 'suppressed', 'marked', 'stale'
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 1000)
+
+    Returns:
+        Dictionary with pagination metadata and the results as get_result_details
+        shows them, each with the tags of its run
+    """
+
+    def _results():
+        IssueManagementService.get(issue_id)
+        given = {
+            'results': results,
+            'result_properties': result_properties,
+            'requirements': requirements,
+            'category': category,
+            'classification': classification,
+            'page': page,
+            'page_size': page_size,
+        }
+        query = IssueResultsQuerySerializer(
+            data={name: value for name, value in given.items() if value is not None},
+        )
+        query.is_valid(raise_exception=True)
+        params = query.validated_data
+        return IssueResultsService.page(
+            issue_id,
+            IssueResultsFilters.from_params(params),
+            page=params.get('page'),
+            page_size=params.get('page_size'),
+        )
+
+    return await sync_to_async(_results)()
+
+
+async def get_classify_options(result_ids: list[int]) -> dict:
+    """
+    Tell what a rule classifying the given results may contain.
+
+    The results must be test results of one run. A rule belongs to one test
+    and must match every result it classifies, so for each test among the
+    results this lists the parameters all of its results share, the
+    different verdict lists they have, and the run's tags a rule may use.
+
+    Args:
+        result_ids: Result IDs, as shown by get_run_leaf_results
+
+    Returns:
+        Dictionary with the run id, the tags (`default`: the run's important
+        tags, `allowed`: every tag a rule may contain) and, per test, its id,
+        name, path, result ids, shared parameters and verdict lists
+    """
+
+    def _options():
+        ids = list(dict.fromkeys(result_ids))
+        found = ResultService.get_results_by_ids(ids)
+        options = ResultService.get_classify_options(
+            ResultService.validate_results_for_classification(ids, found),
+        )
+        return dict(ClassifyOptionsResponseSerializer(options).data)
+
+    return await sync_to_async(_options)()
+
+
+# Classification write tools. Each needs a token and the `manage_issues`
+# permission in the projects of what it changes, as the REST endpoints do.
+
+MANAGE_ISSUES = 'manage_issues'
+
+
+def _bulk_data(outcome) -> dict:
+    return asdict(outcome)
+
+
+@mcp_auth_required()
+async def classify_results(
+    result_ids: list[int],
+    categories: list[str],
+    matchers: list[dict],
+    issue_id: int | None = None,
+    new_issue: dict | None = None,
+    scope: str = 'future',
+    expected: bool | None = None,
+) -> dict:
+    """
+    Classify results of one run under an issue, acting as the caller.
+
+    Pass either `issue_id` (an existing issue of the results' project) or
+    `new_issue` ({title, description?, bug_key?}) to create one. Each test
+    among the results gets a rule per category, built from its matcher:
+    {test_id, parameters, verdicts, tags}. Take the matcher's contents from
+    get_classify_options: `parameters` any part of the shared ones ({} for
+    none), `verdicts` null to ignore them or all the verdict lists of the
+    test's results (a rule each), `tags` any of the allowed ones ([] for
+    none). `scope='future'` makes rules that also classify later imports;
+    'oneoff' only stamps these results. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        result_ids: The results, all of one run, as shown by get_run_leaf_results
+        categories: 'known-issue', 'flaky', 'to-investigate', ... (a rule for each)
+        matchers: One matcher per test among the results
+        issue_id: The issue to classify under
+        new_issue: The fields of an issue to create instead: title (required),
+            description, bug_key (e.g. 'ref://JIRA/NET-1')
+        scope: 'future' (default) or 'oneoff'
+        expected: Whether the results are expected; omit for the category's own
+            disposition (known-issue and flaky: expected, to-investigate: none)
+
+    Returns:
+        The issue id and the ids of the rules the results are stamped with
+    """
+
+    def _classify():
+        if (issue_id is None) == (new_issue is None):
+            msg = 'Pass exactly one of issue_id and new_issue.'
+            raise ValidationError(msg)
+        body = ClassifyRequestSerializer(
+            data={
+                'result_ids': result_ids,
+                'issue': issue_id if issue_id is not None else new_issue,
+                'categories': categories,
+                'matchers': matchers,
+                'scope': scope,
+                **({'expected': expected} if expected is not None else {}),
+            },
+        )
+        body.is_valid(raise_exception=True)
+        fields = body.validated_data
+
+        found = ResultService.get_results_by_ids(fields['result_ids'])
+        # Before anything is told about the results, as it depends on their projects.
+        actor = authorize_action(MANAGE_ISSUES, [r.project_id for r in found.values()])
+        results = ResultService.validate_results_for_classification(fields['result_ids'], found)
+        outcome = ResultService.classify(
+            results,
+            issue=fields['issue'],
+            categories=fields['categories'],
+            matchers=fields['matchers'],
+            scope=fields['scope'],
+            expected=fields.get('expected', UNSET),
+            actor=actor,
+        )
+        return asdict(outcome)
+
+    return await sync_to_async(_classify)()
+
+
+@mcp_auth_required()
+async def unclassify_results(rule_result_ids: list[int]) -> dict:
+    """
+    Take a manual classification off results, acting as the caller.
+
+    Deletes the given stamps (the `rule_result_id` of a result's issues, as
+    get_run_leaf_results and get_result_details show them), then the rules
+    left without stamps and the issues left without rules. Stamps made by
+    import cannot be taken off: deactivate or delete the rule instead.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_result_ids: The stamps to take off
+
+    Returns:
+        The ids of the stamps, rules and issues deleted
+    """
+
+    def _unclassify():
+        ids = list(dict.fromkeys(rule_result_ids))
+        found = ResultService.get_rule_results_by_ids(ids)
+        # Before anything is told about the stamps, as it depends on their projects.
+        authorize_action(MANAGE_ISSUES, [rr.result.project_id for rr in found.values()])
+        return asdict(ResultService.unclassify_results(ids, found))
+
+    return await sync_to_async(_unclassify)()
+
+
+@mcp_auth_required()
+async def apply_run_rules(run_id: int) -> dict:
+    """
+    Apply the project's active rules to a run, acting as the caller.
+
+    Adds the stamps that are missing on the run's results; nothing is
+    removed, so it is safe to repeat. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        run_id: The ID of the test run
+
+    Returns:
+        The number of stamps created
+    """
+
+    def _apply():
+        run = RunService.get_run(run_id)
+        actor = authorize_action(MANAGE_ISSUES, [run.project_id])
+        created = ClassificationService.apply_active_rules_manual(run, actor=actor)
+        RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
+        return {'stamps_created': created}
+
+    return await sync_to_async(_apply)()
+
+
+@mcp_auth_required()
+async def edit_issue(
+    issue_id: int | None = None,
+    project_id: int | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    bug_key: str | None = None,
+) -> dict:
+    """
+    Create an issue, or change one, acting as the caller.
+
+    Without `issue_id` a new issue is created in `project_id` with `title`
+    (required). With it, the fields passed replace the issue's: pass an empty
+    string to clear the description or the bug key. The state is changed by
+    close_issues and reopen_issues. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        issue_id: The issue to change; omit it to create one
+        project_id: The project of a new issue (or to move an issue without stamps to)
+        title: The title
+        description: Internal notes
+        bug_key: The bug, as 'ref://TRACKER/KEY' with a tracker of the
+            project's references config, or a plain key
+
+    Returns:
+        The issue as list_issues shows it
+    """
+
+    def _edit():
+        given = {
+            'project': project_id,
+            'title': title,
+            'description': description,
+            'bug_key': bug_key,
+        }
+        fields = {name: value for name, value in given.items() if value is not None}
+        if issue_id is None:
+            serializer = IssueManagementService.validate(fields)
+            actor = authorize_action(MANAGE_ISSUES, [serializer.validated_data['project'].id])
+            issue = IssueManagementService.create(serializer, actor)
+        else:
+            issue = IssueManagementService.get(issue_id)
+            serializer = IssueManagementService.validate(fields, issue)
+            # The issue may be moved to another project, both must allow it.
+            new_project = serializer.validated_data.get('project')
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [issue.project_id, new_project.id if new_project else issue.project_id],
+            )
+            issue = IssueManagementService.update(serializer, actor)
+        return _issue_data(IssueManagementService.get(issue.id))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def delete_issue(issue_id: int) -> dict:
+    """
+    Delete an issue with its rules and stamps for good, acting as the caller.
+
+    Prefer close_issues: a closed issue keeps its history and stops
+    classifying. Requires an access token and the `manage_issues` permission.
+
+    Args:
+        issue_id: The issue to delete
+
+    Returns:
+        `{'deleted': issue_id}`
+    """
+
+    def _delete():
+        issue = IssueManagementService.get(issue_id)
+        authorize_action(MANAGE_ISSUES, [issue.project_id])
+        IssueManagementService.delete(issue)
+        return {'deleted': issue_id}
+
+    return await sync_to_async(_delete)()
+
+
+@mcp_auth_required()
+async def close_issues(issue_ids: list[int]) -> dict:
+    """
+    Close issues, acting as the caller.
+
+    Closing deactivates the issue's rules, so they classify nothing new; the
+    stamps stay and are shown as stale. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        issue_ids: The issues to close
+
+    Returns:
+        The ids split into updated, unchanged (already closed) and not_found
+    """
+
+    def _close():
+        ids = list(dict.fromkeys(issue_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
+        return _bulk_data(IssueManagementService.close(ids, actor))
+
+    return await sync_to_async(_close)()
+
+
+@mcp_auth_required()
+async def reopen_issues(issue_ids: list[int]) -> dict:
+    """
+    Reopen closed issues, acting as the caller.
+
+    The rules stay deactivated: activate the ones wanted with activate_rules.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        issue_ids: The issues to reopen
+
+    Returns:
+        The ids split into updated, unchanged (already open) and not_found
+    """
+
+    def _reopen():
+        ids = list(dict.fromkeys(issue_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
+        return _bulk_data(IssueManagementService.reopen(ids, actor))
+
+    return await sync_to_async(_reopen)()
+
+
+@mcp_auth_required()
+async def edit_issue_rule(  # noqa: PLR0913, PLR0917
+    rule_id: int | None = None,
+    issue_id: int | None = None,
+    test_id: int | None = None,
+    category: str | None = None,
+    parameters: dict | None = None,
+    verdicts: list[str] | None = None,
+    ignore_verdicts: bool | None = None,
+    tags: list[str] | None = None,
+    expected: bool | None = None,
+) -> dict:
+    """
+    Create a rule of an issue, or change one, acting as the caller.
+
+    A rule stamps the results of `test_id` whose parameters include
+    `parameters`, whose verdicts are exactly `verdicts` (in order; [] for
+    none) unless `ignore_verdicts` is true, in runs carrying every one of
+    `tags`. Without `rule_id` all of issue_id, test_id, category, parameters,
+    tags and either verdicts or ignore_verdicts are required. With it, the
+    fields passed replace the rule's; the matcher of a rule that has
+    classified results cannot change, create a new rule instead. Requires
+    an access token and the `manage_issues` permission.
+
+    Args:
+        rule_id: The rule to change; omit it to create one
+        issue_id: The issue the rule belongs to
+        test_id: The test, as shown by get_run_overview
+        category: 'known-issue', 'flaky', 'to-investigate', ...
+        parameters: Test parameters as {name: value}; {} restricts nothing
+        verdicts: The verdicts a result must have, in order; [] for none
+        ignore_verdicts: true to match whatever the verdicts are
+        tags: Run tags as 'name=value' or 'name'; [] restricts nothing
+        expected: Whether the stamped results count as expected; omit for
+            the category's own disposition when creating
+
+    Returns:
+        The rule as get_issue shows it
+    """
+
+    def _edit():
+        given = {
+            'issue': issue_id,
+            'test': test_id,
+            'category': category,
+            'parameters': parameters,
+            'verdicts': None if ignore_verdicts else verdicts,
+            'tags': tags,
+            'expected': expected,
+        }
+        fields = {name: value for name, value in given.items() if value is not None}
+        if ignore_verdicts:
+            fields['verdicts'] = None
+        if rule_id is None:
+            serializer = IssueRuleManagementService.validate(fields)
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [serializer.validated_data['issue'].project_id],
+            )
+            rule = IssueRuleManagementService.create(serializer, actor)
+        else:
+            rule = IssueRuleManagementService.get(rule_id)
+            serializer = IssueRuleManagementService.validate(fields, rule)
+            # The rule may be moved to an issue of another project, both must allow it.
+            new_issue = serializer.validated_data.get('issue')
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [rule.issue.project_id, (new_issue or rule.issue).project_id],
+            )
+            rule = IssueRuleManagementService.update(serializer, actor)
+        return _rule_data(IssueRuleManagementService.get(rule.id))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def delete_issue_rule(rule_id: int) -> dict:
+    """
+    Delete a rule with its stamps for good, acting as the caller.
+
+    Prefer deactivate_rules, which keeps the stamps. Requires an access token
+    and the `manage_issues` permission.
+
+    Args:
+        rule_id: The rule to delete
+
+    Returns:
+        `{'deleted': rule_id}`
+    """
+
+    def _delete():
+        rule = IssueRuleManagementService.get(rule_id)
+        authorize_action(MANAGE_ISSUES, [rule.issue.project_id])
+        IssueRuleManagementService.delete(rule)
+        return {'deleted': rule_id}
+
+    return await sync_to_async(_delete)()
+
+
+@mcp_auth_required()
+async def activate_rules(rule_ids: list[int]) -> dict:
+    """
+    Activate rules, acting as the caller, so they classify later imports.
+
+    The rules of a closed issue cannot be activated: reopen it first.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_ids: The rules to activate
+
+    Returns:
+        The ids split into updated, unchanged (already active) and not_found
+    """
+
+    def _activate():
+        ids = list(dict.fromkeys(rule_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
+        return _bulk_data(IssueRuleManagementService.activate(ids, actor))
+
+    return await sync_to_async(_activate)()
+
+
+@mcp_auth_required()
+async def deactivate_rules(rule_ids: list[int]) -> dict:
+    """
+    Deactivate rules, acting as the caller; their stamps stay.
+
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_ids: The rules to deactivate
+
+    Returns:
+        The ids split into updated, unchanged (already inactive) and not_found
+    """
+
+    def _deactivate():
+        ids = list(dict.fromkeys(rule_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
+        return _bulk_data(IssueRuleManagementService.deactivate(ids, actor))
+
+    return await sync_to_async(_deactivate)()
+
+
 # Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
 # server (see register_tools) and directly by the in-process chat agent
 # (see bublik.ai.agent), so both expose exactly the same tools.
@@ -802,7 +1955,71 @@ MCP_TOOLS = [
     get_run_comment,
     get_run_report_configs,
     get_server_version,
+    get_test_comments,
+    list_issues,
+    get_issue,
+    get_run_issues,
+    get_run_issue_results,
+    get_issue_results,
+    get_classify_options,
 ]
+
+
+# Tools that write; each requires a caller.
+MCP_WRITE_TOOLS = [
+    edit_test_comment,
+    edit_run_comment,
+    set_run_compromised,
+    classify_results,
+    unclassify_results,
+    apply_run_rules,
+    edit_issue,
+    delete_issue,
+    close_issues,
+    reopen_issues,
+    edit_issue_rule,
+    delete_issue_rule,
+    activate_rules,
+    deactivate_rules,
+]
+
+# Tools only an administrator may call, reads included.
+MCP_ADMIN_TOOLS = [
+    list_configs,
+    get_config,
+    get_config_schema,
+    edit_config,
+    delete_config,
+    edit_project,
+    delete_project,
+]
+
+# Reads showing data that the write tools, the browser or the chat can change.
+# Never served from the response cache.
+MCP_UNCACHED_TOOLS = [
+    get_run_overview,
+    list_projects,
+    get_project,
+    list_runs,
+    list_runs_today,
+    get_dashboard,
+    get_dashboard_today,
+    get_history,
+    get_history_grouped,
+    get_run_comment,
+    get_run_report_configs,
+    get_test_comments,
+    list_issues,
+    get_issue,
+    get_run_issues,
+    get_run_issue_results,
+    get_issue_results,
+    get_classify_options,
+]
+
+MCP_WRITE_TOOL_NAMES = [tool.__name__ for tool in MCP_WRITE_TOOLS]
+MCP_ADMIN_TOOL_NAMES = [tool.__name__ for tool in MCP_ADMIN_TOOLS]
+MCP_UNCACHED_TOOL_NAMES = [tool.__name__ for tool in MCP_UNCACHED_TOOLS]
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -811,3 +2028,7 @@ def register_tools(mcp: FastMCP) -> None:
     """
     for tool in MCP_TOOLS:
         mcp.tool(tool)
+    for tool in MCP_WRITE_TOOLS:
+        mcp.tool(tool, tags={'write'})
+    for tool in MCP_ADMIN_TOOLS:
+        mcp.tool(tool, tags={'write', 'admin'})
