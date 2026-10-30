@@ -9,7 +9,9 @@ from rest_framework.viewsets import GenericViewSet
 from bublik.core.log.services import LogService
 from bublik.data.models import TestIterationResult
 from bublik.data.serializers import TestIterationResultSerializer
+from bublik.interfaces.api_v2.log.schemas import log_viewset_schema
 from bublik.interfaces.api_v2.log.serializers import (
+    LogHtmlResponseSerializer,
     LogJsonQuerySerializer,
     LogJsonResponseSerializer,
 )
@@ -20,6 +22,7 @@ __all__ = [
 ]
 
 
+@log_viewset_schema
 class LogViewSet(RetrieveModelMixin, GenericViewSet):
     queryset = TestIterationResult.objects.all()
     serializer_class = TestIterationResultSerializer
@@ -39,22 +42,14 @@ class LogViewSet(RetrieveModelMixin, GenericViewSet):
 
     @action(detail=True, methods=['get'])
     def html(self, request, pk=None):
-        """
-        Return the URL to the corresponding HTML log file.
-        Route: /api/v2/logs/<ID>/html/.
-        """
-
         # Let LogService handle validation and raise appropriate exceptions
         # The custom exception handler will format the response
         url = LogService.get_html_log_url(int(pk))
-        return Response(data={'url': url})
+        serializer = LogHtmlResponseSerializer(instance={'url': url})
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def proxy(self, request):
-        """
-        Forward the request to the given URL and return the response data.
-        Route: /api/v2/logs/proxy/?url=<forwarding_url>
-        """
         forward_url = request.query_params.get('url')
 
         # Let LogService handle validation and raise appropriate exceptions
