@@ -21,3 +21,14 @@ class LogJsonQuerySerializer(serializers.Serializer):
         min_value=0,
         help_text='Log page number; omit for the default log or use 0 for the combined log',
     )
+
+
+class LogProxyQuerySerializer(serializers.Serializer):
+    url = serializers.CharField(help_text='URL of the JSON log content to fetch')
+
+
+class LogHtmlResponseSerializer(serializers.Serializer):
+    url = serializers.CharField(
+        allow_null=True,
+        help_text='HTML log URL, or null when unavailable',
+    )
