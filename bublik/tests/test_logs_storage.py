@@ -12,12 +12,18 @@ from jsonschema import Draft7Validator
 
 from bublik.core import logs_storage
 from bublik.core.exceptions import RunCompromisedError
-from bublik.core.importruns.source.run_traversal import S3PrefixTraverser, traverser_for
-from bublik.core.importruns.source.storage import S3RunSource, run_source_for
+from bublik.core.importruns.source.run_traversal import (
+    LocalDirectoryTraverser,
+    S3PrefixTraverser,
+    traverser_for,
+)
+from bublik.core.importruns.source.storage import LocalRunSource, S3RunSource, run_source_for
 from bublik.core.logs_storage import (
     FsLogsStorage,
+    LocalLogsStorage,
     LogsStorageError,
     S3LogsStorage,
+    find_local_storage,
     find_s3_storage,
     storage_for_base,
 )
@@ -42,6 +48,17 @@ FS_BASE = {
     'uri': ['https://logs.example/logs/'],
     'storage': {'type': 'fs', 'root': '/home/te-logs/logs', 'upload': True},
 }
+LOCAL_BASE = {
+    'name': 'Local logs',
+    'uri': ['file:///srv/bublik/logs/'],
+    'storage': {'type': 'local', 'upload': True},
+}
+
+
+def local_base(root):
+    return {**LOCAL_BASE, 'uri': [f'file://{root}/']}
+
+
 S3_ENV = {'LOGS_S3_ACCESS_KEY': 'uploader', 'LOGS_S3_SECRET_KEY': 'uploader-secret'}
 S3_SETTINGS = {
     'S3_ENDPOINT_URL': 'http://127.0.0.1:8333',
@@ -63,10 +80,11 @@ class ReferencesSchemaTest(SimpleTestCase):
     def errors(self, base):
         return list(self.validator.iter_errors({'LOGS_BASES': [base]}))
 
-    def test_http_s3_and_fs_bases_are_valid(self):
+    def test_http_s3_fs_and_local_bases_are_valid(self):
         self.assertEqual(self.errors(HTTP_BASE), [])
         self.assertEqual(self.errors(S3_BASE), [])
         self.assertEqual(self.errors(FS_BASE), [])
+        self.assertEqual(self.errors(LOCAL_BASE), [])
         self.assertEqual(
             self.errors({'name': 'Local', 'uri': ['s3://b/p/'], 'storage': {'type': 's3'}}),
             [],
@@ -86,6 +104,18 @@ class ReferencesSchemaTest(SimpleTestCase):
     def test_s3_storage_has_no_root(self):
         base = {**S3_BASE, 'storage': {**S3_BASE['storage'], 'root': '/srv/logs'}}
         self.assertNotEqual(self.errors(base), [])
+
+    def test_local_storage_takes_only_file_uris_and_no_other_fields(self):
+        for storage in (
+            {'type': 'local', 'root': '/srv/logs'},
+            {'type': 'local', 'endpoint_url': 'http://127.0.0.1:8333'},
+        ):
+            with self.subTest(storage=storage):
+                self.assertNotEqual(self.errors({**LOCAL_BASE, 'storage': storage}), [])
+        for uri in ('https://logs.example/logs/', 's3://b/p/', 'file://relative/'):
+            with self.subTest(uri=uri):
+                self.assertNotEqual(self.errors({**LOCAL_BASE, 'uri': [uri]}), [])
+        self.assertNotEqual(self.errors({**HTTP_BASE, 'uri': ['file:///srv/logs/']}), [])
 
     def test_plaintext_and_foreign_credentials_are_rejected(self):
         for secret in ('uploader-secret', '${env:AI_SECRET}', '${env:SECRET_KEY}'):
@@ -171,6 +201,27 @@ class StorageForBaseTest(SimpleTestCase):
         with self.assertRaises(LogsStorageError):
             storage_for_base(base)
 
+    def test_local_storage(self):
+        storage = storage_for_base(LOCAL_BASE)
+        self.assertIsInstance(storage, LocalLogsStorage)
+        self.assertEqual(storage.root, '/srv/bublik/logs')
+        self.assertTrue(storage.upload)
+        self.assertEqual(storage.run_dir('ts/run'), '/srv/bublik/logs/ts/run')
+        # Served by Bublik itself; the run's time keeps its colons, as on a log server.
+        self.assertEqual(
+            storage.run_url('ts/2026/09/23/cfg-10:00:00'),
+            'file:///srv/bublik/logs/ts/2026/09/23/cfg-10:00:00/',
+        )
+        self.assertEqual(
+            storage.path_of('file:///srv/bublik/logs/ts/run/a%20b/'),
+            '/srv/bublik/logs/ts/run/a b',
+        )
+
+    def test_local_uri_must_be_an_absolute_file_url(self):
+        for uri in ('file://host/srv/logs/', 'file:srv/logs', 'https://x/'):
+            with self.subTest(uri=uri), self.assertRaises(LogsStorageError):
+                storage_for_base({**LOCAL_BASE, 'uri': [uri]})
+
 
 @override_settings(**S3_SETTINGS)
 @mock.patch.dict('os.environ', S3_ENV)
@@ -205,6 +256,24 @@ class FindStorageTest(SimpleTestCase):
     @mock.patch.object(logs_storage, 'logs_bases', new=mock.Mock(return_value=[HTTP_BASE]))
     def test_no_upload_storage_by_default(self):
         self.assertIsNone(logs_storage.upload_storage_for(1))
+
+    @mock.patch.object(
+        logs_storage, 'logs_bases', new=mock.Mock(return_value=[HTTP_BASE, LOCAL_BASE])
+    )
+    def test_local_storage_is_found_by_path_not_by_string(self):
+        self.assertEqual(
+            find_local_storage('file:///srv/bublik/logs/ts/run/', 1).base, LOCAL_BASE
+        )
+        self.assertEqual(find_local_storage('file:///srv/bublik/logs', 1).base, LOCAL_BASE)
+        for url in (
+            'file:///srv/bublik/logs/../secrets',
+            'file:///srv/bublik/logs-other/run/',
+            'file:///etc/passwd',
+            's3://srv/bublik/logs/',
+        ):
+            with self.subTest(url=url):
+                self.assertIsNone(find_local_storage(url, 1))
+        self.assertIsInstance(logs_storage.upload_storage_for(1), LocalLogsStorage)
 
 
 @override_settings(**S3_SETTINGS)
@@ -266,6 +335,85 @@ class S3RunSourceTest(SimpleTestCase):
             run_source_for('s3://other/run/', 1)
 
 
+class LocalRunSourceTest(SimpleTestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        self.run = os.path.join(self.root, 'ts/2026/09/23/cfg-10:00:00')
+        os.makedirs(self.run)
+        with open(os.path.join(self.run, 'meta_data.json'), 'w') as f:
+            f.write('{}')
+        self.save_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.save_dir)
+        self.url = f'file://{self.run}'
+
+    def source(self):
+        patcher = mock.patch.object(
+            logs_storage, 'logs_bases', return_value=[local_base(self.root)]
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return run_source_for(self.url, 1)
+
+    def test_copies_files_out_of_the_run(self):
+        source = self.source()
+        self.assertIsInstance(source, LocalRunSource)
+        self.assertEqual(source.location('bublik.json'), self.url + '/bublik.json')
+        self.assertTrue(source.fetch_to_dir('meta_data.json', self.save_dir))
+        self.assertEqual(os.listdir(self.save_dir), ['meta_data.json'])
+        self.assertFalse(source.fetch_to_dir('bublik.json', self.save_dir))
+        self.assertTrue(source.exists('meta_data.json'))
+        self.assertFalse(source.exists('.done'))
+
+    @mock.patch.object(logs_storage, 'logs_bases', new=mock.Mock(return_value=[HTTP_BASE]))
+    def test_url_outside_every_local_base_is_an_import_error(self):
+        with self.assertRaises(LogsStorageError):
+            run_source_for(self.url, 1)
+
+
+@mock.patch('bublik.core.importruns.source.run_traversal.create_event')
+@mock.patch('bublik.core.importruns.source.run_traversal.get_import_job_task')
+class LocalDirectoryTraverserTest(SimpleTestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        patcher = mock.patch.object(
+            logs_storage, 'logs_bases', return_value=[local_base(self.root)]
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def make_run(self, subpath, *files):
+        path = os.path.join(self.root, subpath)
+        os.makedirs(path, exist_ok=True)
+        for name in files:
+            open(os.path.join(path, name), 'w').close()
+        return path
+
+    def runs(self, url):
+        return list(LocalDirectoryTraverser(url, 1, 1).find_runs())
+
+    def test_a_run_directory_is_one_run(self, *_mocks):
+        run = self.make_run('ts/run', 'meta_data.json')
+        self.assertEqual(self.runs(f'file://{run}/'), [(f'file://{run}/', None)])
+
+    def test_a_parent_directory_yields_every_run_beneath_it(self, *_mocks):
+        a = self.make_run('ts/a', 'meta_data.json')
+        b = self.make_run('ts/b', 'meta_data.json')
+        self.make_run('ts/.hidden', 'meta_data.json')
+        self.make_run('ts/empty')
+        self.assertEqual(
+            [url for url, error in self.runs(f'file://{self.root}/') if error is None],
+            [f'file://{a}/', f'file://{b}/'],
+        )
+
+    def test_compromised_runs_are_skipped(self, *_mocks):
+        self.make_run('ts/bad', 'meta_data.json', 'trc_compromised.js')
+        runs = self.runs(f'file://{self.root}/')
+        self.assertEqual(len(runs), 1)
+        self.assertIsInstance(runs[0][1], RunCompromisedError)
+
+
 @override_settings(**S3_SETTINGS)
 @mock.patch.dict('os.environ', S3_ENV)
 @mock.patch('bublik.core.importruns.source.run_traversal.create_event')
@@ -325,6 +473,16 @@ class S3TraverserSelectionTest(TestCase):
         self.assertIsInstance(traverser, S3PrefixTraverser)
         logs_bases.assert_called_with(project.id)
 
+    @mock.patch(
+        'bublik.core.importruns.source.run_traversal.get_import_job_task', new=mock.Mock()
+    )
+    @mock.patch.object(logs_storage, 'logs_bases', return_value=[LOCAL_BASE])
+    def test_file_urls_use_the_directory_traverser(self, logs_bases):
+        project = Project.objects.create(name='local-project')
+        traverser = traverser_for('file:///srv/bublik/logs/ts/', 1, project.name)
+        self.assertIsInstance(traverser, LocalDirectoryTraverser)
+        logs_bases.assert_called_with(project.id)
+
 
 class ImportUrlValidationTest(TestCase):
     def setUp(self):
@@ -336,18 +494,25 @@ class ImportUrlValidationTest(TestCase):
 
     @mock.patch(
         'bublik.interfaces.api_v2.importruns.serializers.ConfigServices.getattr_from_global',
-        new=mock.Mock(return_value=[HTTP_BASE, S3_BASE]),
+        new=mock.Mock(return_value=[HTTP_BASE, S3_BASE, LOCAL_BASE]),
     )
     def test_urls_under_a_configured_base_are_accepted(self):
         self.assertTrue(self.validate('s3://bublik-logs/uploads/ts/run/')[0])
         self.assertTrue(self.validate('https://logs.example/logs/ts/run/')[0])
+        self.assertTrue(self.validate('file:///srv/bublik/logs/ts/run/')[0])
 
     @mock.patch(
         'bublik.interfaces.api_v2.importruns.serializers.ConfigServices.getattr_from_global',
-        new=mock.Mock(return_value=[HTTP_BASE, S3_BASE]),
+        new=mock.Mock(return_value=[HTTP_BASE, S3_BASE, LOCAL_BASE]),
     )
     def test_other_urls_are_rejected(self):
-        for url in ('s3://other-bucket/run/', 's3:///no-bucket', 'ftp://logs.example/logs/'):
+        for url in (
+            's3://other-bucket/run/',
+            's3:///no-bucket',
+            'ftp://logs.example/logs/',
+            'file:///srv/other/run/',
+            'file://host/srv/bublik/logs/run/',
+        ):
             with self.subTest(url=url):
                 valid, errors = self.validate(url)
                 self.assertFalse(valid)

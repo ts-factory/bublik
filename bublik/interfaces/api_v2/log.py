@@ -2,6 +2,7 @@
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
 from html import escape
+import os
 
 from django.http import FileResponse, Http404, HttpResponse
 from django.views.decorators.http import require_http_methods
@@ -10,6 +11,7 @@ from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from bublik.core.log import local_logs
 from bublik.core.log.s3_logs import (
     LogGenerationError,
     list_generated_directory,
@@ -25,6 +27,7 @@ from bublik.data.serializers import TestIterationResultSerializer
 
 __all__ = [
     'LogViewSet',
+    'local_log',
     's3_log',
 ]
 
@@ -97,6 +100,41 @@ def s3_log(request, bucket, key=''):
     if item is None:
         raise Http404
 
+    return _file_response(item)
+
+
+@require_http_methods(['GET', 'HEAD'])
+def local_log(request, path):
+    """
+    Serve a file of a run in a local logs base, generating missing JSON and
+    HTML log pages from the run's bundle, as a TE log server does. A
+    directory gets an index of what is in it.
+    Route: /api/v2/logs/local/<absolute path without its leading slash>.
+    """
+    path = '/' + path
+    storage = local_logs.storage_for(path)
+    if storage is None:
+        raise Http404
+
+    if path.endswith('/') or os.path.isdir(path):
+        try:
+            listing = local_logs.list_local_directory(storage, path)
+        except LogGenerationError as error:
+            return HttpResponse(error.message, status=503, content_type='text/plain')
+        if listing is None:
+            raise Http404
+        return _index_page(path, *listing)
+
+    try:
+        item = local_logs.open_local_item(storage, path)
+    except LogGenerationError as error:
+        return HttpResponse(error.message, status=503, content_type='text/plain')
+    if item is None:
+        raise Http404
+    return _file_response(item)
+
+
+def _file_response(item):
     response = FileResponse(item.stream, content_type=item.content_type)
     if item.length is not None:
         response['Content-Length'] = str(item.length)
@@ -111,7 +149,11 @@ def _directory_listing(storage, prefix):
     directories, files = generated or list_run_directory(storage, prefix)
     if not directories and not files:
         raise Http404
-    title = escape(f'{storage.target.bucket}/{prefix}')
+    return _index_page(f'{storage.target.bucket}/{prefix}', directories, files)
+
+
+def _index_page(title, directories, files):
+    title = escape(title)
     rows = [
         f'<li><a href="{escape(name)}">{escape(name)}</a></li>' for name in directories + files
     ]

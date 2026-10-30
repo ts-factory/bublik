@@ -96,6 +96,7 @@ urlpatterns = [
     path('api/v2/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     path('api/v2/logs/s3/<str:bucket>/', api_v2.s3_log, name='logs-s3-root'),
     path('api/v2/logs/s3/<str:bucket>/<path:key>', api_v2.s3_log, name='logs-s3'),
+    path('api/v2/logs/local/<path:path>', api_v2.local_log, name='logs-local'),
     path('api/v2/', include((api_v2_router.urls, 'api-v2'), namespace='api-v2')),
     # Redirects
     path('', main_api.redirect_root),

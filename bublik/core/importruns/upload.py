@@ -8,7 +8,7 @@ Test Environment's ``publish_logs`` packs a run as a flat tar holding
 tars with ``publish-logs-unpack.sh``; an upload goes through the same checks
 and gets the same storage layout, ``TS_NAME/YYYY/MM/DD/CFG[-USER]-HH:MM:SS``,
 under the project's upload base (:mod:`bublik.core.logs_storage`): a log
-server's directory, or an S3 prefix Bublik serves itself.
+server's directory, or a directory or S3 prefix Bublik serves itself.
 
 A tar holding ``bublik.json`` instead is a run made outside TE (a converted
 Playwright report, say): its log pages are already made, under ``json/``, and

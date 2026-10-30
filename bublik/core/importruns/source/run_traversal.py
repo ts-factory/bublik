@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import wraps
+import os
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin
@@ -19,12 +20,13 @@ from bublik.core.exceptions import (
     get_safe_error_message,
 )
 from bublik.core.importruns.source.storage import (
+    local_storage_for_url,
     s3_storage_for_url,
     unsupported_source_error,
     url_scheme,
 )
 from bublik.core.importruns.utils import indicate_collision, runtime
-from bublik.core.logs_storage import is_s3_url
+from bublik.core.logs_storage import file_url, is_local_url, is_s3_url
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.core.url import fetch_url
 from bublik.core.utils import create_event, get_import_job_task
@@ -201,15 +203,50 @@ class S3PrefixTraverser:
         yield from self.__find_runs(self.url)
 
 
+class LocalDirectoryTraverser:
+    """Discovers runs under a ``file://`` directory of a local logs base.
+
+    A directory holding ``meta_data.json`` is a run; otherwise every
+    sub-directory is searched, as the other traversers do.
+    """
+
+    def __init__(self, url, job_id, project_id=None):
+        self.url = url
+        self.storage = local_storage_for_url(url, project_id)
+        self.job_task_execution = get_import_job_task(job_id)
+
+    def __find_runs(self, path):
+        if os.path.isfile(os.path.join(path, 'trc_compromised.js')):
+            raise RunCompromisedError
+
+        if os.path.isfile(os.path.join(path, 'meta_data.json')):
+            yield file_url(path) + '/', None
+            return
+
+        for entry in sorted(os.scandir(path), key=lambda entry: entry.name):
+            if not entry.is_dir(follow_symlinks=False) or entry.name.startswith('.'):
+                continue
+            try:
+                yield from self.__find_runs(entry.path)
+            except Exception as e:
+                yield file_url(entry.path) + '/', e
+
+    @with_run_events
+    def find_runs(self):
+        yield from self.__find_runs(self.storage.path_of(self.url))
+
+
 def traverser_for(url: str, job_id: int, project_name: str | None = None):
     """The traverser discovering the runs under ``url``, chosen by scheme."""
     if url_scheme(url) in ('http', 'https'):
         return HTTPDirectoryTraverser(url, job_id)
-    if is_s3_url(url):
+    if is_s3_url(url) or is_local_url(url):
         project_id = (
             Project.objects.get(name=project_name).id if project_name is not None else None
         )
-        return S3PrefixTraverser(url, job_id, project_id)
+        if is_s3_url(url):
+            return S3PrefixTraverser(url, job_id, project_id)
+        return LocalDirectoryTraverser(url, job_id, project_id)
     raise unsupported_source_error(url)
 
 

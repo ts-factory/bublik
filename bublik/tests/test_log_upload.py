@@ -355,6 +355,12 @@ class PublishLogTarToDirectoryTest(SimpleTestCase):
         upload.publish_log_tar(open_log_tar(make_tar()), self.storage)
         self.assertEqual(self.listing(), ['.done', 'meta_data.json', 'raw_log_bundle.tpxz'])
 
+    def test_a_local_base_gives_the_run_a_file_url(self):
+        base = {'name': 'L', 'uri': [f'file://{self.root}/'], 'storage': {'type': 'local'}}
+        url = upload.publish_log_tar(open_log_tar(make_tar()), storage_for_base(base))
+        self.assertEqual(url, f'file://{self.root}/{SUBPATH}/')
+        self.assertEqual(self.listing(), ['.done', 'meta_data.json', 'raw_log_bundle.tpxz'])
+
     def test_a_missing_root_is_an_error_not_a_new_directory(self):
         storage = storage_for_base(fs_base(os.path.join(self.root, 'nope')))
         with self.assertRaises(LogsStorageError) as caught:

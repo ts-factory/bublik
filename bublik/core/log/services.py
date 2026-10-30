@@ -12,6 +12,7 @@ import requests
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import BadGatewayError, UnprocessableEntityError
+from bublik.core.log import local_logs
 from bublik.core.log.s3_logs import (
     LogGenerationError,
     browser_url,
@@ -19,7 +20,7 @@ from bublik.core.log.s3_logs import (
     open_log_item,
     storage_for,
 )
-from bublik.core.logs_storage import is_s3_url, parse_s3_url
+from bublik.core.logs_storage import is_local_url, is_s3_url, parse_file_url, parse_s3_url
 from bublik.core.result.services import ResultService
 from bublik.core.run.external_links import get_result_log, get_sources
 from bublik.core.url import get_url
@@ -77,24 +78,25 @@ class LogService:
             'attachments.json',
         )
 
-        # Runs stored in S3 are served by Bublik itself. Without an origin
-        # (server-side callers) the s3:// URLs are kept for fetch_log_content.
-        if is_s3_url(url):
+        # Runs stored in S3 or a local directory are served by Bublik itself.
+        # Without an origin (server-side callers) the s3:// and file:// URLs
+        # are kept for fetch_log_content.
+        if is_s3_url(url) or is_local_url(url):
             if request_origin:
                 protocol = 'https' if settings.SECURE_HTTP else 'http'
                 origin = f'{protocol}://{request_origin}'
                 project_id = result.project_id
 
-                def served(s3_url):
+                def served(stored_url):
                     # Pages that already exist can be read straight from a
                     # browser-reachable S3, which is cross-origin and needs a
                     # CORS rule on the bucket; the proxy switch keeps them on
                     # Bublik, which generates the missing ones anyway.
-                    if not settings.ENABLE_JSON_LOGS_PROXY:
-                        presigned = direct_url(s3_url, project_id)
+                    if is_s3_url(stored_url) and not settings.ENABLE_JSON_LOGS_PROXY:
+                        presigned = direct_url(stored_url, project_id)
                         if presigned:
                             return presigned
-                    return browser_url(s3_url, origin)
+                    return browser_url(stored_url, origin)
 
                 url = served(url)
                 attachments_url = served(attachments_url)
@@ -150,6 +152,8 @@ class LogService:
 
         if is_s3_url(url):
             return LogService.fetch_s3_log_content(url)
+        if is_local_url(url):
+            return LogService.fetch_local_log_content(url)
 
         try:
             response = get_url(url, quiet_404=allow_not_found, timeout=30)
@@ -183,6 +187,23 @@ class LogService:
             item = open_log_item(storage, key)
         except LogGenerationError as error:
             raise BadGatewayError(error.message) from error
+        return LogService._read_json_item(item)
+
+    @staticmethod
+    def fetch_local_log_content(url: str) -> dict | None:
+        """Read a JSON log item of a run in a local logs base, generating it if needed."""
+        path = parse_file_url(url)
+        storage = local_logs.storage_for(path)
+        if storage is None:
+            return None
+        try:
+            item = local_logs.open_local_item(storage, path)
+        except LogGenerationError as error:
+            raise BadGatewayError(error.message) from error
+        return LogService._read_json_item(item)
+
+    @staticmethod
+    def _read_json_item(item) -> dict | None:
         if item is None:
             return None
         try:

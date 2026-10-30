@@ -12,6 +12,7 @@ implementation from the URL scheme.
 from __future__ import annotations
 
 import os
+import shutil
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlsplit
 
@@ -20,12 +21,18 @@ from botocore.exceptions import ClientError
 from bublik.core import s3
 from bublik.core.checks import check_run_file
 from bublik.core.exceptions import ImportrunsError
-from bublik.core.logs_storage import LogsStorageError, find_s3_storage, is_s3_url
+from bublik.core.logs_storage import (
+    LogsStorageError,
+    find_local_storage,
+    find_s3_storage,
+    is_local_url,
+    is_s3_url,
+)
 from bublik.core.url import save_url_to_dir
 
 
 if TYPE_CHECKING:
-    from bublik.core.logs_storage import S3LogsStorage
+    from bublik.core.logs_storage import LocalLogsStorage, S3LogsStorage
 
 
 class RunSource(Protocol):
@@ -87,6 +94,43 @@ class S3RunSource:
         return self.url + name
 
 
+class LocalRunSource:
+    """A run directory under a local logs base (``file:///base/run/``)."""
+
+    def __init__(self, url: str, storage: LocalLogsStorage):
+        self.url = url if url.endswith('/') else url + '/'
+        self.storage = storage
+        self.dir = storage.path_of(self.url)
+
+    def fetch_to_dir(self, name: str, save_dir: str) -> bool:
+        try:
+            shutil.copyfile(os.path.join(self.dir, name), os.path.join(save_dir, name))
+        except FileNotFoundError:
+            return False
+        return True
+
+    def exists(self, name: str, logger=None) -> bool:
+        found = os.path.isfile(os.path.join(self.dir, name))
+        if not found and logger:
+            logger.info(f"{name} wasn't found in {self.url}")
+        return found
+
+    def location(self, name: str) -> str:
+        return self.url + name
+
+
+def local_storage_for_url(url: str, project_id: int | None = None) -> LocalLogsStorage:
+    """The local logs base ``url`` lies in, or an import error if none is configured."""
+    storage = find_local_storage(url, project_id)
+    if storage is None:
+        msg = (
+            "run URL doesn't lie in any local logs base of the references "
+            'configuration (a LOGS_BASES entry with storage.type "local")'
+        )
+        raise LogsStorageError(message=msg, debug_details=[f'Run source URL: {url}'])
+    return storage
+
+
 def s3_storage_for_url(url: str, project_id: int | None = None) -> S3LogsStorage:
     """The S3 logs base ``url`` belongs to, or an import error if none is configured."""
     storage = find_s3_storage(url, project_id)
@@ -116,4 +160,6 @@ def run_source_for(url: str, project_id: int | None = None) -> RunSource:
         return HTTPRunSource(url)
     if is_s3_url(url):
         return S3RunSource(url, s3_storage_for_url(url, project_id))
+    if is_local_url(url):
+        return LocalRunSource(url, local_storage_for_url(url, project_id))
     raise unsupported_source_error(url)

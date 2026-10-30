@@ -16,7 +16,7 @@
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "pattern": "^(https?|s3)://"
+                            "pattern": "^(https?|s3|file)://"
                         },
                         "minItems": 1,
                         "uniqueItems": true
@@ -28,7 +28,8 @@
                             "type": {
                                 "enum": [
                                     "s3",
-                                    "fs"
+                                    "fs",
+                                    "local"
                                 ]
                             },
                             "root": {
@@ -70,32 +71,53 @@
                             "type"
                         ],
                         "additionalProperties": false,
-                        "if": {
-                            "properties": {
-                                "type": {
-                                    "const": "fs"
+                        "allOf": [
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "fs"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "required": [
+                                        "root"
+                                    ],
+                                    "propertyNames": {
+                                        "enum": [
+                                            "type",
+                                            "root",
+                                            "upload"
+                                        ]
+                                    }
+                                },
+                                "else": {
+                                    "propertyNames": {
+                                        "not": {
+                                            "const": "root"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "local"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "propertyNames": {
+                                        "enum": [
+                                            "type",
+                                            "upload"
+                                        ]
+                                    }
                                 }
                             }
-                        },
-                        "then": {
-                            "required": [
-                                "root"
-                            ],
-                            "propertyNames": {
-                                "enum": [
-                                    "type",
-                                    "root",
-                                    "upload"
-                                ]
-                            }
-                        },
-                        "else": {
-                            "propertyNames": {
-                                "not": {
-                                    "const": "root"
-                                }
-                            }
-                        }
+                        ]
                     }
                 },
                 "required": [
@@ -103,39 +125,116 @@
                     "uri"
                 ],
                 "additionalProperties": false,
-                "description": "A logs base: the URIs runs' logs live under. By default these are http(s) URIs of a TE log server, which an 'fs' storage block may also name the directory of. With an 's3' storage block they are s3://bucket/prefix/ URIs instead.",
-                "if": {
-                    "required": [
-                        "storage"
-                    ],
-                    "properties": {
-                        "storage": {
+                "description": "A logs base: the URIs runs' logs live under. By default these are http(s) URIs of a TE log server, which an 'fs' storage block may also name the directory of. With an 's3' storage block they are s3://bucket/prefix/ URIs, with a 'local' one file:///path/ URIs of a directory Bublik serves itself.",
+                "allOf": [
+                    {
+                        "if": {
+                            "required": [
+                                "storage"
+                            ],
                             "properties": {
-                                "type": {
-                                    "const": "s3"
+                                "storage": {
+                                    "required": [
+                                        "type"
+                                    ],
+                                    "properties": {
+                                        "type": {
+                                            "const": "s3"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "uri": {
+                                    "items": {
+                                        "pattern": "^s3://[^/]+/"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "required": [
+                                "storage"
+                            ],
+                            "properties": {
+                                "storage": {
+                                    "required": [
+                                        "type"
+                                    ],
+                                    "properties": {
+                                        "type": {
+                                            "const": "local"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "uri": {
+                                    "items": {
+                                        "pattern": "^file:///"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "not": {
+                                "anyOf": [
+                                    {
+                                        "required": [
+                                            "storage"
+                                        ],
+                                        "properties": {
+                                            "storage": {
+                                                "required": [
+                                                    "type"
+                                                ],
+                                                "properties": {
+                                                    "type": {
+                                                        "const": "s3"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "required": [
+                                            "storage"
+                                        ],
+                                        "properties": {
+                                            "storage": {
+                                                "required": [
+                                                    "type"
+                                                ],
+                                                "properties": {
+                                                    "type": {
+                                                        "const": "local"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "uri": {
+                                    "items": {
+                                        "pattern": "^https?://"
+                                    }
                                 }
                             }
                         }
                     }
-                },
-                "then": {
-                    "properties": {
-                        "uri": {
-                            "items": {
-                                "pattern": "^s3://[^/]+/"
-                            }
-                        }
-                    }
-                },
-                "else": {
-                    "properties": {
-                        "uri": {
-                            "items": {
-                                "pattern": "^https?://"
-                            }
-                        }
-                    }
-                }
+                ]
             },
             "minItems": 1,
             "uniqueItems": true,

@@ -39,7 +39,13 @@ from django.conf import settings
 from bublik.core import s3
 from bublik.core.exceptions import BublikServerError
 from bublik.core.logging import get_task_or_server_logger
-from bublik.core.logs_storage import find_s3_storage, is_s3_url, parse_s3_url
+from bublik.core.logs_storage import (
+    find_s3_storage,
+    is_local_url,
+    is_s3_url,
+    parse_file_url,
+    parse_s3_url,
+)
 
 
 if TYPE_CHECKING:
@@ -47,6 +53,8 @@ if TYPE_CHECKING:
 
 
 ROUTE = 'api/v2/logs/s3/'
+# Runs in a local logs base, served by bublik.core.log.local_logs.
+LOCAL_ROUTE = 'api/v2/logs/local/'
 BUNDLE = 'raw_log_bundle.tpxz'
 GENERATED_DIRS = ('json', 'html')
 GENERATOR = 'rgt-log-get-item'
@@ -84,17 +92,27 @@ class LogItem:
 def browser_url(url: str | None, origin: str | None = None) -> str | None:
     """The URL a browser can open for a log ``url``.
 
-    ``s3://`` URLs become URLs of Bublik's own endpoint; anything else (a TE
-    log server) is returned unchanged. The URL is made absolute with
-    ``origin``, the ``scheme://host`` of the request, or else with
-    ``BUBLIK_FQDN``; with neither it is host-relative.
+    ``s3://`` and ``file://`` URLs become URLs of Bublik's own endpoints;
+    anything else (a TE log server) is returned unchanged. The URL is made
+    absolute with ``origin``, the ``scheme://host`` of the request, or else
+    with ``BUBLIK_FQDN``; with neither it is host-relative.
     """
-    if not url or not is_s3_url(url):
+    if not url:
         return url
-    bucket, key = parse_s3_url(url)
+    if is_s3_url(url):
+        bucket, key = parse_s3_url(url)
+        route = f'{ROUTE}{quote(bucket)}/{quote(key)}'
+    elif is_local_url(url):
+        path = parse_file_url(url).lstrip('/')
+        # A directory keeps its trailing slash, which normalizing dropped.
+        if url.endswith('/') and path:
+            path += '/'
+        route = f'{LOCAL_ROUTE}{quote(path)}'
+    else:
+        return url
     host = (origin or getattr(settings, 'BUBLIK_FQDN', '') or '').rstrip('/')
     prefix = f'/{settings.URL_PREFIX}' if settings.URL_PREFIX else ''
-    return f'{host}{prefix}/{ROUTE}{quote(bucket)}/{quote(key)}'
+    return f'{host}{prefix}/{route}'
 
 
 def direct_url(url: str, project_id: int | None = None) -> str | None:
