@@ -6,7 +6,7 @@ Bublik chat assistant package.
 The public surface external callers should depend on:
 
 * :func:`build_chat_routes` -- the AG-UI Starlette routes mounted in
-  ``bublik.asgi`` (``bublik.ai.app``).
+  ``bublik.asgi`` (``bublik.ai.app``), with :data:`CHAT_EXCEPTION_HANDLERS`.
 * :func:`build_agent` -- the cached Pydantic-AI agent factory
   (``bublik.ai.agent``); ``bublik.interfaces.signals`` clears its cache.
 * :mod:`run_store` -- the Redis-backed resumable-run store
@@ -26,14 +26,15 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from bublik.ai import run_store
     from bublik.ai.agent import build_agent
-    from bublik.ai.app import build_chat_routes
+    from bublik.ai.app import CHAT_EXCEPTION_HANDLERS, build_chat_routes
 
 
-__all__ = ['build_agent', 'build_chat_routes', 'run_store']
+__all__ = ['CHAT_EXCEPTION_HANDLERS', 'build_agent', 'build_chat_routes', 'run_store']
 
 # Attribute name -> (submodule, symbol). ``None`` symbol means the submodule
 # itself is the exported object.
 _EXPORTS = {
+    'CHAT_EXCEPTION_HANDLERS': ('bublik.ai.app', 'CHAT_EXCEPTION_HANDLERS'),
     'build_chat_routes': ('bublik.ai.app', 'build_chat_routes'),
     'build_agent': ('bublik.ai.agent', 'build_agent'),
     'run_store': ('bublik.ai.run_store', None),

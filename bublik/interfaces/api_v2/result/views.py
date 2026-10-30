@@ -11,7 +11,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import check_action_permission_for_projects, get_user_by_access_token
+from bublik.core.auth import check_action_permission_for_projects, get_request_user
 from bublik.core.cache import RunCache
 from bublik.core.result import ResultService
 from bublik.core.run.stats import (
@@ -119,7 +119,7 @@ class ResultViewSet(ModelViewSet):
         options = ResultService.get_classify_options(results)
         ResultService.validate_classify_matchers(options, body['matchers'])
         matchers = {matcher['test_id']: matcher for matcher in body['matchers']}
-        actor = get_user_by_access_token(request.COOKIES.get('access_token'))
+        actor = get_request_user(request)
 
         with transaction.atomic():
             issue = self._resolve_issue(body.get('issue'), results[0], actor)
