@@ -5,10 +5,10 @@
 use strict;
 use warnings;
 use XML::Parser;
-use Date::Parse;
 use JSON;
 use English;
 use POSIX;
+use Time::Local qw(timegm);
 
 my $parser = XML::Parser->new(Handlers =>
                                 { Start => \&handle_start,
@@ -16,8 +16,6 @@ my $parser = XML::Parser->new(Handlers =>
                                   Char => \&handle_char });
 
 my $parsed_data = { iters => [],
-                    tags => {},
-                    plan => {},
                     start_ts => "",
                     end_ts => "" };
 
@@ -29,12 +27,89 @@ my $tester_msg_parsed = 0;
 my $tester_msg = [];
 my $cur_tester_msg = '';
 my $first_ts = "";
+my $first_ts_val;
 my $last_ts = "";
-my $prev_tv = -1;
-my $base_tv = -1;
-my $base_date = "";
+my $last_ts_val;
+my $ref_tv;
+my $log_tz_off;
+my $same_tz = 1;
+my $scenario_parsed = 0;
+my $step_depth = 0;
 
 my @cur_nodes = ();
+
+# Elements whose text is cached, and the keys of the caches
+my %text_elements = ("start-ts" => "start_ts",
+                     "end-ts" => "end_ts",
+                     "duration" => "duration",
+                     "objective" => "objective",
+                     "verdict" => "verdict",
+                     "artifact" => "artifact",
+                     "step" => "step");
+
+# Parse a list of verdicts or artifacts, each terminated by ';'.
+# An item may span several lines. The list ends with an empty line, or
+# with a "Key:"/"Notes:" line between items. Lines after the last
+# terminated item are not consumed.
+#
+# Returns the index of the first line not consumed and the list.
+sub parse_list
+{
+    my ($line_idx, $lines) = @_;
+    my $lines_num = scalar(@{$lines});
+    my $items = [];
+    my @pending = ();
+    my $next_idx = $line_idx;
+
+    for ( ; $line_idx < $lines_num; $line_idx++)
+    {
+        my $line = $lines->[$line_idx];
+
+        last if (length($line) == 0);
+        last if (not @pending and $line =~ /^(Key|Notes):/);
+
+        if ($line =~ /^(.*);$/)
+        {
+            push(@pending, $1);
+            push(@{$items}, join("\n", @pending));
+            @pending = ();
+            $next_idx = $line_idx + 1;
+        }
+        else
+        {
+            push(@pending, $line);
+        }
+    }
+
+    return ($next_idx, $items);
+}
+
+# Parse "Key:" and "Notes:" lines up to an empty line.
+#
+# Returns the index of the empty line (or the number of lines).
+sub parse_key_notes
+{
+    my ($line_idx, $lines, $parsed) = @_;
+    my $lines_num = scalar(@{$lines});
+
+    for ( ; $line_idx < $lines_num; $line_idx++)
+    {
+        my $line = $lines->[$line_idx];
+
+        if ($line =~ /^Key:\s*(.*)$/)
+        {
+            $parsed->{key} = $1;
+        }
+        elsif ($line =~ /^Notes:\s*(.*)$/)
+        {
+            $parsed->{notes} = $1;
+        }
+
+        last if (length($line) == 0);
+    }
+
+    return $line_idx;
+}
 
 sub parse_result
 {
@@ -50,21 +125,8 @@ sub parse_result
 
         if ($2)
         {
-            $parsed->{verdicts} = [];
-
-            for ($line_idx++; $line_idx < $lines_num; $line_idx++)
-            {
-                $line = $lines->[$line_idx];
-
-                if ($line =~ /^(.*);$/)
-                {
-                    push(@{$parsed->{verdicts}}, $1)
-                }
-                else
-                {
-                    last;
-                }
-            }
+            ($line_idx, $parsed->{verdicts}) = parse_list($line_idx + 1,
+                                                          $lines);
         }
     }
     else
@@ -72,41 +134,17 @@ sub parse_result
         return ($line_idx, $parsed);
     }
 
-    for ( ; $line_idx < $lines_num; $line_idx++)
-    {
-        $line = $lines->[$line_idx];
-
-        if ($line =~ /^Key:\s*(.*)$/)
-        {
-            $parsed->{key} = $1;
-        }
-        elsif ($line =~ /^Notes:\s*(.*)$/)
-        {
-            $parsed->{notes} = $1;
-        }
-
-        last if (length($line) == 0);
-    }
+    $line_idx = parse_key_notes($line_idx, $lines, $parsed);
 
     if ($line_idx < $lines_num - 1)
     {
         $line = $lines->[$line_idx + 1];
         if ($line =~ /^Artifacts:/)
         {
-            $parsed->{artifacts} = [];
-            for ($line_idx += 2; $line_idx < $lines_num; $line_idx++)
-            {
-                $line = $lines->[$line_idx];
-
-                if ($line =~ /^(.*);$/)
-                {
-                    push(@{$parsed->{artifacts}}, $1)
-                }
-                else
-                {
-                    last;
-                }
-            }
+            ($line_idx, $parsed->{artifacts}) = parse_list($line_idx + 2,
+                                                           $lines);
+            # Key and notes of an expected result follow its artifacts
+            $line_idx = parse_key_notes($line_idx, $lines, $parsed);
         }
     }
 
@@ -316,21 +354,16 @@ sub handle_start
 
     # cache strings in the event itself to guarantee deterministic data integrity
     # http://perl-xml.sourceforge.net/faq/#char_events
-    $p->{start_ts} = '';
-    $p->{end_ts} = '';
-    $p->{duration} = '';
-    $p->{verdict} = '';
-    $p->{artifact} = '';
-    $p->{tags_parsed} = 0;
-    $p->{tags} = '';
-    $p->{plan_parsed} = 0;
-    $p->{plan} = '';
-    $p->{objective} = '';
-    $p->{level} = '';
-
-    if (defined($attrs{level}))
+    # A cached string is reset only when its own element starts, since
+    # the text may be split by nested <br/> elements.
+    if (exists($text_elements{$e}))
     {
-        $p->{level} = $attrs{level};
+        $p->{$text_elements{$e}} = '';
+    }
+
+    if ($e eq "artifact")
+    {
+        $p->{level} = defined($attrs{level}) ? $attrs{level} : '';
     }
 
     if ($e eq "pkg" || $e eq "session" ||
@@ -391,6 +424,20 @@ sub handle_start
     elsif ($e eq "param")
     {
         $cur_iter->{params}->{$attrs{name}} = $attrs{value};
+
+        if (defined($attrs{description}))
+        {
+            $cur_iter->{param_docs}->{$attrs{name}} = $attrs{description};
+        }
+    }
+    elsif ($e eq "scenario")
+    {
+        $scenario_parsed = 1;
+        $cur_iter->{scenario} = [];
+    }
+    elsif ($e eq "step" and $scenario_parsed)
+    {
+        $step_depth = int($attrs{depth});
     }
     elsif ($e eq "req")
     {
@@ -399,6 +446,10 @@ sub handle_start
     elsif ($e eq "msg")
     {
         $tester_msg_parsed = 0;
+        $p->{tags_parsed} = 0;
+        $p->{tags} = '';
+        $p->{plan_parsed} = 0;
+        $p->{plan} = '';
 
         if ($attrs{entity} eq "Tester" &&
             $attrs{user} eq "Run")
@@ -423,17 +474,27 @@ sub handle_start
 
         if (defined($attrs{ts_val}))
         {
-            $base_tv = int($attrs{ts_val});
-            $base_date = strftime("%Y.%m.%d", localtime($base_tv));
+            $ref_tv = $attrs{ts_val} + 0;
+            update_log_tz($attrs{ts_val}, $attrs{ts});
         }
     }
     elsif ($e eq "br")
     {
+        my $parent = $p->current_element();
+
         if ($tester_msg_parsed)
         {
             push(@{$tester_msg}, $cur_tester_msg);
             $cur_tester_msg = '';
         }
+
+        if (defined($parent) and exists($text_elements{$parent}))
+        {
+            $p->{$text_elements{$parent}} .= "\n";
+        }
+
+        $p->{tags} .= "\n" if ($p->{tags_parsed});
+        $p->{plan} .= "\n" if ($p->{plan_parsed});
     }
 }
 
@@ -458,15 +519,7 @@ sub handle_char
         }
         elsif ($cur_elm eq "objective")
         {
-            if ($p->{objective} eq '')
-            {
-                $p->{objective} .= $str;
-            }
-            else
-            {
-                $p->{objective} .= "\n";
-                $p->{objective} .= $str;
-            }
+            $p->{objective} .= $str;
         }
         elsif ($cur_elm eq "verdict")
         {
@@ -477,6 +530,10 @@ sub handle_char
         elsif ($cur_elm eq "artifact")
         {
             $p->{artifact} .= $str;
+        }
+        elsif ($cur_elm eq "step")
+        {
+            $p->{step} .= $str;
         }
         elsif ($cur_elm eq "msg")
         {
@@ -504,95 +561,142 @@ sub handle_char
     }
 }
 
-sub get_unix_date
+# Parse "H:M:S.mmm" into seconds and milliseconds (milliseconds may
+# be absent).
+sub parse_hms
 {
-    my $time = $_[0];
-    my $unix_date = $base_tv;
+    my $str = $_[0];
 
-    if ($time =~ /([0-9]+):([0-9]+):([0-9]+)/)
+    if ($str !~ /^\s*([0-9]+):([0-9]+):([0-9]+)(?:\.([0-9]+))?\s*$/)
     {
-        my $time_in_sec = $1 * 60 * 60 + $2 * 60 + $3;
-        my $day_in_sec = 24 * 60 * 60;
+        die("Unexpected time format: '$str'\n");
+    }
 
-        # update the UNIX date according to the time
-        my $day_start = $base_tv - ($base_tv % $day_in_sec);
-        $unix_date = $day_start + $time_in_sec;
+    my $ms = defined($4) ? int(substr($4 . "00", 0, 3)) : 0;
 
-        # add 1 day to the UNIX date if the time is less than the base time
-        if ($base_tv % $day_in_sec > $time_in_sec)
+    return ($1 * 60 * 60 + $2 * 60 + $3, $ms);
+}
+
+# Get the UNIX time of the local time of day closest to the reference
+# UNIX time.
+sub local_time_near
+{
+    my ($time_of_day, $ref) = @_;
+    my $hour = int($time_of_day / 3600);
+    my $min = int(($time_of_day % 3600) / 60);
+    my $sec = $time_of_day % 60;
+    my $best;
+
+    foreach my $day (-1, 0, 1)
+    {
+        my @date = localtime(int($ref) + $day * 24 * 60 * 60);
+
+        # Both DST variants are tried, since during the hour repeated
+        # when DST ends the same local time corresponds to two moments.
+        foreach my $isdst (0, 1)
         {
-            $unix_date += $day_in_sec;
+            my $t = mktime($sec, $min, $hour, $date[3], $date[4], $date[5],
+                           0, 0, $isdst);
+            next if (not defined($t));
+
+            my @check = localtime($t);
+            next if ($check[0] != $sec or $check[1] != $min or
+                     $check[2] != $hour or $check[3] != $date[3]);
+
+            $best = $t if (not defined($best) or
+                           abs($t - $ref) < abs($best - $ref));
         }
     }
 
-    return $unix_date;
-}
-
-sub parse_datetime
-{
-    my $str = $_[0];
-    my $time = str2time($str);
-
-    if ($str =~ /[0-9]\.([0-9]*)$/)
+    if (not defined($best))
     {
-        $time = $time + "0.$1";
+        # The local time does not exist (it was skipped when DST
+        # started), so let mktime() shift it.
+        my @date = localtime(int($ref));
+        $best = mktime($sec, $min, $hour, $date[3], $date[4], $date[5],
+                       0, 0, -1);
     }
 
-    return $time;
+    return $best;
 }
 
-sub update_last_time
+# Update the offset of the local time of the log from UTC using ts_val
+# (UTC) and ts (local time of day) of a message, and check whether the
+# log was generated in the local timezone.
+sub update_log_tz
 {
-    my ($last_time, $new_time) = @_;
+    my ($ts_val, $ts) = @_;
+    my $day = 24 * 60 * 60;
 
-    return $new_time if (not $last_time);
+    return if (not defined($ts) or $ts !~ /^([0-9]+):([0-9]+):([0-9]+)/);
 
-    my $last_parsed = parse_datetime($last_time);
-    my $new_parsed = parse_datetime($new_time);
+    my $sec = int($ts_val);
+    my $off = ($1 * 60 * 60 + $2 * 60 + $3) - $sec % $day;
 
-    if ($last_parsed > $new_parsed)
-    {
-        return $last_time;
-    }
-    else
-    {
-        return $new_time;
-    }
+    $off += $day if ($off < -12 * 60 * 60);
+    $off -= $day if ($off > 14 * 60 * 60);
+
+    $log_tz_off = $off;
+    $same_tz = (timegm((localtime($sec))[0 .. 5]) - $sec == $off);
 }
 
-sub fix_start
+# Get UNIX time (seconds and milliseconds) of the given local time of day
+# string, choosing the date closest to the reference UNIX time.
+sub resolve_ts
 {
-    my $start_time = $_[0];
-    my $unix_start_date = get_unix_date($start_time);
-    my $start_date = strftime("%Y.%m.%d",
-                                 localtime($unix_start_date));
+    my ($str, $ref) = @_;
+    my ($time_of_day, $ms) = parse_hms($str);
 
-    return $start_date." ".$start_time;
+    return (local_time_near($time_of_day, $ref), $ms) if ($same_tz);
+
+    # The log was generated in another timezone, so its local time is
+    # converted using its offset from UTC.
+    my $day = 24 * 60 * 60;
+    my $ref_local = int($ref) + $log_tz_off;
+    my $delta = ($time_of_day - $ref_local % $day) % $day;
+
+    $delta -= $day if ($delta >= $day / 2);
+
+    return ($ref_local + $delta - $log_tz_off, $ms);
 }
 
-sub fix_end
+# Format UNIX time (seconds and milliseconds) as local date and time of
+# the log
+sub format_ts
 {
-    my $start_time = $_[0];
-    my $end_time = $_[1];
-    my $duration = $_[2];
+    my ($sec, $ms) = @_;
+    my @tm = $same_tz ? localtime($sec) : gmtime($sec + $log_tz_off);
 
-    my $unix_start_date = get_unix_date($start_time);
-    my $unix_end_date = $unix_start_date;
-    if ($duration =~ /([0-9]+):([0-9]+):([0-9]+)/)
+    return strftime("%Y.%m.%d %H:%M:%S", @tm).sprintf(".%03d", $ms);
+}
+
+# Get ts_val of the first message in the log and initialize the timezone
+# of the log from it
+sub get_first_ts_val
+{
+    my $fname = $_[0];
+    my $ts_val;
+
+    open(my $fh, '<', $fname) or die("Failed to open '$fname': $!\n");
+    while (my $line = <$fh>)
     {
-        my $duration_in_sec = $1 * 60 * 60 + $2 * 60 + $3;
-        $unix_end_date = $unix_start_date + $duration_in_sec;
+        if ($line =~ /ts_val="([0-9.]+)"/)
+        {
+            $ts_val = $1 + 0;
+            update_log_tz($ts_val, $1) if ($line =~ /\sts="([^"]*)"/);
+            last;
+        }
     }
+    close($fh);
 
-    my $end_date = strftime("%Y.%m.%d",
-                                 localtime($unix_end_date));
-
-    return $end_date." ".$end_time;
+    return $ts_val;
 }
 
 sub parse_tags
 {
     my $tags = $_[0];
+
+    $parsed_data->{tags} = {} if (not exists($parsed_data->{tags}));
 
     if ($tags =~ /^\s*{/)
     {
@@ -614,7 +718,7 @@ sub parse_tags
                 my $name = "";
                 my $value = "";
 
-                ($name, $value) = split(/:/, $tag);
+                ($name, $value) = split(/:/, $tag, 2);
                 $parsed_data->{tags}->{$name} = $value;
             }
         }
@@ -645,12 +749,31 @@ sub handle_end
     }
     elsif ($e eq "duration")
     {
-        $cur_iter->{end_ts} = fix_end($cur_iter->{start_ts}, $cur_iter->{end_ts}, $p->{duration});
-        $last_ts = update_last_time($last_ts, $cur_iter->{end_ts});
-        $cur_iter->{start_ts} = fix_start($cur_iter->{start_ts});
+        my ($dur_sec, $dur_ms) = parse_hms($p->{duration});
+        my ($start_sec, $start_ms) = resolve_ts($cur_iter->{start_ts},
+                                               $ref_tv);
+        my $start_ts_val = $start_sec + $start_ms / 1000;
+        my ($end_sec, $end_ms) = resolve_ts($cur_iter->{end_ts},
+                                            $start_ts_val +
+                                            $dur_sec + $dur_ms / 1000);
+        my $end_ts_val = $end_sec + $end_ms / 1000;
+
+        $cur_iter->{start_ts} = format_ts($start_sec, $start_ms);
+        $cur_iter->{end_ts} = format_ts($end_sec, $end_ms);
+        $cur_iter->{start_ts_utc} = $start_ts_val;
+        $cur_iter->{end_ts_utc} = $end_ts_val;
+
+        $ref_tv = $start_ts_val;
+
         if ($first_ts eq '')
         {
             $first_ts = $cur_iter->{start_ts};
+            $first_ts_val = $start_ts_val;
+        }
+        if (not defined($last_ts_val) or $end_ts_val > $last_ts_val)
+        {
+            $last_ts = $cur_iter->{end_ts};
+            $last_ts_val = $end_ts_val;
         }
     }
     elsif ($e eq "objective")
@@ -668,6 +791,15 @@ sub handle_end
         }
 
         push(@{$result->{verdicts}}, $p->{verdict});
+    }
+    elsif ($e eq "step" and $scenario_parsed)
+    {
+        push(@{$cur_iter->{scenario}}, { depth => $step_depth,
+                                         text => $p->{step} });
+    }
+    elsif ($e eq "scenario")
+    {
+        $scenario_parsed = 0;
     }
     elsif ($e eq "artifact")
     {
@@ -732,14 +864,20 @@ sub handle_end
         }
     }
 
-    if ($p->{tags_parsed})
+    if ($e eq "msg")
     {
-        parse_tags($p->{tags});
-    }
+        if ($p->{tags_parsed})
+        {
+            parse_tags($p->{tags});
+        }
 
-    if ($p->{plan_parsed})
-    {
-        parse_plan($p->{plan});
+        if ($p->{plan_parsed})
+        {
+            parse_plan($p->{plan});
+        }
+
+        $p->{tags_parsed} = 0;
+        $p->{plan_parsed} = 0;
     }
 }
 
@@ -747,10 +885,15 @@ sub parse_xml_log
 {
     my $fname = $_[0];
 
+    $ref_tv = get_first_ts_val($fname);
+    die("No message timestamps found in '$fname'\n") if (not defined($ref_tv));
+
     $cur_iter = $parsed_data;
     $parser->parsefile($fname);
     $parsed_data->{start_ts} = $first_ts;
     $parsed_data->{end_ts} = $last_ts;
+    $parsed_data->{start_ts_utc} = $first_ts_val if (defined($first_ts_val));
+    $parsed_data->{end_ts_utc} = $last_ts_val if (defined($last_ts_val));
 }
 
 my $fname = $ARGV[0];
