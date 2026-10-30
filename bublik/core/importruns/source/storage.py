@@ -25,7 +25,7 @@ from bublik.core.url import save_url_to_dir
 
 
 if TYPE_CHECKING:
-    from bublik.core.logs_storage import LogsStorage
+    from bublik.core.logs_storage import S3LogsStorage
 
 
 class RunSource(Protocol):
@@ -60,7 +60,7 @@ class HTTPRunSource:
 class S3RunSource:
     """A run directory under an S3 logs base (``s3://bucket/prefix/run/``)."""
 
-    def __init__(self, url: str, storage: LogsStorage):
+    def __init__(self, url: str, storage: S3LogsStorage):
         self.url = url if url.endswith('/') else url + '/'
         self.storage = storage
         self.prefix = storage.key(self.url)
@@ -87,7 +87,7 @@ class S3RunSource:
         return self.url + name
 
 
-def s3_storage_for_url(url: str, project_id: int | None = None) -> LogsStorage:
+def s3_storage_for_url(url: str, project_id: int | None = None) -> S3LogsStorage:
     """The S3 logs base ``url`` belongs to, or an import error if none is configured."""
     storage = find_s3_storage(url, project_id)
     if storage is None:

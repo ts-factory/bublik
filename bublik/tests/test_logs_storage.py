@@ -14,7 +14,13 @@ from bublik.core import logs_storage
 from bublik.core.exceptions import RunCompromisedError
 from bublik.core.importruns.source.run_traversal import S3PrefixTraverser, traverser_for
 from bublik.core.importruns.source.storage import S3RunSource, run_source_for
-from bublik.core.logs_storage import LogsStorageError, find_s3_storage, storage_for_base
+from bublik.core.logs_storage import (
+    FsLogsStorage,
+    LogsStorageError,
+    S3LogsStorage,
+    find_s3_storage,
+    storage_for_base,
+)
 from bublik.data.models import Project
 from bublik.data.schemas.services import load_schema
 from bublik.interfaces.api_v2.importruns.serializers import ImportrunsSerializer
@@ -31,6 +37,11 @@ S3_BASE = {
     },
 }
 HTTP_BASE = {'name': 'TE log server', 'uri': ['https://logs.example/logs/']}
+FS_BASE = {
+    'name': 'TE log server',
+    'uri': ['https://logs.example/logs/'],
+    'storage': {'type': 'fs', 'root': '/home/te-logs/logs', 'upload': True},
+}
 S3_ENV = {'LOGS_S3_ACCESS_KEY': 'uploader', 'LOGS_S3_SECRET_KEY': 'uploader-secret'}
 S3_SETTINGS = {
     'S3_ENDPOINT_URL': 'http://127.0.0.1:8333',
@@ -52,13 +63,29 @@ class ReferencesSchemaTest(SimpleTestCase):
     def errors(self, base):
         return list(self.validator.iter_errors({'LOGS_BASES': [base]}))
 
-    def test_http_and_s3_bases_are_valid(self):
+    def test_http_s3_and_fs_bases_are_valid(self):
         self.assertEqual(self.errors(HTTP_BASE), [])
         self.assertEqual(self.errors(S3_BASE), [])
+        self.assertEqual(self.errors(FS_BASE), [])
         self.assertEqual(
             self.errors({'name': 'Local', 'uri': ['s3://b/p/'], 'storage': {'type': 's3'}}),
             [],
         )
+
+    def test_fs_storage_needs_an_absolute_root_and_nothing_else(self):
+        for storage in (
+            {'type': 'fs'},
+            {'type': 'fs', 'root': 'relative/logs'},
+            {'type': 'fs', 'root': '/srv/logs', 'endpoint_url': 'http://127.0.0.1:8333'},
+            {'type': 'fs', 'root': '/srv/logs', 'access_key': '${env:LOGS_KEY}'},
+            {'type': 'nfs', 'root': '/srv/logs'},
+        ):
+            with self.subTest(storage=storage):
+                self.assertNotEqual(self.errors({**FS_BASE, 'storage': storage}), [])
+
+    def test_s3_storage_has_no_root(self):
+        base = {**S3_BASE, 'storage': {**S3_BASE['storage'], 'root': '/srv/logs'}}
+        self.assertNotEqual(self.errors(base), [])
 
     def test_plaintext_and_foreign_credentials_are_rejected(self):
         for secret in ('uploader-secret', '${env:AI_SECRET}', '${env:SECRET_KEY}'):
@@ -68,6 +95,7 @@ class ReferencesSchemaTest(SimpleTestCase):
 
     def test_uri_scheme_must_match_the_storage(self):
         self.assertNotEqual(self.errors({**HTTP_BASE, 'uri': ['s3://b/p/']}), [])
+        self.assertNotEqual(self.errors({**FS_BASE, 'uri': ['s3://b/p/']}), [])
         self.assertNotEqual(
             self.errors({**S3_BASE, 'uri': ['https://logs.example/logs/']}),
             [],
@@ -108,8 +136,40 @@ class StorageForBaseTest(SimpleTestCase):
         storage = storage_for_base(
             {'name': 'L', 'uri': ['s3://b/p/'], 'storage': {'type': 's3'}}
         )
+        self.assertIsInstance(storage, S3LogsStorage)
         self.assertEqual(storage.key('s3://b/p/run/'), 'p/run/')
         self.assertEqual(storage.url('p/run/'), 's3://b/p/run/')
+        self.assertEqual(storage.run_url('ts/run'), 's3://b/p/ts/run/')
+
+    def test_run_prefix_joins_the_base_prefix(self):
+        for uri, prefix in (
+            ('s3://b/uploads/', 'uploads/ts/run/'),
+            ('s3://b/uploads', 'uploads/ts/run/'),
+            ('s3://b/', 'ts/run/'),
+        ):
+            with self.subTest(uri=uri):
+                base = {'name': 'U', 'uri': [uri], 'storage': {'type': 's3'}}
+                self.assertEqual(storage_for_base(base).run_prefix('ts/run'), prefix)
+
+    def test_fs_storage(self):
+        storage = storage_for_base(FS_BASE)
+        self.assertIsInstance(storage, FsLogsStorage)
+        self.assertEqual(storage.root, '/home/te-logs/logs')
+        self.assertEqual(storage.uri, 'https://logs.example/logs/')
+        self.assertTrue(storage.upload)
+        self.assertEqual(storage.run_dir('ts/run'), '/home/te-logs/logs/ts/run')
+        # The run is imported and served through the log server, like any other.
+        self.assertEqual(storage.run_url('ts/run'), 'https://logs.example/logs/ts/run/')
+
+    def test_fs_root_must_be_absolute(self):
+        base = {**FS_BASE, 'storage': {'type': 'fs', 'root': 'logs'}}
+        with self.assertRaises(LogsStorageError):
+            storage_for_base(base)
+
+    def test_unknown_storage_type(self):
+        base = {**FS_BASE, 'storage': {'type': 'nfs'}}
+        with self.assertRaises(LogsStorageError):
+            storage_for_base(base)
 
 
 @override_settings(**S3_SETTINGS)
@@ -131,6 +191,16 @@ class FindStorageTest(SimpleTestCase):
     )
     def test_upload_storage(self):
         self.assertEqual(logs_storage.upload_storage_for(1).base, S3_BASE)
+
+    @mock.patch.object(
+        logs_storage, 'logs_bases', new=mock.Mock(return_value=[FS_BASE, S3_BASE])
+    )
+    def test_fs_upload_storage(self):
+        storage = logs_storage.upload_storage_for(1)
+        self.assertIsInstance(storage, FsLogsStorage)
+        self.assertEqual(storage.base, FS_BASE)
+        # Log serving from S3 does not mistake an fs base for one of its own.
+        self.assertIsNone(find_s3_storage('https://logs.example/logs/run/', 1))
 
     @mock.patch.object(logs_storage, 'logs_bases', new=mock.Mock(return_value=[HTTP_BASE]))
     def test_no_upload_storage_by_default(self):

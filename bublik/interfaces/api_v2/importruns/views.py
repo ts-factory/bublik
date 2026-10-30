@@ -94,8 +94,8 @@ class ImportrunsViewSet(ViewSet):
     @auth_required(as_admin=True)
     def upload(self, request):
         """
-        Store an uploaded log tarball in the project's S3 upload base and
-        import it.
+        Store an uploaded log tarball in the project's upload base (a log
+        server's directory or an S3 prefix) and import it.
 
         Multipart form: ``file`` (the tar made by TE's publish_logs, or a
         bundle holding ``bublik.json`` and its ``json/`` pages), optional
@@ -121,11 +121,12 @@ class ImportrunsViewSet(ViewSet):
             storage = upload_storage_for(project.id)
             if storage is None:
                 msg = (
-                    f'project {project.name!r} does not accept uploads: add a '
-                    'LOGS_BASES entry with an S3 storage and "upload": true to '
-                    "the project's references config, e.g. "
-                    '{"name": "Uploads", "uri": ["s3://bublik-logs/uploads/"], '
-                    '"storage": {"type": "s3", "upload": true}}'
+                    f'project {project.name!r} does not accept uploads: give a '
+                    "LOGS_BASES entry of the project's references config a "
+                    '"storage" block with "upload": true -- a log server directory, '
+                    '{"type": "fs", "root": "/home/te-logs/logs", "upload": true}, '
+                    'or an S3 prefix, {"type": "s3", "upload": true} with an '
+                    's3://bucket/prefix/ uri'
                 )
                 raise UploadError(message=msg)
             url = publish_log_tar(log_tar, storage)

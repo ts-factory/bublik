@@ -7,7 +7,8 @@ Test Environment's ``publish_logs`` packs a run as a flat tar holding
 ``meta_data.json`` and ``raw_log_bundle.tpxz``. A TE log server unpacks such
 tars with ``publish-logs-unpack.sh``; an upload goes through the same checks
 and gets the same storage layout, ``TS_NAME/YYYY/MM/DD/CFG[-USER]-HH:MM:SS``,
-but lands under the project's S3 upload base instead of the server's disk.
+under the project's upload base (:mod:`bublik.core.logs_storage`): a log
+server's directory, or an S3 prefix Bublik serves itself.
 
 A tar holding ``bublik.json`` instead is a run made outside TE (a converted
 Playwright report, say): its log pages are already made, under ``json/``, and
@@ -22,18 +23,17 @@ import json
 import mimetypes
 import re
 import tarfile
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, Iterator
 
-from bublik.core import s3
 from bublik.core.exceptions import ImportrunsError
+from bublik.core.logs_storage import DONE_MARKER
 
 
 if TYPE_CHECKING:
-    from bublik.core.logs_storage import LogsStorage
+    from bublik.core.logs_storage import LogsStorage, RunFile
 
 
 META_DATA_JSON = 'meta_data.json'
-DONE_MARKER = '.done'
 META_VERSION = 1
 MANDATORY_FILES = (META_DATA_JSON, 'raw_log_bundle.tpxz')
 ALLOWED_FILES = (*MANDATORY_FILES, 'trc-brief.html', 'trc-stats.txt', DONE_MARKER)
@@ -99,6 +99,12 @@ class LogTar:
     @property
     def project_name(self) -> str | None:
         return self.metas.get('PROJECT') or None
+
+    def files(self) -> Iterator[RunFile]:
+        """The files to store, ``.done`` excepted: the storage writes its own last."""
+        for member in self.members:
+            if member.name != DONE_MARKER:
+                yield member.name, self.tar.extractfile(member), _content_type(member.name)
 
 
 def _invalid(message: str) -> UploadError:
@@ -251,41 +257,22 @@ def storage_subpath(metas: dict[str, str], name_re: re.Pattern = NAME_RE) -> str
     )
 
 
-def run_prefix(storage: LogsStorage, subpath: str) -> str:
-    """The object key prefix a run with ``subpath`` is stored under."""
-    base_key = storage.key(storage.uri)
-    if base_key and not base_key.endswith('/'):
-        base_key += '/'
-    return f'{base_key}{subpath}/'
-
-
 def publish_log_tar(log_tar: LogTar, storage: LogsStorage) -> str:
-    """Store the tarball's files under the upload base; return the run's ``s3://`` URL.
+    """Store the tarball's files under the upload base; return the run's URL.
 
     ``.done`` goes last, once everything else is in place, as the log
-    server's unpack script does; a prefix without it is an upload that failed
+    server's unpack script does; a run without it is an upload that failed
     midway, and is written over.
     """
-    target = storage.target
-    prefix = run_prefix(storage, log_tar.subpath)
-    url = storage.url(prefix)
-    if s3.object_exists(prefix + DONE_MARKER, target=target):
+    subpath = log_tar.subpath
+    url = storage.run_url(subpath)
+    if storage.is_published(subpath):
         msg = (
             f'these logs are already uploaded to {url}; to import them again, '
             f'use importruns/source/?url={url}&force=true'
         )
         raise AlreadyUploadedError(message=msg)
-
-    for member in log_tar.members:
-        if member.name == DONE_MARKER:
-            continue
-        s3.upload_fileobj(
-            prefix + member.name,
-            log_tar.tar.extractfile(member),
-            _content_type(member.name),
-            target=target,
-        )
-    s3.upload_bytes(prefix + DONE_MARKER, b'', 'application/octet-stream', target=target)
+    storage.store_run(subpath, log_tar.files())
     return url
 
 

@@ -43,7 +43,7 @@ from bublik.core.logs_storage import find_s3_storage, is_s3_url, parse_s3_url
 
 
 if TYPE_CHECKING:
-    from bublik.core.logs_storage import LogsStorage
+    from bublik.core.logs_storage import S3LogsStorage
 
 
 ROUTE = 'api/v2/logs/s3/'
@@ -114,7 +114,7 @@ def direct_url(url: str, project_id: int | None = None) -> str | None:
     return s3.public_read_url(key, target=storage.target)
 
 
-def storage_for(bucket: str, key: str) -> LogsStorage | None:
+def storage_for(bucket: str, key: str) -> S3LogsStorage | None:
     """The S3 logs base holding ``key``; only keys under a configured base are served.
 
     A key with ``.`` or ``..`` segments is not: a gateway might collapse it
@@ -150,7 +150,7 @@ def content_type_of(name: str) -> str:
     return content_type or 'application/octet-stream'
 
 
-def open_log_item(storage: LogsStorage, key: str) -> LogItem | None:
+def open_log_item(storage: S3LogsStorage, key: str) -> LogItem | None:
     """Open a log item for streaming, generating it if it is a missing page.
 
     ``None`` if it does not exist and cannot be generated. Raises
@@ -198,7 +198,7 @@ def open_log_item(storage: LogsStorage, key: str) -> LogItem | None:
 
 
 def list_generated_directory(
-    storage: LogsStorage,
+    storage: S3LogsStorage,
     prefix: str,
 ) -> tuple[list[str], list[str]] | None:
     """Sub-directories and files of ``<run>/json/`` or ``<run>/html/`` (or below).
@@ -293,7 +293,7 @@ def _is_generated(run_dir: str, item: str, item_path: str) -> bool:
     return os.path.isfile(item_path)
 
 
-def generate_item(storage: LogsStorage, run_prefix: str, item: str) -> str | None:
+def generate_item(storage: S3LogsStorage, run_prefix: str, item: str) -> str | None:
     """Generate ``item`` of the run at ``run_prefix`` into the cache; return its local path.
 
     ``item`` is a file under ``json/`` or ``html/``, or one of those
@@ -468,7 +468,7 @@ def maybe_prune_cache() -> threading.Thread | None:
     return thread
 
 
-def _download_bundle(storage: LogsStorage, key: str, path: str) -> bool:
+def _download_bundle(storage: S3LogsStorage, key: str, path: str) -> bool:
     """Download the bundle to ``path``; ``False`` if it is gone meanwhile."""
     fd, partial = tempfile.mkstemp(dir=os.path.dirname(path), suffix='.part')
     os.close(fd)
@@ -509,7 +509,7 @@ def _run_generator(bundle_path: str, item_path: str) -> None:
         raise LogGenerationError(message=msg, debug_details=[details])
 
 
-def list_run_directory(storage: LogsStorage, prefix: str) -> tuple[list[str], list[str]]:
+def list_run_directory(storage: S3LogsStorage, prefix: str) -> tuple[list[str], list[str]]:
     """Sub-directories and files under ``prefix``, as names relative to it."""
     prefixes, keys = s3.list_entries(prefix, target=storage.target)
     directories = [p[len(prefix) :] for p in prefixes]

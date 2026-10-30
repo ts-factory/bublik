@@ -3,7 +3,11 @@
 
 import io
 import json
+import os
+import shutil
+import stat
 import tarfile
+import tempfile
 from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -19,10 +23,9 @@ from bublik.core.importruns.upload import (
     AlreadyUploadedError,
     UploadError,
     open_log_tar,
-    run_prefix,
     storage_subpath,
 )
-from bublik.core.logs_storage import storage_for_base
+from bublik.core.logs_storage import LogsStorageError, storage_for_base
 from bublik.data.models import EventLog, Project, User, UserRoles, UserToken
 
 
@@ -39,6 +42,15 @@ UPLOAD_BASE = {
     'storage': {'type': 's3', 'upload': True},
 }
 UPLOAD_URL = '/api/v2/importruns/upload/'
+SUBPATH = 'sockapi-ts/2026/09/23/bench1-10:11:12'
+
+
+def fs_base(root):
+    return {
+        'name': 'TE log server',
+        'uri': ['https://logs.example/logs/'],
+        'storage': {'type': 'fs', 'root': root, 'upload': True},
+    }
 
 
 def meta_data(metas=None, version=1):
@@ -243,16 +255,6 @@ class StorageSubpathTest(SimpleTestCase):
             with self.subTest(name=name), self.assertRaises(UploadError):
                 storage_subpath({**METAS, name: METAS.get(name, 'ci') + '\n'})
 
-    def test_run_prefix_joins_the_base_prefix(self):
-        for uri, prefix in (
-            ('s3://b/uploads/', 'uploads/ts/run/'),
-            ('s3://b/uploads', 'uploads/ts/run/'),
-            ('s3://b/', 'ts/run/'),
-        ):
-            with self.subTest(uri=uri):
-                base = {'name': 'U', 'uri': [uri], 'storage': {'type': 's3'}}
-                self.assertEqual(run_prefix(storage_for_base(base), 'ts/run'), prefix)
-
 
 class PublishLogTarTest(SimpleTestCase):
     def setUp(self):
@@ -308,6 +310,57 @@ class PublishLogTarTest(SimpleTestCase):
         upload.publish_log_tar(open_log_tar(make_tar()), self.storage)
         self.assertEqual(upload_fileobj.call_count, 2)
         upload_bytes.assert_called_once()
+
+
+class PublishLogTarToDirectoryTest(SimpleTestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        self.storage = storage_for_base(fs_base(self.root))
+        self.run_dir = os.path.join(self.root, SUBPATH)
+
+    def listing(self):
+        found = []
+        for directory, _dirs, files in os.walk(self.run_dir):
+            found += [
+                os.path.relpath(os.path.join(directory, name), self.run_dir) for name in files
+            ]
+        return sorted(found)
+
+    def test_unpacks_the_run_like_the_log_server(self):
+        url = upload.publish_log_tar(open_log_tar(make_tar()), self.storage)
+        self.assertEqual(url, f'https://logs.example/logs/{SUBPATH}/')
+        self.assertEqual(self.listing(), ['.done', 'meta_data.json', 'raw_log_bundle.tpxz'])
+        with open(os.path.join(self.run_dir, 'raw_log_bundle.tpxz'), 'rb') as bundle:
+            self.assertEqual(bundle.read(), b'bundle')
+        # The web server generates json/ and html/ into the run directory.
+        mode = stat.S_IMODE(os.stat(self.run_dir).st_mode)
+        self.assertEqual(mode & stat.S_IRWXG, stat.S_IRWXG)
+
+    def test_unpacks_a_bundle_with_its_directories(self):
+        upload.publish_log_tar(open_log_tar(make_tar(bundle_files())), self.storage)
+        self.assertEqual(self.listing(), sorted(bundle_files()))
+
+    def test_already_uploaded(self):
+        upload.publish_log_tar(open_log_tar(make_tar()), self.storage)
+        with self.assertRaises(AlreadyUploadedError) as caught:
+            upload.publish_log_tar(open_log_tar(make_tar()), self.storage)
+        self.assertIn(f'https://logs.example/logs/{SUBPATH}/', caught.exception.message)
+        self.assertIn('force=true', caught.exception.message)
+
+    def test_an_upload_that_failed_midway_is_replaced(self):
+        os.makedirs(self.run_dir)
+        with open(os.path.join(self.run_dir, 'leftover'), 'wb') as leftover:
+            leftover.write(b'x')
+        upload.publish_log_tar(open_log_tar(make_tar()), self.storage)
+        self.assertEqual(self.listing(), ['.done', 'meta_data.json', 'raw_log_bundle.tpxz'])
+
+    def test_a_missing_root_is_an_error_not_a_new_directory(self):
+        storage = storage_for_base(fs_base(os.path.join(self.root, 'nope')))
+        with self.assertRaises(LogsStorageError) as caught:
+            upload.publish_log_tar(open_log_tar(make_tar()), storage)
+        self.assertIn('nope', caught.exception.message)
+        self.assertFalse(os.path.exists(os.path.join(self.root, 'nope')))
 
 
 @override_settings(
@@ -429,3 +482,19 @@ class UploadApiTest(APITestCase):
         response = self.post(project=self.project.id)
         self.assertEqual(response.status_code, status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
         self.mocks['upload_fileobj'].assert_not_called()
+
+    def test_upload_into_a_log_server_directory(self):
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root)
+        self.mocks['logs_bases'].return_value = [fs_base(root)]
+        self.login(self.admin)
+        response = self.post(project=self.project.id)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        url = f'https://logs.example/logs/{SUBPATH}/'
+        self.assertEqual(response.data['url'], url)
+        self.assertEqual(self.mocks['schedule_runs'].call_args.kwargs['url'], url)
+        self.assertTrue(os.path.isfile(os.path.join(root, SUBPATH, '.done')))
+        self.mocks['upload_fileobj'].assert_not_called()
+        self.assertEqual(
+            self.post(project=self.project.id).status_code, status.HTTP_409_CONFLICT
+        )

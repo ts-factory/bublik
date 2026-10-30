@@ -22,11 +22,19 @@
                         "uniqueItems": true
                     },
                     "storage": {
-                        "description": "Where the logs of this base are stored when it is not a TE log server. Every field but 'type' is optional and falls back to the matching S3_* Django setting (the bundled SeaweedFS). Credentials are never stored in the config: they are ${env:LOGS_NAME} or ${settings:LOGS_NAME} references.",
+                        "description": "Where the files behind this base's URIs are, so that Bublik can store uploaded tarballs there. 'fs' is the directory a TE log server serves the base's http(s) URIs from, as Bublik sees it; 's3' is the bucket behind s3:// URIs, served by Bublik itself. For 's3' every field but 'type' is optional and falls back to the matching S3_* Django setting (the bundled SeaweedFS). Credentials are never stored in the config: they are ${env:LOGS_NAME} or ${settings:LOGS_NAME} references.",
                         "type": "object",
                         "properties": {
                             "type": {
-                                "const": "s3"
+                                "enum": [
+                                    "s3",
+                                    "fs"
+                                ]
+                            },
+                            "root": {
+                                "description": "fs: absolute path of the log server's storage directory, where publish-logs-unpack.sh puts runs. Uploads are unpacked there in the same layout.",
+                                "type": "string",
+                                "pattern": "^/"
                             },
                             "endpoint_url": {
                                 "description": "S3 endpoint Bublik reaches the bucket at.",
@@ -61,7 +69,33 @@
                         "required": [
                             "type"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "fs"
+                                }
+                            }
+                        },
+                        "then": {
+                            "required": [
+                                "root"
+                            ],
+                            "propertyNames": {
+                                "enum": [
+                                    "type",
+                                    "root",
+                                    "upload"
+                                ]
+                            }
+                        },
+                        "else": {
+                            "propertyNames": {
+                                "not": {
+                                    "const": "root"
+                                }
+                            }
+                        }
                     }
                 },
                 "required": [
@@ -69,11 +103,20 @@
                     "uri"
                 ],
                 "additionalProperties": false,
-                "description": "A logs base: the URIs runs' logs live under. By default these are http(s) URIs of a TE log server. With an S3 'storage' block they are s3://bucket/prefix/ URIs instead.",
+                "description": "A logs base: the URIs runs' logs live under. By default these are http(s) URIs of a TE log server, which an 'fs' storage block may also name the directory of. With an 's3' storage block they are s3://bucket/prefix/ URIs instead.",
                 "if": {
                     "required": [
                         "storage"
-                    ]
+                    ],
+                    "properties": {
+                        "storage": {
+                            "properties": {
+                                "type": {
+                                    "const": "s3"
+                                }
+                            }
+                        }
+                    }
                 },
                 "then": {
                     "properties": {
