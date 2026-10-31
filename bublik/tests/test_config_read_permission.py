@@ -9,6 +9,9 @@ from bublik.data import models
 from bublik.tests import classification_data as data
 
 
+ALL_ACTIONS = ['manage_test_comments', 'read_configs', 'manage_issues']
+
+
 def per_conf(project, actions):
     return models.Config.objects.create(
         type=models.ConfigTypes.GLOBAL,
@@ -20,57 +23,46 @@ def per_conf(project, actions):
     )
 
 
-def report_config(project):
-    return models.Config.objects.create(
-        type=models.ConfigTypes.REPORT,
-        name='report',
-        version=0,
-        project=project,
-        is_active=True,
-        content={},
-    )
-
-
 @data.isolated_caches
-class ConfigReadPermissionTest(APITestCase):
+class CapabilitiesTest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         # the first project has no settings of its own, so the global ones apply
         cls.inheriting = models.Project.objects.create(name='inheriting')
-        cls.restricted = models.Project.objects.create(name='restricted')
-        cls.inheriting_report = report_config(cls.inheriting)
-        cls.restricted_report = report_config(cls.restricted)
-        cls.restricted_per_conf = per_conf(cls.restricted, [])
+        cls.own = models.Project.objects.create(name='own')
+        per_conf(None, ['read_configs'])
+        per_conf(cls.own, ['manage_issues', 'manage_test_comments'])
 
-    def _read(self):
-        response = self.client.get(reverse('api-v2:config-list'))
+    def _capabilities(self):
+        response = self.client.get(reverse('api-v2:capabilities-list'))
         assert response.status_code == status.HTTP_200_OK, response.data
-        return {config['id'] for config in response.data}
+        return response.json()
 
-    def test_project_settings_override_the_global_ones(self):
-        global_per_conf = per_conf(None, ['read_configs'])
-        assert self._read() == {global_per_conf.id, self.inheriting_report.id}
-
-    def test_project_settings_may_allow_alone(self):
-        global_per_conf = per_conf(None, [])
-        self.restricted_per_conf.content = {'NOT_PERMISSION_REQUIRED_ACTIONS': ['read_configs']}
-        self.restricted_per_conf.save()
-        assert self._read() == {
-            global_per_conf.id,
-            self.restricted_report.id,
-            self.restricted_per_conf.id,
+    def test_without_login_the_actions_the_settings_allow(self):
+        assert self._capabilities() == {
+            'default': ['read_configs'],
+            'projects': {
+                str(self.inheriting.id): ['read_configs'],
+                str(self.own.id): ['manage_test_comments', 'manage_issues'],
+            },
         }
 
-    def test_nothing_without_permission(self):
-        per_conf(None, [])
-        assert self._read() == set()
+    def test_user_is_allowed_no_more_than_without_login(self):
+        user = models.User.objects.create(
+            email='user@example.com',
+            roles=models.UserRoles.USER,
+            status=models.UserStatus.ACTIVE,
+        )
+        expected = self._capabilities()
+        data.login(self.client, user)
+        assert self._capabilities() == expected
 
-    def test_admin_reads_everything(self):
-        global_per_conf = per_conf(None, [])
+    def test_admin_is_allowed_every_action(self):
         data.login(self.client, data.admin())
-        assert self._read() == {
-            global_per_conf.id,
-            self.inheriting_report.id,
-            self.restricted_report.id,
-            self.restricted_per_conf.id,
+        assert self._capabilities() == {
+            'default': ALL_ACTIONS,
+            'projects': {
+                str(self.inheriting.id): ALL_ACTIONS,
+                str(self.own.id): ALL_ACTIONS,
+            },
         }

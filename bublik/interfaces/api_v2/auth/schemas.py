@@ -15,6 +15,7 @@ from bublik.data.serializers import (
 from bublik.interfaces.api_v2.auth.serializers import (
     AdminUpdateUserRequestSerializer,
     AuthMessageResponseSerializer,
+    CapabilitiesResponseSerializer,
     LoginResponseSerializer,
 )
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
@@ -246,6 +247,29 @@ profile_viewset_schema = extend_schema_view(
             403: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description='User is not authenticated',
+            ),
+        },
+        tags=[AUTH_TAG],
+    ),
+)
+
+
+capabilities_viewset_schema = extend_schema_view(
+    list=extend_schema(
+        summary='Get capabilities of current user',
+        description="""
+        Return the actions that the settings may allow without authorization
+        (`NOT_PERMISSION_REQUIRED_ACTIONS` of the per_conf configuration) and that
+        the current user may perform: by the global settings, which apply when
+        no project is concerned, and by the settings of each project.
+        An administrator may perform all of them, anyone else only those the
+        settings allow. The user is authenticated by the access token cookie,
+        without it the actions allowed without authorization are returned.
+        """,
+        responses={
+            200: OpenApiResponse(
+                response=CapabilitiesResponseSerializer,
+                description='Capabilities were successfully retrieved',
             ),
         },
         tags=[AUTH_TAG],

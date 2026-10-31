@@ -3,6 +3,7 @@
 
 from .auth.views import (
     AdminViewSet,
+    CapabilitiesViewSet,
     PasswordResetViewSet,
     ProfileViewSet,
     RegistrationViewSet,
@@ -41,6 +42,7 @@ from .url_shortener.views import URLShortenerView
 
 __all__ = [
     'AdminViewSet',
+    'CapabilitiesViewSet',
     'ConfigViewSet',
     'DashboardPayload',
     'DashboardViewSet',
