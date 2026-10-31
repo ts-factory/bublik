@@ -90,6 +90,18 @@ def auth_required(as_admin=False):
     return decorator
 
 
+def get_not_permission_required_actions(project_id):
+    """
+    Return the actions the settings of the project allow without
+    authorization; with no project the global settings apply.
+    """
+    return ConfigServices.getattr_from_global(
+        GlobalConfigs.PER_CONF.name,
+        'NOT_PERMISSION_REQUIRED_ACTIONS',
+        project_id=project_id,
+    )
+
+
 def check_action_permission_for_projects(request, action, project_ids):
     """
     Check the action against the projects it touches.
@@ -103,12 +115,7 @@ def check_action_permission_for_projects(request, action, project_ids):
     by the client, so it can't be trusted to name them.
     """
     for project_id in set(project_ids) or {None}:
-        not_permission_required_actions = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'NOT_PERMISSION_REQUIRED_ACTIONS',
-            project_id=project_id,
-        )
-        if action not in not_permission_required_actions:
+        if action not in get_not_permission_required_actions(project_id):
             require_user(request, as_admin=True)
             return
 
