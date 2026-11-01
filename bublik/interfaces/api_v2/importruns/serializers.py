@@ -12,7 +12,7 @@ from bublik.core.argparse import (
     parser_type_force,
 )
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs, Project
+from bublik.data.models import GlobalConfigs, Project, TaskExecution
 
 
 class ImportrunsSerializer(serializers.Serializer):
@@ -123,3 +123,12 @@ class LiveImportInitResponseSerializer(serializers.Serializer):
 class LiveImportErrorResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
     items = serializers.ListField(child=serializers.CharField(), required=False)
+
+
+class ImportTaskRevokeSerializer(serializers.Serializer):
+    task_id = serializers.UUIDField()
+
+
+class ImportTaskRevokeResponseSerializer(serializers.Serializer):
+    task_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=TaskExecution.StatusChoices.choices)
