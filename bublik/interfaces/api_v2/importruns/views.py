@@ -19,12 +19,14 @@ from bublik.core.importruns.source.run_traversal import schedule_runs
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import get_current_scheme_host_prefix
 from bublik.core.utils import create_import_job, get_local_log
+from bublik.interfaces.api_v2.importruns.schemas import importruns_viewset_schema
 from bublik.interfaces.api_v2.importruns.serializers import ImportrunsSerializer
 
 
 logger = get_task_or_server_logger()
 
 
+@importruns_viewset_schema
 class ImportrunsViewSet(ViewSet):
     """
     ViewSet to import run logs.
