@@ -12,16 +12,18 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.db.models import DurationField, ExpressionWrapper, F
 from django.db.models.functions import Coalesce, JSONObject, Now
 
-from bublik.core.exceptions import NotFoundError
+from bublik.core.exceptions import BublikAPIError, NotFoundError
 from bublik.data.models import (
     Job,
     JobTaskExecutionResult,
     TaskExecution,
 )
+from bublik.interfaces.celery import app
 
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
+    from uuid import UUID
 
 
 @dataclass
@@ -171,3 +173,36 @@ class JobTaskExecutionService:
             )
             for tr in task_results
         ]
+
+    @staticmethod
+    def revoke_task(task_id: UUID) -> None:
+        """
+        Revoke an unfinished import task: a queued task won't be started,
+        a running one is terminated.
+
+        Args:
+            task_id: Celery task UUID
+
+        Raises:
+            NotFoundError: if there is no import task with the given ID
+            BublikAPIError: if the task has already finished
+        """
+        import_tasks = TaskExecution.objects.filter(
+            task_id=task_id,
+            jobtaskexecution__job__name=Job.NameChoices.IMPORTRUNS,
+        )
+        if not import_tasks.exists():
+            msg = "Import task corresponding to the passed ID doesn't exist"
+            raise NotFoundError(msg)
+
+        revoked = import_tasks.filter(
+            status__in=[
+                TaskExecution.StatusChoices.RECEIVED,
+                TaskExecution.StatusChoices.RUNNING,
+            ],
+        ).update(status=TaskExecution.StatusChoices.REVOKED)
+        if not revoked:
+            msg = 'Import task has already finished'
+            raise BublikAPIError(msg)
+
+        app.control.revoke(str(task_id), terminate=True)
