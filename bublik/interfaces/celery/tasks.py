@@ -12,6 +12,7 @@ from celery.signals import (
     task_postrun,
     task_prerun,
     task_received,
+    task_revoked,
     task_success,
 )
 from django.core.management import call_command
@@ -152,6 +153,42 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
     create_event(
         facility=EventLog.FacilityChoices.CELERY,
         severity=EventLog.SeverityChoices.ERR,
+        msg=msg,
+        job_task_execution=job_task_execution,
+    )
+
+
+@task_revoked.connect()
+def add_revoked_import_task_event(sender=None, request=None, terminated=None, **kwargs):
+    task_id = request.id
+    TaskExecution.objects.filter(task_id=task_id).update(
+        status=TaskExecution.StatusChoices.REVOKED,
+        finished_at=datetime.now(),
+    )
+
+    args = request.args
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_source_url=url,
+    )
+
+    msg = ' '.join(
+        filter(
+            None,
+            (
+                f'revoked {sender.name}',
+                url,
+                f'-- Celery task ID {task_id}',
+                '-- terminated' if terminated else None,
+            ),
+        ),
+    )
+    create_event(
+        facility=EventLog.FacilityChoices.CELERY,
+        severity=EventLog.SeverityChoices.WARNING,
         msg=msg,
         job_task_execution=job_task_execution,
     )
