@@ -6,6 +6,7 @@ import os
 import subprocess
 from urllib.parse import urljoin
 
+from celery.exceptions import Ignore
 from celery.signals import (
     after_task_publish,
     task_failure,
@@ -86,7 +87,9 @@ def add_started_import_task_event(sender=None, request=None, headers=None, body=
 
 @task_prerun.connect()
 def task_started_handler(sender=None, task_id=None, **kwargs):
-    TaskExecution.objects.filter(task_id=task_id).update(
+    TaskExecution.objects.filter(task_id=task_id).exclude(
+        status=TaskExecution.StatusChoices.REVOKED,
+    ).update(
         status=TaskExecution.StatusChoices.RUNNING,
         started_at=datetime.now(),
     )
@@ -227,6 +230,22 @@ def importruns(
 
     logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
+
+    # The worker forgets revoked tasks on restart, so the revocation
+    # of a queued task is also checked in the database
+    if TaskExecution.objects.filter(
+        task_id=task_id,
+        status=TaskExecution.StatusChoices.REVOKED,
+    ).exists():
+        logger.info('importruns task was revoked before it started')
+        task_revoked.send(
+            sender=self,
+            request=self.request,
+            terminated=False,
+            signum=None,
+            expired=False,
+        )
+        raise Ignore
 
     # To avoid cyclic dependency between importruns.py and this module
     from bublik.core.importruns.import_run import import_run  # noqa: PLC0415

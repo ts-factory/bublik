@@ -13,6 +13,8 @@ from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.importruns.serializers import (
     ImportLogLineSerializer,
     ImportrunsResponseSerializer,
+    ImportTaskRevokeResponseSerializer,
+    ImportTaskRevokeSerializer,
     LiveImportErrorResponseSerializer,
     LiveImportInitResponseSerializer,
 )
@@ -120,6 +122,29 @@ importruns_viewset_schema = extend_schema_view(
             200: OpenApiResponse(
                 response=ImportLogLineSerializer(many=True),
                 description='Import task log was successfully retrieved',
+            ),
+        },
+        tags=[IMPORTRUNS_TAG],
+    ),
+    revoke=extend_schema(
+        summary='Revoke an import task',
+        description="""
+        Revoke an unfinished import task: a queued task won't be started,
+        a running one is terminated. The task gets the REVOKED status.
+        """,
+        request=ImportTaskRevokeSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=ImportTaskRevokeResponseSerializer,
+                description='Import task was successfully revoked',
+            ),
+            400: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description='Task ID is invalid or the import task has already finished',
+            ),
+            404: OpenApiResponse(
+                response=ErrorResponseSerializer,
+                description="Import task with the passed ID doesn't exist",
             ),
         },
         tags=[IMPORTRUNS_TAG],
