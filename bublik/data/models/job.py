@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 OKTET Labs Ltd. All rights reserved.
 
+from typing import ClassVar
+
 from django.db import models
 
 from bublik.data.models.result import TestIterationResult
@@ -118,7 +120,7 @@ class JobTaskExecution(models.Model):
     class Meta:
         db_table = 'bublik_jobtaskexecution'
         unique_together = ('job', 'task_execution')
-        constraints = [
+        constraints: ClassVar[list] = [
             models.UniqueConstraint(
                 fields=['job'],
                 condition=models.Q(task_execution__isnull=True),
