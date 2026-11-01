@@ -283,10 +283,14 @@ class MetaData:
         new = []
         matched = []
 
-        # Metas storing an import id and tags are not a part of metadata.
-        # Therefore, they are excluded from the metadata processing statistics.
+        # Metas storing an import id and tags are not a part of metadata, nor is
+        # the compromised mark users set on a run (see mark_run_compromised()).
+        # Therefore, they are excluded from the metadata processing statistics
+        # and are never deleted here.
         existing = MetaResult.objects.filter(
-            Q(result=run) & ~Q(meta__type__in=('import', 'tag')),
+            Q(result=run)
+            & ~Q(meta__type__in=('import', 'tag'))
+            & ~Q(meta__name='compromised', meta__type='note'),
         )
         deleted = existing._clone()
 
