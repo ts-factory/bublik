@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime
 import itertools
 import os
 from typing import TYPE_CHECKING
 
 from django.conf import settings
+from django.utils import timezone
 
 from bublik.core.logging import get_task_or_server_logger
 from bublik.data.models import EventLog
@@ -237,7 +237,7 @@ def create_import_job(init_url):
 
     return ImportJob.objects.create(
         name=ImportJob.NameChoices.IMPORTRUNS,
-        started_at=datetime.now(),
+        started_at=timezone.now(),
         url=init_url,
     )
 

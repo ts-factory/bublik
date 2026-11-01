@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from datetime import datetime
 import json
 import traceback
 
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework import status
@@ -66,7 +66,7 @@ class ImportrunsViewSet(ViewSet):
             )
 
         finally:
-            import_job.finished_at = datetime.now()
+            import_job.finished_at = timezone.now()
             import_job.save()
 
     @action(detail=False, methods=['post'])
