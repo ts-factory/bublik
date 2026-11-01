@@ -74,6 +74,7 @@ class TaskExecution(models.Model):
         RUNNING = 'RUNNING'
         SUCCESS = 'SUCCESS'
         FAILURE = 'FAILURE'
+        REVOKED = 'REVOKED'
 
     task_id = models.UUIDField(
         unique=True,
