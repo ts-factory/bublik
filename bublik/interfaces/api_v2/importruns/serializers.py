@@ -95,3 +95,31 @@ class ImportrunsSerializer(serializers.Serializer):
             ),
             'force': data.get('force', False),
         }
+
+
+class ImportJobTaskDataSerializer(serializers.Serializer):
+    run_source_url = serializers.CharField()
+    celery_task_id = serializers.UUIDField(allow_null=True)
+    flower = serializers.URLField(allow_null=True)
+    import_log = serializers.URLField(allow_null=True)
+
+
+class ImportrunsResponseSerializer(serializers.Serializer):
+    job_id = serializers.IntegerField()
+    job_tasks_data = ImportJobTaskDataSerializer(many=True)
+
+
+class ImportLogLineSerializer(serializers.Serializer):
+    asctime = serializers.CharField()
+    levelname = serializers.CharField()
+    module = serializers.CharField()
+    message = serializers.CharField()
+
+
+class LiveImportInitResponseSerializer(serializers.Serializer):
+    runid = serializers.IntegerField()
+
+
+class LiveImportErrorResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    items = serializers.ListField(child=serializers.CharField(), required=False)
