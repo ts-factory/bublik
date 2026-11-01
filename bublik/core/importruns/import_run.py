@@ -37,6 +37,12 @@ from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, 
 from bublik.data.schemas.services import load_schema
 
 
+# The most attempts of an import task. A task interrupted by the loss of its
+# worker process is queued again, which is to survive e.g. a restart of the
+# worker, but one interrupted every time would be attempted endlessly.
+MAX_IMPORT_ATTEMPTS = 3
+
+
 def with_import_events(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -55,6 +61,14 @@ def with_import_events(func):
         task_msg = f'Celery task ID {task_id}'
         start_time = datetime.now()
 
+        # An import task whose worker process is lost is queued again
+        # (see the importruns task), so each attempt starts here
+        previous_attempts = EventLog.objects.filter(
+            job_task_execution=job_task_execution,
+            facility=EventLog.FacilityChoices.IMPORTRUNS,
+            msg__startswith='started import ',
+        ).count()
+
         create_event(
             facility=EventLog.FacilityChoices.IMPORTRUNS,
             severity=EventLog.SeverityChoices.INFO,
@@ -63,6 +77,13 @@ def with_import_events(func):
         )
 
         try:
+            if previous_attempts >= MAX_IMPORT_ATTEMPTS:
+                msg = (
+                    f'the import was interrupted {previous_attempts} times '
+                    'without finishing, so it is not attempted again'
+                )
+                raise ImportrunsError(message=msg)
+
             run = func(*args, **kwargs)
             create_event(
                 facility=EventLog.FacilityChoices.IMPORTRUNS,
