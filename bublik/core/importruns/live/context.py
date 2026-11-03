@@ -562,8 +562,8 @@ class LiveLogContext:
 
             # Register expected results. Top-level key and notes apply to every
             # expected result, per-result ones apply only to the result they belong to.
-            common_keys = [event['exp_key']] if 'exp_key' in event else []
-            common_notes = [event['exp_notes']] if 'exp_notes' in event else []
+            common_keys = [event['exp_key']] if event.get('exp_key') is not None else []
+            common_notes = [event['exp_notes']] if event.get('exp_notes') is not None else []
             if expected_results is None:
                 if error is None:
                     # No error and no explicitly mentioned expectations.
@@ -574,8 +574,10 @@ class LiveLogContext:
                         obtained['status'],
                         obtained.get('verdicts'),
                         tags_expr,
-                        common_keys + ([obtained['key']] if 'key' in obtained else []),
-                        common_notes + ([obtained['notes']] if 'notes' in obtained else []),
+                        common_keys
+                        + ([obtained['key']] if obtained.get('key') is not None else []),
+                        common_notes
+                        + ([obtained['notes']] if obtained.get('notes') is not None else []),
                     )
             else:
                 for expected in expected_results:
@@ -584,8 +586,10 @@ class LiveLogContext:
                         expected['status'],
                         expected.get('verdicts'),
                         tags_expr,
-                        common_keys + ([expected['key']] if 'key' in expected else []),
-                        common_notes + ([expected['notes']] if 'notes' in expected else []),
+                        common_keys
+                        + ([expected['key']] if expected.get('key') is not None else []),
+                        common_notes
+                        + ([expected['notes']] if expected.get('notes') is not None else []),
                     )
 
         self.pop_stack_item()
