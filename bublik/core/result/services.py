@@ -16,7 +16,7 @@ from bublik.core.measurement.services import (
 )
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.queries import get_or_none
-from bublik.core.result.dto import ClassifyOptionsDTO, ClassifyTestDTO, UnclassifyDTO
+from bublik.core.result.dto import ClassifyRuleOptionsDTO, UnclassifyDTO
 from bublik.core.run.data import (
     get_parameters_by_iterations,
     get_tags_by_runs,
@@ -136,7 +136,7 @@ class ResultService:
     ) -> list[models.TestIterationResult]:
         """
         Check that results to classify all exist, are results of tests and
-        are of one run.
+        are of one project (an issue and its rules belong to one project).
 
         Args:
             result_ids: The IDs of the results asked for
@@ -162,37 +162,47 @@ class ResultService:
         if not_tests:
             msg = f'Only results of tests can be classified: {not_tests}.'
             raise ValidationError({'result_ids': msg})
-        if len({result.test_run_id for result in found.values()}) > 1:
-            msg = 'Only results of one run can be classified at a time.'
+        if len({result.project_id for result in found.values()}) > 1:
+            msg = 'Only results of one project can be classified at a time.'
             raise ValidationError({'result_ids': msg})
         return [found[result_id] for result_id in result_ids]
 
     @staticmethod
-    def get_classify_options(results: list[models.TestIterationResult]) -> ClassifyOptionsDTO:
+    def get_classify_options(
+        results: list[models.TestIterationResult],
+    ) -> list[ClassifyRuleOptionsDTO]:
         """
-        Group results by test and work out what a rule classifying each group
-        may contain: the parameters all its results have, all the different
-        verdict lists they have, and the important and relevant tags of their
-        run (the important ones are what a rule usually contains).
+        Group results for rules, by test and by runs, and work out what each
+        rule may contain.
+
+        A test gets a rule for the results of the runs with the same important
+        tags, which the rule usually contains. A rule matches the runs whose
+        tags contain its own, so the runs whose important tags contain those
+        of other runs of the test join the group of the runs with the most of
+        those tags that contain no others: a rule for them would match no run
+        that the rule of that group doesn't. What a rule may contain is worked
+        out from its own group of results alone, so that it matches each of
+        them: the parameters all of them have, all the different verdict
+        lists they have, and the important and relevant tags all of its runs
+        have.
 
         Args:
-            results: The results of tests of one run
+            results: The results of tests of one project
 
         Returns:
-            ClassifyOptionsDTO with the tags of the run and a ClassifyTestDTO
-            per test
+            A ClassifyRuleOptionsDTO per rule: test by test, in the order the
+            tests first appear, and within a test in the order the runs of the
+            groups first appear
         """
-        run = results[0].test_run
-        important_tags_by_runs, relevant_tags_by_runs = get_tags_by_runs([run])
-        important_tags = important_tags_by_runs.get(run.id, [])
-        relevant_tags = relevant_tags_by_runs.get(run.id, [])
-        options = ClassifyOptionsDTO(
-            run_id=run.id,
-            tags={
-                'default': sorted(important_tags),
-                'allowed': sorted({*important_tags, *relevant_tags}),
-            },
-        )
+        run_ids = list(dict.fromkeys(result.test_run_id for result in results))
+        important_tags_by_runs, relevant_tags_by_runs = get_tags_by_runs(run_ids)
+        important_tags = {
+            run_id: frozenset(important_tags_by_runs.get(run_id, [])) for run_id in run_ids
+        }
+        allowed_tags = {
+            run_id: important_tags[run_id] | set(relevant_tags_by_runs.get(run_id, []))
+            for run_id in run_ids
+        }
 
         results_by_tests: dict[int, list[models.TestIterationResult]] = {}
         for result in results:
@@ -203,100 +213,176 @@ class ResultService:
         )
         verdicts_by_results = get_verdicts(results)
 
+        options = []
         for test_id, test_results in results_by_tests.items():
-            parameters = [
-                parameters_by_iterations.get(r.iteration_id, {}) for r in test_results
-            ]
-            result_verdicts = {
-                r.id: list(verdicts_by_results.get(r.id, ())) for r in test_results
-            }
-            # Verdicts are matched exactly, in order, so the results are matched
-            # by a rule per verdict list they have.
-            verdict_lists = []
-            for verdicts in result_verdicts.values():
-                if verdicts not in verdict_lists:
-                    verdict_lists.append(verdicts)
-            options.tests.append(
-                ClassifyTestDTO(
-                    test_id=test_id,
-                    test_name=test_results[0].iteration.test.name,
-                    test_path=test_paths.get(test_id, ''),
-                    results=test_results,
-                    parameters={
-                        name: value
-                        for name, value in parameters[0].items()
-                        if all(other.get(name) == value for other in parameters[1:])
-                    },
-                    verdicts=verdict_lists,
-                    result_verdicts=result_verdicts,
-                ),
+            test_run_ids = list(dict.fromkeys(result.test_run_id for result in test_results))
+            groups = ResultService._group_runs_by_tags(
+                {run_id: important_tags[run_id] for run_id in test_run_ids},
             )
+            for group_tags, group_run_ids in groups.items():
+                group_results = [r for r in test_results if r.test_run_id in group_run_ids]
+                parameters = [
+                    parameters_by_iterations.get(r.iteration_id, {}) for r in group_results
+                ]
+                result_verdicts = {
+                    r.id: list(verdicts_by_results.get(r.id, ())) for r in group_results
+                }
+                # Verdicts are matched exactly, in order, so the results are
+                # matched by a rule per verdict list they have.
+                verdict_lists = []
+                for verdicts in result_verdicts.values():
+                    if verdicts not in verdict_lists:
+                        verdict_lists.append(verdicts)
+                options.append(
+                    ClassifyRuleOptionsDTO(
+                        test_id=test_id,
+                        test_name=test_results[0].iteration.test.name,
+                        test_path=test_paths.get(test_id, ''),
+                        run_ids=group_run_ids,
+                        results=group_results,
+                        parameters={
+                            name: value
+                            for name, value in parameters[0].items()
+                            if all(other.get(name) == value for other in parameters[1:])
+                        },
+                        verdicts=verdict_lists,
+                        tags={
+                            'default': sorted(group_tags),
+                            'allowed': sorted(
+                                set.intersection(
+                                    *(set(allowed_tags[run_id]) for run_id in group_run_ids),
+                                ),
+                            ),
+                        },
+                        result_verdicts=result_verdicts,
+                    ),
+                )
         return options
 
     @staticmethod
-    def validate_classify_matchers(options: ClassifyOptionsDTO, matchers: list[dict]) -> None:
+    def _group_runs_by_tags(
+        tags_by_runs: dict[int, frozenset[str]],
+    ) -> dict[frozenset[str], list[int]]:
         """
-        Check that the matchers given for the rules match every result: there
-        is one for each test among the results, it takes parameters only from
-        those all the results of its test have and tags only from those of the
-        run, and its verdicts are either ignored (None) or all the different
-        verdict lists of the results, for a rule per list. What is empty or
-        ignored does not restrict the rule, so it is always fine.
+        Group runs for rules by their tags: a group for each set of tags that
+        contains no other set among them, holding the runs with that set and
+        those whose tags contain it (of several such sets, the one with the
+        most tags, and of those, the first).
 
         Args:
-            options: What the results allow a rule to contain
-            matchers: The matchers given in the request, one per test
+            tags_by_runs: The tags of each run, in the order of the runs
+
+        Returns:
+            The runs of each group, by its tags, in the order the runs of the
+            groups first appear
+        """
+        tag_sets = list(dict.fromkeys(tags_by_runs.values()))
+        smallest = [tags for tags in tag_sets if not any(other < tags for other in tag_sets)]
+        groups: dict[frozenset[str], list[int]] = {}
+        for run_id, tags in tags_by_runs.items():
+            # max() takes the first of those with the most tags.
+            group_tags = max(
+                (group_tags for group_tags in smallest if group_tags <= tags),
+                key=len,
+            )
+            groups.setdefault(group_tags, []).append(run_id)
+        return groups
+
+    @staticmethod
+    def validate_classify_matchers(
+        options: list[ClassifyRuleOptionsDTO],
+        matchers: list[dict],
+    ) -> list[tuple[ClassifyRuleOptionsDTO, dict]]:
+        """
+        Check that the matchers given for the rules match every result: there
+        is one for each rule of get_classify_options(), told by its test and
+        its runs, and it takes parameters only from those all the results of
+        the rule have, tags only from those all its runs have, and its
+        verdicts are either ignored (None) or all the different verdict lists
+        of its results, for a rule per list. What is empty or ignored does
+        not restrict the rule, so it is always fine.
+
+        Args:
+            options: What each rule classifying the results may contain
+            matchers: The matchers given in the request, one per rule
+
+        Returns:
+            Each rule with its matcher, in the order of the rules
 
         Raises:
             ValidationError: listing what is missing or not allowed
         """
-        tests = {test.test_id: test for test in options.tests}
-        given = {matcher['test_id']: matcher for matcher in matchers}
+        rules = {(rule.test_id, frozenset(rule.run_ids)): rule for rule in options}
+        given: dict[tuple[int, frozenset[int]], dict] = {}
         errors: list[str] = []
+        for matcher in matchers:
+            key = (matcher['test_id'], frozenset(matcher['run_ids']))
+            if key not in rules:
+                errors.append(
+                    f'Matcher for test {matcher["test_id"]} and runs {matcher["run_ids"]}, '
+                    'which are not those of a rule.',
+                )
+            elif key in given:
+                errors.append(
+                    f'Repeated matcher for test {matcher["test_id"]} and runs '
+                    f'{matcher["run_ids"]}.',
+                )
+            else:
+                given[key] = matcher
 
-        unknown = sorted(set(given) - set(tests))
-        if unknown:
-            errors.append(f'Matchers for tests not among the results: {unknown}.')
-        missing = [test.test_path for test_id, test in tests.items() if test_id not in given]
-        if missing:
-            errors.append(f'No matcher for the tests: {", ".join(missing)}.')
-
-        for test_id, matcher in given.items():
-            test = tests.get(test_id)
-            if test is None:
+        matched = []
+        for key, rule in rules.items():
+            rule_matcher = given.get(key)
+            if rule_matcher is None:
+                errors.append(f'{rule.test_path}: no matcher for runs {rule.run_ids}.')
                 continue
-            extra_tags = sorted(set(matcher['tags']) - set(options.tags['allowed']))
-            if extra_tags:
-                errors.append(
-                    f'{test.test_path}: tags not among the important and relevant tags '
-                    f'of the run: {", ".join(extra_tags)}.',
-                )
-            extra_parameters = sorted(
-                key_value_transforming(name, value)
-                for name, value in matcher['parameters'].items()
-                if test.parameters.get(name) != value
+            errors.extend(
+                f'{rule.test_path}, runs {rule.run_ids}: {error}'
+                for error in ResultService._check_classify_matcher(rule, rule_matcher)
             )
-            if extra_parameters:
-                errors.append(
-                    f'{test.test_path}: parameters not shared by all its results: '
-                    f'{", ".join(extra_parameters)}.',
-                )
-            given_verdicts = matcher['verdicts']
-            if given_verdicts is not None and (
-                len(given_verdicts) != len(test.verdicts)
-                or any(verdicts not in given_verdicts for verdicts in test.verdicts)
-            ):
-                shown = '; '.join(
-                    f'[{", ".join(verdicts)}]' if verdicts else '[]'
-                    for verdicts in test.verdicts
-                )
-                errors.append(
-                    f'{test.test_path}: verdicts must be null or the verdict lists of its '
-                    f'results, each once: {shown}.',
-                )
+            matched.append((rule, rule_matcher))
 
         if errors:
             raise ValidationError({'matchers': errors})
+        return matched
+
+    @staticmethod
+    def _check_classify_matcher(rule: ClassifyRuleOptionsDTO, matcher: dict) -> list[str]:
+        """
+        Check that a matcher contains only what its rule allows.
+
+        Returns:
+            The problems found
+        """
+        errors = []
+        extra_parameters = sorted(
+            key_value_transforming(name, value)
+            for name, value in matcher['parameters'].items()
+            if rule.parameters.get(name) != value
+        )
+        if extra_parameters:
+            errors.append(
+                f'parameters not shared by all its results: {", ".join(extra_parameters)}.'
+            )
+        given_verdicts = matcher['verdicts']
+        if given_verdicts is not None and (
+            len(given_verdicts) != len(rule.verdicts)
+            or any(verdicts not in given_verdicts for verdicts in rule.verdicts)
+        ):
+            shown = '; '.join(
+                f'[{", ".join(verdicts)}]' if verdicts else '[]' for verdicts in rule.verdicts
+            )
+            errors.append(
+                'verdicts must be null or the verdict lists of its results, each once: '
+                f'{shown}.',
+            )
+        extra_tags = sorted(set(matcher['tags']) - set(rule.tags['allowed']))
+        if extra_tags:
+            errors.append(
+                'tags not among the important and relevant tags of all its runs: '
+                f'{", ".join(extra_tags)}.',
+            )
+        return errors
 
     @staticmethod
     def get_rule_results_by_ids(rule_result_ids: list[int]) -> dict[int, models.RuleResult]:
