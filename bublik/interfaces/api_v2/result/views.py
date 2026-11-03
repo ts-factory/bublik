@@ -31,7 +31,7 @@ from bublik.data.serializers import (
 from bublik.interfaces.api_v2.result.schemas import result_viewset_schema
 from bublik.interfaces.api_v2.result.serializers import (
     ClassifyOptionsRequestSerializer,
-    ClassifyOptionsResponseSerializer,
+    ClassifyOptionsRuleSerializer,
     ClassifyRequestSerializer,
     ClassifyResponseSerializer,
     UnclassifyRequestSerializer,
@@ -89,6 +89,7 @@ class ResultViewSet(ModelViewSet):
         methods=['post'],
         url_path='classify/options',
         serializer_class=ClassifyOptionsRequestSerializer,
+        pagination_class=None,
     )
     def classify_options(self, request):
         body_serializer = self.get_serializer(data=request.data)
@@ -99,7 +100,7 @@ class ResultViewSet(ModelViewSet):
         options = ResultService.get_classify_options(
             ResultService.validate_results_for_classification(result_ids, found),
         )
-        return Response(ClassifyOptionsResponseSerializer(options).data)
+        return Response(ClassifyOptionsRuleSerializer(options, many=True).data)
 
     @action(detail=False, methods=['post'], serializer_class=ClassifyRequestSerializer)
     def classify(self, request):
@@ -117,8 +118,7 @@ class ResultViewSet(ModelViewSet):
         )
         results = ResultService.validate_results_for_classification(result_ids, found)
         options = ResultService.get_classify_options(results)
-        ResultService.validate_classify_matchers(options, body['matchers'])
-        matchers = {matcher['test_id']: matcher for matcher in body['matchers']}
+        matched = ResultService.validate_classify_matchers(options, body['matchers'])
         actor = get_request_user(request)
 
         with transaction.atomic():
@@ -131,13 +131,10 @@ class ResultViewSet(ModelViewSet):
             # The given disposition, if any, else the category's own.
             disposition = {'expected': body['expected']} if 'expected' in body else {}
 
-            # A rule belongs to one test, so each test among the results gets
-            # a rule per category: one matching all of that test's results if
-            # the verdicts are ignored, else one per verdict list, matching the
-            # results with it.
+            # Each rule of get_classify_options() gives a rule per verdict list
+            # (or one, if the verdicts are ignored), each in every category.
             rule_ids = []
-            for test in options.tests:
-                matcher = matchers[test.test_id]
+            for rule_options, matcher in matched:
                 verdict_lists = [None] if matcher['verdicts'] is None else matcher['verdicts']
                 for verdicts in verdict_lists:
                     matcher_data = {
@@ -148,7 +145,7 @@ class ResultViewSet(ModelViewSet):
                     }
                     for category in body['categories']:
                         rule = self._get_or_create_rule(
-                            test.test_id,
+                            rule_options.test_id,
                             issue,
                             category,
                             matcher_data,
@@ -165,16 +162,15 @@ class ResultViewSet(ModelViewSet):
                                     origin=origin,
                                     created_by=actor,
                                 )
-                                for result in test.results_with(verdicts)
+                                for result in rule_options.results_with(verdicts)
                             ],
                             ignore_conflicts=True,
                         )
                         rule_ids.append(rule.id)
 
-        RunCache.delete_data_for_obj(
-            results[0].test_run,
-            data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED,
-        )
+        runs = {result.test_run_id: result.test_run for result in results}
+        for run in runs.values():
+            RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
 
         data = ClassifyResponseSerializer({'issue_id': issue.id, 'rule_ids': rule_ids}).data
         return Response(data, status=status.HTTP_201_CREATED)

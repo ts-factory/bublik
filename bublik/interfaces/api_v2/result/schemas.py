@@ -6,7 +6,7 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_
 from bublik.interfaces.api_v2.errors.serializers import ErrorResponseSerializer
 from bublik.interfaces.api_v2.result.serializers import (
     ClassifyOptionsRequestSerializer,
-    ClassifyOptionsResponseSerializer,
+    ClassifyOptionsRuleSerializer,
     ClassifyRequestSerializer,
     ClassifyResponseSerializer,
     ResultArtifactsAndVerdictsResponseSerializer,
@@ -99,28 +99,32 @@ result_viewset_schema = extend_schema_view(
     classify_options=extend_schema(
         summary='List what a rule classifying results may contain',
         description="""
-        For results of one run, returns what the rules classifying them may
-        contain, so that the matchers can be made and checked before
-        `classify` is called. A rule belongs to one test and must match every
-        result it classifies, so for each test among the results this is the
-        parameters that all of its results have (any part of them may be
-        used) and all the different verdict lists they have, for a rule per
-        list if the verdicts are restricted. The tags are those of the run:
-        any of the
-        important and relevant ones may be used, and the important ones are
-        what a rule usually contains. Uses POST because the list of results
+        For results of one project, returns the list of the rules that will
+        classify them, each with what it may contain, so that the matchers
+        can be made and checked before `classify` is called. A rule belongs
+        to one test and classifies its results in a group of runs: the runs
+        with the same important tags, which the rule usually contains, and
+        the runs whose important tags contain those of the group (of several
+        such groups, the one with the most tags), since a rule matches the
+        runs whose tags contain its own. What a rule may contain is worked
+        out from its own results, so that it matches each of them: the
+        parameters all of them have (any part of them may be used), all the
+        different verdict lists they have, for a rule per list if the
+        verdicts are restricted, and the important and relevant tags all of
+        its runs have. The rules come test by test, in the order the tests
+        first appear among the results. Uses POST because the list of results
         can be too long for a URL.
         """,
         request=ClassifyOptionsRequestSerializer,
         responses={
             200: OpenApiResponse(
-                response=ClassifyOptionsResponseSerializer,
+                response=ClassifyOptionsRuleSerializer(many=True),
                 description='The options were successfully retrieved',
             ),
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description=(
-                    'Unknown results, results of different runs, or a result that is '
+                    'Unknown results, results of different projects, or a result that is '
                     'not a test result'
                 ),
             ),
@@ -130,20 +134,20 @@ result_viewset_schema = extend_schema_view(
     classify=extend_schema(
         summary='Classify results',
         description="""
-        Classifies results of one run. Finds/creates an Issue, creates an
-        IssueRule for each of the given categories (active iff scope=future)
-        and stamps the results with a RuleResult for each. A rule belongs to
-        one test, so the results are grouped by test and every group gets its
-        own rules. The `matchers` give the matcher of those rules for each
-        test among the results, with all of its fields: the parameters, the
-        verdicts and the tags (empty parameters or tags, and null verdicts, do
-        not restrict the rule). A matcher may only contain the parameters all
-        the results of its test have and the tags of the run, and its
-        verdicts must be null, for one rule matching all the results of the
-        test, or all the different verdict lists of those results (see
-        `classify_options`), for a rule per list, matching exactly the results
-        with it, so that a rule always matches the results it classifies. An
-        identical rule that already exists (same test, matcher, category,
+        Classifies results of one project, of one run or several. Finds/creates
+        an Issue, creates IssueRules for each of the given categories (active
+        iff scope=future) and stamps the results with a RuleResult for each.
+        The results are classified by the rules that `classify_options` gives.
+        The `matchers` give the matcher of each of those rules, told by its
+        test and its runs, with all of its fields: the parameters, the
+        verdicts and the tags (empty parameters or tags, and null verdicts,
+        do not restrict the rule). A matcher may only contain the parameters
+        all the results of its rule have and the important and relevant tags
+        all of its runs have; its verdicts must be null, for one rule
+        matching all of its results, or all the different verdict lists of
+        those results, for a rule per list, matching exactly the results with
+        it. So a rule always matches the results it classifies.
+        An identical rule that already exists (same test, matcher, category,
         disposition and active state) is reused instead of creating a copy.
         A given `expected` applies to every rule; without it each rule takes
         the default of its category.
@@ -159,10 +163,11 @@ result_viewset_schema = extend_schema_view(
                 description=(
                     'Classification request validation failed (invalid categories/scope, '
                     'invalid issue data such as a missing title or bug key conflict, '
-                    'unknown results, results of different runs, a result that is not '
-                    'a test result, an unknown issue, an issue that is closed or of '
-                    'another project, or matchers that are missing for a test or contain '
-                    'what not all its results have)'
+                    'unknown results, results of different projects, a result that is '
+                    'not a test result, an unknown issue, an issue that is closed or of '
+                    'another project, or matchers that are missing or repeated for a rule, '
+                    'given for a test and runs that are not those of a rule, or contain '
+                    'what not all the results or runs of the rule have)'
                 ),
             ),
             403: OpenApiResponse(

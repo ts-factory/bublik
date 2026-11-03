@@ -128,12 +128,17 @@ class IssueRefField(serializers.JSONField):
 
 class ClassifyMatcherSerializer(serializers.Serializer):
     """
-    The matcher of the rules for the results of one test. Its values are
-    compared with those of the results exactly, so they are taken as given,
-    without trimming.
+    The matcher of a rule that `classify/options` gives, told by its test and
+    its runs. Its values are compared with those of the results
+    exactly, so they are taken as given, without trimming.
     """
 
     test_id = serializers.IntegerField(min_value=1)
+    run_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+        help_text='The runs of the rule, as `classify/options` gives them.',
+    )
     parameters = serializers.DictField(
         child=serializers.CharField(allow_blank=True, trim_whitespace=False),
     )
@@ -152,7 +157,7 @@ class ClassifyOptionsRequestSerializer(serializers.Serializer):
     result_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         allow_empty=False,
-        help_text='IDs of the results to classify; all of them from one run.',
+        help_text='IDs of the results to classify; all of them from one project.',
     )
 
     def validate_result_ids(self, value):
@@ -174,23 +179,15 @@ class ClassifyRequestSerializer(ClassifyOptionsRequestSerializer):
         many=True,
         allow_empty=False,
         help_text=(
-            'The matcher of the rules for each test among the results, one per test. '
-            'Empty parameters or tags, and null verdicts, do not restrict the rule; '
-            'verdict lists give a rule each.'
+            'The matcher of each rule that `classify/options` gives, told by its test '
+            'and runs, one per rule. Empty parameters or tags, and null verdicts, do '
+            'not restrict the rule; verdict lists give a rule each.'
         ),
     )
 
     def validate_categories(self, value):
         # A repeated category would only repeat the same rule.
         return list(dict.fromkeys(value))
-
-    def validate_matchers(self, value):
-        test_ids = [matcher['test_id'] for matcher in value]
-        repeated = sorted({test_id for test_id in test_ids if test_ids.count(test_id) > 1})
-        if repeated:
-            msg = f'More than one matcher for the tests: {repeated}.'
-            raise serializers.ValidationError(msg)
-        return value
 
     def validate_issue(self, value):
         # A new issue's fields are validated in full by the view, once the
@@ -210,8 +207,8 @@ class ClassifyResponseSerializer(serializers.Serializer):
         child=serializers.IntegerField(),
         help_text=(
             'The rules the results were stamped with: test by test, in the order the '
-            'tests first appear in result_ids, within a test by verdict list, in the '
-            'order of the matcher, and then in the order of categories.'
+            'rules of classify/options, then by verdict list, in the order of the '
+            'matcher, and then in the order of categories.'
         ),
     )
 
@@ -219,44 +216,53 @@ class ClassifyResponseSerializer(serializers.Serializer):
 class ClassifyOptionsTagsSerializer(serializers.Serializer):
     default = serializers.ListField(
         child=serializers.CharField(),
-        help_text="The run's important tags, which a rule usually contains.",
+        help_text='The important tags, which a rule usually contains.',
     )
     allowed = serializers.ListField(
         child=serializers.CharField(),
-        help_text='The important and relevant tags of the run; a rule may contain any of them.',
+        help_text='The important and relevant tags; a rule may contain any of them.',
     )
 
 
-class ClassifyOptionsTestSerializer(serializers.Serializer):
+class ClassifyOptionsRuleSerializer(serializers.Serializer):
+    """
+    A rule to classify a group of results of a test with, and what it may
+    contain, so that a matcher can be checked against it before it is sent.
+    """
+
     test_id = serializers.IntegerField()
     test_name = serializers.CharField()
     test_path = serializers.CharField()
+    run_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text=(
+            'The runs of the group, in the order they first appear: those with the same '
+            'important tags, or containing those of the group; with the test, they tell '
+            'the rule in the matcher.'
+        ),
+    )
     result_ids = serializers.ListField(child=serializers.IntegerField())
     parameters = serializers.DictField(
         child=serializers.CharField(allow_blank=True),
         help_text=(
-            "The parameters all the test's results have: a rule may contain any part of them."
+            'The parameters all the results of the group have: a rule may contain any '
+            'part of them.'
         ),
     )
     verdicts = serializers.ListField(
         child=serializers.ListField(child=serializers.CharField()),
         help_text=(
-            "The different verdict lists of the test's results, in the order they first "
-            'appear, each in order, [] for the results without verdicts: a matcher '
+            'The different verdict lists of the results of the group, in the order they '
+            'first appear, each in order, [] for the results without verdicts: a matcher '
             'restricting the verdicts must give all of them, for a rule each.'
         ),
     )
-
-
-class ClassifyOptionsResponseSerializer(serializers.Serializer):
-    """
-    What a rule classifying the results may contain, so that a matcher can be
-    checked against it before it is sent. Each test has its own rules.
-    """
-
-    run_id = serializers.IntegerField()
-    tags = ClassifyOptionsTagsSerializer()
-    tests = ClassifyOptionsTestSerializer(many=True)
+    tags = ClassifyOptionsTagsSerializer(
+        help_text=(
+            'The important tags of the group and the important and relevant tags all '
+            'its runs have.'
+        ),
+    )
 
 
 class UnclassifyRequestSerializer(serializers.Serializer):
