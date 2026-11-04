@@ -5,6 +5,8 @@ from itertools import groupby
 import json
 from typing import ClassVar
 
+from django.db import DatabaseError, InterfaceError
+
 from bublik.core.exceptions import ImportrunsError
 from bublik.core.importruns.stats import counted, timed
 from bublik.core.logging import get_task_or_server_logger
@@ -351,6 +353,8 @@ class HandlerArtifacts:
                         for y in Saver.list_measurements_copy:
                             axis_y_lvl = ViewAxisYLevel(y, viewlvl)
                             axis_y_lvl.save(self.test_iter_result)
+        except (DatabaseError, InterfaceError):
+            raise
         except Exception as e:
             logger.error(e)
             logger.error('Failed to process views')
@@ -397,6 +401,8 @@ class HandlerArtifacts:
             if views is not None:
                 self.handle_views(views)
 
+        except (DatabaseError, InterfaceError):
+            raise
         except Exception as e:
             e = str(e).replace("'", '')
             logger.error(
