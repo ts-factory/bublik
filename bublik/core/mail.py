@@ -10,7 +10,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
 from bublik.core.config.services import ConfigServices
-from bublik.core.exceptions import BadGatewayError
+from bublik.core.exceptions import BadGatewayError, ImportrunsError
 from bublik.core.shortcuts import build_absolute_uri
 from bublik.data.models import GlobalConfigs
 
@@ -64,7 +64,12 @@ def send_importruns_failed_mail(
 
     message = '\n'.join(message_lines)
 
-    return send_mail(subject, message, email_from, recipients, fail_silently=False)
+    try:
+        return send_mail(subject, message, email_from, recipients, fail_silently=False)
+    except OSError as e:
+        # covers SMTPException, connection, timeout and TLS errors
+        msg = 'the mail server is unavailable or rejected the email'
+        raise ImportrunsError(msg) from e
 
 
 class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
