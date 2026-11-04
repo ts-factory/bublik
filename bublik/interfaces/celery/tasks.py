@@ -341,7 +341,8 @@ def importruns(
                 )
 
         except Exception as e:
-            logger.warning(e)
+            error_data = get_safe_error_message(e)
+            logger.warning(f'failed to report the import failure by email: {error_data}')
 
 
 @app.task(bind=True)
