@@ -11,6 +11,7 @@ import shutil
 import tempfile
 
 from django.core.management import call_command
+from django.db import transaction
 import jsonschema
 from jsonschema import validate
 
@@ -130,7 +131,7 @@ def with_import_events(func):
 
 
 @with_import_events
-def import_run(
+def import_run(  # noqa: C901
     job_id: int,
     task_id: str,
     run_source_url: str,
@@ -284,14 +285,19 @@ def import_run(
             # Always count Logs without meta_data.json as completed
             run_completed = True
 
-        # Import run incrementally
-        run, created = incremental_import(
-            json_data,
-            project.id,
-            meta_data,
-            run_completed,
-            force,
-        )
+        # Import run incrementally. The logs link is added in the same transaction,
+        # as force import removes it along with other metas missing from metadata.
+        with transaction.atomic():
+            run, created = incremental_import(
+                json_data,
+                project.id,
+                meta_data,
+                run_completed,
+                force,
+            )
+            if created:
+                add_import_id(run, task_id)
+                add_run_log(run, suffix_url, logs_base)
 
         JobTaskExecutionResult.objects.filter(
             job_id=job_id,
@@ -304,8 +310,6 @@ def import_run(
                 message=msg,
             )
 
-        add_import_id(run, task_id)
-        add_run_log(run, suffix_url, logs_base)
         categorization.categorize_metas(meta_data=meta_data, project_id=project.id)
         prepare_cache_for_completed_run(run)
         with MeasureTime('fixing timestamps'):
