@@ -12,7 +12,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from bublik.core.auth import auth_required, get_user_by_access_token
+from bublik.core.auth import (
+    auth_required,
+    get_not_permission_required_actions,
+    get_user_by_access_token,
+)
 from bublik.core.config.filters import ConfigFilter
 from bublik.core.config.services import ConfigServices
 from bublik.core.exceptions import UnprocessableEntityError
@@ -48,31 +52,20 @@ class ConfigViewSet(ModelViewSet):
         access_token = self.request.COOKIES.get('access_token')
         user = get_user_by_access_token(access_token)
 
-        not_permission_required_actions_default = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'NOT_PERMISSION_REQUIRED_ACTIONS',
-            project_id=None,
-        )
-        if (
-            user and UserRoles.ADMIN in user.roles
-        ) or 'read_configs' in not_permission_required_actions_default:
+        if user and UserRoles.ADMIN in user.roles:
             return configs | Config.objects.filter(project__isnull=True)
 
-        project_ids = list(Project.objects.all().values_list('id', flat=True))
+        # the configs of a project are readable if its settings allow it,
+        # the global ones if the global settings allow it or any project's
+        # configs are readable
         project_ids = [
             project_id
-            for project_id in project_ids
-            if 'read_configs'
-            in ConfigServices.getattr_from_global(
-                GlobalConfigs.PER_CONF.name,
-                'NOT_PERMISSION_REQUIRED_ACTIONS',
-                project_id=project_id,
-            )
+            for project_id in Project.objects.values_list('id', flat=True)
+            if 'read_configs' in get_not_permission_required_actions(project_id)
         ]
-        if project_ids:
-            configs = configs.filter(project_id__in=project_ids)
-            if configs:
-                return configs | Config.objects.filter(project__isnull=True)
+        configs = configs.filter(project_id__in=project_ids)
+        if 'read_configs' in get_not_permission_required_actions(None) or configs:
+            return configs | Config.objects.filter(project__isnull=True)
 
         return configs.none()
 

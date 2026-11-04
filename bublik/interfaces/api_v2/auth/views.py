@@ -17,6 +17,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from bublik.core.auth import (
     auth_required,
+    get_allowed_actions,
     get_user_by_access_token,
     revoke_refresh_tokens,
 )
@@ -41,6 +42,7 @@ from bublik.data.serializers import (
 )
 from bublik.interfaces.api_v2.auth.schemas import (
     admin_viewset_schema,
+    capabilities_viewset_schema,
     password_reset_viewset_schema,
     profile_viewset_schema,
     registration_viewset_schema,
@@ -69,6 +71,7 @@ def set_auth_cookies(response, access_token, refresh_token):
 
 __all__ = [
     'AdminViewSet',
+    'CapabilitiesViewSet',
     'PasswordResetViewSet',
     'ProfileViewSet',
     'RegistrationViewSet',
@@ -340,6 +343,13 @@ class ProfileViewSet(GenericViewSet):
         # update user
         updated_user = serializer.save()
         return Response(UserSerializer(updated_user).data)
+
+
+@capabilities_viewset_schema
+class CapabilitiesViewSet(ViewSet):
+    @method_decorator(never_cache)
+    def list(self, request):
+        return Response(get_allowed_actions(request))
 
 
 @admin_viewset_schema

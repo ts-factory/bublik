@@ -10,7 +10,7 @@ from rest_framework_simplejwt.exceptions import TokenBackendError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from bublik.core.config.services import ConfigServices
-from bublik.data.models import GlobalConfigs, User, UserRoles, UserStatus
+from bublik.data.models import ConfigTypes, GlobalConfigs, Project, User, UserRoles, UserStatus
 from bublik.settings import SIMPLE_JWT
 
 
@@ -90,6 +90,45 @@ def auth_required(as_admin=False):
     return decorator
 
 
+def get_not_permission_required_actions(project_id):
+    """
+    Return the actions the settings of the project allow without
+    authorization; with no project the global settings apply.
+    """
+    return ConfigServices.getattr_from_global(
+        GlobalConfigs.PER_CONF.name,
+        'NOT_PERMISSION_REQUIRED_ACTIONS',
+        project_id=project_id,
+    )
+
+
+def get_allowed_actions(request):
+    """
+    Return the actions the settings may allow without authorization that
+    the request may perform: by the global settings (`default`) and by the
+    settings of each project (`projects`, by project id). An administrator
+    may perform all of them.
+    """
+    schema = ConfigServices.get_schema(ConfigTypes.GLOBAL, GlobalConfigs.PER_CONF.name)
+    actions = schema['properties']['NOT_PERMISSION_REQUIRED_ACTIONS']['items']['enum']
+    user = get_user_by_access_token(request.COOKIES.get('access_token'))
+    is_admin = user is not None and UserRoles.ADMIN in user.roles
+
+    def allowed_actions(project_id):
+        if is_admin:
+            return list(actions)
+        not_permission_required_actions = get_not_permission_required_actions(project_id)
+        return [action for action in actions if action in not_permission_required_actions]
+
+    return {
+        'default': allowed_actions(None),
+        'projects': {
+            project_id: allowed_actions(project_id)
+            for project_id in Project.objects.order_by('id').values_list('id', flat=True)
+        },
+    }
+
+
 def check_action_permission_for_projects(request, action, project_ids):
     """
     Check the action against the projects it touches.
@@ -103,12 +142,7 @@ def check_action_permission_for_projects(request, action, project_ids):
     by the client, so it can't be trusted to name them.
     """
     for project_id in set(project_ids) or {None}:
-        not_permission_required_actions = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'NOT_PERMISSION_REQUIRED_ACTIONS',
-            project_id=project_id,
-        )
-        if action not in not_permission_required_actions:
+        if action not in get_not_permission_required_actions(project_id):
             require_user(request, as_admin=True)
             return
 
