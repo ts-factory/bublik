@@ -12,6 +12,7 @@ import tempfile
 
 from django.core.management import call_command
 from django.db import transaction
+from django.db.models import Q
 import jsonschema
 from jsonschema import validate
 
@@ -38,9 +39,11 @@ from bublik.data.models import EventLog, GlobalConfigs, JobTaskExecutionResult, 
 from bublik.data.schemas.services import load_schema
 
 
-# The most attempts of an import task. A task interrupted by the loss of its
-# worker process is queued again, which is to survive e.g. a restart of the
-# worker, but one interrupted every time would be attempted endlessly.
+# The most interrupted attempts of an import task. A task interrupted by the loss
+# of its worker process is queued again, which is to survive e.g. a restart of the
+# worker, but one interrupted every time would be attempted endlessly. Attempts
+# that failed, e.g. to be retried after losing the connection to the database,
+# are not counted.
 MAX_IMPORT_ATTEMPTS = 3
 
 
@@ -63,12 +66,18 @@ def with_import_events(func):
         start_time = datetime.now()
 
         # An import task whose worker process is lost is queued again
-        # (see the importruns task), so each attempt starts here
-        previous_attempts = EventLog.objects.filter(
+        # (see the importruns task), so each attempt starts here, and those
+        # interrupted have neither succeeded nor failed
+        events = EventLog.objects.filter(
             job_task_execution=job_task_execution,
             facility=EventLog.FacilityChoices.IMPORTRUNS,
-            msg__startswith='started import ',
-        ).count()
+        )
+        previous_attempts = (
+            events.filter(msg__startswith='started import ').count()
+            - events.filter(
+                Q(msg__startswith='successful import ') | Q(msg__startswith='failed import '),
+            ).count()
+        )
 
         create_event(
             facility=EventLog.FacilityChoices.IMPORTRUNS,

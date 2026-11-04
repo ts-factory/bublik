@@ -17,6 +17,7 @@ from celery.signals import (
     task_success,
 )
 from django.core.management import call_command
+from django.db import InterfaceError, OperationalError
 import pendulum
 
 from bublik import settings
@@ -214,6 +215,29 @@ def task_finished_handler(sender=None, task_id=None, **kwargs):
     TaskExecution.objects.filter(task_id=task_id).update(finished_at=datetime.now())
 
 
+# Delays in seconds before the retries of an import that lost the connection to
+# the database, e.g. while it was restarted
+IMPORT_RETRY_DELAYS = (60, 120, 240)
+
+# SQLSTATE codes of the database server shutting down or starting up
+DATABASE_SHUTDOWN_CODES = ('57P01', '57P02', '57P03')
+
+
+def is_database_connection_lost(error: BaseException) -> bool:
+    """Whether the error, or one it was raised from, is a lost database connection."""
+    while error is not None:
+        if isinstance(error, InterfaceError):
+            return True
+        if isinstance(error, OperationalError):
+            # Errors of the client, e.g. failing to connect, have no code
+            # (psycopg2 gives it as pgcode, psycopg as sqlstate)
+            cause = error.__cause__
+            code = getattr(cause, 'pgcode', None) or getattr(cause, 'sqlstate', None)
+            return code is None or code.startswith('08') or code in DATABASE_SHUTDOWN_CODES
+        error = error.__cause__ or error.__context__
+    return False
+
+
 @app.task(bind=True, name='import', acks_late=True, reject_on_worker_lost=True)
 def importruns(
     self,
@@ -231,26 +255,27 @@ def importruns(
     logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
 
-    # The worker forgets revoked tasks on restart, so the revocation
-    # of a queued task is also checked in the database
-    if TaskExecution.objects.filter(
-        task_id=task_id,
-        status=TaskExecution.StatusChoices.REVOKED,
-    ).exists():
-        logger.info('importruns task was revoked before it started')
-        task_revoked.send(
-            sender=self,
-            request=self.request,
-            terminated=False,
-            signum=None,
-            expired=False,
-        )
-        raise Ignore
-
     # To avoid cyclic dependency between importruns.py and this module
     from bublik.core.importruns.import_run import import_run  # noqa: PLC0415
 
+    retrying = False
     try:
+        # The worker forgets revoked tasks on restart, so the revocation
+        # of a queued task is also checked in the database
+        if TaskExecution.objects.filter(
+            task_id=task_id,
+            status=TaskExecution.StatusChoices.REVOKED,
+        ).exists():
+            logger.info('importruns task was revoked before it started')
+            task_revoked.send(
+                sender=self,
+                request=self.request,
+                terminated=False,
+                signum=None,
+                expired=False,
+            )
+            raise Ignore
+
         query_url = urljoin(
             requesting_host,
             f'importruns/source/?from={date_from}&to={date_to}&url={run_source_url}'
@@ -304,7 +329,19 @@ def importruns(
 
         return task_id
 
+    except Ignore:
+        raise
+
     except Exception as e:
+        # The import is done in a transaction, so it can be done again
+        if is_database_connection_lost(e) and self.request.retries < len(IMPORT_RETRY_DELAYS):
+            delay = IMPORT_RETRY_DELAYS[self.request.retries]
+            logger.warning(
+                f'Importruns lost the connection to the database, retrying in {delay} seconds',
+            )
+            retrying = True
+            raise self.retry(exc=e, countdown=delay) from e
+
         error_data = get_safe_error_message(e)
         logger.error(
             f'Importruns failed: {error_data}',
@@ -315,34 +352,38 @@ def importruns(
         # To send email in case of any error, not only when some occur
         # initiating importruns task
 
-        add_to_message = None
+        # The failure is reported once the import is not retried
+        if not retrying:
+            add_to_message = None
 
-        try:
-            errors, log_project_name = parse_log(
-                r'"ERROR"',
-                r'the project name is ([^"]+)',
-                logpath,
-            )
-            project_name = log_project_name or project_name
-            project_id = (
-                Project.objects.filter(name=project_name).values_list('id', flat=True).first()
-                if project_name
-                else None
-            )
-
-            if errors:
-                add_to_message = f'Preview:\n{errors}'
-                send_importruns_failed_mail(
-                    requesting_host,
-                    project_id,
-                    task_id,
-                    run_source_url,
-                    add_to_message,
+            try:
+                errors, log_project_name = parse_log(
+                    r'"ERROR"',
+                    r'the project name is ([^"]+)',
+                    logpath,
+                )
+                project_name = log_project_name or project_name
+                project_id = (
+                    Project.objects.filter(name=project_name)
+                    .values_list('id', flat=True)
+                    .first()
+                    if project_name
+                    else None
                 )
 
-        except Exception as e:
-            error_data = get_safe_error_message(e)
-            logger.warning(f'failed to report the import failure by email: {error_data}')
+                if errors:
+                    add_to_message = f'Preview:\n{errors}'
+                    send_importruns_failed_mail(
+                        requesting_host,
+                        project_id,
+                        task_id,
+                        run_source_url,
+                        add_to_message,
+                    )
+
+            except Exception as e:
+                error_data = get_safe_error_message(e)
+                logger.warning(f'failed to report the import failure by email: {error_data}')
 
 
 @app.task(bind=True)
