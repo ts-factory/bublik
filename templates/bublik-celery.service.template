@@ -1,6 +1,8 @@
 [Unit]
 Description=Celery Service
 Before=bublik-flower.service
+StartLimitIntervalSec=11
+StartLimitBurst=5
 
 [Service]
 Type=forking
@@ -11,8 +13,7 @@ EnvironmentFile=-${BUBLIK_SRC}/bublik/secrets.env
 ExecStart=${SCRIPTS_DIR}/runcelery
 ExecStop=/bin/bash -c 'pkill -9 -f "celery worker"'
 ExecRestart=/bin/bash -c 'pkill -9 -f "celery worker"' && ${SCRIPTS_DIR}/runcelery
-StartLimitIntervalSec=11
-StartLimitBurst=5
+Restart=on-failure
 RestartSec=2
 
 
