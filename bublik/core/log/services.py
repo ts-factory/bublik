@@ -97,7 +97,7 @@ class LogService:
             URL string or None if not available
 
         Raises:
-            UnprocessableEntityError: if result not found
+            NotFoundError: if result not found
         """
         result = ResultService.get_result(result_id)
         return get_result_log(result)
