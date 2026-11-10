@@ -141,16 +141,35 @@ class ClassifyTest(ClassifyDataMixin, APITestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert 'issue' in response.data['messages']
 
-    def test_only_results_of_tests_of_one_run(self):
+    def test_only_results_of_tests_of_one_project(self):
+        foreign = data.result(data.run(self.other_project), data.iteration(self.tree.ping))
         for result_ids in (
             [self.vm.id, self.package.id],
             [self.vm.id, self.run_row.id],
-            [self.vm.id, self.other_run_result.id],
+            [self.vm.id, foreign.id],
             [self.vm.id, 999999],
         ):
             response = self._classify(result_ids=result_ids)
             assert response.status_code == status.HTTP_400_BAD_REQUEST, result_ids
             assert 'result_ids' in response.data['messages'], result_ids
+
+    def test_results_of_several_runs_take_the_tags_all_the_runs_have(self):
+        result_ids = [self.vm.id, self.other_run_result.id]
+        options = self.client.post(
+            self._url('results-classify-options'),
+            {'result_ids': result_ids},
+            format='json',
+        ).data
+        assert options['run_ids'] == [self.run_row.id, self.other_run_result.test_run_id]
+        assert options['tags'] == {'default': [], 'allowed': []}
+
+        response = self._classify(
+            result_ids=result_ids, matchers=[self._matcher(self.tree.ping)]
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        (rule_id,) = response.data['rule_ids']
+        stamped = models.RuleResult.objects.filter(issue_rule_id=rule_id)
+        assert set(stamped.values_list('result_id', flat=True)) == set(result_ids)
 
     def test_matcher_may_only_take_what_all_results_have(self):
         for matchers in (

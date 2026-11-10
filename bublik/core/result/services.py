@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.cache import RunCache
-from bublik.core.classification import parse_issue_ids
+from bublik.core.classification import parse_categories, parse_issue_ids
 from bublik.core.exceptions import NotFoundError
 from bublik.core.issue import IssueManagementService, IssueRuleManagementService
 from bublik.core.measurement.services import (
@@ -217,7 +217,8 @@ class ResultService:
     ) -> list[models.TestIterationResult]:
         """
         Check that results to classify all exist, are results of tests and
-        are of one run.
+        are of one project, the issue's. They may be of several runs, as
+        picked from a test's history.
 
         Args:
             result_ids: The IDs of the results asked for
@@ -243,8 +244,8 @@ class ResultService:
         if not_tests:
             msg = f'Only results of tests can be classified: {not_tests}.'
             raise ValidationError({'result_ids': msg})
-        if len({result.test_run_id for result in found.values()}) > 1:
-            msg = 'Only results of one run can be classified at a time.'
+        if len({result.project_id for result in found.values()}) > 1:
+            msg = 'Only results of one project can be classified at a time.'
             raise ValidationError({'result_ids': msg})
         return [found[result_id] for result_id in result_ids]
 
@@ -254,25 +255,36 @@ class ResultService:
         Group results by test and work out what a rule classifying each group
         may contain: the parameters all its results have, all the different
         verdict lists they have, and the important and relevant tags of their
-        run (the important ones are what a rule usually contains).
+        run (the important ones are what a rule usually contains). For results
+        of several runs the tags are those every one of the runs has: a rule
+        with any other tag would not match all of the results.
 
         Args:
-            results: The results of tests of one run
+            results: The results of tests, checked by
+                validate_results_for_classification
 
         Returns:
-            ClassifyOptionsDTO with the tags of the run and a ClassifyTestDTO
+            ClassifyOptionsDTO with the tags of the runs and a ClassifyTestDTO
             per test
         """
-        run = results[0].test_run
-        important_tags_by_runs, relevant_tags_by_runs = get_tags_by_runs([run])
-        important_tags = important_tags_by_runs.get(run.id, [])
-        relevant_tags = relevant_tags_by_runs.get(run.id, [])
+        run_ids = list(dict.fromkeys(result.test_run_id for result in results))
+        important_tags_by_runs, relevant_tags_by_runs = get_tags_by_runs(run_ids)
+        important_tags = set.intersection(
+            *(set(important_tags_by_runs.get(run_id, [])) for run_id in run_ids),
+        )
+        allowed_tags = set.intersection(
+            *(
+                {
+                    *important_tags_by_runs.get(run_id, []),
+                    *relevant_tags_by_runs.get(run_id, []),
+                }
+                for run_id in run_ids
+            ),
+        )
         options = ClassifyOptionsDTO(
-            run_id=run.id,
-            tags={
-                'default': sorted(important_tags),
-                'allowed': sorted({*important_tags, *relevant_tags}),
-            },
+            run_id=run_ids[0],
+            run_ids=run_ids,
+            tags={'default': sorted(important_tags), 'allowed': sorted(allowed_tags)},
         )
 
         results_by_tests: dict[int, list[models.TestIterationResult]] = {}
@@ -350,7 +362,8 @@ class ResultService:
             if extra_tags:
                 errors.append(
                     f'{test.test_path}: tags not among the important and relevant tags '
-                    f'of the run: {", ".join(extra_tags)}.',
+                    f'of the run (of every run, for results of several): '
+                    f'{", ".join(extra_tags)}.',
                 )
             extra_parameters = sorted(
                 key_value_transforming(name, value)
@@ -409,7 +422,7 @@ class ResultService:
         actor=None,
     ) -> ClassifyDTO:
         """
-        Classify results of one run under an issue, with a rule per test
+        Classify results under an issue, with a rule per test
         among them and per category, matching exactly these results, and
         stamp them with it. Repeating a classification reuses the identical
         rule, so a result gets one more stamp at most.
@@ -489,10 +502,8 @@ class ResultService:
                         )
                         rule_ids.append(rule.id)
 
-        RunCache.delete_data_for_obj(
-            results[0].test_run,
-            data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED,
-        )
+        for run in {result.test_run_id: result.test_run for result in results}.values():
+            RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
         return ClassifyDTO(issue_id=issue.id, rule_ids=rule_ids)
 
     @staticmethod
@@ -576,6 +587,7 @@ class ResultService:
         result_properties: str | None = None,
         requirements: str | None = None,
         issue: str | None = None,
+        categories: str | None = None,
     ):
         """
         List results with filtering.
@@ -590,6 +602,8 @@ class ResultService:
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
             issue: Semicolon-separated issue IDs
+            categories: Semicolon-separated classification categories; with
+                `issue`, the categories of the stamps of these issues
 
         Returns:
             QuerySet of filtered TestIterationResult objects
@@ -679,9 +693,15 @@ class ResultService:
             for req_meta in available_req_metas:
                 queryset = queryset.filter(meta_results__meta=req_meta)
 
-        # issue filtering
+        # Issue and category filtering, in one filter() call, so that both
+        # hold for the same stamp, as in the history.
+        stamp_query = {}
         if issue:
-            queryset = queryset.stamped_under(parse_issue_ids(issue))
+            stamp_query['rule_results__issue_rule__issue_id__in'] = parse_issue_ids(issue)
+        if categories:
+            stamp_query['rule_results__issue_rule__category__in'] = parse_categories(categories)
+        if stamp_query:
+            queryset = queryset.filter(**stamp_query)
 
         return queryset.order_by('-start', 'id').distinct('id', 'start')
 
@@ -696,6 +716,7 @@ class ResultService:
         issue: str | None = None,
         page: int | None = None,
         page_size: int | None = None,
+        categories: str | None = None,
     ) -> dict:
         """
         List results with filtering and pagination.
@@ -712,6 +733,7 @@ class ResultService:
             issue: Semicolon-separated issue IDs
             page: Page number (default: 1)
             page_size: Items per page (default: 25, max: 10000)
+            categories: Semicolon-separated classification categories
 
         Returns:
             Dictionary with pagination metadata and result details
@@ -724,6 +746,7 @@ class ResultService:
             result_properties=result_properties,
             requirements=requirements,
             issue=issue,
+            categories=categories,
         )
 
         results_details = generate_results_details(queryset)

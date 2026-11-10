@@ -16,6 +16,10 @@ class ResultListQuerySerializer(serializers.Serializer):
     result_properties = serializers.CharField(required=False)
     requirements = serializers.CharField(required=False)
     issue = serializers.CharField(required=False)
+    categories = serializers.CharField(
+        required=False,
+        help_text="';'-separated classification categories of the stamps on the results.",
+    )
 
 
 class ResultKeySerializer(serializers.Serializer):
@@ -152,7 +156,7 @@ class ClassifyOptionsRequestSerializer(serializers.Serializer):
     result_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         allow_empty=False,
-        help_text='IDs of the results to classify; all of them from one run.',
+        help_text='IDs of the results to classify; all of them from one project.',
     )
 
     def validate_result_ids(self, value):
@@ -254,7 +258,11 @@ class ClassifyOptionsResponseSerializer(serializers.Serializer):
     checked against it before it is sent. Each test has its own rules.
     """
 
-    run_id = serializers.IntegerField()
+    run_id = serializers.IntegerField(help_text='The run of the results; the first of them.')
+    run_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text='Every run the results are of.',
+    )
     tags = ClassifyOptionsTagsSerializer()
     tests = ClassifyOptionsTestSerializer(many=True)
 

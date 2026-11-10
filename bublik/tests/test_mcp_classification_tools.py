@@ -116,12 +116,24 @@ class ClassificationReadToolsTest(TestCase):
         assert (test['test_id'], test['parameters']) == (self.tree.ping.id, {'env': 'VM'})
         assert test['verdicts'] == [['Packet lost']]
 
-        with pytest.raises(ValidationError, match='one run'):
+    def test_classify_options_take_results_of_several_runs_of_a_project(self):
+        # As picked from a test's history: a rule may only use what every run has.
+        other_run = data.run(self.project, tags=[('kernel', '6.1'), ('arch', 'arm')])
+        other = data.result(other_run, data.iteration(self.tree.ping, env='HW'))
+        options = call(tools.get_classify_options, result_ids=[self.first.id, other.id])
+        assert options['run_ids'] == [self.run_row.id, other_run.id]
+        assert options['tags']['allowed'] == ['kernel=6.1']
+        (test,) = options['tests']
+        assert test['parameters'] == {}
+        assert test['verdicts'] == [['Packet lost'], []]
+
+        foreign = data.run(models.Project.objects.create(name='foreign'))
+        with pytest.raises(ValidationError, match='one project'):
             call(
                 tools.get_classify_options,
                 result_ids=[
                     self.first.id,
-                    data.result(data.run(self.project), data.iteration(self.tree.ping)).id,
+                    data.result(foreign, data.iteration(self.tree.ping)).id,
                 ],
             )
 

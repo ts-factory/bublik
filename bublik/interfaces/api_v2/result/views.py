@@ -47,6 +47,7 @@ class ResultViewSet(ModelViewSet):
         result_properties = self.request.query_params.get('result_properties')
         requirements = self.request.query_params.get('requirements')
         issue = self.request.query_params.get('issue')
+        categories = self.request.query_params.get('categories')
 
         return ResultService.list_results(
             parent_id=parent_id,
@@ -56,6 +57,7 @@ class ResultViewSet(ModelViewSet):
             result_properties=result_properties,
             requirements=requirements,
             issue=issue,
+            categories=categories,
         )
 
     def retrieve(self, request, pk=None):

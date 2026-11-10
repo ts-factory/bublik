@@ -240,5 +240,9 @@ class RunViewSet(ModelViewSet):
     )
     def issue_results(self, request, pk=None, issue_id=None):
         run = RunService.get_run(pk)
-        results = ClassificationService.run_issue_results(run, issue_id)
+        results = ClassificationService.run_issue_results(
+            run,
+            issue_id,
+            request.query_params.get('categories'),
+        )
         return Response({'results': generate_results_details(results)})
