@@ -11,6 +11,7 @@ import pytest
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.exceptions import NotFoundError
+from bublik.core.result import ResultService
 from bublik.data import models
 from bublik.mcp import tools
 from bublik.mcp.run.markdown import render_run_leaf_results
@@ -137,21 +138,124 @@ class ClassificationReadToolsTest(TestCase):
                 ],
             )
 
-    def test_history_passes_the_triage_filters_through(self):
-        with mock.patch('bublik.mcp.tools.HistoryService.get_history') as get_history:
-            get_history.return_value = mock.MagicMock()
-            with mock.patch('bublik.mcp.tools.HistoryListResponseSerializer') as serializer:
-                serializer.return_value.data = {}
-                call(
-                    tools.get_history,
-                    test_name='ping',
-                    issue=str(self.loss.id),
-                    categories='known-issue',
-                    untriaged=True,
-                )
-        filters = get_history.call_args.kwargs
-        assert (filters['issue'], filters['categories']) == (str(self.loss.id), 'known-issue')
-        assert (filters['untriaged'], filters['explained']) == ('true', '')
+    def test_list_issues_orders_and_takes_dates(self):
+        by_title = call(tools.list_issues, ordering='title')['issues']
+        assert [issue['id'] for issue in by_title] == [self.loss.id, self.stale.id]
+        by_results = call(tools.list_issues, ordering='-result_count')['issues']
+        assert [issue['id'] for issue in by_results] == [self.loss.id, self.stale.id]
+        assert call(tools.list_issues, created_before='2000-01-01')['issues'] == []
+        with pytest.raises(ValidationError):
+            call(tools.list_issues, ordering='bogus')
+
+    def test_list_issue_rules_filters_across_issues(self):
+        every = call(tools.list_issue_rules, project_id=self.project.id)
+        assert every['pagination']['count'] == len([self.known, self.marker, 'flaky'])
+
+        of_loss = call(tools.list_issue_rules, issue_id=self.loss.id, ordering='category')
+        assert [rule['id'] for rule in of_loss['rules']] == [self.known.id, self.marker.id]
+        markers = call(tools.list_issue_rules, expected='none')['rules']
+        assert [rule['id'] for rule in markers] == [self.marker.id]
+        closed = call(tools.list_issue_rules, issue_state='closed', category='flaky')['rules']
+        assert [rule['issue'] for rule in closed] == [self.stale.id]
+        assert call(tools.list_issue_rules, active=False)['rules'] == []
+
+        strict = data.rule(
+            self.loss,
+            self.tree.reset,
+            verdicts=['Packet lost'],
+            parameters={'env': 'VM'},
+            tags=['kernel=6.1'],
+        )
+        for arguments in (
+            {'verdicts': ['Packet lost']},
+            {'parameters': {'env': 'VM'}},
+            {'tags': ['kernel=6.1', 'arch=arm']},
+        ):
+            found = call(tools.list_issue_rules, **arguments)['rules']
+            assert [rule['id'] for rule in found] == [strict.id], arguments
+        ignoring = call(tools.list_issue_rules, ignore_verdicts=True)
+        assert ignoring['pagination']['count'] == len([self.known, self.marker, 'flaky'])
+
+        with pytest.raises(ValidationError):
+            call(tools.list_issue_rules, category='bogus')
+
+    def test_facets_count_what_the_filters_would_leave(self):
+        issues = call(tools.get_issue_facets, project_id=self.project.id)
+        assert issues['state'] == {'open': 1, 'closed': 1}
+        assert issues['categories']['known-issue'] == 1
+        # The counts of a filter ignore its own value.
+        assert call(tools.get_issue_facets, state='open')['state'] == issues['state']
+
+        rules = call(tools.get_issue_rule_facets, issue_id=self.loss.id)
+        assert (rules['category']['known-issue'], rules['category']['flaky']) == (1, 0)
+        assert rules['verdicts'] == {'null': 2}
+
+        results = call(tools.get_issue_results_facets, issue_id=self.loss.id)
+        assert results['verdicts'] == ['Packet lost']
+        assert sorted(results['categories']) == ['known-issue', 'to-investigate']
+        assert results['parameters'] == ['env=VM']
+        with pytest.raises(NotFoundError):
+            call(tools.get_issue_results_facets, issue_id=self.loss.id + 1000)
+
+    def test_issue_results_take_verdicts_and_parameters(self):
+        def count(**filters):
+            page = call(tools.get_issue_results, issue_id=self.loss.id, **filters)
+            return page['pagination']['count']
+
+        assert count(verdicts=['Packet lost'], parameters=['env=VM']) == len(
+            [self.first, self.second],
+        )
+        assert count(verdicts=['Other']) == 0
+        assert count(parameters=['env=HW']) == 0
+
+    def test_run_results_are_narrowed_by_the_category_of_the_stamp(self):
+        page = call(
+            tools.get_run_issue_results,
+            run_id=self.run_row.id,
+            issue_id=self.loss.id,
+            categories='to-investigate',
+        )
+        assert [row['result_id'] for row in page['results']] == [self.first.id]
+        with pytest.raises(ValidationError):
+            call(
+                tools.get_run_issue_results,
+                run_id=self.run_row.id,
+                issue_id=self.loss.id,
+                categories='bogus',
+            )
+
+        def listed(**filters):
+            return {row.id for row in ResultService.list_results(**filters)}
+
+        assert listed(categories='to-investigate') == {self.first.id}
+        assert listed(categories='known-issue;flaky') == {
+            self.first.id,
+            self.second.id,
+            self.reset.id,
+        }
+        # Both hold for the same stamp: the closed issue has no known-issue rule.
+        assert listed(issue=str(self.stale.id), categories='known-issue') == set()
+        assert listed(issue=str(self.stale.id), categories='flaky') == {self.reset.id}
+
+    def test_lookups_for_a_rule(self):
+        found = call(tools.search_tests, project_id=self.project.id, search='net/pi')
+        assert [(test['id'], test['name']) for test in found] == [(self.tree.ping.id, 'ping')]
+        recent = call(tools.search_tests)
+        assert {test['id'] for test in recent} == {self.tree.ping.id, self.tree.reset.id}
+
+        on_ping = call(tools.list_test_issues, test_name='ping', project_id=self.project.id)
+        assert on_ping == [
+            {'id': self.loss.id, 'title': 'Packet loss', 'bug_key': 'ref://JIRA/NET-1'},
+        ]
+
+        trackers = {'JIRA': {'name': 'Jira', 'uri': 'https://jira.example.com/browse/'}}
+        with mock.patch(
+            'bublik.mcp.tools.ConfigServices.getattr_from_global',
+            return_value=trackers,
+        ) as getattr_from_global:
+            listed = call(tools.list_issue_trackers, project_id=self.project.id)
+        assert listed == {'trackers': trackers}
+        assert getattr_from_global.call_args.args == ('references', 'ISSUES', self.project.id)
 
 
 class LeafResultsIssuesColumnTest(SimpleTestCase):

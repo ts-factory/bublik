@@ -11,8 +11,9 @@ import logging
 from typing import TYPE_CHECKING
 
 from asgiref.sync import sync_to_async
+from django.conf import settings
 from django.db import transaction
-from django_filters.utils import translate_validation
+from django.utils.datastructures import MultiValueDict
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.cache import RunCache
@@ -24,10 +25,7 @@ from bublik.core.history.services import HistoryService
 from bublik.core.issue import (
     IssueManagementService,
     IssueRuleManagementService,
-    issues_queryset,
-    rules_queryset,
 )
-from bublik.core.issue.filters import IssueFilterSet
 from bublik.core.issue_results import IssueResultsFilters, IssueResultsService
 from bublik.core.log.services import LogService
 from bublik.core.pagination_helpers import PaginatedResult
@@ -49,13 +47,16 @@ from bublik.core.run.stats import (
 )
 from bublik.core.server import ServerService
 from bublik.core.tree.services import TreeService
-from bublik.data.models import Config, MetaTest
+from bublik.data.models import Config, GlobalConfigs, MetaTest
 from bublik.data.serializers import ConfigSerializer, IssueRuleSerializer, IssueSerializer
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
 )
-from bublik.interfaces.api_v2.issue.serializers import IssueResultsQuerySerializer
+from bublik.interfaces.api_v2.issue.serializers import (
+    IssueResultsFacetsSerializer,
+    IssueResultsQuerySerializer,
+)
 from bublik.interfaces.api_v2.result.serializers import (
     ClassifyOptionsResponseSerializer,
     ClassifyRequestSerializer,
@@ -139,7 +140,7 @@ async def get_run_overview(
     )
 
 
-async def get_run_leaf_results(
+async def get_run_leaf_results(  # noqa: PLR0913, PLR0917
     leaf_result_id: int,
     requirements: str | None = None,
     results: str | None = None,
@@ -147,6 +148,8 @@ async def get_run_leaf_results(
     page: int | None = None,
     page_size: int | None = None,
     unexpected_only: bool = False,
+    issue: str | None = None,
+    categories: str | None = None,
 ) -> str:
     """
     Get paginated executions represented by a test leaf in a run overview.
@@ -174,6 +177,11 @@ async def get_run_leaf_results(
         unexpected_only: Return only unexpected or abnormal executions.
             Can be combined with requirements; cannot be combined with
             results or result_properties
+        issue: Semicolon-separated issue IDs; keeps the executions
+            classified under any of them
+        categories: Semicolon-separated classification categories
+            (e.g., 'known-issue;flaky'); keeps the executions stamped by a
+            rule of any of them (of the given issues, when issue is passed)
 
     Returns:
         Markdown table with the matching concrete executions and pagination.
@@ -190,6 +198,8 @@ async def get_run_leaf_results(
         page=page,
         page_size=page_size,
         unexpected_only=unexpected_only,
+        issue=issue,
+        categories=categories,
     )
     return render_run_leaf_results(payload)
 
@@ -697,8 +707,11 @@ async def get_history(  # noqa: PLR0913, PLR0917
 
     Returns:
         Dictionary with history results, counts, date range, and pagination.
-        Each result lists its issues: the stamps it carries, with the issue,
-        the rule's category, the disposition and the stamp id (rule_result_id).
+        Each result has its result_id and run_id and lists its issues: the
+        stamps it carries, with the issue, the rule's category, the
+        disposition and the stamp id (rule_result_id). The result ids are
+        what get_classify_options and classify_results take, also for
+        results of several runs at once.
     """
     # Set default date range if not provided
     if from_date is None and to_date is None:
@@ -760,7 +773,10 @@ async def get_history_grouped(  # noqa: PLR0913, PLR0917
         page_size: Items per page (default: 25, max: 10000)
 
     Returns:
-        Dictionary with grouped history results, counts, date range, and pagination
+        Dictionary with grouped history results, counts, date range, and
+        pagination. Under each iteration and verdict group, results_data
+        lists the results with their result_id, run_id and issues (the
+        stamps, as get_history shows them).
     """
     # Set default date range if not provided
     if from_date is None and to_date is None:
@@ -1276,6 +1292,19 @@ def _rule_data(rule) -> dict:
     return dict(IssueRuleSerializer(rule).data)
 
 
+def _query(given: dict) -> MultiValueDict:
+    """
+    Tool arguments as the query parameters a FilterSet reads: what was not
+    passed is left out, and a list is a repeated parameter.
+    """
+    query = MultiValueDict()
+    for name, value in given.items():
+        if value in (None, '', []):
+            continue
+        query.setlist(name, value if isinstance(value, list) else [value])
+    return query
+
+
 def _paginated_result_details(queryset, page, page_size) -> dict:
     paged = PaginatedResult.paginate_queryset(queryset, page, page_size)
     return {
@@ -1284,7 +1313,7 @@ def _paginated_result_details(queryset, page, page_size) -> dict:
     }
 
 
-async def list_issues(
+async def list_issues(  # noqa: PLR0913, PLR0917
     project_id: int | None = None,
     state: str | None = None,
     category: str | None = None,
@@ -1292,6 +1321,11 @@ async def list_issues(
     search: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
+    ordering: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+    updated_after: str | None = None,
+    updated_before: str | None = None,
 ) -> dict:
     """
     List the issues results are classified under, newest first.
@@ -1313,6 +1347,13 @@ async def list_issues(
             '#<id>' for an issue by ID
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
+        ordering: 'created_at', 'updated_at', 'title', 'state' or
+            'result_count', with '-' in front for descending
+            (default: '-created_at')
+        created_after: Created on or after this date (yyyy-mm-dd)
+        created_before: Created on or before this date (yyyy-mm-dd)
+        updated_after: Changed on or after this date (yyyy-mm-dd)
+        updated_before: Changed on or before this date (yyyy-mm-dd)
 
     Returns:
         Dictionary with pagination metadata and the issues, each with its
@@ -1320,18 +1361,21 @@ async def list_issues(
     """
 
     def _list():
-        given = {
-            'project': project_id,
-            'state': state,
-            'category': category,
-            'rules': rules,
-            'search': search,
-        }
-        params = {name: value for name, value in given.items() if value not in (None, '')}
-        filterset = IssueFilterSet(data=params, queryset=issues_queryset())
-        if not filterset.is_valid():
-            raise translate_validation(filterset.errors)
-        paged = PaginatedResult.paginate_queryset(filterset.qs, page, page_size)
+        query = _query(
+            {
+                'project': project_id,
+                'state': state,
+                'category': category,
+                'rules': rules,
+                'search': search,
+                'created_after': created_after,
+                'created_before': created_before,
+                'updated_after': updated_after,
+                'updated_before': updated_before,
+            },
+        )
+        queryset = IssueManagementService.list(query, ordering)
+        paged = PaginatedResult.paginate_queryset(queryset, page, page_size)
         return {
             'pagination': paged['pagination'],
             'issues': [_issue_data(issue) for issue in paged['results']],
@@ -1355,7 +1399,7 @@ async def get_issue(issue_id: int) -> dict:
 
     def _get():
         issue = IssueManagementService.get(issue_id)
-        rules = rules_queryset().filter(issue=issue).order_by('id')
+        rules = IssueRuleManagementService.list({'issue': issue.id}).order_by('id')
         return {'issue': _issue_data(issue), 'rules': [_rule_data(rule) for rule in rules]}
 
     return await sync_to_async(_get)()
@@ -1377,7 +1421,8 @@ async def get_run_issues(
         state: Semicolon-separated issue states: 'open', 'closed'
         category: Semicolon-separated rule categories
         effect: Semicolon-separated effects of the rules on the run:
-            'suppressed' (failures counted as expected), 'marked', 'stale'
+            'suppressed' (failures counted as expected), 'unexpected'
+            (failures kept unexpected), 'marked' (no disposition), 'stale'
             (the issue is closed)
 
     Returns:
@@ -1405,6 +1450,7 @@ async def get_run_issue_results(
     issue_id: int,
     page: int | None = None,
     page_size: int | None = None,
+    categories: str | None = None,
 ) -> dict:
     """
     List the results of a run classified under an issue, newest first.
@@ -1412,6 +1458,8 @@ async def get_run_issue_results(
     Args:
         run_id: The ID of the test run
         issue_id: The ID of the issue, as get_run_issues shows it
+        categories: Semicolon-separated categories; keeps the results
+            stamped by a rule of the issue in any of them
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
 
@@ -1424,7 +1472,7 @@ async def get_run_issue_results(
         run = RunService.get_run(run_id)
         IssueManagementService.get(issue_id)
         return _paginated_result_details(
-            ClassificationService.run_issue_results(run, issue_id),
+            ClassificationService.run_issue_results(run, issue_id, categories),
             page,
             page_size,
         )
@@ -1432,7 +1480,7 @@ async def get_run_issue_results(
     return await sync_to_async(_results)()
 
 
-async def get_issue_results(
+async def get_issue_results(  # noqa: PLR0913, PLR0917
     issue_id: int,
     results: str | None = None,
     result_properties: str | None = None,
@@ -1441,6 +1489,9 @@ async def get_issue_results(
     classification: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
+    verdicts: list[str] | None = None,
+    artifacts: list[str] | None = None,
+    parameters: list[str] | None = None,
 ) -> dict:
     """
     List every result classified under an issue, across runs, newest first.
@@ -1455,9 +1506,17 @@ async def get_issue_results(
         category: Semicolon-separated categories of this issue's rules that
             stamped the results
         classification: Semicolon-separated classifications shown for the
-            results: 'suppressed', 'marked', 'stale'
+            results: 'suppressed' (counted as expected), 'unexpected',
+            'marked', 'stale' (the issue is closed), 'no-effect' (the result
+            did not fail)
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 1000)
+        verdicts: Verdicts the results must all carry
+        artifacts: Artifacts the results must all carry
+        parameters: Test parameters the results must all have, each as
+            'name=value'
+
+        get_issue_results_facets lists the values these filters can take.
 
     Returns:
         Dictionary with pagination metadata and the results as get_result_details
@@ -1474,6 +1533,9 @@ async def get_issue_results(
             'classification': classification,
             'page': page,
             'page_size': page_size,
+            'verdict': verdicts,
+            'artifact': artifacts,
+            'parameter': parameters,
         }
         query = IssueResultsQuerySerializer(
             data={name: value for name, value in given.items() if value is not None},
@@ -1490,20 +1552,331 @@ async def get_issue_results(
     return await sync_to_async(_results)()
 
 
+async def get_issue_results_facets(issue_id: int) -> dict:
+    """
+    List the values the filters of get_issue_results can take for an issue.
+
+    Args:
+        issue_id: The ID of the issue
+
+    Returns:
+        Dictionary of the values found over every result of the issue:
+        results, result_properties, verdicts, categories, classifications,
+        artifacts, parameters ('name=value') and requirements
+    """
+
+    def _facets():
+        IssueManagementService.get(issue_id)
+        return dict(IssueResultsFacetsSerializer(IssueResultsService.facets(issue_id)).data)
+
+    return await sync_to_async(_facets)()
+
+
+def _issue_query(project_id, state, category, rules, search) -> MultiValueDict:
+    return _query(
+        {
+            'project': project_id,
+            'state': state,
+            'category': category,
+            'rules': rules,
+            'search': search,
+        },
+    )
+
+
+async def get_issue_facets(
+    project_id: int | None = None,
+    state: str | None = None,
+    category: str | None = None,
+    rules: str | None = None,
+    search: str | None = None,
+) -> dict:
+    """
+    Count the issues by state, category, rules state and project.
+
+    Takes the filters of list_issues. Each count tells how many issues
+    list_issues would return with that value of its filter and the other
+    filters as given, so the counts of a filter ignore its own value.
+
+    Args:
+        project_id: Optional project ID to filter by
+        state: Semicolon-separated issue states: 'open', 'closed'
+        category: Semicolon-separated categories
+        rules: Semicolon-separated rules states: 'enforced', 'dormant',
+            'deactivated', 'unruled'
+        search: Text to look for in the title, description and bug key
+
+    Returns:
+        Dictionary of counts by value: `state`, `categories` (issues having
+        an active rule of the category), `rules` and `project` (by project ID)
+    """
+
+    def _facets():
+        query = _issue_query(project_id, state, category, rules, search)
+        return asdict(IssueManagementService.facets(query))
+
+    return await sync_to_async(_facets)()
+
+
+def _rule_query(  # noqa: PLR0913, PLR0917
+    project_id,
+    issue_id,
+    search,
+    category,
+    active,
+    expected,
+    issue_state,
+    tags,
+    verdicts,
+    ignore_verdicts,
+    parameters,
+) -> MultiValueDict:
+    # The verdicts filter takes whole lists as JSON, null for the rules ignoring them.
+    verdict_lists = [json.dumps(verdicts)] if verdicts is not None else []
+    if ignore_verdicts:
+        verdict_lists.append('null')
+    delimiter = settings.KEY_VALUE_DELIMITER
+    return _query(
+        {
+            'project': project_id,
+            'issue': issue_id,
+            'search': search,
+            'category': category,
+            'active': None if active is None else str(active).lower(),
+            'expected': expected,
+            'issue_state': issue_state,
+            'tag': tags,
+            'verdicts': verdict_lists,
+            'parameter': [
+                f'{name}{delimiter}{value}' for name, value in (parameters or {}).items()
+            ],
+        },
+    )
+
+
+async def list_issue_rules(  # noqa: PLR0913, PLR0917
+    project_id: int | None = None,
+    issue_id: int | None = None,
+    search: str | None = None,
+    category: str | None = None,
+    active: bool | None = None,
+    expected: str | None = None,
+    issue_state: str | None = None,
+    tags: list[str] | None = None,
+    verdicts: list[str] | None = None,
+    ignore_verdicts: bool | None = None,
+    parameters: dict | None = None,
+    ordering: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict:
+    """
+    List classification rules across issues, newest first.
+
+    A rule belongs to an issue and stamps the results of one test that match
+    its parameters, verdicts and run tags. Use get_issue for the rules of
+    one issue together with the issue itself.
+
+    Args:
+        project_id: Optional project ID to filter by
+        issue_id: Only the rules of this issue
+        search: Text to look for in the test name, issue title and bug key
+        category: Semicolon-separated categories ('product-defect',
+            'test-bug', 'env', 'known-issue', 'flaky', 'to-investigate')
+        active: true for the rules classifying later imports, false for
+            the deactivated ones
+        expected: Semicolon-separated dispositions: 'expected',
+            'unexpected', 'none'
+        issue_state: Semicolon-separated states of the rules' issues:
+            'open', 'closed'
+        tags: Run tags; rules containing any of them
+        verdicts: A verdict list; rules matching exactly these verdicts, in
+            order ([] for the rules of results without verdicts)
+        ignore_verdicts: true for the rules that ignore the verdicts
+        parameters: Test parameters as {name: value}; rules containing any
+            of them
+        ordering: 'created_at', 'category', 'active', 'test_name' or
+            'issue_title', with '-' in front for descending
+            (default: '-created_at')
+        page: Page number (default: 1)
+        page_size: Items per page (default: 25, max: 10000)
+
+    Returns:
+        Dictionary with pagination metadata and the rules, as get_issue shows
+        them: the issue, the test, the matcher (parameters, verdicts, tags),
+        the category, the disposition and whether the rule is active
+    """
+
+    def _list():
+        query = _rule_query(
+            project_id,
+            issue_id,
+            search,
+            category,
+            active,
+            expected,
+            issue_state,
+            tags,
+            verdicts,
+            ignore_verdicts,
+            parameters,
+        )
+        queryset = IssueRuleManagementService.list(query, ordering)
+        paged = PaginatedResult.paginate_queryset(queryset, page, page_size)
+        return {
+            'pagination': paged['pagination'],
+            'rules': [_rule_data(rule) for rule in paged['results']],
+        }
+
+    return await sync_to_async(_list)()
+
+
+async def get_issue_rule_facets(  # noqa: PLR0913, PLR0917
+    project_id: int | None = None,
+    issue_id: int | None = None,
+    search: str | None = None,
+    category: str | None = None,
+    active: bool | None = None,
+    expected: str | None = None,
+    issue_state: str | None = None,
+    tags: list[str] | None = None,
+    verdicts: list[str] | None = None,
+    ignore_verdicts: bool | None = None,
+    parameters: dict | None = None,
+) -> dict:
+    """
+    Count the rules by each value the filters of list_issue_rules can take.
+
+    Takes the filters of list_issue_rules. The counts of a filter ignore
+    its own value and follow the other filters, so they also tell which
+    tags, verdict lists and parameters the rules contain at all.
+
+    Args:
+        project_id: Optional project ID to filter by
+        issue_id: Only the rules of this issue
+        search: Text to look for in the test name, issue title and bug key
+        category: Semicolon-separated categories
+        active: true for the active rules, false for the deactivated ones
+        expected: Semicolon-separated dispositions: 'expected',
+            'unexpected', 'none'
+        issue_state: Semicolon-separated issue states: 'open', 'closed'
+        tags: Run tags; rules containing any of them
+        verdicts: A verdict list; rules matching exactly these verdicts
+        ignore_verdicts: true for the rules that ignore the verdicts
+        parameters: Test parameters as {name: value}
+
+    Returns:
+        Dictionary of counts by value: `active`, `category`, `expected`,
+        `issue_state`, `project` (by project ID), `tag`, `parameter`
+        ('name=value') and `verdicts` (a JSON list, or null for the rules
+        ignoring the verdicts)
+    """
+
+    def _facets():
+        return asdict(
+            IssueRuleManagementService.facets(
+                _rule_query(
+                    project_id,
+                    issue_id,
+                    search,
+                    category,
+                    active,
+                    expected,
+                    issue_state,
+                    tags,
+                    verdicts,
+                    ignore_verdicts,
+                    parameters,
+                ),
+            ),
+        )
+
+    return await sync_to_async(_facets)()
+
+
+async def search_tests(project_id: int | None = None, search: str | None = None) -> list[dict]:
+    """
+    Find tests by path, for the `test_id` a rule needs.
+
+    The same test name can occur under different packages, with a different
+    ID each time, so the search matches the full path.
+
+    Args:
+        project_id: Only the tests that have results in this project
+        search: Text to look for in the test paths; without it the tests
+            most recently given a rule are returned
+
+    Returns:
+        Up to 20 tests, each with its id, name and path
+    """
+
+    def _search():
+        options = IssueRuleManagementService.test_options(project_id, (search or '').strip())
+        return [asdict(option) for option in options]
+
+    return await sync_to_async(_search)()
+
+
+async def list_test_issues(test_name: str, project_id: int | None = None) -> list[dict]:
+    """
+    List the issues the results of a test are classified under.
+
+    Use the ids as the `issue` filter of get_history and get_history_grouped.
+
+    Args:
+        test_name: Name of the test, as get_history takes it
+        project_id: Optional project ID to filter by
+
+    Returns:
+        The issues, each with its id, title and bug key, ordered by title
+    """
+    return await sync_to_async(HistoryService.get_issue_search_options)(project_id, test_name)
+
+
+async def list_issue_trackers(project_id: int | None = None) -> dict:
+    """
+    List the issue trackers a bug key may refer to.
+
+    The bug key of an issue is written 'ref://<TRACKER>/<KEY>', such as
+    'ref://JIRA/NET-1', where TRACKER is one of the tracker ids listed here.
+
+    Args:
+        project_id: The project whose references config to read; the global
+            one without it
+
+    Returns:
+        Dictionary with `trackers`: by tracker id, its name and the URI its
+        bug URLs start with
+    """
+
+    def _trackers():
+        trackers = ConfigServices.getattr_from_global(
+            GlobalConfigs.REFERENCES.name,
+            'ISSUES',
+            project_id,
+        )
+        return {'trackers': trackers or {}}
+
+    return await sync_to_async(_trackers)()
+
+
 async def get_classify_options(result_ids: list[int]) -> dict:
     """
     Tell what a rule classifying the given results may contain.
 
-    The results must be test results of one run. A rule belongs to one test
-    and must match every result it classifies, so for each test among the
+    The results must be test results of one project; they may be of several
+    runs, as picked from a test's history. A rule belongs to one test and
+    must match every result it classifies, so for each test among the
     results this lists the parameters all of its results share, the
-    different verdict lists they have, and the run's tags a rule may use.
+    different verdict lists they have, and the tags a rule may use: those of
+    the run, or those every run has when the results are of several.
 
     Args:
-        result_ids: Result IDs, as shown by get_run_leaf_results
+        result_ids: Result IDs, as shown by get_run_leaf_results, get_history
+            or get_history_grouped
 
     Returns:
-        Dictionary with the run id, the tags (`default`: the run's important
+        Dictionary with the run ids, the tags (`default`: the important
         tags, `allowed`: every tag a rule may contain) and, per test, its id,
         name, path, result ids, shared parameters and verdict lists
     """
@@ -1536,7 +1909,10 @@ async def classify_results(
     expected: bool | None = None,
 ) -> dict:
     """
-    Classify results of one run under an issue, acting as the caller.
+    Classify results under an issue, acting as the caller.
+
+    The results may be of one run or of several runs of one project, as
+    picked from a test's history.
 
     Pass either `issue_id` (an existing issue of the results' project) or
     `new_issue` ({title, description?, bug_key?}) to create one. Each test
@@ -1550,7 +1926,8 @@ async def classify_results(
     `manage_issues` permission.
 
     Args:
-        result_ids: The results, all of one run, as shown by get_run_leaf_results
+        result_ids: The results, as shown by get_run_leaf_results,
+            get_history or get_history_grouped
         categories: 'known-issue', 'flaky', 'to-investigate', ... (a rule for each)
         matchers: One matcher per test among the results
         issue_id: The issue to classify under
@@ -1958,6 +2335,13 @@ MCP_TOOLS = [
     get_run_issues,
     get_run_issue_results,
     get_issue_results,
+    get_issue_results_facets,
+    get_issue_facets,
+    list_issue_rules,
+    get_issue_rule_facets,
+    search_tests,
+    list_test_issues,
+    list_issue_trackers,
     get_classify_options,
 ]
 
@@ -2013,6 +2397,13 @@ MCP_UNCACHED_TOOLS = [
     get_run_issues,
     get_run_issue_results,
     get_issue_results,
+    get_issue_results_facets,
+    get_issue_facets,
+    list_issue_rules,
+    get_issue_rule_facets,
+    search_tests,
+    list_test_issues,
+    list_issue_trackers,
     get_classify_options,
 ]
 

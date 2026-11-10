@@ -94,6 +94,52 @@ class ClassificationWriteToolsTest(TestCase):
             [self.vm, self.hw]
         )
 
+    def test_results_of_several_runs_are_classified_at_once(self):
+        # As picked from a test's history.
+        later_run = data.run(self.project, tags=[('kernel', '6.1'), ('arch', 'arm')])
+        later = data.result(
+            later_run,
+            data.iteration(self.tree.ping, env='VM'),
+            verdicts=['Packet lost'],
+        )
+        arguments = {
+            'result_ids': [self.vm.id, later.id],
+            'categories': ['known-issue'],
+            'new_issue': {'title': 'Loss'},
+        }
+        with pytest.raises(ValidationError, match='arch=arm'):
+            self._as(
+                self.admin,
+                tools.classify_results,
+                matchers=[self._matcher(tags=['arch=arm'])],
+                **arguments,
+            )
+        assert not models.Issue.objects.exists()
+
+        outcome = self._as(
+            self.admin,
+            tools.classify_results,
+            matchers=[self._matcher(parameters={'env': 'VM'}, tags=['kernel=6.1'])],
+            **arguments,
+        )
+        (rule_id,) = outcome['rule_ids']
+        stamped = models.RuleResult.objects.filter(issue_rule_id=rule_id)
+        assert set(stamped.values_list('result_id', flat=True)) == {self.vm.id, later.id}
+
+        foreign = data.result(
+            data.run(self.other_project),
+            data.iteration(self.tree.ping),
+        )
+        with pytest.raises(ValidationError, match='one project'):
+            self._as(
+                self.admin,
+                tools.classify_results,
+                result_ids=[self.vm.id, foreign.id],
+                categories=['known-issue'],
+                matchers=[self._matcher()],
+                issue_id=outcome['issue_id'],
+            )
+
     def test_classify_needs_exactly_one_issue_reference(self):
         for extra in ({}, {'issue_id': 1, 'new_issue': {'title': 'x'}}):
             with pytest.raises(ValidationError, match='exactly one'):
