@@ -998,13 +998,14 @@ async def set_run_compromised(
     """
 
     def _set():
+        run = RunService.get_run(run_id)
         # Atomic, so a rejected new mark keeps the old one.
         with transaction.atomic():
             if compromised:
-                if is_run_compromised(run_id):
+                if is_run_compromised(run):
                     RunService.unmark_run_compromised(run_id)
                 RunService.mark_run_compromised(run_id, comment, bug_id, reference_key)
-            elif is_run_compromised(run_id):
+            elif is_run_compromised(run):
                 RunService.unmark_run_compromised(run_id)
         return get_compromised_details(run_id)
 
@@ -1524,10 +1525,6 @@ async def get_classify_options(result_ids: list[int]) -> dict:
 MANAGE_ISSUES = 'manage_issues'
 
 
-def _bulk_data(outcome) -> dict:
-    return asdict(outcome)
-
-
 @mcp_auth_required()
 async def classify_results(
     result_ids: list[int],
@@ -1755,7 +1752,7 @@ async def close_issues(issue_ids: list[int]) -> dict:
     def _close():
         ids = list(dict.fromkeys(issue_ids))
         actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
-        return _bulk_data(IssueManagementService.close(ids, actor))
+        return asdict(IssueManagementService.close(ids, actor))
 
     return await sync_to_async(_close)()
 
@@ -1778,7 +1775,7 @@ async def reopen_issues(issue_ids: list[int]) -> dict:
     def _reopen():
         ids = list(dict.fromkeys(issue_ids))
         actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
-        return _bulk_data(IssueManagementService.reopen(ids, actor))
+        return asdict(IssueManagementService.reopen(ids, actor))
 
     return await sync_to_async(_reopen)()
 
@@ -1829,7 +1826,7 @@ async def edit_issue_rule(  # noqa: PLR0913, PLR0917
             'test': test_id,
             'category': category,
             'parameters': parameters,
-            'verdicts': None if ignore_verdicts else verdicts,
+            'verdicts': verdicts,
             'tags': tags,
             'expected': expected,
         }
@@ -1900,7 +1897,7 @@ async def activate_rules(rule_ids: list[int]) -> dict:
     def _activate():
         ids = list(dict.fromkeys(rule_ids))
         actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
-        return _bulk_data(IssueRuleManagementService.activate(ids, actor))
+        return asdict(IssueRuleManagementService.activate(ids, actor))
 
     return await sync_to_async(_activate)()
 
@@ -1922,7 +1919,7 @@ async def deactivate_rules(rule_ids: list[int]) -> dict:
     def _deactivate():
         ids = list(dict.fromkeys(rule_ids))
         actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
-        return _bulk_data(IssueRuleManagementService.deactivate(ids, actor))
+        return asdict(IssueRuleManagementService.deactivate(ids, actor))
 
     return await sync_to_async(_deactivate)()
 
@@ -1998,6 +1995,8 @@ MCP_ADMIN_TOOLS = [
 # Never served from the response cache.
 MCP_UNCACHED_TOOLS = [
     get_run_overview,
+    get_run_leaf_results,
+    get_result_details,
     list_projects,
     get_project,
     list_runs,
