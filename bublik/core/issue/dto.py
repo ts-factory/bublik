@@ -27,3 +27,45 @@ class BulkActionDTO:
             unchanged=[i for i in ids if i in existing_ids and i not in updated_ids],
             not_found=[i for i in ids if i not in existing_ids],
         )
+
+
+@dataclass
+class IssueFacetsDTO:
+    """
+    How many issues each value of a list filter would leave, the other
+    filters applied: by state, by category (issues having an active rule of
+    it), by rules state and by project ID.
+    """
+
+    state: dict[str, int] = field(default_factory=dict)
+    categories: dict[str, int] = field(default_factory=dict)
+    rules: dict[str, int] = field(default_factory=dict)
+    project: dict[int, int] = field(default_factory=dict)
+
+
+@dataclass
+class IssueRuleFacetsDTO:
+    """
+    How many rules each value of a list filter would leave, the other
+    filters applied. The matcher values are spelled as their filters take
+    them: a tag as it is, a parameter as 'name=value', the verdicts as a
+    JSON list, or null for the rules ignoring them.
+    """
+
+    active: dict[str, int] = field(default_factory=dict)
+    category: dict[str, int] = field(default_factory=dict)
+    expected: dict[str, int] = field(default_factory=dict)
+    project: dict[int, int] = field(default_factory=dict)
+    issue_state: dict[str, int] = field(default_factory=dict)
+    tag: dict[str, int] = field(default_factory=dict)
+    verdicts: dict[str, int] = field(default_factory=dict)
+    parameter: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class TestOptionDTO:
+    """A test a rule may belong to, with the path that tells it from its namesakes."""
+
+    id: int
+    name: str
+    path: str

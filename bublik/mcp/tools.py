@@ -27,6 +27,7 @@ from bublik.core.issue import (
     issues_queryset,
     rules_queryset,
 )
+from bublik.core.issue.filters import IssueFilterSet
 from bublik.core.issue_results import IssueResultsFilters, IssueResultsService
 from bublik.core.log.services import LogService
 from bublik.core.pagination_helpers import PaginatedResult
@@ -54,7 +55,6 @@ from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
 )
-from bublik.interfaces.api_v2.issue.filters import IssueFilterSet
 from bublik.interfaces.api_v2.issue.serializers import IssueResultsQuerySerializer
 from bublik.interfaces.api_v2.result.serializers import (
     ClassifyOptionsResponseSerializer,
