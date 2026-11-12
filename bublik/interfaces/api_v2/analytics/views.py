@@ -19,6 +19,7 @@ from bublik.analytics.serializers import (
 )
 from bublik.core.analytics.services import AnalyticsService
 from bublik.core.auth import auth_required
+from bublik.interfaces.api_v2.analytics.schemas import analytics_viewset_schema
 from bublik.interfaces.api_v2.analytics.serializers import (
     AnalyticsChartsResponseSerializer,
     AnalyticsFacetsResponseSerializer,
@@ -40,6 +41,7 @@ class AnalyticsCollectThrottle(SimpleRateThrottle):
         }
 
 
+@analytics_viewset_schema
 class AnalyticsViewSet(ListModelMixin, GenericViewSet):
     serializer_class = AnalyticsEventSerializer
     filter_backends: typing.ClassVar[list] = []
