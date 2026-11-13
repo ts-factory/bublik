@@ -33,6 +33,10 @@ class ClassifyDataMixin:
             data.run(cls.project),
             data.iteration(cls.tree.ping),
         )
+        cls.other_project_result = data.result(
+            data.run(cls.other_project),
+            data.iteration(cls.tree.ping),
+        )
         cls.admin = data.admin()
 
     def _url(self, name):
@@ -41,6 +45,7 @@ class ClassifyDataMixin:
     def _matcher(self, test, parameters=None, verdicts=None, tags=()):
         return {
             'test_id': test.id,
+            'run_ids': [self.run_row.id],
             'parameters': parameters or {},
             'verdicts': verdicts,
             'tags': list(tags),
@@ -66,17 +71,18 @@ class ClassifyOptionsTest(ClassifyDataMixin, APITestCase):
             format='json',
         )
         assert response.status_code == status.HTTP_200_OK, response.data
-        assert response.data['run_id'] == self.run_row.id
-        assert response.data['tags']['allowed'] == ['kernel=6.1']
-        tests = {test['test_path']: test for test in response.data['tests']}
-        assert tests['suite/net/ping']['parameters'] == {'mode': ''}
-        assert tests['suite/net/ping']['verdicts'] == [
+        ping, reset = response.data
+        assert [ping['test_path'], reset['test_path']] == ['suite/net/ping', 'suite/net/reset']
+        assert ping['run_ids'] == [self.run_row.id]
+        assert ping['tags']['allowed'] == ['kernel=6.1']
+        assert ping['parameters'] == {'mode': ''}
+        assert ping['verdicts'] == [
             ['Packet lost'],
             ['Packet lost', 'Timeout'],
         ]
-        assert tests['suite/net/ping']['result_ids'] == [self.vm.id, self.hw.id]
-        assert tests['suite/net/reset']['parameters'] == {'env': 'HW'}
-        assert tests['suite/net/reset']['verdicts'] == [[]]
+        assert ping['result_ids'] == [self.vm.id, self.hw.id]
+        assert reset['parameters'] == {'env': 'HW'}
+        assert reset['verdicts'] == [[]]
 
 
 @data.isolated_caches
@@ -141,11 +147,11 @@ class ClassifyTest(ClassifyDataMixin, APITestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert 'issue' in response.data['messages']
 
-    def test_only_results_of_tests_of_one_run(self):
+    def test_only_results_of_tests_of_one_project(self):
         for result_ids in (
             [self.vm.id, self.package.id],
             [self.vm.id, self.run_row.id],
-            [self.vm.id, self.other_run_result.id],
+            [self.vm.id, self.other_project_result.id],
             [self.vm.id, 999999],
         ):
             response = self._classify(result_ids=result_ids)
@@ -253,6 +259,156 @@ class ClassifyTest(ClassifyDataMixin, APITestCase):
         with data.allow_without_login(self.project.id):
             response = self.client.post(url, body, format='json')
         assert response.status_code == status.HTTP_201_CREATED, response.data
+
+
+@data.isolated_caches
+class ClassifyRunsTest(APITestCase):
+    """Classifying results of several runs: a rule per group of runs by tags."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.project = models.Project.objects.create(name='proj')
+        cls.tree = data.TestTree()
+        cls.runs = {
+            'a': data.run(cls.project, tags=[('kernel', '6.1')]),
+            'a2': data.run(cls.project, tags=[('kernel', '6.1')]),
+            'ab': data.run(cls.project, tags=[('kernel', '6.1'), ('lab', 'eu')]),
+            'b': data.run(cls.project, tags=[('kernel', '6.2'), ('lab', 'eu')]),
+        }
+        cls.results = {
+            name: data.result(
+                run_row,
+                data.iteration(cls.tree.ping, env=name, mode=''),
+                verdicts=['Packet lost'] if name != 'b' else ['Timeout'],
+            )
+            for name, run_row in cls.runs.items()
+        }
+        category = models.MetaCategory.objects.create(
+            name='env',
+            priority=1,
+            type='tag',
+            project=cls.project,
+        )
+        category.metas.set(models.Meta.objects.filter(type='tag'))
+        cls.admin = data.admin()
+
+    def setUp(self):
+        data.login(self.client, self.admin)
+
+    def _run_ids(self, *names):
+        return [self.runs[name].id for name in names]
+
+    def _options(self, *results):
+        response = self.client.post(
+            reverse('api-v2:results-classify-options'),
+            {'result_ids': [result.id for result in results]},
+            format='json',
+        )
+        assert response.status_code == status.HTTP_200_OK, response.data
+        return response.data
+
+    def _classify(self, results, matchers):
+        body = {
+            'result_ids': [result.id for result in results],
+            'issue': {'title': 'Packet loss'},
+            'categories': [models.IssueCategory.KNOWN_ISSUE],
+            'matchers': matchers,
+        }
+        return self.client.post(reverse('api-v2:results-classify'), body, format='json')
+
+    def _default_matchers(self, options):
+        """The matchers the UI makes by default: what each group allows."""
+        return [
+            {
+                'test_id': rule['test_id'],
+                'run_ids': rule['run_ids'],
+                'parameters': rule['parameters'],
+                'verdicts': rule['verdicts'],
+                'tags': rule['tags']['default'],
+            }
+            for rule in options
+        ]
+
+    def test_a_group_per_set_of_important_tags_not_containing_another(self):
+        options = self._options(*self.results.values())
+        assert [(rule['test_id'], rule['run_ids']) for rule in options] == [
+            (self.tree.ping.id, self._run_ids('a', 'a2', 'ab')),
+            (self.tree.ping.id, self._run_ids('b')),
+        ]
+        group_a, group_b = options
+        assert group_a['result_ids'] == [self.results[name].id for name in ('a', 'a2', 'ab')]
+        assert group_a['tags'] == {'default': ['kernel=6.1'], 'allowed': ['kernel=6.1']}
+        assert group_a['parameters'] == {'mode': ''}
+        assert group_a['verdicts'] == [['Packet lost']]
+        assert group_b['tags'] == {
+            'default': ['kernel=6.2', 'lab=eu'],
+            'allowed': ['kernel=6.2', 'lab=eu'],
+        }
+        assert group_b['parameters'] == {'env': 'b', 'mode': ''}
+        assert group_b['verdicts'] == [['Timeout']]
+
+    def test_a_rule_per_group_stamps_the_results_of_its_group(self):
+        results = list(self.results.values())
+        response = self._classify(results, self._default_matchers(self._options(*results)))
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        rules = [
+            models.IssueRule.objects.get(id=rule_id) for rule_id in response.data['rule_ids']
+        ]
+        assert [(rule.tags, rule.parameters, rule.verdicts) for rule in rules] == [
+            (['kernel=6.1'], {'mode': ''}, ['Packet lost']),
+            (['kernel=6.2', 'lab=eu'], {'env': 'b', 'mode': ''}, ['Timeout']),
+        ]
+        stamped = [
+            sorted(rule.rule_results.values_list('result_id', flat=True)) for rule in rules
+        ]
+        assert stamped == [
+            sorted(self.results[name].id for name in ('a', 'a2', 'ab')),
+            [self.results['b'].id],
+        ]
+
+    def test_a_test_gets_rules_only_for_the_runs_of_its_results(self):
+        reset = data.result(self.runs['b'], data.iteration(self.tree.reset), verdicts=['Crash'])
+        results = [self.results['a'], reset]
+        options = self._options(*results)
+        assert [(rule['test_id'], rule['run_ids']) for rule in options] == [
+            (self.tree.ping.id, self._run_ids('a')),
+            (self.tree.reset.id, self._run_ids('b')),
+        ]
+        response = self._classify(results, self._default_matchers(options))
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        rules = models.IssueRule.objects.filter(id__in=response.data['rule_ids'])
+        assert sorted((rule.test_id, rule.tags) for rule in rules) == sorted(
+            [
+                (self.tree.ping.id, ['kernel=6.1']),
+                (self.tree.reset.id, ['kernel=6.2', 'lab=eu']),
+            ],
+        )
+
+    def test_a_matcher_may_contain_only_what_its_group_allows(self):
+        results = list(self.results.values())
+        default = self._default_matchers(self._options(*results))
+        group_a, group_b = default
+        for matchers in (
+            [group_a],
+            [group_a, group_b, group_b],
+            [{**group_a, 'run_ids': self._run_ids('a')}, group_b],
+            [{**group_a, 'tags': ['lab=eu']}, group_b],
+            [{**group_a, 'parameters': {'env': 'b'}}, group_b],
+            [{**group_a, 'verdicts': [['Timeout']]}, group_b],
+        ):
+            response = self._classify(results, matchers)
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, matchers
+            assert 'matchers' in response.data['messages'], response.data
+        assert not models.Issue.objects.exists()
+
+    def test_resets_the_caches_of_every_run(self):
+        results = list(self.results.values())
+        for run_row in self.runs.values():
+            RunCache.by_obj(run_row, 'stats').data = {'unexpected': 1}
+        response = self._classify(results, self._default_matchers(self._options(*results)))
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        for run_row in self.runs.values():
+            assert RunCache.by_obj(run_row, 'stats').data is None
 
 
 @data.isolated_caches
