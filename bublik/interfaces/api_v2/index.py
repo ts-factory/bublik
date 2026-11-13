@@ -7,12 +7,19 @@ from pathlib import Path
 from django.conf import settings
 from django.http import Http404
 from django.shortcuts import render
+from django.utils.cache import patch_cache_control
 from django.views.static import serve
 
 
 def render_react(request):
     react_index = os.path.join(settings.BUBLIK_UI_STATIC, 'index.html')
-    return render(request, react_index)
+    response = render(request, react_index)
+    # index.html names the files of the current UI build, so a browser must not
+    # reuse a stored copy without asking: after a UI update the files the old
+    # copy refers to are gone. no-cache also keeps the cache middleware from
+    # adding its max-age.
+    patch_cache_control(response, no_cache=True)
+    return response
 
 
 def render_docs(request):
