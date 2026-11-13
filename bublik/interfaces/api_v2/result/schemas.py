@@ -99,14 +99,14 @@ result_viewset_schema = extend_schema_view(
     classify_options=extend_schema(
         summary='List what a rule classifying results may contain',
         description="""
-        For results of one run, returns what the rules classifying them may
+        For results of one project, returns what the rules classifying them may
         contain, so that the matchers can be made and checked before
         `classify` is called. A rule belongs to one test and must match every
         result it classifies, so for each test among the results this is the
         parameters that all of its results have (any part of them may be
         used) and all the different verdict lists they have, for a rule per
-        list if the verdicts are restricted. The tags are those of the run:
-        any of the
+        list if the verdicts are restricted. The tags are those of the run
+        (those every run has, for results of several runs): any of the
         important and relevant ones may be used, and the important ones are
         what a rule usually contains. Uses POST because the list of results
         can be too long for a URL.
@@ -120,7 +120,7 @@ result_viewset_schema = extend_schema_view(
             400: OpenApiResponse(
                 response=ErrorResponseSerializer,
                 description=(
-                    'Unknown results, results of different runs, or a result that is '
+                    'Unknown results, results of different projects, or a result that is '
                     'not a test result'
                 ),
             ),
@@ -130,7 +130,8 @@ result_viewset_schema = extend_schema_view(
     classify=extend_schema(
         summary='Classify results',
         description="""
-        Classifies results of one run. Finds/creates an Issue, creates an
+        Classifies results of one project, of one run or of several.
+        Finds/creates an Issue, creates an
         IssueRule for each of the given categories (active iff scope=future)
         and stamps the results with a RuleResult for each. A rule belongs to
         one test, so the results are grouped by test and every group gets its

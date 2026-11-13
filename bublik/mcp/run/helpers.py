@@ -41,6 +41,8 @@ def _list_unexpected_or_abnormal_results(
     test_name: str,
     start_exec_seqno: int,
     requirements: str | None,
+    issue: str | None,
+    categories: str | None,
     page: int | None,
     page_size: int | None,
 ) -> dict:
@@ -49,6 +51,8 @@ def _list_unexpected_or_abnormal_results(
         test_name=test_name,
         start_exec_seqno=start_exec_seqno,
         requirements=requirements,
+        issue=issue,
+        categories=categories,
     )
     # An error counts unless it is classified as expected, as in the run statistics.
     queryset = queryset.filter(
@@ -59,7 +63,7 @@ def _list_unexpected_or_abnormal_results(
     return PaginatedResult.paginate_queryset(result_details, page, page_size)
 
 
-def _get_run_leaf_results(
+def _get_run_leaf_results(  # noqa: PLR0913, PLR0917
     leaf_result_id: int,
     requirements: str | None = None,
     results: str | None = None,
@@ -67,6 +71,8 @@ def _get_run_leaf_results(
     page: int | None = None,
     page_size: int | None = None,
     unexpected_only: bool = False,
+    issue: str | None = None,
+    categories: str | None = None,
 ) -> RunLeafResultsPayload:
     if unexpected_only and any((results, result_properties)):
         msg = 'unexpected_only cannot be combined with results or result_properties'
@@ -112,6 +118,8 @@ def _get_run_leaf_results(
             test_name=leaf.test_name,
             start_exec_seqno=leaf.exec_seqno,
             requirements=requirements,
+            issue=issue,
+            categories=categories,
             page=page,
             page_size=page_size,
         )
@@ -123,6 +131,8 @@ def _get_run_leaf_results(
             results=results,
             result_properties=result_properties,
             requirements=requirements,
+            issue=issue,
+            categories=categories,
             page=page,
             page_size=page_size,
         )

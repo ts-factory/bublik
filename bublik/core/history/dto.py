@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from bublik.core.run.dto import RuleResultInfo
 
@@ -105,6 +105,13 @@ class HistoryVerdictResultDTO:
     start_date: str
     important_tags: list[str]
     relevant_tags: list[str]
+    issues: list[RuleResultInfo] = field(default_factory=list)
+
+    def __post_init__(self):
+        self.issues = [
+            issue if isinstance(issue, RuleResultInfo) else RuleResultInfo(**issue)
+            for issue in self.issues
+        ]
 
 
 @dataclass

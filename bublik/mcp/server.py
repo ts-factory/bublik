@@ -27,6 +27,14 @@ def create_mcp_server() -> FastMCP:
     mcp.add_middleware(
         ResponseCachingMiddleware(
             cache_storage=MemoryStore(max_entries_per_collection=CACHE_MAX_ENTRIES),
+            # Writes, and the reads showing what they or the browser change.
+            call_tool_settings={
+                'excluded_tools': (
+                    tools.MCP_WRITE_TOOL_NAMES
+                    + tools.MCP_ADMIN_TOOL_NAMES
+                    + tools.MCP_UNCACHED_TOOL_NAMES
+                ),
+            },
         ),
     )
 

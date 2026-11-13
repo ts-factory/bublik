@@ -6,13 +6,20 @@ Authenticating MCP callers with Bublik personal access tokens.
 A token is optional: without one the request stays anonymous and read tools
 keep working. So does a header of another scheme, such as the Basic
 credentials a reverse proxy forwards. A Bearer credential that is not a
-valid Bublik token is refused with a 401.
+valid Bublik token is refused with a 401. The in-process chat agent binds
+its user with :func:`bublik.core.auth.bind_acting_user`.
 """
 
 from __future__ import annotations
 
+from contextvars import ContextVar
+from functools import wraps
+import inspect
+
 from asgiref.sync import sync_to_async
+from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AccessToken
+from fastmcp.server.dependencies import get_access_token
 from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from starlette.authentication import (
@@ -24,11 +31,22 @@ from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.responses import JSONResponse
 
-from bublik.core.auth import get_bearer_token, get_user_by_personal_token
+from bublik.core.auth import (
+    action_permitted,
+    current_acting_user,
+    get_bearer_token,
+    get_user_by_personal_token,
+    is_admin,
+)
 from bublik.data.models import User, UserTokenError, hash_token
 
 
+MISSING_TOKEN = (
+    'This tool requires a Bublik personal access token. Send it as '
+    'Authorization: Bearer bpat_... -- create one under Settings > Access tokens.'
+)
 MALFORMED_HEADER = 'Malformed Authorization header; expected "Bearer bpat_...".'
+NOT_ADMIN = 'This tool is restricted to Bublik administrators.'
 
 
 def _access_token_for(user: User, raw_token: str) -> AccessToken:
@@ -95,3 +113,77 @@ def build_auth_middleware() -> list[Middleware]:
         ),
         Middleware(AuthContextMiddleware),
     ]
+
+
+def current_mcp_user() -> User:
+    """The calling user from the access token or the bound user, or ``None``."""
+    token = get_access_token()
+    if token is None:
+        return current_acting_user()
+    return User.objects.get(pk=token.claims['user_id'])
+
+
+# The caller mcp_auth_required authorized for the running tool.
+_caller: ContextVar[User | None] = ContextVar('bublik_mcp_caller', default=None)
+
+
+def mcp_caller() -> User | None:
+    """The caller authorized by :func:`mcp_auth_required` for the running tool."""
+    return _caller.get()
+
+
+def _authorize(action, admin, bound_args):
+    """Resolve and authorize the caller, or raise a ToolError explaining why not."""
+    user = current_mcp_user()
+    if user is None:
+        raise ToolError(MISSING_TOKEN)
+    if admin and not is_admin(user):
+        raise ToolError(NOT_ADMIN)
+    if action is not None:
+        project_id = bound_args.get('project_id')
+        if not action_permitted(action, user, [project_id]):
+            msg = f'{user.email} is not allowed to perform "{action}" in this project.'
+            raise ToolError(msg)
+    return user
+
+
+def authorize_action(action, project_ids) -> User:
+    """Check the running tool's caller may perform ``action`` in every project.
+
+    For the tools whose projects are told by the objects they change rather
+    than by an argument, as `check_action_permission_for_projects` does for
+    the REST API. Called after the objects are loaded, before anything is
+    changed or told about them.
+    """
+    user = mcp_caller()
+    if user is None:
+        raise ToolError(MISSING_TOKEN)
+    if not action_permitted(action, user, project_ids):
+        msg = f'{user.email} is not allowed to perform "{action}" in this project.'
+        raise ToolError(msg)
+    return user
+
+
+def mcp_auth_required(action=None, admin=False):
+    """Require an access token on an MCP tool, plus ``action`` permission or admin.
+
+    Not ``mcp.tool(auth=...)``: FastMCP reports its failures as "Unknown tool".
+    """
+
+    def decorator(function):
+        signature = inspect.signature(function)
+
+        @wraps(function)
+        async def wrapper(*args, **kwargs):
+            bound = signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            user = await sync_to_async(_authorize)(action, admin, bound.arguments)
+            token = _caller.set(user)
+            try:
+                return await function(*args, **kwargs)
+            finally:
+                _caller.reset(token)
+
+        return wrapper
+
+    return decorator

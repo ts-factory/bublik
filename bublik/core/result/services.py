@@ -5,18 +5,27 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from bublik.core.classification import parse_issue_ids
+from bublik.core.cache import RunCache
+from bublik.core.classification import parse_categories, parse_issue_ids
 from bublik.core.exceptions import NotFoundError
+from bublik.core.issue import IssueManagementService, IssueRuleManagementService
 from bublik.core.measurement.services import (
     get_measurement_charts,
     get_measurement_results,
 )
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.queries import get_or_none
-from bublik.core.result.dto import ClassifyOptionsDTO, ClassifyTestDTO, UnclassifyDTO
+from bublik.core.result.dto import (
+    ClassifyDTO,
+    ClassifyOptionsDTO,
+    ClassifyTestDTO,
+    UnclassifyDTO,
+)
 from bublik.core.run.data import (
     get_parameters_by_iterations,
     get_tags_by_runs,
@@ -29,6 +38,78 @@ from bublik.core.run.stats import (
 from bublik.core.run.tests_organization import build_test_paths, get_test_ids_by_name
 from bublik.core.utils import get_difference, key_value_transforming
 from bublik.data import models
+
+
+# Marks a disposition that was not given: the category's own applies.
+UNSET = object()
+
+
+def _resolve_issue(issue_ref, result, actor):
+    """The issue an ID names, or the one the given fields create in the result's project."""
+    if isinstance(issue_ref, int) or (isinstance(issue_ref, str) and str(issue_ref).isdigit()):
+        issue = models.Issue.objects.filter(pk=int(issue_ref)).first()
+        if issue is None:
+            raise ValidationError({'issue': f'Issue #{int(issue_ref)} not found.'})
+        if issue.project_id != result.project_id:
+            raise ValidationError(
+                {'issue': f'Issue #{issue.id} belongs to a different project.'},
+            )
+        return issue
+    try:
+        serializer = IssueManagementService.validate(
+            {**issue_ref, 'project': result.project_id}
+        )
+    except ValidationError as exc:
+        raise ValidationError({'issue': exc.detail}) from None
+    return IssueManagementService.create(serializer, actor)
+
+
+def _get_or_create_rule(test_id, issue, category, matcher_data, *, disposition, active, actor):
+    rule_data = {
+        'issue': issue.id,
+        'test': test_id,
+        'category': category,
+        **matcher_data,
+        **disposition,
+    }
+
+    # The matcher has been checked against the results it classifies,
+    # which are in the database, so it isn't looked for there again.
+    rule_serializer = IssueRuleManagementService.validate(rule_data, matcher_checked=True)
+
+    # Repeating a classification reuses the identical rule (same matcher,
+    # category, disposition and active state) instead of piling up copies;
+    # the result just gets one more stamp on it.
+    fields = rule_serializer.validated_data
+    rule = (
+        models.IssueRule.objects.filter(
+            issue=fields['issue'],
+            test=fields['test'],
+            category=fields['category'],
+            expected=fields['expected'],
+            parameters=fields['parameters'],
+            tags=fields['tags'],
+            active=active,
+            # Ignored verdicts are stored as NULL, which `verdicts=None`
+            # would not find: on a JSON field it looks for a JSON null.
+            **(
+                {'verdicts__isnull': True}
+                if fields['verdicts'] is None
+                else {'verdicts': fields['verdicts']}
+            ),
+        )
+        .order_by('id')
+        .first()
+    )
+    if rule is not None:
+        return rule
+
+    # A one-off rule only carries the stamp and never applies to imports,
+    # so it is created already deactivated.
+    deactivation = {} if active else {'deactivated_at': timezone.now(), 'deactivated_by': actor}
+    return IssueRuleManagementService.create(
+        rule_serializer, actor, active=active, **deactivation
+    )
 
 
 class ResultService:
@@ -136,7 +217,8 @@ class ResultService:
     ) -> list[models.TestIterationResult]:
         """
         Check that results to classify all exist, are results of tests and
-        are of one run.
+        are of one project, the issue's. They may be of several runs, as
+        picked from a test's history.
 
         Args:
             result_ids: The IDs of the results asked for
@@ -162,8 +244,8 @@ class ResultService:
         if not_tests:
             msg = f'Only results of tests can be classified: {not_tests}.'
             raise ValidationError({'result_ids': msg})
-        if len({result.test_run_id for result in found.values()}) > 1:
-            msg = 'Only results of one run can be classified at a time.'
+        if len({result.project_id for result in found.values()}) > 1:
+            msg = 'Only results of one project can be classified at a time.'
             raise ValidationError({'result_ids': msg})
         return [found[result_id] for result_id in result_ids]
 
@@ -173,25 +255,36 @@ class ResultService:
         Group results by test and work out what a rule classifying each group
         may contain: the parameters all its results have, all the different
         verdict lists they have, and the important and relevant tags of their
-        run (the important ones are what a rule usually contains).
+        run (the important ones are what a rule usually contains). For results
+        of several runs the tags are those every one of the runs has: a rule
+        with any other tag would not match all of the results.
 
         Args:
-            results: The results of tests of one run
+            results: The results of tests, checked by
+                validate_results_for_classification
 
         Returns:
-            ClassifyOptionsDTO with the tags of the run and a ClassifyTestDTO
+            ClassifyOptionsDTO with the tags of the runs and a ClassifyTestDTO
             per test
         """
-        run = results[0].test_run
-        important_tags_by_runs, relevant_tags_by_runs = get_tags_by_runs([run])
-        important_tags = important_tags_by_runs.get(run.id, [])
-        relevant_tags = relevant_tags_by_runs.get(run.id, [])
+        run_ids = list(dict.fromkeys(result.test_run_id for result in results))
+        important_tags_by_runs, relevant_tags_by_runs = get_tags_by_runs(run_ids)
+        important_tags = set.intersection(
+            *(set(important_tags_by_runs.get(run_id, [])) for run_id in run_ids),
+        )
+        allowed_tags = set.intersection(
+            *(
+                {
+                    *important_tags_by_runs.get(run_id, []),
+                    *relevant_tags_by_runs.get(run_id, []),
+                }
+                for run_id in run_ids
+            ),
+        )
         options = ClassifyOptionsDTO(
-            run_id=run.id,
-            tags={
-                'default': sorted(important_tags),
-                'allowed': sorted({*important_tags, *relevant_tags}),
-            },
+            run_id=run_ids[0],
+            run_ids=run_ids,
+            tags={'default': sorted(important_tags), 'allowed': sorted(allowed_tags)},
         )
 
         results_by_tests: dict[int, list[models.TestIterationResult]] = {}
@@ -269,7 +362,8 @@ class ResultService:
             if extra_tags:
                 errors.append(
                     f'{test.test_path}: tags not among the important and relevant tags '
-                    f'of the run: {", ".join(extra_tags)}.',
+                    f'of the run (of every run, for results of several): '
+                    f'{", ".join(extra_tags)}.',
                 )
             extra_parameters = sorted(
                 key_value_transforming(name, value)
@@ -317,6 +411,102 @@ class ResultService:
         }
 
     @staticmethod
+    def classify(
+        results: list[models.TestIterationResult],
+        *,
+        issue,
+        categories: list[str],
+        matchers: list[dict],
+        scope: str = 'future',
+        expected=UNSET,
+        actor=None,
+    ) -> ClassifyDTO:
+        """
+        Classify results under an issue, with a rule per test
+        among them and per category, matching exactly these results, and
+        stamp them with it. Repeating a classification reuses the identical
+        rule, so a result gets one more stamp at most.
+
+        Args:
+            results: The results, checked by validate_results_for_classification
+            issue: An existing issue's ID, or the fields of a new issue to
+                create in the results' project
+            categories: The categories to classify under, a rule for each
+            matchers: What the rules contain, one per test (see
+                validate_classify_matchers)
+            scope: 'future' for rules that also apply to later imports, or
+                'oneoff' for rules that only carry these stamps
+            expected: Whether the results are expected, or the category's
+                own disposition when not given
+            actor: The user classifying, recorded on the issue, rules and stamps
+
+        Returns:
+            ClassifyDTO with the issue and the rules the results are stamped with
+
+        Raises:
+            ValidationError: if a matcher does not fit the results, the issue
+                is unknown or of another project, or a new issue's fields are
+                invalid
+        """
+        options = ResultService.get_classify_options(results)
+        ResultService.validate_classify_matchers(options, matchers)
+        matchers_by_test = {matcher['test_id']: matcher for matcher in matchers}
+        active = scope == 'future'
+        origin = (
+            models.RuleResultOrigin.MANUAL_PERSISTENT
+            if active
+            else models.RuleResultOrigin.MANUAL_ONEOFF
+        )
+        disposition = {} if expected is UNSET else {'expected': expected}
+
+        with transaction.atomic():
+            issue = _resolve_issue(issue, results[0], actor)
+
+            # A rule belongs to one test, so each test among the results gets
+            # a rule per category: one matching all of that test's results if
+            # the verdicts are ignored, else one per verdict list, matching the
+            # results with it.
+            rule_ids = []
+            for test in options.tests:
+                matcher = matchers_by_test[test.test_id]
+                verdict_lists = [None] if matcher['verdicts'] is None else matcher['verdicts']
+                for verdicts in verdict_lists:
+                    matcher_data = {
+                        'parameters': matcher['parameters'],
+                        # Matched in order, so kept as given.
+                        'verdicts': verdicts,
+                        'tags': sorted(matcher['tags']),
+                    }
+                    for category in categories:
+                        rule = _get_or_create_rule(
+                            test.test_id,
+                            issue,
+                            category,
+                            matcher_data,
+                            disposition=disposition,
+                            active=active,
+                            actor=actor,
+                        )
+                        # A result already stamped with the rule keeps its stamp.
+                        models.RuleResult.objects.bulk_create(
+                            [
+                                models.RuleResult(
+                                    result=result,
+                                    issue_rule=rule,
+                                    origin=origin,
+                                    created_by=actor,
+                                )
+                                for result in test.results_with(verdicts)
+                            ],
+                            ignore_conflicts=True,
+                        )
+                        rule_ids.append(rule.id)
+
+        for run in {result.test_run_id: result.test_run for result in results}.values():
+            RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
+        return ClassifyDTO(issue_id=issue.id, rule_ids=rule_ids)
+
+    @staticmethod
     def unclassify_results(
         rule_result_ids: list[int],
         found: dict[int, models.RuleResult],
@@ -324,11 +514,11 @@ class ResultService:
         """
         Take classification off results: delete the given manual RuleResult
         stamps (those of one-off and persistent classification, and of
-        applying the rules on demand). The rules
-        left without any stamp are deleted, and then the issues left without
-        rules. Only what this call has left without stamps or rules is
-        deleted, so nothing else goes with it, and the rules that stay are
-        left as they are, active or not.
+        applying the rules on demand). The rules left without any stamp are
+        deleted, and then the issues left without rules. Only what this call
+        has left without stamps or rules is deleted, so nothing else goes
+        with it, and the rules that stay are left as they are, active or not.
+        The caches of the runs the stamps were in are dropped.
 
         Args:
             rule_result_ids: The IDs of the stamps to take off
@@ -361,23 +551,31 @@ class ResultService:
         rules = {
             found[rr_id].issue_rule_id: found[rr_id].issue_rule for rr_id in rule_result_ids
         }
-        outcome.deleted_rule_result_ids = sorted(rule_result_ids)
-        models.RuleResult.objects.filter(id__in=rule_result_ids).delete()
+        with transaction.atomic():
+            outcome.deleted_rule_result_ids = sorted(rule_result_ids)
+            models.RuleResult.objects.filter(id__in=rule_result_ids).delete()
 
-        orphaned = models.IssueRule.objects.filter(
-            ~Exists(models.RuleResult.objects.filter(issue_rule=OuterRef('pk'))),
-            id__in=rules,
-        )
-        outcome.deleted_rule_ids = sorted(orphaned.values_list('id', flat=True))
-        orphaned.delete()
+            orphaned = models.IssueRule.objects.filter(
+                ~Exists(models.RuleResult.objects.filter(issue_rule=OuterRef('pk'))),
+                id__in=rules,
+            )
+            outcome.deleted_rule_ids = sorted(orphaned.values_list('id', flat=True))
+            orphaned.delete()
 
-        emptied = {rules[rule_id].issue_id for rule_id in outcome.deleted_rule_ids}
-        outcome.deleted_issue_ids = sorted(
-            issue_id
-            for issue_id in emptied
-            if not models.IssueRule.objects.filter(issue_id=issue_id).exists()
-        )
-        models.Issue.objects.filter(id__in=outcome.deleted_issue_ids).delete()
+            emptied = {rules[rule_id].issue_id for rule_id in outcome.deleted_rule_ids}
+            outcome.deleted_issue_ids = sorted(
+                issue_id
+                for issue_id in emptied
+                if not models.IssueRule.objects.filter(issue_id=issue_id).exists()
+            )
+            models.Issue.objects.filter(id__in=outcome.deleted_issue_ids).delete()
+
+        runs = {
+            rule_result.result.test_run_id: rule_result.result.test_run
+            for rule_result in found.values()
+        }
+        for run in runs.values():
+            RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
         return outcome
 
     @staticmethod
@@ -389,6 +587,7 @@ class ResultService:
         result_properties: str | None = None,
         requirements: str | None = None,
         issue: str | None = None,
+        categories: str | None = None,
     ):
         """
         List results with filtering.
@@ -403,6 +602,8 @@ class ResultService:
             result_properties: Comma-separated result properties
             requirements: Comma-separated requirement names
             issue: Semicolon-separated issue IDs
+            categories: Semicolon-separated classification categories; with
+                `issue`, the categories of the stamps of these issues
 
         Returns:
             QuerySet of filtered TestIterationResult objects
@@ -492,9 +693,15 @@ class ResultService:
             for req_meta in available_req_metas:
                 queryset = queryset.filter(meta_results__meta=req_meta)
 
-        # issue filtering
+        # Issue and category filtering, in one filter() call, so that both
+        # hold for the same stamp, as in the history.
+        stamp_query = {}
         if issue:
-            queryset = queryset.stamped_under(parse_issue_ids(issue))
+            stamp_query['rule_results__issue_rule__issue_id__in'] = parse_issue_ids(issue)
+        if categories:
+            stamp_query['rule_results__issue_rule__category__in'] = parse_categories(categories)
+        if stamp_query:
+            queryset = queryset.filter(**stamp_query)
 
         return queryset.order_by('-start', 'id').distinct('id', 'start')
 
@@ -509,6 +716,7 @@ class ResultService:
         issue: str | None = None,
         page: int | None = None,
         page_size: int | None = None,
+        categories: str | None = None,
     ) -> dict:
         """
         List results with filtering and pagination.
@@ -525,6 +733,7 @@ class ResultService:
             issue: Semicolon-separated issue IDs
             page: Page number (default: 1)
             page_size: Items per page (default: 25, max: 10000)
+            categories: Semicolon-separated classification categories
 
         Returns:
             Dictionary with pagination metadata and result details
@@ -537,6 +746,7 @@ class ResultService:
             result_properties=result_properties,
             requirements=requirements,
             issue=issue,
+            categories=categories,
         )
 
         results_details = generate_results_details(queryset)
