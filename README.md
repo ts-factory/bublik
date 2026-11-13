@@ -45,10 +45,16 @@ Full documentation is available [here](https://ts-factory.github.io/bublik-relea
 3. Check to NGINX settings in /etc/nginx/sites-available/bublik:
 
     ```
+    location ^~ /v2/assets/ {
+        alias /opt/bublik/bublik-ui/dist/bublik/assets/;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
     location /v2/ {
         alias /opt/bublik/bublik-ui/dist/bublik/;
         index index.html;
         try_files $uri /v2/index.html;
+        add_header Cache-Control "no-cache";
     }
     ```
 
