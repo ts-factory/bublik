@@ -182,10 +182,12 @@ class McpResponseCacheTest(McpAuthTestCase):
         async def body(client):
             return await client.call_tool('get_server_version', {})
 
+        version = tools.ServerService.get_version()
+
         with mock.patch.object(
             tools.ServerService,
             'get_version',
-            side_effect=lambda: counter.append(1) or {'version': '1.0'},
+            side_effect=lambda: counter.append(1) or version,
         ):
             return self.run_session(token, body, app=app)
 
