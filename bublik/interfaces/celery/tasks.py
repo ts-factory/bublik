@@ -6,15 +6,18 @@ import os
 import subprocess
 from urllib.parse import urljoin
 
+from celery.exceptions import Ignore
 from celery.signals import (
     after_task_publish,
     task_failure,
     task_postrun,
     task_prerun,
     task_received,
+    task_revoked,
     task_success,
 )
 from django.core.management import call_command
+from django.utils import timezone
 import pendulum
 
 from bublik import settings
@@ -85,9 +88,11 @@ def add_started_import_task_event(sender=None, request=None, headers=None, body=
 
 @task_prerun.connect()
 def task_started_handler(sender=None, task_id=None, **kwargs):
-    TaskExecution.objects.filter(task_id=task_id).update(
+    TaskExecution.objects.filter(task_id=task_id).exclude(
+        status=TaskExecution.StatusChoices.REVOKED,
+    ).update(
         status=TaskExecution.StatusChoices.RUNNING,
-        started_at=datetime.now(),
+        started_at=timezone.now(),
     )
 
 
@@ -157,9 +162,57 @@ def add_failed_import_task_event(sender=None, headers=None, body=None, **kwargs)
     )
 
 
+@task_revoked.connect()
+def add_revoked_import_task_event(sender=None, request=None, terminated=None, **kwargs):
+    task_id = request.id
+    # A task that finished before its termination landed keeps its outcome
+    revoked = (
+        TaskExecution.objects.filter(task_id=task_id)
+        .exclude(
+            status__in=[
+                TaskExecution.StatusChoices.SUCCESS,
+                TaskExecution.StatusChoices.FAILURE,
+            ],
+        )
+        .update(
+            status=TaskExecution.StatusChoices.REVOKED,
+            finished_at=timezone.now(),
+        )
+    )
+    if not revoked:
+        return
+
+    args = request.args
+    job_id = args[1] if args else None
+    url = args[2] if args else None
+    job_task_execution = get_import_job_task(
+        job_id=job_id,
+        task_id=task_id,
+        run_source_url=url,
+    )
+
+    msg = ' '.join(
+        filter(
+            None,
+            (
+                f'revoked {sender.name}',
+                url,
+                f'-- Celery task ID {task_id}',
+                '-- terminated' if terminated else None,
+            ),
+        ),
+    )
+    create_event(
+        facility=EventLog.FacilityChoices.CELERY,
+        severity=EventLog.SeverityChoices.WARNING,
+        msg=msg,
+        job_task_execution=job_task_execution,
+    )
+
+
 @task_postrun.connect()
 def task_finished_handler(sender=None, task_id=None, **kwargs):
-    TaskExecution.objects.filter(task_id=task_id).update(finished_at=datetime.now())
+    TaskExecution.objects.filter(task_id=task_id).update(finished_at=timezone.now())
 
 
 @app.task(bind=True, name='import', acks_late=True, reject_on_worker_lost=True)
@@ -178,6 +231,22 @@ def importruns(
 
     logger = get_task_or_server_logger()
     logpath = logger.handlers[0].logpath
+
+    # The worker forgets revoked tasks on restart, so the revocation
+    # of a queued task is also checked in the database
+    if TaskExecution.objects.filter(
+        task_id=task_id,
+        status=TaskExecution.StatusChoices.REVOKED,
+    ).exists():
+        logger.info('importruns task was revoked before it started')
+        task_revoked.send(
+            sender=self,
+            request=self.request,
+            terminated=False,
+            signum=None,
+            expired=False,
+        )
+        raise Ignore
 
     # To avoid cyclic dependency between importruns.py and this module
     from bublik.core.importruns.import_run import import_run  # noqa: PLC0415

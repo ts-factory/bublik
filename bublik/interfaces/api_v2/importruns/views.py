@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
-from datetime import datetime
 import json
 import traceback
 
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework import status
@@ -16,15 +16,22 @@ from rest_framework.viewsets import ViewSet
 from bublik.core.cache import RunCache
 from bublik.core.importruns.live.context import LiveLogContext, LiveLogError
 from bublik.core.importruns.source.run_traversal import schedule_runs
+from bublik.core.job_task import JobTaskExecutionService
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.shortcuts import get_current_scheme_host_prefix
 from bublik.core.utils import create_import_job, get_local_log
-from bublik.interfaces.api_v2.importruns.serializers import ImportrunsSerializer
+from bublik.data.models import TaskExecution
+from bublik.interfaces.api_v2.importruns.schemas import importruns_viewset_schema
+from bublik.interfaces.api_v2.importruns.serializers import (
+    ImportrunsSerializer,
+    ImportTaskRevokeSerializer,
+)
 
 
 logger = get_task_or_server_logger()
 
 
+@importruns_viewset_schema
 class ImportrunsViewSet(ViewSet):
     """
     ViewSet to import run logs.
@@ -59,8 +66,26 @@ class ImportrunsViewSet(ViewSet):
             )
 
         finally:
-            import_job.finished_at = datetime.now()
+            import_job.finished_at = timezone.now()
             import_job.save()
+
+    @action(detail=False, methods=['post'])
+    def revoke(self, request):
+        """
+        Revokes an unfinished import task.
+        """
+        serializer = ImportTaskRevokeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task_id = serializer.validated_data['task_id']
+        JobTaskExecutionService.revoke_task(task_id)
+
+        return Response(
+            data={
+                'task_id': task_id,
+                'status': TaskExecution.StatusChoices.REVOKED,
+            },
+        )
 
     @action(detail=False, methods=['get'])
     def log(self, request):

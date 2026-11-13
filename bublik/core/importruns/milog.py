@@ -216,8 +216,8 @@ class ViewValueLevel(InstanceLevel, Saver):
         InstanceLevel.__init__(self, value, 'measurement_subject')
         Saver.__init__(self, parent.data)
 
-    def save(self, test_iter_result, view_type):
-        if self.find_measurement is None:
+    def save(self, test_iter_result, view_type, allow_no_measurement=False):
+        if self.find_measurement is None and not allow_no_measurement:
             msg = f'Failed to found result for {self.parent} for {view_type}'
             raise ValueError(msg)
 
@@ -238,9 +238,8 @@ class ViewValueLevel(InstanceLevel, Saver):
 
 class ViewAxisXLevel(ViewValueLevel):
     def save(self, test_iter_result):
-        if len(self.data) == 1 and self.data[0]['value'] == 'auto-seqno':
-            self.find_measurement = None
-        else:
+        auto_seqno = len(self.data) == 1 and self.data[0]['value'] == 'auto-seqno'
+        if not auto_seqno:
             metas = self.get_list_of_meta_objects()
 
             ids = [m.id for meta in metas for m in meta]
@@ -250,7 +249,12 @@ class ViewAxisXLevel(ViewValueLevel):
                     self.find_measurement = m
                     self.list_measurements_copy.remove(m)
 
-        ViewValueLevel.save(self, test_iter_result, 'axis_x')
+        ViewValueLevel.save(
+            self,
+            test_iter_result,
+            'axis_x',
+            allow_no_measurement=auto_seqno,
+        )
 
 
 class ViewAxisYLevel(ViewValueLevel):

@@ -160,6 +160,32 @@ class HTTPDirectoryTraverser:
         yield from self.__find_runs(self.url)
 
 
+def schedule_run_import(
+    requesting_host: str,
+    job_id: int,
+    run_source_url: str,
+    **importruns_params,
+):
+    """
+    Schedule the import of the run at the given URL and return
+    the AsyncResult of the Celery task.
+    """
+    task_id = tasks.importruns.delay(
+        requesting_host,
+        job_id,
+        run_source_url,
+        **importruns_params,
+    )
+    if indicate_collision(str(task_id), run_source_url):
+        task_id = tasks.importruns.delay(
+            requesting_host,
+            job_id,
+            run_source_url,
+            **importruns_params,
+        )
+    return task_id
+
+
 @with_path_processing_events
 def schedule_runs(
     request: Request,
@@ -182,19 +208,12 @@ def schedule_runs(
             )
             continue
 
-        task_id = tasks.importruns.delay(
+        task_id = schedule_run_import(
             requesting_host,
             job_id,
             run_source_url,
             **importruns_params,
         )
-        if indicate_collision(str(task_id), run_source_url):
-            task_id = tasks.importruns.delay(
-                requesting_host,
-                job_id,
-                run_source_url,
-                **importruns_params,
-            )
         tasks_data.append(
             {
                 'run_source_url': run_source_url,
