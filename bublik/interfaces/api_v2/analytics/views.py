@@ -43,6 +43,7 @@ class AnalyticsCollectThrottle(SimpleRateThrottle):
 class AnalyticsViewSet(ListModelMixin, GenericViewSet):
     serializer_class = AnalyticsEventSerializer
     filter_backends: typing.ClassVar[list] = []
+    pagination_class = None
 
     def get_queryset(self):
         return AnalyticsService.get_filtered_queryset(self.request.query_params)
