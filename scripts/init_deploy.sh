@@ -79,7 +79,7 @@ function step() {
 
 DEFAULT_ARGS=()
 
-while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
+while getopts "hqyu:d:i:b:B:C:T:a:k:p:w:s:F:N:U:W:H:P:c:I:D" OPTION; do
 	case $OPTION in
 		h) print_help ; exit ;;
 		q)
@@ -119,7 +119,7 @@ while getopts "hqyu:d:i:b:B:C:T:a:k:p:s:F:N:U:W:H:P:c:I:D" OPTION; do
 			;;
 		k) LOGS_KEYTAB=${OPTARG} ;;
 		W) DB_PASSWORD="${OPTARG}" ;;
-		a | p | s | F | N | U | H | P | c | D)
+		a | p | w | s | F | N | U | H | P | c | D)
 			OPTS+=(-${OPTION} "${OPTARG}")
 			;;
 		?) usage ; exit 1 ;;
