@@ -15,6 +15,13 @@ from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 
 from bublik.analytics.models import AnalyticsEvent
+from bublik.core.analytics.dto import (
+    AnalyticsChartsDTO,
+    AnalyticsFacetsDTO,
+    AnalyticsOverviewDTO,
+    AnalyticsPruneResultDTO,
+    AnalyticsValueCountDTO,
+)
 
 
 class AnalyticsService:
@@ -91,7 +98,7 @@ class AnalyticsService:
         return len(events_to_create)
 
     @staticmethod
-    def get_overview(queryset):
+    def get_overview(queryset) -> AnalyticsOverviewDTO:
         total_events = queryset.count()
         page_views = queryset.filter(event_type='page_view').count()
         unique_anonymous_users = (
@@ -105,16 +112,16 @@ class AnalyticsService:
             limit=5,
         )
 
-        return {
-            'total_events': total_events,
-            'page_views': page_views,
-            'unique_anonymous_users': unique_anonymous_users,
-            'top_event_names': top_event_names,
-            'top_paths': top_paths,
-        }
+        return AnalyticsOverviewDTO(
+            total_events=total_events,
+            page_views=page_views,
+            unique_anonymous_users=unique_anonymous_users,
+            top_event_names=top_event_names,
+            top_paths=top_paths,
+        )
 
     @classmethod
-    def get_facets(cls, queryset):
+    def get_facets(cls, queryset) -> AnalyticsFacetsDTO:
         event_type_rows = cls._top_by_field(
             queryset,
             'event_type',
@@ -141,21 +148,13 @@ class AnalyticsService:
             limit=cls.FACET_VALUES_LIMIT,
         )
 
-        return {
-            'event_types': [
-                {'value': row['event_type'], 'count': row['count']} for row in event_type_rows
-            ],
-            'event_names': [
-                {'value': row['event_name'], 'count': row['count']} for row in event_name_rows
-            ],
-            'paths': [{'value': row['path'], 'count': row['count']} for row in path_rows],
-            'anon_ids': [
-                {'value': row['anon_id'], 'count': row['count']} for row in anon_id_rows
-            ],
-            'app_versions': [
-                {'value': row['app_version'], 'count': row['count']} for row in app_version_rows
-            ],
-        }
+        return AnalyticsFacetsDTO(
+            event_types=event_type_rows,
+            event_names=event_name_rows,
+            paths=path_rows,
+            anon_ids=anon_id_rows,
+            app_versions=app_version_rows,
+        )
 
     @classmethod
     def resolve_top_events_path(cls, query_params) -> str:
@@ -170,7 +169,7 @@ class AnalyticsService:
         return top_events_path
 
     @classmethod
-    def get_charts(cls, queryset, *, top_events_path: str):
+    def get_charts(cls, queryset, *, top_events_path: str) -> AnalyticsChartsDTO:
         top_paths = cls._top_by_field(
             queryset.filter(event_type='page_view'),
             'path',
@@ -187,14 +186,14 @@ class AnalyticsService:
             limit=cls.TOP_VALUES_LIMIT,
         )
 
-        return {
-            'top_events_path': top_events_path,
-            'top_paths': top_paths,
-            'top_events': top_events,
-        }
+        return AnalyticsChartsDTO(
+            top_events_path=top_events_path,
+            top_paths=top_paths,
+            top_events=top_events,
+        )
 
     @classmethod
-    def get_charts_for_query(cls, queryset, query_params):
+    def get_charts_for_query(cls, queryset, query_params) -> AnalyticsChartsDTO:
         top_events_path = cls.resolve_top_events_path(query_params)
 
         return cls.get_charts(
@@ -222,7 +221,7 @@ class AnalyticsService:
         max_events: int | None = None,
         retention_days: int | None = None,
         batch_size: int = 10000,
-    ):
+    ) -> AnalyticsPruneResultDTO:
         if batch_size <= 0:
             msg = 'batch_size must be greater than 0'
             raise ValidationError(msg)
@@ -271,11 +270,11 @@ class AnalyticsService:
                 deleted_by_cap += deleted
                 total_events = AnalyticsEvent.objects.count()
 
-        return {
-            'deleted_by_age': deleted_by_age,
-            'deleted_by_cap': deleted_by_cap,
-            'remaining': AnalyticsEvent.objects.count(),
-        }
+        return AnalyticsPruneResultDTO(
+            deleted_by_age=deleted_by_age,
+            deleted_by_cap=deleted_by_cap,
+            remaining=AnalyticsEvent.objects.count(),
+        )
 
     @staticmethod
     def _split_filter_values(raw_value: str | None) -> list[str]:
@@ -326,11 +325,13 @@ class AnalyticsService:
         )
 
     @staticmethod
-    def _top_by_field(queryset, field_name: str, limit: int):
+    def _top_by_field(queryset, field_name: str, limit: int) -> list[AnalyticsValueCountDTO]:
         rows = (
             queryset.exclude(**{field_name: ''})
             .values(field_name)
             .annotate(count=Count('id'))
             .order_by('-count')[:limit]
         )
-        return list(rows)
+        return [
+            AnalyticsValueCountDTO(value=row[field_name], count=row['count']) for row in rows
+        ]
