@@ -14,6 +14,7 @@ SERVER_OPTIONS=(
   BUBLIK_DOCS_DIST
   KEYTAB
   URL_PREFIX
+  WEB_SERVER
   BUBLIK_WEB_STATIC_ROOT
   BUBLIK_USER
   DB_HOST
@@ -28,6 +29,8 @@ SERVER_OPTIONS=(
 export BUBLIK_USER="bublik"
 export BUBLIK_HOST="$(uname -n)"
 export URL_PREFIX="/bublik"
+# Web server serving Bublik: "nginx" or "apache"
+export WEB_SERVER="nginx"
 export BUBLIK_HOME="$(readlink -f $(dirname "$0")/../../)"
 export BUBLIK_SRC="$(readlink -f $(dirname "$0")/../)"
 test -d "${BUBLIK_HOME}/bublik-conf" && export BUBLIK_CONF="${BUBLIK_HOME}/bublik-conf"
@@ -144,11 +147,12 @@ define_step ai_chat_files_dir        "Create AI chat file storage directory"
 define_step seaweedfs_service        "Create SeaweedFS service"
 define_step setup_gunicorn           "Setup gunicorn"
 define_step nginx_conf               "Create nginx configs (requires root)"
+define_step apache_conf              "Create apache configs (requires root)"
 define_step bootstrap_db             "Bootstrap bublik database"
 define_step migrate_db               "Migrate bublik database"
 define_step per_project_conf         "Create per-project configs"
 define_step static_files             "Copy bublik static files"
-define_step run_side_servers         "Run redis, rabbitmq, nginx servers (requires root)"
+define_step run_side_servers         "Run redis, rabbitmq and web servers (requires root)"
 define_step run_services             "Run bublik services"
 define_step autostart_services       "Automatically start all services at boot (requires root)"
 define_step reformat_import_logs     "Reformat all import logs to a format close to JSON"
@@ -189,8 +193,8 @@ function usage () {
 
 	  Usage:
 	    * $(basename $0) [-h help] [-q quite] [-y no-ask] [-c project-config] [-a react-app]
-	      [-k keytab] [-p url-prefix] [-s static-dir] [-u user] [-d home] [-F flower-port]
-	      [-N db-name] [-U db-user] [-W db-password] [-H db-host] [-P db-port]
+	      [-k keytab] [-p url-prefix] [-w web-server] [-s static-dir] [-u user] [-d home]
+	      [-F flower-port] [-N db-name] [-U db-user] [-W db-password] [-H db-host] [-P db-port]
 
 	    * $(basename $0) --steps [steps]             |  if you know exactly what to do
 
@@ -211,6 +215,8 @@ function print_help () {
 	    -a  react-app          react app in dist/ defining UI-V2 static files
 	    -k  keytab             keytab file for Kerberos auth to get external data
 	    -p  url-prefix         URL prefix for django server
+	    -w  web-server         web server to serve bublik: nginx or apache
+	                           (default is ${WEB_SERVER})
 	    -s  static-dir         where to put static files
 	    -u  user               system user to run bublik
 	    -F  flower-port        flower binding port (default is ${FLOWER_PORT})
@@ -232,7 +238,6 @@ function install_server_packages() {
     python3-setuptools
     python3-pip
     rabbitmq-server
-    nginx
     python3-venv
     postgresql-client
     gettext-base
@@ -244,6 +249,9 @@ function install_server_packages() {
     libkrb5-dev
     build-essential
 )
+  local web_server_pkg
+  web_server_pkg="$(web_server_package)" || exit $?
+  packages+=("${web_server_pkg}")
   if test -n "${KEYTAB}" ; then
     packages+=(kstart krb5-user)
   fi
@@ -281,12 +289,45 @@ function check_server_init() {
   test -f "${GENERAL_CONF}"
 }
 
+function web_server() {
+  local selected
+  selected="$(echo "${WEB_SERVER:-nginx}" | tr '[:upper:]' '[:lower:]')"
+  case "${selected}" in
+    nginx) echo nginx ;;
+    # "apache2" is how Debian names its package and service
+    apache|apache2) echo apache ;;
+    *) fail "WEB_SERVER is \"${selected}\", expected \"nginx\" or \"apache\"" ;;
+  esac
+}
+
+# The package of the web server, its systemd service is named the same
+function web_server_package() {
+  local selected
+  selected="$(web_server)" || exit $?
+  case "${selected}" in
+    nginx) echo nginx ;;
+    apache) echo apache2 ;;
+  esac
+}
+
+function skip_unless_web_server_is() {
+  local wanted="$1"
+  local selected
+  selected="$(web_server)" || exit $?
+  [ "${selected}" = "${wanted}" ] && return 0
+  echo "WEB_SERVER is \"${selected}\", not \"${wanted}\""
+  CURRENT_STEP_SKIPPED=true
+  return 1
+}
+
 function handle_side_servers() {
   local ACTION="$1"
+  local web_server_service
+  web_server_service="$(web_server_package)" || exit $?
   local services=(
     rabbitmq-server # message brokers server
     redis-server # cache server
-    nginx # web server
+    "${web_server_service}" # web server
   )
 
   for service in ${services[*]}; do
@@ -295,8 +336,11 @@ function handle_side_servers() {
   done
 
   if [[ "$ACTION" == "start" || "$ACTION" == "restart" ]]; then
-    message "sudo reload nginx configs"
-    sudo nginx -s reload
+    message "sudo reload ${web_server_service} configs"
+    case "${web_server_service}" in
+      nginx) sudo nginx -s reload ;;
+      apache2) sudo systemctl reload apache2 ;;
+    esac
   fi
 }
 
@@ -618,6 +662,7 @@ function seaweedfs_service_handler() {
 }
 
 function nginx_conf_handler() {
+  skip_unless_web_server_is nginx || return
   step "Create Nginx configs (requires root)" &&
   if [ -n "${BUBLIK_WEB_STATIC}" ] && [ -n "${BUBLIK_WEB_STATIC_ROOT}" ] ; then
     create_bublik_dir "${BUBLIK_WEB_STATIC_ROOT}" "${BUBLIK_WEB_STATIC}"
@@ -625,6 +670,21 @@ function nginx_conf_handler() {
                        /etc/nginx/sites-available/bublik
     sudo ln -sf /etc/nginx/sites-available/bublik /etc/nginx/sites-enabled
     sudo rm -f /etc/nginx/sites-enabled/default
+  fi
+}
+
+function apache_conf_handler() {
+  skip_unless_web_server_is apache || return
+  step "Create Apache configs (requires root)" &&
+  if [ -n "${BUBLIK_WEB_STATIC}" ] && [ -n "${BUBLIK_WEB_STATIC_ROOT}" ] ; then
+    create_bublik_dir "${BUBLIK_WEB_STATIC_ROOT}" "${BUBLIK_WEB_STATIC}"
+    # A global configuration rather than a site, so that the default site and
+    # other sites of the host (e.g. a TE log server) are kept as they are
+    sudo_expand_env_mv "${TEMPLATES_DIR}/apache.bublik.template" \
+                       /etc/apache2/conf-available/bublik.conf
+    sudo a2enmod -q proxy proxy_http headers alias dir
+    sudo a2enconf -q bublik
+    sudo apache2ctl configtest
   fi
 }
 
@@ -654,7 +714,7 @@ function create_log_dir_handler {
 }
 
 function run_side_servers_handler() {
-  step "Run redis, rabbitmq, nginx servers (requires root)" && {
+  step "Run redis, rabbitmq and web servers (requires root)" && {
     source "${ENV_DIR}/bin/activate"
     local ACTION=""
     if ! "${QUIET}" ; then
@@ -738,7 +798,7 @@ while [[ $# -gt 0 ]] ; do
       ;;
 
     # Apply server options. It is a separate block to check subcommand combinatons
-    -c | -a | -k | -p | -s | -u | -F | -N | -U | -W | -H | -P | -D)
+    -c | -a | -k | -p | -w | -s | -u | -F | -N | -U | -W | -H | -P | -D)
       SERVER_OPTIONS_PROVIDED=true
       case $1 in
         -c) export CONFIG_TO_USE="$2" ;;
@@ -746,6 +806,7 @@ while [[ $# -gt 0 ]] ; do
         -D) export BUBLIK_DOCS_DIST="$2" ;;
         -k) export KEYTAB="$(realpath ${2})" ;;
         -p) export URL_PREFIX="$(echo "/$2" | tr -s /)" ;;
+        -w) export WEB_SERVER="$2" ;;
         -s) export BUBLIK_WEB_STATIC_ROOT="$(realpath $2)" ;;
         -u) export BUBLIK_USER="$2" ;;
         -F) export FLOWER_PORT="$2" ;;
@@ -790,6 +851,7 @@ if "${SERVER_OPTIONS_PROVIDED}" ; then
   test -n "${BUBLIK_HOME}" || usage "Home is unspecified"
   test -n "${DB_HOST}" || usage "Host of DB is unspecified"
   test -n "${DB_NAME}" || usage "Name of DB is unspecified"
+  web_server >/dev/null || exit $?
   test -n "${KEYTAB}" || message "NB! You forget to specify the keytab file"
 fi
 
