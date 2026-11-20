@@ -28,7 +28,7 @@ from bublik.core.exceptions import (
 from bublik.core.importruns import categorization, extract_logs_base
 from bublik.core.importruns.source import incremental_import
 from bublik.core.importruns.telog import JSONLog
-from bublik.core.importruns.utils import MeasureTime, runtime
+from bublik.core.importruns.utils import MeasureTime, describe_schema_error, runtime
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.run.actions import prepare_cache_for_completed_run
 from bublik.core.run.metadata import MetaData
@@ -193,9 +193,7 @@ def import_run(  # noqa: C901
             except jsonschema.exceptions.ValidationError as jeve:
                 raise InvalidImportDataError(
                     message='invalid run log format',
-                    debug_details=[
-                        jeve.message,
-                    ],
+                    debug_details=describe_schema_error(jeve, json_data),
                 ) from None
             logger.info('run logs format is valid')
 
@@ -212,9 +210,7 @@ def import_run(  # noqa: C901
                 except jsonschema.exceptions.ValidationError as jeve:
                     raise InvalidImportDataError(
                         message='invalid meta_data.json format',
-                        debug_details=[
-                            jeve.message,
-                        ],
+                        debug_details=describe_schema_error(jeve, meta_data_json),
                     ) from None
                 logger.info('meta_data.json format is valid')
 
