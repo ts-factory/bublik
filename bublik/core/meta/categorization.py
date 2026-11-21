@@ -7,16 +7,21 @@ import re
 from django.db.models import F
 
 from bublik.core.utils import dicts_groupby, key_value_list_transforming
-from bublik.data.models.meta import MetaPattern
+from bublik.data.models.meta import MetaCategory
 
 
 def categorize_meta(meta):
-    if meta.name is None:
-        return
-
-    for metapattern in MetaPattern.objects.filter(category__type=meta.type):
-        if re.search(metapattern.pattern, meta.name):
-            metapattern.category.metas.add(meta)
+    """
+    Add the meta to the categories of its type: to those without patterns
+    and to those with a pattern matching the meta name.
+    """
+    categories = MetaCategory.objects.filter(type=meta.type).prefetch_related('pattern')
+    for category in categories:
+        patterns = [metapattern.pattern for metapattern in category.pattern.all()]
+        if not patterns or (
+            meta.name is not None and any(re.search(pattern, meta.name) for pattern in patterns)
+        ):
+            category.metas.add(meta)
 
 
 def skip_meta_name(category, metas):
