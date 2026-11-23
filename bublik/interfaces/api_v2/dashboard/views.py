@@ -20,7 +20,11 @@ from bublik.core.report.services import ReportService
 from bublik.core.run.external_links import get_sources, is_http_url, shorten_url
 from bublik.core.utils import get_difference
 from bublik.data.models import ConfigTypes, GlobalConfigs, TestIterationResult
-from bublik.interfaces.api_v2.dashboard.serializers import DashboardResponseSerializer
+from bublik.interfaces.api_v2.dashboard.schemas import dashboard_viewset_schema
+from bublik.interfaces.api_v2.dashboard.serializers import (
+    DashboardDefaultModeResponseSerializer,
+    DashboardResponseSerializer,
+)
 
 
 if typing.TYPE_CHECKING:
@@ -33,6 +37,7 @@ __all__ = [
 ]
 
 
+@dashboard_viewset_schema
 class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
     pagination_class = None
     available_column_modes: typing.ClassVar[dict] = {
@@ -43,10 +48,6 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
     @method_decorator(never_cache)
     def list(self, request):
-        """
-        Return dashboard data for one day.
-        Route: /api/v2/dashboard/?date=yyyy-mm-dd.
-        """
         project_id = request.query_params.get('project')
         if not self.prepare_settings(project_id):
             raise ValidationError(self.errors)
@@ -81,7 +82,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         if not mode:
             msg = 'Error in per-project configuration'
             raise APIException(msg)
-        return Response(data={'mode': mode})
+        serializer = DashboardDefaultModeResponseSerializer(instance={'mode': mode})
+        return Response(data=serializer.data)
 
     def prepare_settings(self, project_id):
         self.payload = DashboardPayload()
