@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from __future__ import annotations
+
 import typing
 
 from django.utils.decorators import method_decorator
@@ -18,6 +20,11 @@ from bublik.core.report.services import ReportService
 from bublik.core.run.external_links import get_sources, is_http_url, shorten_url
 from bublik.core.utils import get_difference
 from bublik.data.models import ConfigTypes, GlobalConfigs, TestIterationResult
+from bublik.interfaces.api_v2.dashboard.serializers import DashboardResponseSerializer
+
+
+if typing.TYPE_CHECKING:
+    from bublik.core.dashboard.dto import DashboardDTO, DashboardRowDTO
 
 
 __all__ = [
@@ -27,7 +34,7 @@ __all__ = [
 
 
 class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
-    available_column_modes: typing.ClassVar['dict'] = {
+    available_column_modes: typing.ClassVar[dict] = {
         'one_day_one_column': {'days': 1, 'columns': 1},
         'one_day_two_columns': {'days': 1, 'columns': 2},
         'two_days_two_columns': {'days': 2, 'columns': 2},
@@ -60,9 +67,9 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
 
         # Apply payload handlers for URL generation (UI-specific)
         self._apply_payload_to_dashboard_data(data)
-        data['payload'] = self.payload.description
+        data.payload = self.payload.description
 
-        return Response(data=data)
+        return Response(data=DashboardResponseSerializer(data).data)
 
     @action(detail=False, methods=['get'])
     def default_mode(self, request):
@@ -86,8 +93,8 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
             raise_on_error=False,  # Get errors for ViewSet compatibility
         )
 
-        if not validation['valid']:
-            self.errors = validation['errors']
+        if not validation.valid:
+            self.errors = validation.errors
             return False
 
         # Load settings (now known to be valid)
@@ -161,12 +168,12 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         # Single primitive value
         return {'value': cell_data}
 
-    def _merge_payload_to_cell(self, row, key, cell_data, processed):
+    def _merge_payload_to_cell(self, row: DashboardRowDTO, key, cell_data, processed):
         """
         Merge payload from processed handler result back into cell data.
 
         Args:
-            row: Dashboard row dict
+            row: Dashboard row containing the cell
             key: Cell key within the row
             cell_data: Original cell data reference
             processed: Processed data from payload handler
@@ -178,14 +185,14 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         if isinstance(cell_data, dict):
             cell_data['payload'] = payload
         elif isinstance(cell_data, (str, int, float)):
-            row['row_cells'][key] = {'value': cell_data, 'payload': payload}
+            row.row_cells[key] = {'value': cell_data, 'payload': payload}
         elif isinstance(cell_data, list) and cell_data:
             if isinstance(cell_data[0], dict):
                 cell_data[0]['payload'] = payload
             elif isinstance(cell_data[0], (str, int, float)):
                 cell_data[0] = {'value': cell_data[0], 'payload': payload}
 
-    def _apply_payload_to_dashboard_data(self, data: dict) -> None:
+    def _apply_payload_to_dashboard_data(self, data: DashboardDTO) -> None:
         """
         Apply payload handlers to dashboard cell data for URL generation.
 
@@ -194,22 +201,20 @@ class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
         tree views, source links, etc.
 
         Args:
-            data: Dashboard data dictionary with 'rows' key containing row data.
-                  Modified in-place to add payload information.
+            data: Dashboard data whose rows are updated in-place.
         """
         if not hasattr(self, 'payload') or not self.payload.handlers:
             return
 
-        run_ids = [row['context']['run_id'] for row in data.get('rows', [])]
+        run_ids = [row.context.run_id for row in data.rows]
         runs = TestIterationResult.objects.in_bulk(run_ids)
-        for row in data.get('rows', []):
-            run = runs.get(row['context']['run_id'])
+        for row in data.rows:
+            run = runs.get(row.context.run_id)
 
-            for key in row['row_cells']:
-                if key not in self.payload.handlers or 'context' not in row:
+            for key, cell_data in row.row_cells.items():
+                if key not in self.payload.handlers:
                     continue
 
-                cell_data = row['row_cells'][key]
                 handler_data = self._prepare_handler_data(cell_data)
 
                 # Apply payload handler
@@ -230,7 +235,7 @@ class DashboardPayload:
       style is controlled by css classes and can depend on data in rows.
     """
 
-    handlers_available: typing.ClassVar['dict'] = {
+    handlers_available: typing.ClassVar[dict] = {
         item['const']: item['description']
         for item in ConfigServices.get_schema(
             ConfigTypes.GLOBAL,

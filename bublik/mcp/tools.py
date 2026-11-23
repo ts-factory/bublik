@@ -25,6 +25,7 @@ from bublik.core.run.stats import generate_all_run_details, generate_runs_detail
 from bublik.core.server import ServerService
 from bublik.core.server.dto import RepoRevisionsDTO  # noqa: TC001
 from bublik.core.tree.services import TreeService
+from bublik.interfaces.api_v2.dashboard.serializers import DashboardResponseSerializer
 from bublik.interfaces.api_v2.history.serializers import (
     HistoryGroupedResponseSerializer,
     HistoryListResponseSerializer,
@@ -336,11 +337,11 @@ async def get_dashboard(
     """
     Get dashboard data for a specific date (structured format).
 
-    Returns the same format as /api/v2/dashboard/ endpoint with:
+    Returns the dashboard data with:
     - date: The dashboard date
     - rows: List of {row_cells, context} for each run
     - header: Column definitions
-    - payload: Handler descriptions
+    - payload: Empty mapping (UI handlers are applied only in the API)
 
     Args:
         date: Date in yyyy-mm-dd format (e.g., '2024-01-15')
@@ -363,11 +364,12 @@ async def get_dashboard(
         )
 
     sort_config = sort_by.split(',') if sort_by else None
-    return await sync_to_async(DashboardService.get_dashboard_data)(
+    data = await sync_to_async(DashboardService.get_dashboard_data)(
         date=date,
         project_id=project_id,
         sort_config=sort_config,
     )
+    return DashboardResponseSerializer(data).data
 
 
 async def get_dashboard_today(
@@ -392,11 +394,12 @@ async def get_dashboard_today(
         return {'date': None, 'rows': [], 'header': [], 'payload': {}}
 
     sort_config = sort_by.split(',') if sort_by else None
-    return await sync_to_async(DashboardService.get_dashboard_data)(
+    data = await sync_to_async(DashboardService.get_dashboard_data)(
         date=date_str,
         project_id=project_id,
         sort_config=sort_config,
     )
+    return DashboardResponseSerializer(data).data
 
 
 async def get_latest_dashboard_date(project_id: int | None = None) -> str | None:

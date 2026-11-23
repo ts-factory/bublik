@@ -9,6 +9,13 @@ from django.db.models.functions import Cast
 
 from bublik.core.cache import RunCache
 from bublik.core.config.services import ConfigServices
+from bublik.core.dashboard.dto import (
+    DashboardColumnDTO,
+    DashboardDTO,
+    DashboardRowDTO,
+    DashboardRunContextDTO,
+    DashboardSettingsValidationDTO,
+)
 from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import UnprocessableEntityError
 from bublik.core.importruns.live.check import livelog_check_run_timeout
@@ -30,7 +37,7 @@ class DashboardService:
         project_id: int | None = None,
         columns: dict | None = None,
         sort_config: list | None = None,
-    ) -> dict:
+    ) -> DashboardDTO:
         """
         Get dashboard data for a specific date.
 
@@ -42,7 +49,7 @@ class DashboardService:
             sort_config: Optional list of column keys to sort by
 
         Returns:
-            Dictionary with date, rows, header, and payload
+            Dashboard data with its date, rows and column headers
 
         Raises:
             UnprocessableEntityError: if date format is invalid or config missing
@@ -89,19 +96,19 @@ class DashboardService:
             conclusion, conclusion_reason = get_run_conclusion(run)
             row_cells = DashboardService.prepare_row_data(run, columns)
             rows_data.append(
-                {
-                    'row_cells': row_cells,
-                    'context': {
-                        'run_id': run.id,
-                        'project_id': run.project.id,
-                        'project_name': run.project.name,
-                        'start': run.start.timestamp(),
-                        'status': get_run_status(run),
-                        'status_by_nok': get_run_status_by_nok(run)[0],
-                        'conclusion': conclusion,
-                        'conclusion_reason': conclusion_reason,
-                    },
-                },
+                DashboardRowDTO(
+                    row_cells=row_cells,
+                    context=DashboardRunContextDTO(
+                        run_id=run.id,
+                        project_id=run.project.id,
+                        project_name=run.project.name,
+                        start=run.start.timestamp(),
+                        status=get_run_status(run),
+                        status_by_nok=get_run_status_by_nok(run)[0],
+                        conclusion=conclusion,
+                        conclusion_reason=conclusion_reason,
+                    ),
+                ),
             )
 
         # Apply formatting
@@ -111,49 +118,51 @@ class DashboardService:
         if sort_config:
             DashboardService.sort_dashboard_rows(rows_data, sort_config)
 
-        return {
-            'date': date,
-            'rows': rows_data,
-            'header': [{'key': k, 'name': lp.get('label') or k} for k, lp in columns.items()],
-            'payload': {},  # Simplified for MCP (no URL handlers needed)
-        }
+        return DashboardDTO(
+            date=date,
+            rows=rows_data,
+            header=[
+                DashboardColumnDTO(key=key, name=column.get('label') or key)
+                for key, column in columns.items()
+            ],
+        )
 
     @staticmethod
-    def apply_dashboard_formatting(rows_data: list, columns: dict):
+    def apply_dashboard_formatting(rows_data: list[DashboardRowDTO], columns: dict) -> None:
         """
         Apply formatting rules to dashboard row cells.
 
         Available formatters: 'percent'.
 
         Args:
-            rows_data: List of row dictionaries with 'row_cells' key
+            rows_data: Dashboard rows whose cells are formatted in-place
             columns: Columns dict mapping keys to labels, payloads
                      and formatters
         """
         for row in rows_data:
             for key, col_settings in columns.items():
-                if key in row['row_cells']:
-                    cell_data = row['row_cells'][key]
+                if key in row.row_cells:
+                    cell_data = row.row_cells[key]
                     if col_settings.get('formatting') == 'percent':
                         DashboardService._format_percent(cell_data)
 
     @staticmethod
-    def sort_dashboard_rows(rows_data: list, sort_config: list) -> None:
+    def sort_dashboard_rows(rows_data: list[DashboardRowDTO], sort_config: list) -> None:
         """
         Sort dashboard rows in-place by the configured columns.
 
         Args:
-            rows_data: List of row dictionaries with 'row_cells' and 'context' keys
+            rows_data: Dashboard rows to sort
             sort_config: List of column keys to sort by (e.g., ['start', 'total'])
 
         The rows_data list is modified in-place.
         """
 
-        def prepare_sort_key(row: dict, key: str):
+        def prepare_sort_key(row: DashboardRowDTO, key: str):
             if key == 'start':
-                return row['context']['start']
+                return row.context.start
 
-            cell_data = row['row_cells'].get(key)
+            cell_data = row.row_cells.get(key)
             if cell_data and isinstance(cell_data, dict) and 'value' in cell_data:
                 return cell_data['value']
 
@@ -284,18 +293,17 @@ class DashboardService:
     def validate_dashboard_settings(
         project_id: int | None = None,
         raise_on_error: bool = False,
-    ) -> dict:
+    ) -> DashboardSettingsValidationDTO:
         """
         Validate all dashboard configuration settings.
 
         Args:
             project_id: Optional project ID for per-project config
             raise_on_error: If True, raise UnprocessableEntityError;
-            if False, return errors dict
+            if False, return the errors in the validation result
 
         Returns:
-            If raise_on_error=False: dict with 'valid' bool and 'errors' list
-            If raise_on_error=True: raises UnprocessableEntityError on invalid settings
+            Validation result containing the status and any error messages
 
         Raises:
             UnprocessableEntityError: if settings invalid and raise_on_error=True
@@ -334,12 +342,9 @@ class DashboardService:
             except Exception as e:
                 errors.append(f'DASHBOARD_RUNS_SORT: {e}')
 
-        if errors:
-            if raise_on_error:
-                raise UnprocessableEntityError(errors)
-            return {'valid': False, 'errors': errors}
-
-        return {'valid': True, 'errors': []}
+        if errors and raise_on_error:
+            raise UnprocessableEntityError(errors)
+        return DashboardSettingsValidationDTO(valid=not errors, errors=errors)
 
     @staticmethod
     def get_latest_run_date(project_id: int | None = None) -> str | None:
