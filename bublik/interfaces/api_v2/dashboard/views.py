@@ -34,6 +34,7 @@ __all__ = [
 
 
 class DashboardViewSet(RetrieveModelMixin, GenericViewSet):
+    pagination_class = None
     available_column_modes: typing.ClassVar[dict] = {
         'one_day_one_column': {'days': 1, 'columns': 1},
         'one_day_two_columns': {'days': 1, 'columns': 2},
