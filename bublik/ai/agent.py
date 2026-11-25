@@ -43,7 +43,7 @@ from bublik.ai.files import generate_file
 from bublik.ai.mcp import build_mcp_toolsets
 from bublik.ai.prompts import build_system_instructions
 from bublik.ai.types import AiChatDeps
-from bublik.mcp.tools import MCP_TOOLS
+from bublik.mcp.tools import MCP_TOOLS, refusal_text
 
 
 if TYPE_CHECKING:
@@ -135,20 +135,6 @@ def _is_loopback(api_url: str) -> bool:
         return False
 
 
-def _flatten_detail(detail: object) -> str:
-    """Flatten a DRF ``ValidationError.detail`` into a plain string.
-
-    ``detail`` may be an ``ErrorDetail``, a list of them, or a nested dict; the
-    default ``str()`` yields the noisy ``[ErrorDetail(string='...', code=...)]``
-    repr, so recurse into it and join the leaf messages instead.
-    """
-    if isinstance(detail, list):
-        return '; '.join(_flatten_detail(item) for item in detail)
-    if isinstance(detail, dict):
-        return '; '.join(f'{key}: {_flatten_detail(value)}' for key, value in detail.items())
-    return str(detail)
-
-
 def _as_retry_tool(fn):
     """Wrap a shared MCP tool so DRF ``ValidationError`` becomes a ``ModelRetry``.
 
@@ -166,7 +152,7 @@ def _as_retry_tool(fn):
         try:
             return await fn(*args, **kwargs)
         except DRFValidationError as exc:
-            raise ModelRetry(_flatten_detail(exc.detail)) from exc
+            raise ModelRetry(refusal_text(exc.detail)) from exc
 
     return wrapper
 
