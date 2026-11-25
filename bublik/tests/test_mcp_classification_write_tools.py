@@ -95,6 +95,16 @@ class ClassificationWriteToolsTest(TestCase):
             [self.vm, self.hw]
         )
 
+    def test_the_tools_are_offered_once_some_project_is_open(self):
+        assert tools.classify_results not in tools.tools_for(self.user)
+        assert tools.classify_results in tools.tools_for(self.admin)
+        assert tools.classify_results not in tools.tools_for(None)
+        with data.allow_without_login(self.project.id):
+            offered = tools.tools_for(self.user)
+            assert tools.classify_results in offered
+            assert tools.edit_test_comment not in offered
+            assert tools.tools_for(None) == tools.MCP_TOOLS
+
     def test_results_of_several_runs_are_classified_at_once(self):
         # As picked from a test's history.
         later_run = data.run(self.project, tags=[('kernel', '6.1'), ('arch', 'arm')])

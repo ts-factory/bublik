@@ -55,8 +55,9 @@ from bublik.ai.downloads import download_file
 from bublik.ai.streaming import RunOptions, spawn_run, stream_run_events
 from bublik.ai.transcript import persist_messages
 from bublik.ai.types import AiChatDeps
-from bublik.core.auth import is_admin
+from bublik.core.auth import actions_permitted_somewhere, is_admin
 from bublik.data.models import AiChatThread, UserTokenError
+from bublik.mcp.tools import MCP_ACTIONS
 
 
 if TYPE_CHECKING:
@@ -124,6 +125,7 @@ async def _run_chat(request: Request) -> Response:  # noqa: PLR0911 - endpoint v
             effort,
             config_fingerprint(raw_config),
             admin=is_admin(user),
+            actions=await sync_to_async(actions_permitted_somewhere)(MCP_ACTIONS, user),
         )
     except ValueError as exc:
         return JSONResponse({'detail': str(exc)}, status_code=422)

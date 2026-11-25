@@ -24,12 +24,18 @@ def _names(callables):
 
 
 class ChatToolsTest(SimpleTestCase):
-    def test_everyone_gets_reads_writes_and_file_generation(self):
+    def test_everyone_gets_reads_open_writes_and_file_generation(self):
         names = _names(chat_tools(admin=False))
 
-        assert set(tools.MCP_WRITE_TOOL_NAMES) <= names
         assert _names(tools.MCP_TOOLS) <= names
-        assert 'generate_file' in names
+        assert {'edit_run_comment', 'delete_run_comment', 'generate_file'} <= names
+        assert not _names(tools.MCP_TOOL_ACTIONS) & names
+
+    def test_a_write_comes_with_its_action(self):
+        names = _names(chat_tools(admin=False, actions=frozenset({tools.MANAGE_ISSUES})))
+
+        assert 'classify_results' in names
+        assert 'edit_test_comment' not in names
 
     def test_admin_tools_are_absent_for_a_plain_user(self):
         names = _names(chat_tools(admin=False))
@@ -93,8 +99,23 @@ class SystemInstructionsTest(SimpleTestCase):
         text = build_system_instructions()
 
         assert 'set_run_compromised' in text
-        assert 'classify_results' in text
+        assert 'get_run_issues' in text
         assert 'Editing Configs' not in text
+
+    @override_settings(BUBLIK_FQDN='')
+    def test_the_guides_name_only_the_tools_the_session_gets(self):
+        # Told of a tool it does not have, the model calls it anyway.
+        gated = _names(tools.MCP_TOOL_ACTIONS)
+        for actions in (
+            frozenset(),
+            frozenset({tools.MANAGE_ISSUES}),
+            frozenset({tools.MANAGE_TEST_COMMENTS}),
+            tools.MCP_ACTIONS,
+        ):
+            text = build_system_instructions(actions=actions)
+            named = {name for name in gated if f'`{name}`' in text}
+
+            assert named == gated & _names(chat_tools(admin=False, actions=actions)), actions
 
     @override_settings(BUBLIK_FQDN='')
     def test_the_admin_guide_is_added_for_an_administrator(self):

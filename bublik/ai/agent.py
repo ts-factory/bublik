@@ -46,7 +46,7 @@ from bublik.ai.files import generate_file
 from bublik.ai.mcp import build_mcp_toolsets
 from bublik.ai.prompts import build_system_instructions
 from bublik.ai.types import AiChatDeps
-from bublik.mcp.tools import MCP_ADMIN_TOOLS, MCP_TOOLS, MCP_WRITE_TOOLS, refusal_text
+from bublik.mcp.tools import refusal_text, tools_within
 
 
 if TYPE_CHECKING:
@@ -175,9 +175,12 @@ def _without_strict(_ctx, tool_defs):
     return [replace(td, strict=False) if td.strict is None else td for td in tool_defs]
 
 
-def chat_tools(admin: bool) -> list:
-    """The tools a chat session gets. Admin tools only go to administrators."""
-    shared = [*MCP_TOOLS, *MCP_WRITE_TOOLS, *(MCP_ADMIN_TOOLS if admin else [])]
+def chat_tools(admin: bool, actions=frozenset()) -> list:
+    """The tools a chat session gets: those its user may call somewhere.
+
+    ``actions`` are the ones the user may perform in at least one project.
+    """
+    shared = tools_within(admin, actions)
     return [*(_as_retry_tool(tool) for tool in shared), generate_file]
 
 
@@ -246,6 +249,7 @@ def build_agent(
     reasoning_effort: str | None = None,
     config_fingerprint: str | None = None,
     admin: bool = False,
+    actions: frozenset[str] = frozenset(),
 ) -> Agent:
     """
     Build (and cache) the Bublik chat agent for the given provider and model.
@@ -254,10 +258,10 @@ def build_agent(
     ``ai`` config. Dispatch is delegated to :func:`pydantic_ai.models.infer_model`, so
     any provider pydantic-ai supports can be configured; the provider's credentials
     are injected via a custom ``provider_factory``. Cached per ``(provider_id,
-    model_id, reasoning_effort, config_fingerprint, admin)``: the fingerprint (see
+    model_id, reasoning_effort, config_fingerprint, admin, actions)``: the fingerprint (see
     :func:`bublik.ai.config.config_fingerprint`) ties each cached agent to the config
     content it was built from, so config edits take effect without a restart, and
-    ``admin`` selects the tool set and prompt (see :func:`chat_tools`).
+    ``admin`` and ``actions`` select the tool set and prompt (see :func:`chat_tools`).
     """
     config = get_effective_ai_config()
     # Same resolver the route validates with, so an unknown provider/model or an
@@ -280,9 +284,9 @@ def build_agent(
 
     return Agent(
         model,
-        instructions=build_system_instructions(admin=admin),
+        instructions=build_system_instructions(admin=admin, actions=actions),
         deps_type=AiChatDeps,
-        tools=chat_tools(admin),
+        tools=chat_tools(admin, actions),
         # Remote MCP servers from the config contribute their own tools. Their
         # connections are opened per run via ``async with agent:`` in the
         # app's background run task (see bublik.ai.app._produce_run).

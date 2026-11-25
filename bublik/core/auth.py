@@ -18,6 +18,7 @@ from bublik.core.config.services import ConfigServices
 from bublik.data.models import (
     TOKEN_PREFIX,
     GlobalConfigs,
+    Project,
     User,
     UserRoles,
     UserToken,
@@ -222,6 +223,18 @@ def action_permitted(action, user, project_ids=()):
     if all(action_is_open(action, project_id) for project_id in set(project_ids) or {None}):
         return True
     return is_admin(user) and user.is_active
+
+
+def actions_permitted_somewhere(actions, user):
+    """Those of ``actions`` that ``user`` may perform in at least one project."""
+    if is_admin(user) and user.is_active:
+        return frozenset(actions)
+    project_ids = [None, *Project.objects.values_list('id', flat=True)]
+    return frozenset(
+        action
+        for action in actions
+        if any(action_is_open(action, project_id) for project_id in project_ids)
+    )
 
 
 def check_action_permission_for_projects(request, action, project_ids):

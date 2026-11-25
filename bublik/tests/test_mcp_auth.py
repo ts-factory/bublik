@@ -131,7 +131,7 @@ class McpAnonymousAccessTest(McpAuthTestCase):
         )
         assert response.status_code == status.HTTP_200_OK, response.text
 
-    def test_the_write_tool_is_listed_but_refuses_without_a_token(self):
+    def test_the_write_tool_is_unlisted_and_refuses_without_a_token(self):
         async def body(client):
             listed = await client.list_tools()
             names = [tool.name for tool in listed]
@@ -143,9 +143,20 @@ class McpAnonymousAccessTest(McpAuthTestCase):
             return names, result
 
         names, result = self.run_session(None, body)
-        assert 'edit_test_comment' in names
+        assert set(names) == {tool.__name__ for tool in tools.MCP_TOOLS}
         assert result.is_error
         assert 'personal access token' in str(result.content)
+
+    def test_a_token_lists_the_writes_its_user_may_call(self):
+        async def body(client):
+            return {tool.name for tool in await client.list_tools()}
+
+        names = self.run_session(self._token_for(self.user), body)
+        assert {'edit_run_comment', 'delete_run_comment', 'set_run_compromised'} <= names
+        assert not {tool.__name__ for tool in tools.MCP_TOOL_ACTIONS} & names
+
+        names = self.run_session(self._token_for(self.admin, 'admin'), body)
+        assert set(tools.MCP_WRITE_TOOL_NAMES) <= names
 
 
 @override_settings(CACHES={'default': _DUMMY, 'run': _LOCMEM, 'project': _LOCMEM})
@@ -587,13 +598,14 @@ class McpConfigToolsTest(McpAuthTestCase):
         assert result.is_error
         assert 'administrators' in str(result.content)
 
-    def test_admin_tools_are_listed_for_everyone(self):
+    def test_admin_tools_are_listed_for_administrators_only(self):
         async def body(client):
-            return [tool.name for tool in await client.list_tools()]
+            return {tool.name for tool in await client.list_tools()}
 
-        names = self.run_session(None, body)
-        for name in tools.MCP_ADMIN_TOOL_NAMES:
-            assert name in names
+        admin_only = set(tools.MCP_ADMIN_TOOL_NAMES)
+        assert not admin_only & self.run_session(None, body)
+        assert not admin_only & self.run_session(self._token_for(self.user), body)
+        assert admin_only <= self.run_session(self._token_for(self.admin, 'admin'), body)
 
     def test_an_admin_can_create_edit_and_delete(self):
         token = self._token_for(self.admin)
@@ -742,6 +754,9 @@ class McpToolRegistryTest(TransactionTestCase):
         assert not read & write
         assert not read & admin
         assert not write & admin
+
+    def test_only_writes_name_an_action(self):
+        assert set(tools.MCP_TOOL_ACTIONS) <= set(tools.MCP_WRITE_TOOLS)
 
     def test_a_refusal_is_one_line_of_text(self):
         error = ValidationError({'matchers': {0: {'tags': ['Unknown.', 'Empty.']}}})

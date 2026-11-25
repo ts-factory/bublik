@@ -17,6 +17,7 @@ from django.utils.datastructures import MultiValueDict
 from fastmcp.exceptions import ToolError
 from rest_framework.exceptions import APIException, ValidationError
 
+from bublik.core.auth import actions_permitted_somewhere, is_admin
 from bublik.core.classification import DISPOSITION_TO_EXPECTED
 from bublik.core.comment import TestCommentService
 from bublik.core.config.management import ConfigManagementService
@@ -80,6 +81,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MANAGE_ISSUES = 'manage_issues'
+MANAGE_TEST_COMMENTS = 'manage_test_comments'
 
 
 def get_default_date_range():
@@ -758,7 +760,7 @@ def _comment_text(comment: str | None) -> str:
     return comment
 
 
-@mcp_auth_required(action='manage_test_comments')
+@mcp_auth_required(action=MANAGE_TEST_COMMENTS)
 async def edit_test_comment(
     test_id: int,
     project_id: int,
@@ -798,7 +800,7 @@ async def edit_test_comment(
     return await sync_to_async(_edit)()
 
 
-@mcp_auth_required(action='manage_test_comments')
+@mcp_auth_required(action=MANAGE_TEST_COMMENTS)
 async def delete_test_comment(test_id: int, project_id: int, comment_id: int) -> dict:
     """
     Remove a comment from a test for good, acting as the caller.
@@ -2125,6 +2127,22 @@ MCP_WRITE_TOOLS = [
     set_rules_active,
 ]
 
+# The action a write tool needs permitted, in the projects it changes.
+MCP_TOOL_ACTIONS = {
+    edit_test_comment: MANAGE_TEST_COMMENTS,
+    delete_test_comment: MANAGE_TEST_COMMENTS,
+    classify_results: MANAGE_ISSUES,
+    unclassify_results: MANAGE_ISSUES,
+    apply_run_rules: MANAGE_ISSUES,
+    edit_issue: MANAGE_ISSUES,
+    delete_issue: MANAGE_ISSUES,
+    set_issues_state: MANAGE_ISSUES,
+    edit_issue_rule: MANAGE_ISSUES,
+    delete_issue_rule: MANAGE_ISSUES,
+    set_rules_active: MANAGE_ISSUES,
+}
+MCP_ACTIONS = frozenset(MCP_TOOL_ACTIONS.values())
+
 # Tools only an administrator may call, reads included.
 MCP_ADMIN_TOOLS = [
     list_configs,
@@ -2164,6 +2182,23 @@ MCP_UNCACHED_TOOLS = [
 MCP_WRITE_TOOL_NAMES = [tool.__name__ for tool in MCP_WRITE_TOOLS]
 MCP_ADMIN_TOOL_NAMES = [tool.__name__ for tool in MCP_ADMIN_TOOLS]
 MCP_UNCACHED_TOOL_NAMES = [tool.__name__ for tool in MCP_UNCACHED_TOOLS]
+
+
+def tools_within(admin: bool, actions) -> list:
+    """The tools of a logged-in caller who may perform ``actions`` somewhere."""
+    writes = [
+        tool
+        for tool in MCP_WRITE_TOOLS
+        if tool not in MCP_TOOL_ACTIONS or MCP_TOOL_ACTIONS[tool] in actions
+    ]
+    return [*MCP_TOOLS, *writes, *(MCP_ADMIN_TOOLS if admin else [])]
+
+
+def tools_for(user) -> list:
+    """The tools ``user`` may call in at least one project; the reads for nobody."""
+    if user is None:
+        return list(MCP_TOOLS)
+    return tools_within(is_admin(user), actions_permitted_somewhere(MCP_ACTIONS, user))
 
 
 def refusal_text(detail: object) -> str:
