@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from functools import wraps
+import json
+from textwrap import shorten
 import time
 
 from django.core.files import locks
@@ -68,3 +70,34 @@ class MeasureTime:
 
 def runtime(start_time):
     return (datetime.now() - start_time).total_seconds()
+
+
+def describe_schema_error(error, data):
+    """
+    Return the debug details of a schema violation in import data: the message,
+    the iteration (test, package or session) and the element in it violating
+    the schema, and the data of the element or, for a plain value, of its parent.
+    """
+    iteration, tin, element = [], None, ''
+    parent = node = data
+    for key in error.absolute_path:
+        parent, node = node, node[key]
+        if isinstance(node, dict) and node.get('type') in ('test', 'pkg', 'session'):
+            iteration.append(node.get('name') or node['type'])
+            tin, element = node.get('tin'), ''
+        elif isinstance(key, int):
+            label = isinstance(node, dict) and (
+                node.get('name') or node.get('tool') or node.get('type')
+            )
+            element += f' #{key + 1}' + (f' ({label})' if label else '')
+        else:
+            element += f' > {key}'
+
+    details = [f'Error: {error.message}']
+    if iteration:
+        details.append(f'Iteration: {"/".join(iteration)} (TIN {tin})')
+    if element or not iteration:
+        details.append(f'Element: {element.removeprefix(" > ") or "the whole data"}')
+    shown = node if isinstance(node, (dict, list)) else parent
+    details.append(f'Data: {shorten(json.dumps(shown, default=str), 500, placeholder="...")}')
+    return details
