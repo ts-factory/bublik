@@ -101,6 +101,7 @@ class RunListItemSerializer(serializers.Serializer):
     compromised = serializers.BooleanField(allow_null=True)
     conclusion = serializers.CharField()
     conclusion_reason = serializers.CharField(allow_null=True)
+    comment = serializers.CharField(allow_null=True)
     metadata = serializers.ListField(child=serializers.CharField())
     important_tags = serializers.ListField(child=serializers.CharField())
     relevant_tags = serializers.ListField(child=serializers.CharField())
@@ -440,6 +441,7 @@ def serialize_run_summary_result(result: RunSummaryResult):
         'compromised': result.compromised,
         'conclusion': result.conclusion,
         'conclusion_reason': result.conclusion_reason,
+        'comment': result.comment,
         'metadata': result.metadata,
         'important_tags': result.important_tags,
         'relevant_tags': result.relevant_tags,

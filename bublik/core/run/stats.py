@@ -34,7 +34,11 @@ from bublik.core.meta.match_references import build_revision_references
 from bublik.core.queries import MetaResultsQuery, get_or_none
 from bublik.core.references import REF_PATTERN, resolve_ref
 from bublik.core.run.compromised import get_compromised_details, is_run_compromised
-from bublik.core.run.data import get_metadata_by_runs, get_tags_by_runs
+from bublik.core.run.data import (
+    get_comments_by_runs,
+    get_metadata_by_runs,
+    get_tags_by_runs,
+)
 from bublik.core.run.dto import (
     RunCompromisedDetails,
     RunDetailsResult,
@@ -827,6 +831,7 @@ def generate_all_run_details(run):
 def generate_runs_details(runs):
     important_tags, relevant_tags = get_tags_by_runs(runs)
     metadata_by_runs = get_metadata_by_runs(runs)
+    comments_by_runs = get_comments_by_runs(runs)
 
     runs_data = []
     for run in runs:
@@ -845,6 +850,7 @@ def generate_runs_details(runs):
                 compromised=is_run_compromised(run),
                 conclusion=conclusion,
                 conclusion_reason=conclusion_reason,
+                comment=comments_by_runs.get(run_id),
                 metadata=metadata_by_runs.get(run_id, []),
                 important_tags=important_tags.get(run_id, []),
                 relevant_tags=relevant_tags.get(run_id, []),
