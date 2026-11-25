@@ -686,8 +686,8 @@ class LogOverview(BaseModel):
                 sections.append('')
                 sections.append(f'### Table {table_idx}')
                 sections.append('')
-                sections.append('| Line | Level | Entity:User | Time | Content |')
-                sections.append('|------|-------|-------------|------|---------|')
+                sections.append('| Line | Depth | Level | Entity:User | Time | Content |')
+                sections.append('|------|-------|-------|-------------|------|---------|')
                 for log_line in lines_list:
                     sections.append(log_line.to_markdown(max_content_length=None))
 
