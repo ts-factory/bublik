@@ -1,0 +1,66 @@
+# Copy this file to /etc/apache2/conf-available/bublik.conf
+# sudo a2enmod proxy proxy_http headers alias dir
+# sudo a2enconf bublik
+#
+# This is a global configuration, not a virtual host: Bublik is served under
+# $URL_PREFIX by every virtual host of the server, so it can share the host
+# with other sites, e.g. a TE log server generating logs with CGI.
+
+LimitRequestLine 5242880
+LimitRequestFieldSize 5242880
+
+# Apache uses the first matching rule, so the order matters: exclusions
+# go first, then more specific rules, then the catch-all. A rule for a path
+# under another one must also precede it to get its own connection settings.
+
+# Served by Apache itself
+ProxyPass "$URL_PREFIX/favicon.ico" "!"
+ProxyPass "$URL_PREFIX/static/" "!"
+ProxyPass "$URL_PREFIX/v2/" "!"
+
+ProxyPass "$URL_PREFIX/api/v2/chat" \
+          "http://$BUBLIK_BIND_GUNICORN$URL_PREFIX/api/v2/chat" \
+          timeout=86400
+ProxyPass "$URL_PREFIX/flower/" \
+          "http://$BUBLIK_BIND_FLOWER$URL_PREFIX/flower/" \
+          upgrade=websocket
+ProxyPassMatch "^$URL_PREFIX/(mcp(/.*)?)${DOLLAR}" \
+               "http://$BUBLIK_BIND_MCP/${DOLLAR}1" \
+               timeout=86400
+ProxyPass "$URL_PREFIX/" "http://$BUBLIK_BIND_GUNICORN$URL_PREFIX/" timeout=300
+
+RedirectMatch 301 "^$URL_PREFIX${DOLLAR}" "$URL_PREFIX/"
+RedirectMatch 404 "^$URL_PREFIX/favicon\.ico${DOLLAR}"
+
+<Location "$URL_PREFIX/">
+    ProxyPreserveHost On
+    RequestHeader set X-Real-IP "expr=%{REMOTE_ADDR}"
+    RequestHeader set X-Forwarded-Proto "expr=%{REQUEST_SCHEME}"
+</Location>
+
+<LocationMatch "^$URL_PREFIX/mcp(/|${DOLLAR})">
+    RequestHeader set Accept "text/event-stream, application/json"
+</LocationMatch>
+
+Alias "$URL_PREFIX/static/" "$BUBLIK_WEB_STATIC/static/"
+<Directory "$BUBLIK_WEB_STATIC/static/">
+    Require all granted
+</Directory>
+
+# Files here carry a content hash in their names, so they never change.
+# A missing one must be a 404: a tab opened before a UI update asks for
+# files of the previous build, and must not get index.html instead.
+Alias "$URL_PREFIX/v2/assets/" "$BUBLIK_UI_DIR/dist/${BUBLIK_UI_APP}/assets/"
+<Directory "$BUBLIK_UI_DIR/dist/${BUBLIK_UI_APP}/assets/">
+    FallbackResource disabled
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</Directory>
+
+# index.html and version.json name the current build: always revalidate.
+Alias "$URL_PREFIX/v2/" "$BUBLIK_UI_DIR/dist/${BUBLIK_UI_APP}/"
+<Directory "$BUBLIK_UI_DIR/dist/${BUBLIK_UI_APP}/">
+    Require all granted
+    DirectoryIndex index.html
+    FallbackResource "$URL_PREFIX/v2/index.html"
+    Header set Cache-Control "no-cache"
+</Directory>
