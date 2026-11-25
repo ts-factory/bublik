@@ -10,7 +10,7 @@ from .auth.views import (
 )
 from .comments import TestCommentViewSet
 from .config.views import ConfigViewSet
-from .dashboard import (
+from .dashboard.views import (
     DashboardPayload,
     DashboardViewSet,
 )
