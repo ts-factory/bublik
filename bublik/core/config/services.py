@@ -41,6 +41,18 @@ class ConfigServices:
         return config_content
 
     @staticmethod
+    def issue_trackers(project_id=None):
+        """
+        The issue trackers a bug may be filed in, by their key: the ISSUES of
+        the project's references config, or of the default one.
+        """
+        return ConfigServices.getattr_from_global(
+            GlobalConfigs.REFERENCES.name,
+            'ISSUES',
+            project_id,
+        )
+
+    @staticmethod
     def getattr_from_global(config_name, data_key, project_id, **kwargs):
         with contextlib.suppress(KeyError):
             return ConfigServices.get_global_content_from_cache(config_name, project_id)[

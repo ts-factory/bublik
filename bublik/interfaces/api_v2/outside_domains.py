@@ -29,11 +29,7 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
                     'LOGS_BASES',
                     project_id,
                 ),
-                'issues': ConfigServices.getattr_from_global(
-                    GlobalConfigs.REFERENCES.name,
-                    'ISSUES',
-                    project_id,
-                ),
+                'issues': ConfigServices.issue_trackers(project_id),
                 'revisions': ConfigServices.getattr_from_global(
                     GlobalConfigs.REFERENCES.name,
                     'REVISIONS',
@@ -60,11 +56,7 @@ class OutsideDomainsViewSet(RetrieveModelMixin, GenericViewSet):
         project_id = request.query_params.get('project')
         return Response(
             {
-                'issues': ConfigServices.getattr_from_global(
-                    GlobalConfigs.REFERENCES.name,
-                    'ISSUES',
-                    project_id,
-                ),
+                'issues': ConfigServices.issue_trackers(project_id),
             },
         )
 
