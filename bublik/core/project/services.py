@@ -69,23 +69,6 @@ class ProjectService:
             raise NotFoundError(msg) from e
 
     @staticmethod
-    def get_project(project_id: int | str) -> ProjectDTO:
-        """
-        Get a single project by ID.
-
-        Args:
-            project_id: The ID of the project
-
-        Returns:
-            Project DTO.
-
-        Raises:
-            NotFoundError: if project not found
-        """
-        project = ProjectService.get_project_instance(project_id)
-        return ProjectService._to_dto(project)
-
-    @staticmethod
     def create_project(data: dict) -> ProjectDTO:
         """
         Create a project.

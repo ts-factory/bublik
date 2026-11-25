@@ -216,26 +216,14 @@ async def get_result_details(result_id: int) -> dict:
         result_id: The ID of the test result
 
     Returns:
-        Dictionary with full result details, including `issues`: the stamps
+        Dictionary with full result details: the obtained result with its
+        verdicts, the expected results, the artifacts, and `issues`: the stamps
         the result carries, each with the issue, the rule's category and
         disposition and the stamp id (rule_result_id), and
         `effective_expected`: whether the result counts as expected once an
         expected classification is applied
     """
     return await sync_to_async(ResultService.get_result_details)(result_id)
-
-
-async def get_result_artifacts_and_verdicts(result_id: int) -> dict:
-    """
-    Get artifacts and verdicts for a test result.
-
-    Args:
-        result_id: The ID of the test result
-
-    Returns:
-        Dictionary with artifacts and verdicts lists
-    """
-    return await sync_to_async(ResultService.get_result_artifacts_and_verdicts)(result_id)
 
 
 # Project tools
@@ -246,22 +234,9 @@ async def list_projects() -> list[ProjectDTO]:
     List all available projects.
 
     Returns:
-        List of ProjectDTOs
+        List of ProjectDTOs: the id and name of each project
     """
     return await sync_to_async(ProjectService.list_projects)()
-
-
-async def get_project(project_id: int) -> ProjectDTO:
-    """
-    Get details of a specific project.
-
-    Args:
-        project_id: The ID of the project
-
-    Returns:
-        ProjectDTO
-    """
-    return await sync_to_async(ProjectService.get_project)(project_id)
 
 
 # Runs tools
@@ -320,43 +295,6 @@ async def list_runs(  # noqa: PLR0913, PLR0917
     )
 
 
-async def list_runs_today(
-    project_id: int | None = None,
-    page: int | None = None,
-    page_size: int | None = None,
-) -> dict:
-    """
-    List test runs for today.
-
-    Args:
-        project_id: Optional project ID to filter results
-        page: Page number (default: 1)
-        page_size: Items per page (default: 25, max: 10000)
-
-    Returns:
-        Dictionary with pagination metadata and today's run details
-    """
-    date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
-        project_id=project_id,
-    )
-    queryset = (
-        await sync_to_async(RunService.list_runs_by_dashboard_date_queryset)(
-            date=date_str,
-            project_id=project_id,
-        )
-        if date_str
-        else []
-    )
-    runs_details = await sync_to_async(generate_runs_details)(queryset) if date_str else []
-    return serialize_paginated_run_summary_results(
-        await sync_to_async(PaginatedResult.paginate_queryset)(
-            runs_details,
-            page,
-            page_size,
-        ),
-    )
-
-
 async def get_latest_run_date(project_id: int | None = None) -> str | None:
     """
     Get the most recent run date.
@@ -375,22 +313,23 @@ async def get_latest_run_date(project_id: int | None = None) -> str | None:
 
 
 async def get_dashboard(
-    date: str,
+    date: str | None = None,
     project_id: int | None = None,
     sort_by: str | None = None,
     validate: bool = False,
 ) -> dict:
     """
-    Get dashboard data for a specific date (structured format).
+    Get dashboard data for a date, by default the latest one with runs.
 
     Returns the same format as /api/v2/dashboard/ endpoint with:
-    - date: The dashboard date
+    - date: The dashboard date (None when there are no runs at all)
     - rows: List of {row_cells, context} for each run
     - header: Column definitions
     - payload: Handler descriptions
 
     Args:
-        date: Date in yyyy-mm-dd format (e.g., '2024-01-15')
+        date: Date in yyyy-mm-dd format (e.g., '2024-01-15'); omit it for
+            the most recent date that has runs
         project_id: Optional project ID to filter results
         sort_by: Optional comma-separated column keys to sort by (e.g., 'start,total')
         validate: If True, validate dashboard settings before returning
@@ -409,55 +348,18 @@ async def get_dashboard(
             raise_on_error=True,
         )
 
+    if date is None:
+        date = await sync_to_async(DashboardService.get_latest_dashboard_date)(
+            project_id=project_id,
+        )
+        if not date:
+            return {'date': None, 'rows': [], 'header': [], 'payload': {}}
+
     sort_config = sort_by.split(',') if sort_by else None
     return await sync_to_async(DashboardService.get_dashboard_data)(
         date=date,
         project_id=project_id,
         sort_config=sort_config,
-    )
-
-
-async def get_dashboard_today(
-    project_id: int | None = None,
-    sort_by: str | None = None,
-) -> dict:
-    """
-    Get dashboard data for today (structured format).
-
-    Args:
-        project_id: Optional project ID to filter results
-        sort_by: Optional comma-separated column keys to sort by (e.g., 'start,total')
-
-    Returns:
-        Dictionary with the latest dashboard structure
-    """
-    date_str = await sync_to_async(DashboardService.get_latest_dashboard_date)(
-        project_id=project_id,
-    )
-
-    if not date_str:
-        return {'date': None, 'rows': [], 'header': [], 'payload': {}}
-
-    sort_config = sort_by.split(',') if sort_by else None
-    return await sync_to_async(DashboardService.get_dashboard_data)(
-        date=date_str,
-        project_id=project_id,
-        sort_config=sort_config,
-    )
-
-
-async def get_latest_dashboard_date(project_id: int | None = None) -> str | None:
-    """
-    Get the most recent date with dashboard data.
-
-    Args:
-        project_id: Optional project ID to filter by
-
-    Returns:
-        Date string in yyyy-mm-dd format, or None if no data
-    """
-    return await sync_to_async(DashboardService.get_latest_dashboard_date)(
-        project_id=project_id,
     )
 
 
@@ -473,27 +375,19 @@ async def get_log_urls(result_id: int, page: int | None = None) -> dict:
         page: Optional page number (0 for all pages combined, >0 for specific page)
 
     Returns:
-        Dictionary with 'url' and 'attachments_url' keys
+        Dictionary with 'url' and 'attachments_url' (the JSON log and its
+        attachments) and 'html_url' (the HTML log to open in a browser, None
+        if not available)
     """
-    urls = await sync_to_async(LogService.get_json_log_urls)(
-        result_id,
-        page,
-        request_origin=None,
-    )
-    return dict(LogJsonResponseSerializer(urls).data)
 
+    def _urls():
+        urls = LogService.get_json_log_urls(result_id, page, request_origin=None)
+        return {
+            **LogJsonResponseSerializer(urls).data,
+            'html_url': LogService.get_html_log_url(result_id),
+        }
 
-async def get_log_html_url(result_id: int) -> str | None:
-    """
-    Get HTML log URL for a test result.
-
-    Args:
-        result_id: The ID of the test result
-
-    Returns:
-        URL string or None if not available
-    """
-    return await sync_to_async(LogService.get_html_log_url)(result_id)
+    return await sync_to_async(_urls)()
 
 
 async def get_log_overview(
@@ -514,7 +408,8 @@ async def get_log_overview(
         include_scenario: Include scenario-related log lines in overview
         max_content_length: Maximum content length per scenario line. If specified,
             content exceeding this length will be truncated and marked with
-            content_truncated=True. Use get_log_line to retrieve full content.
+            content_truncated=True. Use get_log_lines without a limit to
+            retrieve the full content of a line.
 
     Returns:
         LogOverview as dictionary or markdown string
@@ -556,7 +451,9 @@ async def get_log_lines(  # noqa: PLR0913, PLR0917
     Extract and filter log lines.
 
     Retrieves log lines with optional range-based and content-based filtering.
-    All filters are AND-combined. Supports truncating content for display.
+    All filters are AND-combined. Content is truncated for display: to read
+    one line in full, pass its number as both start_line and end_line with
+    max_content_length null.
 
     Args:
         result_id: Test result ID
@@ -568,9 +465,9 @@ async def get_log_lines(  # noqa: PLR0913, PLR0917
         user_names: Filter by user names
         entity_user_pairs: Filter by "entity:user" combinations (e.g., ["Tester:Run"])
         table_index: Log table block index (default: 0)
-        max_content_length: Maximum content length per line. If specified,
-            content exceeding this length will be truncated and marked with
-            content_truncated=True. Use get_log_line to retrieve full content.
+        max_content_length: Maximum content length per line (default: 200).
+            Content exceeding it is truncated and marked with
+            content_truncated=True; null returns the lines in full.
 
     Returns:
         LogLinesResult as dictionary or markdown string. When truncated,
@@ -598,57 +495,6 @@ async def get_log_lines(  # noqa: PLR0913, PLR0917
         return result.model_dump()
 
     return await sync_to_async(_get_lines)()
-
-
-async def get_log_line(
-    result_id: int,
-    line_number: int,
-    page: int | None = None,
-) -> dict | str:
-    """
-    Get a single log line with full, untruncated content.
-
-    Use this tool to retrieve the complete content of a specific line
-    after using get_log_lines with truncation.
-
-    Args:
-        result_id: Test result ID
-        line_number: Line number to retrieve
-        page: Optional page number (0 for all pages combined, >0 for specific page)
-
-    Returns:
-        Single LogLine as dictionary or markdown string with full content
-
-    Raises:
-        ValueError: If line_number is not found
-    """
-
-    def _get_line():
-        log_data = LogService.get_log_json(result_id, page)
-        validated_log = JsonLog.model_validate(log_data.log)
-
-        processor = LogProcessor(validated_log)
-
-        result = processor.get_lines(
-            start_line=line_number,
-            end_line=line_number,
-            max_content_length=None,
-        )
-
-        if not result.lines:
-            msg = f'Line {line_number} not found in result {result_id}'
-            raise ValueError(msg)
-
-        line = next(
-            (line for line in result.lines if line.line_number == line_number),
-            result.lines[0],
-        )
-
-        if LOG_RETURN_FORMAT == 'markdown':
-            return line.to_markdown(max_content_length=None)
-        return line.model_dump()
-
-    return await sync_to_async(_get_line)()
 
 
 async def get_tree_path(result_id: int) -> list[int]:
@@ -682,9 +528,10 @@ async def get_history(  # noqa: PLR0913, PLR0917
     untriaged: bool | None = None,
     page: int | None = None,
     page_size: int | None = None,
+    group_by_iteration: bool = False,
 ) -> dict:
     """
-    Get test history (linear format).
+    Get test history, result by result or grouped by iteration.
 
     Args:
         test_name: Name of the test to get history for
@@ -702,6 +549,9 @@ async def get_history(  # noqa: PLR0913, PLR0917
         untriaged: true keeps only the failed results without any classification
         page: Page number (default: 1)
         page_size: Items per page (default: 25, max: 10000)
+        group_by_iteration: true groups the results by iteration (the
+            parameters) and, under it, by obtained result and verdicts,
+            which shows how each iteration behaves across runs
 
     Returns:
         Dictionary with history results, counts, date range, and pagination.
@@ -709,7 +559,8 @@ async def get_history(  # noqa: PLR0913, PLR0917
         stamps it carries, with the issue, the rule's category, the
         disposition and the stamp id (rule_result_id). The result ids are
         what get_classify_options and classify_results take, also for
-        results of several runs at once.
+        results of several runs at once. Grouped, the results are under
+        each iteration and verdict group, in results_data.
     """
     # Set default date range if not provided
     if from_date is None and to_date is None:
@@ -730,73 +581,11 @@ async def get_history(  # noqa: PLR0913, PLR0917
         'page': page,
         'page_size': page_size,
     }
+    if group_by_iteration:
+        data = await sync_to_async(HistoryService.get_history_grouped)(test_name, **filters)
+        return dict(HistoryGroupedResponseSerializer(data).data)
     data = await sync_to_async(HistoryService.get_history)(test_name, **filters)
     return dict(HistoryListResponseSerializer(data).data)
-
-
-async def get_history_grouped(  # noqa: PLR0913, PLR0917
-    test_name: str,
-    project_id: int | None = None,
-    from_date: str | None = None,
-    to_date: str | None = None,
-    result_statuses: str | None = None,
-    branches: str | None = None,
-    labels: str | None = None,
-    tags: str | None = None,
-    categories: str | None = None,
-    issue: str | None = None,
-    explained: bool | None = None,
-    untriaged: bool | None = None,
-    page: int | None = None,
-    page_size: int | None = None,
-) -> dict:
-    """
-    Get test history grouped by iteration.
-
-    Args:
-        test_name: Name of the test to get history for
-        project_id: Optional project ID to filter by
-        from_date: Start date in yyyy-mm-dd format (default: 6 months ago)
-        to_date: End date in yyyy-mm-dd format (default: today)
-        result_statuses: Semicolon-separated result statuses (e.g., 'PASSED;FAILED')
-        branches: Semicolon-separated branch names
-        labels: Semicolon-separated labels
-        tags: Semicolon-separated tags
-        categories: Semicolon-separated classification categories; keeps the
-            results stamped by a rule of any of them (e.g., 'known-issue;flaky')
-        issue: Semicolon-separated issue IDs; keeps the results classified under them
-        explained: true keeps only the results with a classification
-        untriaged: true keeps only the failed results without any classification
-        page: Page number (default: 1)
-        page_size: Items per page (default: 25, max: 10000)
-
-    Returns:
-        Dictionary with grouped history results, counts, date range, and
-        pagination. Under each iteration and verdict group, results_data
-        lists the results with their result_id, run_id and issues (the
-        stamps, as get_history shows them).
-    """
-    # Set default date range if not provided
-    if from_date is None and to_date is None:
-        from_date, to_date = get_default_date_range()
-
-    filters = {
-        'project_id': project_id,
-        'from_date': from_date or '',
-        'to_date': to_date or '',
-        'result_statuses': result_statuses or '',
-        'branches': branches or '',
-        'labels': labels or '',
-        'tags': tags or '',
-        'categories': categories or '',
-        'issue': issue or '',
-        'explained': 'true' if explained else '',
-        'untriaged': 'true' if untriaged else '',
-        'page': page,
-        'page_size': page_size,
-    }
-    data = await sync_to_async(HistoryService.get_history_grouped)(test_name, **filters)
-    return dict(HistoryGroupedResponseSerializer(data).data)
 
 
 # Run extension tools
@@ -2289,23 +2078,15 @@ MCP_TOOLS = [
     get_run_overview,
     get_run_leaf_results,
     get_result_details,
-    get_result_artifacts_and_verdicts,
     list_projects,
-    get_project,
     list_runs,
-    list_runs_today,
     get_latest_run_date,
     get_dashboard,
-    get_dashboard_today,
-    get_latest_dashboard_date,
     get_log_urls,
-    get_log_html_url,
     get_log_overview,
     get_log_lines,
-    get_log_line,
     get_tree_path,
     get_history,
-    get_history_grouped,
     get_run_requirements,
     get_run_comment,
     get_run_report_configs,
@@ -2362,14 +2143,10 @@ MCP_UNCACHED_TOOLS = [
     get_run_leaf_results,
     get_result_details,
     list_projects,
-    get_project,
     list_runs,
-    list_runs_today,
     get_latest_run_date,
     get_dashboard,
-    get_dashboard_today,
     get_history,
-    get_history_grouped,
     get_run_comment,
     get_run_report_configs,
     get_test_comments,
