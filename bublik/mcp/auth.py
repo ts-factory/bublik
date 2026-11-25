@@ -147,6 +147,23 @@ def _authorize(action, admin, bound_args):
     return user
 
 
+def authorize_action(action, project_ids) -> User:
+    """Check the running tool's caller may perform ``action`` in every project.
+
+    For the tools whose projects are told by the objects they change rather
+    than by an argument, as `check_action_permission_for_projects` does for
+    the REST API. Called after the objects are loaded, before anything is
+    changed or told about them.
+    """
+    user = mcp_caller()
+    if user is None:
+        raise ToolError(MISSING_TOKEN)
+    if not action_permitted(action, user, project_ids):
+        msg = f'{user.email} is not allowed to perform "{action}" in this project.'
+        raise ToolError(msg)
+    return user
+
+
 def mcp_auth_required(action=None, admin=False):
     """Require an access token on an MCP tool, plus ``action`` permission or admin.
 

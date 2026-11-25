@@ -17,6 +17,7 @@ from django.utils.datastructures import MultiValueDict
 from fastmcp.exceptions import ToolError
 from rest_framework.exceptions import APIException, ValidationError
 
+from bublik.core.classification import DISPOSITION_TO_EXPECTED
 from bublik.core.comment import TestCommentService
 from bublik.core.config.management import ConfigManagementService
 from bublik.core.config.services import ConfigServices
@@ -35,6 +36,7 @@ from bublik.core.project.dto import (
 )
 from bublik.core.report.services import ReportService
 from bublik.core.result import ResultService
+from bublik.core.result.services import UNSET
 from bublik.core.run.classification import ClassificationService
 from bublik.core.run.services import RunService
 from bublik.core.run.stats import (
@@ -58,13 +60,14 @@ from bublik.interfaces.api_v2.log.serializers import LogJsonResponseSerializer
 from bublik.interfaces.api_v2.result.serializers import (
     ClassifyOptionsRequestSerializer,
     ClassifyOptionsRuleSerializer,
+    ClassifyRequestSerializer,
 )
 from bublik.interfaces.api_v2.run.serializers import (
     RunIssueSummarySerializer,
     serialize_paginated_run_summary_results,
 )
 from bublik.mcp import docs
-from bublik.mcp.auth import mcp_auth_required, mcp_caller
+from bublik.mcp.auth import authorize_action, mcp_auth_required, mcp_caller
 from bublik.mcp.models import JsonLog
 from bublik.mcp.processor import LogProcessor
 from bublik.mcp.run import _get_run_leaf_results, render_run_leaf_results, render_run_overview
@@ -75,6 +78,8 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+MANAGE_ISSUES = 'manage_issues'
 
 
 def get_default_date_range():
@@ -1880,6 +1885,403 @@ async def get_classify_options(result_ids: list[int]) -> dict:
     return await sync_to_async(_options)()
 
 
+# Classification write tools. Each needs a token and the `manage_issues`
+# permission in the projects of what it changes, as the REST endpoints do.
+
+
+def _disposition(expected: str | None) -> dict:
+    """
+    The `expected` field of a request for the disposition a caller named.
+
+    Empty when the caller named none, so that the category decides for a new
+    rule and an edited rule keeps its own. A rule may also have no
+    disposition, which 'none' asks for and an omitted argument cannot.
+    """
+    if expected is None:
+        return {}
+    if expected not in DISPOSITION_TO_EXPECTED:
+        msg = f'Expected any of: {", ".join(DISPOSITION_TO_EXPECTED)}.'
+        raise ValidationError({'expected': msg})
+    return {'expected': DISPOSITION_TO_EXPECTED[expected]}
+
+
+@mcp_auth_required()
+async def classify_results(
+    result_ids: list[int],
+    categories: list[str],
+    matchers: list[dict],
+    issue_id: int | None = None,
+    new_issue: dict | None = None,
+    scope: str = 'future',
+    expected: str | None = None,
+) -> dict:
+    """
+    Classify results of one project under an issue, acting as the caller.
+
+    Pass either `issue_id` (an existing issue of the results' project) or
+    `new_issue` ({title, description?, bug_key?}) to create one. Each rule
+    get_classify_options gives (a test and a group of its runs) becomes a
+    rule per category, built from its matcher: {test_id, run_ids,
+    parameters, verdicts, tags}, with `test_id` and `run_ids` as the rule
+    has them. Take the rest from the rule's options: `parameters` any part
+    of the shared ones ({} for none), `verdicts` null to ignore them or the
+    options' `verdicts` whole: a list of verdict lists such as
+    [['Timed out']], each of which makes a rule, `tags` any of the allowed
+    ones ([] for none). `scope='future'` makes rules that also classify
+    later imports; 'oneoff' only stamps these results. Requires an access
+    token and the `manage_issues` permission.
+
+    Args:
+        result_ids: The results, all of one project, as shown by
+            get_run_leaf_results or get_history
+        categories: 'known-issue', 'flaky', 'to-investigate', ... (a rule for each)
+        matchers: One matcher per rule of get_classify_options
+        issue_id: The issue to classify under
+        new_issue: The fields of an issue to create instead: title (required),
+            description, bug_key (e.g. 'ref://JIRA/NET-1')
+        scope: 'future' (default) or 'oneoff'
+        expected: 'expected' (the failures count as expected), 'unexpected'
+            or 'none' (the results are only marked); omit for the category's
+            own disposition (known-issue, env, test-bug and flaky: expected;
+            product-defect and to-investigate: unexpected)
+
+    Returns:
+        The issue id and the ids of the rules the results are stamped with
+    """
+
+    def _classify():
+        if (issue_id is None) == (new_issue is None):
+            msg = 'Pass exactly one of issue_id and new_issue.'
+            raise ValidationError(msg)
+        body = ClassifyRequestSerializer(
+            data={
+                'result_ids': result_ids,
+                'issue': issue_id if issue_id is not None else new_issue,
+                'categories': categories,
+                'matchers': matchers,
+                'scope': scope,
+                **_disposition(expected),
+            },
+        )
+        body.is_valid(raise_exception=True)
+        fields = body.validated_data
+
+        found = ResultService.get_results_by_ids(fields['result_ids'])
+        # Before anything is told about the results, as it depends on their projects.
+        actor = authorize_action(MANAGE_ISSUES, [r.project_id for r in found.values()])
+        results = ResultService.validate_results_for_classification(fields['result_ids'], found)
+        outcome = ResultService.classify(
+            results,
+            issue=fields['issue'],
+            categories=fields['categories'],
+            matchers=fields['matchers'],
+            scope=fields['scope'],
+            expected=fields.get('expected', UNSET),
+            actor=actor,
+        )
+        return asdict(outcome)
+
+    return await sync_to_async(_classify)()
+
+
+@mcp_auth_required()
+async def unclassify_results(rule_result_ids: list[int]) -> dict:
+    """
+    Take a manual classification off results, acting as the caller.
+
+    Deletes the given stamps (the `rule_result_id` of a result's issues, as
+    get_run_leaf_results and get_result_details show them), then the rules
+    left without stamps and the issues left without rules. Stamps made by
+    import cannot be taken off: deactivate or delete the rule instead.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_result_ids: The stamps to take off
+
+    Returns:
+        The ids of the stamps, rules and issues deleted
+    """
+
+    def _unclassify():
+        ids = list(dict.fromkeys(rule_result_ids))
+        found = ResultService.get_rule_results_by_ids(ids)
+        # Before anything is told about the stamps, as it depends on their projects.
+        authorize_action(MANAGE_ISSUES, [rr.result.project_id for rr in found.values()])
+        return asdict(ResultService.unclassify_results(ids, found))
+
+    return await sync_to_async(_unclassify)()
+
+
+@mcp_auth_required()
+async def apply_run_rules(run_id: int) -> dict:
+    """
+    Apply the project's active rules to a run, acting as the caller.
+
+    Adds the stamps that are missing on the run's results; nothing is
+    removed, so it is safe to repeat. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        run_id: The ID of the test run
+
+    Returns:
+        The number of stamps created
+    """
+
+    def _apply():
+        run = RunService.get_run(run_id)
+        actor = authorize_action(MANAGE_ISSUES, [run.project_id])
+        created = ClassificationService.apply_active_rules_manual(run, actor=actor)
+        return {'stamps_created': created}
+
+    return await sync_to_async(_apply)()
+
+
+@mcp_auth_required()
+async def edit_issue(
+    issue_id: int | None = None,
+    project_id: int | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    bug_key: str | None = None,
+) -> dict:
+    """
+    Create an issue, or change one, acting as the caller.
+
+    Without `issue_id` a new issue is created in `project_id` with `title`
+    (required). With it, the fields passed replace the issue's: pass an empty
+    string to clear the description or the bug key. The state is changed by
+    set_issues_state. Requires an access token and the
+    `manage_issues` permission.
+
+    Args:
+        issue_id: The issue to change; omit it to create one
+        project_id: The project of a new issue (or to move an issue without stamps to)
+        title: The title
+        description: Internal notes
+        bug_key: The bug, as 'ref://TRACKER/KEY'; it links to the bug when
+            TRACKER is one list_issue_trackers shows for the project. It
+            cannot change once the issue has classified results
+
+    Returns:
+        The issue as list_issues shows it
+    """
+
+    def _edit():
+        given = {
+            'project': project_id,
+            'title': title,
+            'description': description,
+            'bug_key': bug_key,
+        }
+        fields = {name: value for name, value in given.items() if value is not None}
+        if issue_id is None:
+            serializer = IssueManagementService.validate(fields)
+            actor = authorize_action(MANAGE_ISSUES, [serializer.validated_data['project'].id])
+            issue = IssueManagementService.create(serializer, actor)
+        else:
+            issue = IssueManagementService.get(issue_id)
+            serializer = IssueManagementService.validate(fields, issue)
+            # The issue may be moved to another project, both must allow it.
+            new_project = serializer.validated_data.get('project')
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [issue.project_id, new_project.id if new_project else issue.project_id],
+            )
+            issue = IssueManagementService.update(serializer, actor)
+        return _issue_data(IssueManagementService.get(issue.id))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def delete_issue(issue_id: int) -> dict:
+    """
+    Delete an issue with its rules and stamps for good, acting as the caller.
+
+    Prefer closing it with set_issues_state: a closed issue keeps its
+    history and stops classifying. Requires an access token and the `manage_issues` permission.
+
+    Args:
+        issue_id: The issue to delete
+
+    Returns:
+        `{'deleted': issue_id}`
+    """
+
+    def _delete():
+        issue = IssueManagementService.get(issue_id)
+        authorize_action(MANAGE_ISSUES, [issue.project_id])
+        IssueManagementService.delete(issue)
+        return {'deleted': issue_id}
+
+    return await sync_to_async(_delete)()
+
+
+@mcp_auth_required()
+async def set_issues_state(issue_ids: list[int], state: str) -> dict:
+    """
+    Close issues or reopen them, acting as the caller.
+
+    Closing deactivates the issue's rules, so they classify nothing new; the
+    stamps stay and are shown as stale. Reopening leaves the rules
+    deactivated: activate the ones wanted with set_rules_active. Requires an
+    access token and the `manage_issues` permission.
+
+    Args:
+        issue_ids: The issues to close or reopen
+        state: 'closed' or 'open'
+
+    Returns:
+        The ids split into updated, unchanged (already in that state) and
+        not_found
+    """
+
+    def _set():
+        changes = {
+            'closed': IssueManagementService.close,
+            'open': IssueManagementService.reopen,
+        }
+        if state not in changes:
+            msg = "The state is 'open' or 'closed'."
+            raise ValidationError(msg)
+        ids = list(dict.fromkeys(issue_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueManagementService.projects_of(ids))
+        return asdict(changes[state](ids, actor))
+
+    return await sync_to_async(_set)()
+
+
+@mcp_auth_required()
+async def edit_issue_rule(  # noqa: PLR0913, PLR0917
+    rule_id: int | None = None,
+    issue_id: int | None = None,
+    test_id: int | None = None,
+    category: str | None = None,
+    parameters: dict | None = None,
+    verdicts: list[str] | None = None,
+    ignore_verdicts: bool | None = None,
+    tags: list[str] | None = None,
+    expected: str | None = None,
+) -> dict:
+    """
+    Create a rule of an issue, or change one, acting as the caller.
+
+    A rule stamps the results of `test_id` whose parameters include
+    `parameters`, whose verdicts are exactly `verdicts` (in order; [] for
+    none) unless `ignore_verdicts` is true, in runs carrying every one of
+    `tags`. Without `rule_id` all of issue_id, test_id, category, parameters,
+    tags and either verdicts or ignore_verdicts are required. With it, the
+    fields passed replace the rule's; the matcher of a rule that has
+    classified results cannot change, create a new rule instead. Requires
+    an access token and the `manage_issues` permission.
+
+    Args:
+        rule_id: The rule to change; omit it to create one
+        issue_id: The issue the rule belongs to
+        test_id: The test, as shown by get_run_overview
+        category: 'known-issue', 'flaky', 'to-investigate', ...
+        parameters: Test parameters as {name: value}; {} restricts nothing
+        verdicts: The verdicts a result must have, in order; [] for none
+        ignore_verdicts: true to match whatever the verdicts are
+        tags: Run tags as 'name=value' or 'name'; [] restricts nothing
+        expected: 'expected' (the stamped failures count as expected),
+            'unexpected' or 'none' (the results are only marked); omit for
+            the category's own disposition when creating
+
+    Returns:
+        The rule as get_issue shows it
+    """
+
+    def _edit():
+        given = {
+            'issue': issue_id,
+            'test': test_id,
+            'category': category,
+            'parameters': parameters,
+            'verdicts': verdicts,
+            'tags': tags,
+        }
+        fields = {name: value for name, value in given.items() if value is not None}
+        fields.update(_disposition(expected))
+        if ignore_verdicts:
+            fields['verdicts'] = None
+        if rule_id is None:
+            serializer = IssueRuleManagementService.validate(fields)
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [serializer.validated_data['issue'].project_id],
+            )
+            rule = IssueRuleManagementService.create(serializer, actor)
+        else:
+            rule = IssueRuleManagementService.get(rule_id)
+            serializer = IssueRuleManagementService.validate(fields, rule)
+            # The rule may be moved to an issue of another project, both must allow it.
+            new_issue = serializer.validated_data.get('issue')
+            actor = authorize_action(
+                MANAGE_ISSUES,
+                [rule.issue.project_id, (new_issue or rule.issue).project_id],
+            )
+            rule = IssueRuleManagementService.update(serializer, actor)
+        return _rule_data(IssueRuleManagementService.get(rule.id))
+
+    return await sync_to_async(_edit)()
+
+
+@mcp_auth_required()
+async def delete_issue_rule(rule_id: int) -> dict:
+    """
+    Delete a rule with its stamps for good, acting as the caller.
+
+    Prefer deactivating it with set_rules_active, which keeps the stamps.
+    Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_id: The rule to delete
+
+    Returns:
+        `{'deleted': rule_id}`
+    """
+
+    def _delete():
+        rule = IssueRuleManagementService.get(rule_id)
+        authorize_action(MANAGE_ISSUES, [rule.issue.project_id])
+        IssueRuleManagementService.delete(rule)
+        return {'deleted': rule_id}
+
+    return await sync_to_async(_delete)()
+
+
+@mcp_auth_required()
+async def set_rules_active(rule_ids: list[int], active: bool) -> dict:
+    """
+    Activate rules or deactivate them, acting as the caller.
+
+    An active rule classifies later imports; a deactivated one keeps its
+    stamps. The rules of a closed issue cannot be activated: reopen it
+    first. Requires an access token and the `manage_issues` permission.
+
+    Args:
+        rule_ids: The rules to change
+        active: true to activate them, false to deactivate them
+
+    Returns:
+        The ids split into updated, unchanged (already so) and not_found
+    """
+
+    def _set():
+        ids = list(dict.fromkeys(rule_ids))
+        actor = authorize_action(MANAGE_ISSUES, IssueRuleManagementService.projects_of(ids))
+        change = (
+            IssueRuleManagementService.activate
+            if active
+            else IssueRuleManagementService.deactivate
+        )
+        return asdict(change(ids, actor))
+
+    return await sync_to_async(_set)()
+
+
 # Shared registry of Bublik tool callables. Consumed both by the FastMCP HTTP
 # server (see register_tools) and directly by the in-process chat agent
 # (see bublik.ai.agent), so both expose exactly the same tools.
@@ -1931,6 +2333,15 @@ MCP_WRITE_TOOLS = [
     edit_run_comment,
     delete_run_comment,
     set_run_compromised,
+    classify_results,
+    unclassify_results,
+    apply_run_rules,
+    edit_issue,
+    delete_issue,
+    set_issues_state,
+    edit_issue_rule,
+    delete_issue_rule,
+    set_rules_active,
 ]
 
 # Tools only an administrator may call, reads included.
