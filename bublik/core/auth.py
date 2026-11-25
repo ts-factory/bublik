@@ -171,6 +171,26 @@ def auth_required(as_admin=False):
     return decorator
 
 
+def action_is_open(action, project_id=None):
+    """Whether the project lets anyone perform ``action``."""
+    return action in ConfigServices.getattr_from_global(
+        GlobalConfigs.PER_CONF.name,
+        'NOT_PERMISSION_REQUIRED_ACTIONS',
+        project_id=project_id,
+    )
+
+
+def action_permitted(action, user, project_ids=()):
+    """Whether ``user`` may perform ``action`` in every one of the projects.
+
+    The same rule as `check_action_permission_for_projects`, for callers
+    without a request: with no projects the global settings apply.
+    """
+    if all(action_is_open(action, project_id) for project_id in set(project_ids) or {None}):
+        return True
+    return is_admin(user) and user.is_active
+
+
 def check_action_permission_for_projects(request, action, project_ids):
     """
     Check the action against the projects it touches.
@@ -184,12 +204,7 @@ def check_action_permission_for_projects(request, action, project_ids):
     by the client, so it can't be trusted to name them.
     """
     for project_id in set(project_ids) or {None}:
-        not_permission_required_actions = ConfigServices.getattr_from_global(
-            GlobalConfigs.PER_CONF.name,
-            'NOT_PERMISSION_REQUIRED_ACTIONS',
-            project_id=project_id,
-        )
-        if action not in not_permission_required_actions:
+        if not action_is_open(action, project_id):
             require_user(request, as_admin=True)
             return
 
