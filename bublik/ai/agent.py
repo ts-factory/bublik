@@ -21,6 +21,7 @@ network hop to a separate MCP server.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from functools import lru_cache, wraps
 import inspect
 import logging
@@ -28,6 +29,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import PrepareTools
 from pydantic_ai.exceptions import ModelRetry, UserError
 from pydantic_ai.models import infer_model
 from pydantic_ai.providers import infer_provider_class
@@ -157,6 +159,16 @@ def _as_retry_tool(fn):
     return wrapper
 
 
+def _without_strict(_ctx, tool_defs):
+    """Turn strict mode off for the tools that leave it to the model.
+
+    The OpenAI model turns it on for every tool whose schema allows it, and
+    Anthropic refuses a request with more than 20 strict tools, which a
+    gateway in front of it passes on.
+    """
+    return [replace(td, strict=False) if td.strict is None else td for td in tool_defs]
+
+
 def _infer_provider_model(provider: Provider, provider_id: str, model_id: str):
     """Build the pydantic-ai model for a resolved provider entry.
 
@@ -266,6 +278,7 @@ def build_agent(
         # connections are opened per run via ``async with agent:`` in the
         # app's background run task (see bublik.ai.app._produce_run).
         toolsets=build_mcp_toolsets(config),
+        capabilities=[PrepareTools(_without_strict)],
         retries=5,
         model_settings=model_settings or None,
     )

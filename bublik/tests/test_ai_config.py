@@ -10,7 +10,9 @@ import uuid
 
 from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
+import httpx
 from jsonschema import Draft7Validator
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.azure import AzureProvider
@@ -334,6 +336,37 @@ class BuildAgentTest(SimpleTestCase):
         changed = _config()
         changed['providers'][0]['api_url'] = 'http://localhost:10/v1'
         self.assertIsNot(first, self._build(changed))
+
+    @override_settings(AI_TEST_API_KEY='sekret')
+    def test_tools_are_sent_without_strict_mode(self):
+        # Anthropic refuses a request with more than 20 strict tools.
+        sent = []
+
+        def reply(request):
+            sent.append(json.loads(request.content))
+            message = {'role': 'assistant', 'content': 'ok'}
+            return httpx.Response(
+                200,
+                json={
+                    'id': 'reply',
+                    'object': 'chat.completion',
+                    'created': 0,
+                    'model': 'test-model',
+                    'choices': [{'index': 0, 'message': message, 'finish_reason': 'stop'}],
+                },
+            )
+
+        provider = OpenAIProvider(
+            base_url=_API_URL,
+            api_key='sekret',
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(reply)),
+        )
+        agent = self._build(_config())
+        with agent.override(model=OpenAIChatModel('test-model', provider=provider)):
+            agent.run_sync('hi')
+        tools = [tool['function'] for tool in sent[0]['tools']]
+        self.assertTrue(tools)
+        self.assertEqual([tool['name'] for tool in tools if tool.get('strict')], [])
 
 
 class ProviderFactoryTest(SimpleTestCase):
