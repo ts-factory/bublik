@@ -289,6 +289,25 @@ class IssueListTest(IssueApiDataMixin, APITestCase):
         assert ids[:2] == [self.env.id, self.flaky.id]
         assert [issue['result_count'] for issue in response.data['results']] == [2, 1, 0, 0]
 
+    def test_ordering_takes_several_fields_and_leaves_an_unknown_one_out(self):
+        data.issue(self.project, title='closed', state=models.IssueState.CLOSED)
+
+        def listed(ordering):
+            response = self.client.get(
+                self._url('issues-list'),
+                {'project': self.project.id, 'ordering': ordering},
+            )
+            assert response.status_code == status.HTTP_200_OK, response.data
+            return [issue['id'] for issue in response.data['results']]
+
+        def expected(*fields):
+            issues = models.Issue.objects.filter(project=self.project)
+            return list(issues.order_by(*fields, '-id').values_list('id', flat=True))
+
+        assert listed('state,-title') == expected('state', '-title')
+        assert listed('bogus,-title') == expected('-title')
+        assert listed('bogus') == expected('-created_at')
+
     def test_a_page_takes_page_size_issues_of_each_project(self):
         other = [data.issue(self.other_project, title=f'other {i}') for i in range(3)]
 
