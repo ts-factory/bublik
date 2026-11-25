@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from functools import partial
+
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from bublik.core.config.services import ConfigServices
@@ -100,7 +103,9 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
 
     mr, _ = mr_serialize.get_or_create()
 
-    meta_categorization.delay(run.project.name)
+    # Sent once the mark is committed, so the task sees it also when the
+    # caller marks the run inside a transaction.
+    transaction.on_commit(partial(meta_categorization.delay, run.project.name))
 
     return mr
 
