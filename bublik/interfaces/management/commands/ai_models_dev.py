@@ -10,6 +10,11 @@ Usage::
     python manage.py ai_models_dev --provider openai --json
     python manage.py ai_models_dev --search gpt-5
     python manage.py ai_models_dev --generate-schema
+    python manage.py ai_models_dev --sync
+    python manage.py ai_models_dev --sync --source api.json
+
+``--sync`` and ``--generate-schema`` change files of the sources and are for
+a development checkout: commit what they change.
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
+from bublik.ai import models_dev
 from bublik.ai.discovery import md_provider, md_providers, models_from_models_dev
 import bublik.data
 
@@ -59,9 +65,25 @@ class Command(BaseCommand):
             help='Refresh the models.dev provider-id enum in ai.json '
             '(enables editor autocomplete)',
         )
+        parser.add_argument(
+            '--sync',
+            action='store_true',
+            default=False,
+            help='Refresh the bundled models.dev snapshot and the provider-id enum, '
+            'in a development checkout: both are tracked files, to be committed',
+        )
+        parser.add_argument(
+            '--source',
+            default=models_dev.API_URL,
+            help='URL or file to sync from, e.g. a copy of api.json where models.dev '
+            'is out of reach '
+            f'(default: {models_dev.API_URL})',
+        )
 
     def handle(self, **options):
-        if options['list_providers']:
+        if options['sync']:
+            self._sync(options['source'])
+        elif options['list_providers']:
             self._list_providers()
         elif options['generate_schema']:
             self._generate_schema()
@@ -71,6 +93,25 @@ class Command(BaseCommand):
             self._search_model(options['search'])
         else:
             self.print_help('manage.py', 'ai_models_dev')
+
+    def _sync(self, source: str):
+        before = models_dev.load_providers() if models_dev.SNAPSHOT_PATH.exists() else {}
+        models_dev.write_snapshot(models_dev.fetch(source))
+        after = models_dev.load_providers()
+        added = sorted(
+            f'{provider.id}/{model_id}'
+            for provider in after.values()
+            for model_id in provider.models
+            if model_id not in getattr(before.get(provider.id), 'models', {})
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'Synced {len(after)} providers, '
+                f'{sum(len(p.models) for p in after.values())} models from {source} '
+                f'into {models_dev.SNAPSHOT_PATH} ({len(added)} models added)',
+            ),
+        )
+        self._generate_schema()
 
     def _list_providers(self):
         providers = sorted(md_providers(), key=lambda p: p.id)

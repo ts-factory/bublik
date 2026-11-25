@@ -50,7 +50,6 @@ importlib-metadata==8.7.1
 jsonschema==4.26.0
 kombu==5.5.4
 Markdown==3.9
-models-dev==1.0.398
 more-itertools==8.1.0
 networkx
 ninja==1.10.2.3
