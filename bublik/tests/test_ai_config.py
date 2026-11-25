@@ -58,8 +58,11 @@ _DISCOVERY_TEST_CACHES = {
 
 
 _API_URL = 'http://localhost:9/v1'
-# Types retired from the schema enum because their pydantic-ai class has a
+# Types retired from the schema enum when their pydantic-ai class had a
 # fixed endpoint; such vendors are configured as type 'openai' + api_url.
+# pydantic-ai gives these classes a base URL now. They stay retired on
+# purpose for the time being: bringing them back changes what a config may
+# say, and is left to a change of its own.
 _FIXED_ENDPOINT_TYPES = (
     'openrouter',
     'cohere',
@@ -409,9 +412,16 @@ class ProviderFactoryTest(SimpleTestCase):
         # Safety net behind the parse-time check: a retired type that somehow
         # reaches the factory (model_construct skips validation) is refused
         # instead of silently using the class's built-in URL.
+        class FixedEndpointProvider:
+            def __init__(self, api_key=None):
+                pass
+
         provider = Provider.model_construct(id='proxy', type='deepseek', api_url=self.URL)
         factory = _make_provider_factory(provider, 'sekret')
-        with self.assertRaisesMessage(ValueError, "'deepseek'"):
+        with mock.patch(
+            'bublik.ai.agent.infer_provider_class',
+            return_value=FixedEndpointProvider,
+        ), self.assertRaisesMessage(ValueError, "'deepseek'"):
             factory('deepseek')
 
     def test_remote_endpoint_without_api_key_is_warned_about(self):
@@ -833,12 +843,6 @@ class AiSchemaTest(SimpleTestCase):
         for provider_type in _FIXED_ENDPOINT_TYPES:
             with self.subTest(type=provider_type):
                 self.assertNotIn(provider_type, enum)
-                try:
-                    cls = infer_provider_class(provider_type)
-                except ImportError:
-                    self.skipTest('optional provider package not installed')
-                params = inspect.signature(cls.__init__).parameters
-                self.assertFalse(any(name in params for name in _URL_PARAMS), cls.__name__)
 
     def test_rejects_unknown_and_fixed_endpoint_types(self):
         # Types whose pydantic-ai class has a fixed endpoint are gone from the
