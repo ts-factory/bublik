@@ -126,6 +126,7 @@ class RunSummaryResult:
     compromised: bool | None
     conclusion: str
     conclusion_reason: str | None
+    comment: str | None
     metadata: list[str]
     important_tags: list[str]
     relevant_tags: list[str]

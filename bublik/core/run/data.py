@@ -62,6 +62,20 @@ def get_metadata_by_runs(runs, categorize=False):
     return metadata_by_runs
 
 
+def get_comments_by_runs(runs):
+    """
+    Prepare run comments as following: {'run_id': 'comment', }.
+    Runs items can represent TestIterationResult objects or just IDs.
+    A run with no comment is left out.
+    """
+
+    return dict(
+        MetaResult.objects.filter(result__in=runs, meta__type='comment')
+        .order_by('id')
+        .values_list('result_id', 'meta__value'),
+    )
+
+
 def get_tags_by_runs(runs, not_categorize=False):
     """
     Prepare tags as following: {'run_id': ['tag_id', ], }.
