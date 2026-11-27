@@ -666,7 +666,8 @@ def generate_results_details(test_results):
             for test_argument in iteration.test_arguments.all():
                 parameters[test_argument.name] = test_argument.value
         parameters = OrderedDict(sorted(parameters.items()))
-        parameters_list = key_value_dict_transforming(parameters)
+        # A list: a generator is empty for whoever serializes the details twice.
+        parameters_list = list(key_value_dict_transforming(parameters))
 
         # Classifications stamped on this result: needed both to list them for
         # display and to compute effective_expected (suppressed by an expected
