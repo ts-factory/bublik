@@ -11,7 +11,7 @@ from django.db.models import BooleanField, ExpressionWrapper, OuterRef, Prefetch
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.run.dto import RuleResultInfo
-from bublik.data.models import IssueRule, IssueState, RuleResult
+from bublik.data.models import IssueCategory, IssueRule, IssueState, RuleResult
 
 
 SUPPRESSION_FILTER = {'issue_rule__expected': True, 'issue_rule__issue__state': IssueState.OPEN}
@@ -42,6 +42,18 @@ def parse_issue_ids(value, param='issue'):
         msg = f'Expected issue IDs separated by {settings.QUERY_DELIMITER!r}, got {value!r}.'
         raise ValidationError({param: msg})
     return [int(i) for i in ids]
+
+
+def parse_categories(value, param='categories'):
+    """
+    Split a delimiter-separated list of classification categories from a
+    query param, rejecting an unknown one with a 400.
+    """
+    categories = value.split(settings.QUERY_DELIMITER)
+    if any(category not in IssueCategory.values for category in categories):
+        msg = f'Expected any of: {", ".join(IssueCategory.values)}.'
+        raise ValidationError({param: msg})
+    return categories
 
 
 class Effect(TextChoices):

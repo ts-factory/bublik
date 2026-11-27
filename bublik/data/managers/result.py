@@ -51,9 +51,20 @@ class TestIterationResultQuerySet(QuerySet):
 
         return self
 
-    def stamped_under(self, issue_ids):
-        """Results carrying a stamp of a rule of any of the given issues."""
-        return self.filter(rule_results__issue_rule__issue_id__in=issue_ids)
+    def stamped_under(self, issue_ids=None, categories=None):
+        """
+        Results carrying a stamp of a rule of any of the given issues, in any
+        of the given categories. Both hold for the same stamp: a stamp of the
+        issue in one of the categories, not a stamp of the issue and another
+        one of the category. A result carrying several such stamps comes
+        once for each of them.
+        """
+        stamp = {}
+        if issue_ids is not None:
+            stamp['rule_results__issue_rule__issue_id__in'] = issue_ids
+        if categories is not None:
+            stamp['rule_results__issue_rule__category__in'] = categories
+        return self.filter(**stamp) if stamp else self
 
     def filter_by_result_classification(self, properties):
         if 'expected' in properties and 'unexpected' in properties:

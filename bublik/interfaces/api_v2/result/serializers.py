@@ -16,6 +16,10 @@ class ResultListQuerySerializer(serializers.Serializer):
     result_properties = serializers.CharField(required=False)
     requirements = serializers.CharField(required=False)
     issue = serializers.CharField(required=False)
+    categories = serializers.CharField(
+        required=False,
+        help_text="';'-separated classification categories of the stamps on the results.",
+    )
 
 
 class ResultKeySerializer(serializers.Serializer):

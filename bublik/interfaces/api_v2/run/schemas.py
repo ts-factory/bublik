@@ -301,6 +301,15 @@ run_viewset_schema = extend_schema_view(
                 location=OpenApiParameter.PATH,
                 description='The ID of the issue to filter results by.',
             ),
+            OpenApiParameter(
+                name='categories',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "';'-separated categories: only the results stamped by a rule of "
+                    'the issue in any of them.'
+                ),
+            ),
         ],
         responses={
             200: OpenApiResponse(
