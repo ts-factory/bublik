@@ -147,6 +147,17 @@ class ApplyRulesOnDemandTest(ClassificationDataMixin, TestCase):
         assert models.RuleResult.objects.get(result=self.hw_failed).created_by == actor
         assert self._apply() == 0
 
+    def test_the_run_caches_are_dropped(self):
+        data.rule(self.issue, self.tree.ping)
+
+        with mock.patch('bublik.core.run.classification.RunCache') as cache:
+            self._apply()
+
+        cache.delete_data_for_obj.assert_called_once_with(
+            self.run_row,
+            data_keys=cache.KEYS_CLASSIFICATION_AFFECTED,
+        )
+
     def test_inactive_rules_and_rules_of_closed_issues_do_not_apply(self):
         data.rule(self.issue, self.tree.ping, active=False)
         closed = data.issue(self.project, title='closed', state=models.IssueState.CLOSED)
