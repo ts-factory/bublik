@@ -46,10 +46,8 @@ class TestIterationResultQuerySet(QuerySet):
 
         if ('compromised' in properties) ^ ('notcompromised' in properties):
             if 'compromised' in properties:
-                self = self.filter(compromised_query)
-
-            if 'notcompromised' in properties:
-                self = self.exclude(compromised_query)
+                return self.filter(compromised_query)
+            return self.exclude(compromised_query)
 
         return self
 
@@ -90,9 +88,10 @@ class TestIterationResultQuerySet(QuerySet):
             return self.model.objects.none()
 
         # Apply filter by run metas
+        runs = self
         for meta in metas_filter:
-            self = self.filter(meta_results__meta=meta)
-        return self
+            runs = runs.filter(meta_results__meta=meta)
+        return runs
 
     def filter_runs_by_date(self, from_d: datetime, to_d: datetime) -> QuerySet:
         """
