@@ -14,10 +14,10 @@ from rest_framework.exceptions import ValidationError
 
 from bublik.core.classification import suppressed_subquery
 from bublik.core.config.services import ConfigServices
-from bublik.core.datetime_formatting import date_str_to_db
 from bublik.core.exceptions import NotFoundError
 from bublik.core.pagination_helpers import PaginatedResult
 from bublik.core.run.compromised import (
+    get_compromised_details,
     is_run_compromised,
     mark_run_compromised,
     unmark_run_compromised,
@@ -39,6 +39,7 @@ from bublik.core.run.stats import (
     get_nok_results_distribution,
     get_run_stats_detailed_with_comments,
     get_run_status,
+    get_test_runs,
 )
 from bublik.core.shortcuts import serialize
 from bublik.data import models
@@ -198,7 +199,60 @@ class RunService:
         unmark_run_compromised(run_id)
 
     @staticmethod
-    def list_runs_queryset(  # noqa: PLR0913
+    def set_run_compromised(
+        run_id: int,
+        compromised: bool,
+        comment: str | None = None,
+        bug_id: str | None = None,
+        reference_key: str | None = None,
+    ) -> dict:
+        """
+        Bring a run's compromised mark to the state asked for: mark it,
+        replace the mark it has, or clear it.
+
+        Args:
+            run_id: The ID of the test run
+            compromised: Whether the run is to be compromised
+            comment: Why it is compromised (required to mark it)
+            bug_id: Optional bug ID reference
+            reference_key: Optional reference key
+
+        Returns:
+            The run's compromised details: status, comment, bug_id and bug_url
+
+        Raises:
+            NotFoundError: if the run does not exist
+            ValidationError: if the new mark is not valid; the run then keeps
+                the mark it had
+        """
+        run = RunService.get_run(run_id)
+        # Atomic, so a rejected new mark keeps the old one.
+        with transaction.atomic():
+            if is_run_compromised(run):
+                RunService.unmark_run_compromised(run_id)
+            if compromised:
+                RunService.mark_run_compromised(run_id, comment, bug_id, reference_key)
+        return get_compromised_details(run_id)
+
+    @staticmethod
+    def get_latest_uncompromised_run_date(project_id: int | None = None) -> str | None:
+        """
+        The date the most recent run that is not compromised started on.
+
+        Args:
+            project_id: Optional project ID to filter by
+
+        Returns:
+            Date string in yyyy-mm-dd format, or None if there are no runs
+        """
+        runs = get_test_runs(order_by='-start')
+        if project_id:
+            runs = runs.filter(project_id=project_id)
+        latest = runs.first()
+        return latest.start.date().isoformat() if latest else None
+
+    @staticmethod
+    def list_runs_queryset(  # noqa: PLR0913, PLR0917
         start_date: str | None = None,
         finish_date: str | None = None,
         project_id: int | None = None,
@@ -499,37 +553,6 @@ class RunService:
             )
 
         return {'buckets': buckets}
-
-    @staticmethod
-    def list_runs_by_dashboard_date_queryset(date: str, project_id: int | None = None):
-        """
-        Get runs for a dashboard date using the same date source as dashboard data.
-
-        Some installations configure dashboard dates through run metadata instead of
-        the run start timestamp.
-        """
-        date_meta = ConfigServices.getattr_from_global(
-            models.GlobalConfigs.PER_CONF.name,
-            'DASHBOARD_DATE',
-            project_id,
-        )
-
-        if date_meta:
-            queryset = models.TestIterationResult.objects.filter(
-                test_run__isnull=True,
-                meta_results__meta__name=date_meta,
-                meta_results__meta__value=date,
-            )
-        else:
-            queryset = models.TestIterationResult.objects.filter(
-                test_run__isnull=True,
-                start__date=date_str_to_db(date),
-            )
-
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
-
-        return queryset.select_related('project').distinct().order_by('-start')
 
     @staticmethod
     def get_run_requirements(run_id: int) -> list[str]:

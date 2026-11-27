@@ -3,10 +3,10 @@
 """
 Model metadata discovery for the ``ai`` config.
 
-models.dev (via the ``models-dev`` package, an offline snapshot of
-https://models.dev) is the source of model metadata: display name, token
-limits, modalities, tool-calling and reasoning support. A provider's model
-list is populated with the following priority:
+models.dev (via the snapshot in :mod:`bublik.ai.models_dev`) is the source
+of model metadata: display name, token limits, modalities, tool-calling and
+reasoning support. A provider's model list is populated with the following
+priority:
 
 1. an explicit ``models`` list in the config — kept as-is, unset fields
    enriched from models.dev (explicit values always win);
@@ -30,16 +30,14 @@ from typing import TYPE_CHECKING
 
 from django.core.cache import caches
 import httpx
-from models_dev import get_provider as _md_get_provider
-from models_dev import providers as _md_providers
 
+from bublik.ai.models_dev import load_providers
 from bublik.ai.types import Limit, Modalities, ModelEntry
 
 
 if TYPE_CHECKING:
-    from models_dev import Model as MdModel
-    from models_dev import Provider as MdProvider
-
+    from bublik.ai.models_dev import Model as MdModel
+    from bublik.ai.models_dev import Provider as MdProvider
     from bublik.ai.types import Provider
 
 
@@ -70,22 +68,17 @@ _MD_ID_ALIASES = {
 }
 
 
-@lru_cache(maxsize=1)
 def md_providers() -> list[MdProvider]:
-    """All models.dev providers (cached for the process lifetime)."""
-    return list(_md_providers())
+    """All models.dev providers."""
+    return list(load_providers().values())
 
 
-@lru_cache(maxsize=256)
 def md_provider(provider_id: str) -> MdProvider | None:
     """A models.dev provider by id (directly or via an alias), or ``None``."""
+    providers = load_providers()
     for pid in (provider_id, _MD_ID_ALIASES.get(provider_id)):
-        if not pid:
-            continue
-        try:
-            return _md_get_provider(pid)
-        except KeyError:
-            continue
+        if pid in providers:
+            return providers[pid]
     return None
 
 

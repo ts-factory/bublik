@@ -46,16 +46,25 @@ class TestIterationResultQuerySet(QuerySet):
 
         if ('compromised' in properties) ^ ('notcompromised' in properties):
             if 'compromised' in properties:
-                self = self.filter(compromised_query)
-
-            if 'notcompromised' in properties:
-                self = self.exclude(compromised_query)
+                return self.filter(compromised_query)
+            return self.exclude(compromised_query)
 
         return self
 
-    def stamped_under(self, issue_ids):
-        """Results carrying a stamp of a rule of any of the given issues."""
-        return self.filter(rule_results__issue_rule__issue_id__in=issue_ids)
+    def stamped_under(self, issue_ids=None, categories=None):
+        """
+        Results carrying a stamp of a rule of any of the given issues, in any
+        of the given categories. Both hold for the same stamp: a stamp of the
+        issue in one of the categories, not a stamp of the issue and another
+        one of the category. A result carrying several such stamps comes
+        once for each of them.
+        """
+        stamp = {}
+        if issue_ids is not None:
+            stamp['rule_results__issue_rule__issue_id__in'] = issue_ids
+        if categories is not None:
+            stamp['rule_results__issue_rule__category__in'] = categories
+        return self.filter(**stamp) if stamp else self
 
     def filter_by_result_classification(self, properties):
         if 'expected' in properties and 'unexpected' in properties:
@@ -90,9 +99,10 @@ class TestIterationResultQuerySet(QuerySet):
             return self.model.objects.none()
 
         # Apply filter by run metas
+        runs = self
         for meta in metas_filter:
-            self = self.filter(meta_results__meta=meta)
-        return self
+            runs = runs.filter(meta_results__meta=meta)
+        return runs
 
     def filter_runs_by_date(self, from_d: datetime, to_d: datetime) -> QuerySet:
         """

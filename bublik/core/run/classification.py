@@ -10,7 +10,13 @@ from django.db import transaction
 from django.db.models import BooleanField, Count, ExpressionWrapper, Q
 from rest_framework.exceptions import ValidationError
 
-from bublik.core.classification import SUPPRESSION_FILTER, Effect, effect_for
+from bublik.core.cache import RunCache
+from bublik.core.classification import (
+    SUPPRESSION_FILTER,
+    Effect,
+    effect_for,
+    parse_categories,
+)
 from bublik.core.logging import get_task_or_server_logger
 from bublik.core.references import resolve_ref
 from bublik.core.run.data import get_parameters_by_iterations, get_verdicts
@@ -277,7 +283,8 @@ class ClassificationService:
         that are missing, so it is safe to call repeatedly on the same run.
         Only the rules of open issues apply: closing an issue deactivates its
         rules. A rule that fails to match is logged and skipped, so one broken
-        rule can't block the others.
+        rule can't block the others. The run's cached data that shows the
+        classification is dropped.
 
         Args:
             run: The run to apply active rules to
@@ -292,12 +299,14 @@ class ClassificationService:
             run,
         )
         with transaction.atomic():
-            return ClassificationService.create_stamps(
+            created = ClassificationService.create_stamps(
                 matches,
                 run,
                 models.RuleResultOrigin.MANUAL_PERSISTENT,
                 actor=actor,
             )
+        RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
+        return created
 
     @staticmethod
     def runs_for_rules(rule_ids: list[int]) -> list[int]:
@@ -491,13 +500,19 @@ class ClassificationService:
         return issue_summaries
 
     @staticmethod
-    def run_issue_results(run: models.TestIterationResult, issue_id: int):
+    def run_issue_results(
+        run: models.TestIterationResult,
+        issue_id: int,
+        categories: str | None = None,
+    ):
         """
         Results in a run classified under a specific issue.
 
         Args:
             run: The run to search
             issue_id: The issue to filter by
+            categories: Semicolon-separated categories; keeps only the
+                results stamped by a rule of the issue in any of them
 
         Returns:
             QuerySet of TestIterationResult, for generate_results_details() -
@@ -505,7 +520,7 @@ class ClassificationService:
         """
         return (
             models.TestIterationResult.objects.filter(test_run=run)
-            .stamped_under([issue_id])
+            .stamped_under([issue_id], parse_categories(categories) if categories else None)
             .distinct()
             .order_by('-start', 'id')
         )

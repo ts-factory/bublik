@@ -144,6 +144,7 @@ class HistoryVerdictResultSerializer(serializers.Serializer):
     start_date = serializers.DateTimeField()
     important_tags = serializers.ListField(child=serializers.CharField())
     relevant_tags = serializers.ListField(child=serializers.CharField())
+    issues = ResultIssueSerializer(many=True)
 
 
 class HistoryVerdictGroupSerializer(serializers.Serializer):

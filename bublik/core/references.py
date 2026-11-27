@@ -31,11 +31,8 @@ def resolve_ref(ref, project_id=None):
     # Imported lazily: data models use REF_CORE from this module, so a top-level
     # import of the models (directly or via ConfigServices) would be circular.
     from bublik.core.config.services import ConfigServices  # noqa: PLC0415
-    from bublik.data.models import GlobalConfigs  # noqa: PLC0415
 
-    logs = ConfigServices.getattr_from_global(
-        GlobalConfigs.REFERENCES.name, 'ISSUES', project_id
-    )
-    url = f'{logs[ref_type]["uri"]}{ref_tail}' if ref_type in logs else None
+    trackers = ConfigServices.issue_trackers(project_id)
+    url = f'{trackers[ref_type]["uri"]}{ref_tail}' if ref_type in trackers else None
 
     return ref_type, ref_tail, url

@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2016-2023 OKTET Labs Ltd. All rights reserved.
 
+from functools import partial
+
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from bublik.core.config.services import ConfigServices
 from bublik.core.queries import get_or_none
 from bublik.core.shortcuts import serialize
-from bublik.data.models import GlobalConfigs, MetaResult, TestIterationResult
+from bublik.data.models import MetaResult, TestIterationResult
 from bublik.data.serializers import MetaResultSerializer
 from bublik.interfaces.celery.tasks import meta_categorization
 
@@ -59,11 +62,7 @@ def validate_compromised_request(run_id, comment, bug, reference):
         .values_list('project__id', flat=True)
         .get()
     )
-    if reference and reference not in ConfigServices.getattr_from_global(
-        GlobalConfigs.REFERENCES.name,
-        'ISSUES',
-        project_id,
-    ):
+    if reference and reference not in ConfigServices.issue_trackers(project_id):
         return f'Unknown reference key: {reference}.'
 
     if is_run_compromised(run_id):
@@ -77,11 +76,7 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
 
     reference_data = None
     if reference_key:
-        ref_source = ConfigServices.getattr_from_global(
-            GlobalConfigs.REFERENCES.name,
-            'ISSUES',
-            run.project.id,
-        )[reference_key]
+        ref_source = ConfigServices.issue_trackers(run.project.id)[reference_key]
         reference_data = {'name': ref_source['name'], 'uri': ref_source['uri']}
 
     mr_serialize = serialize(
@@ -100,7 +95,9 @@ def mark_run_compromised(run_id, comment, bug_id, reference_key):
 
     mr, _ = mr_serialize.get_or_create()
 
-    meta_categorization.delay(run.project.name)
+    # Sent once the mark is committed, so the task sees it also when the
+    # caller marks the run inside a transaction.
+    transaction.on_commit(partial(meta_categorization.delay, run.project.name))
 
     return mr
 

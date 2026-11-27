@@ -8,8 +8,11 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
+from bublik.core.history.dto import HistoryIterationGroupDTO
 from bublik.core.history.services import HistoryService
+from bublik.core.history.v2.utils import group_results
 from bublik.data import models
+from bublik.interfaces.api_v2.history.serializers import HistoryIterationGroupSerializer
 from bublik.tests import classification_data as data
 
 
@@ -68,6 +71,37 @@ class HistoryClassificationFiltersTest(TestCase):
             self.untriaged.id,
             self.passed.id,
         }
+
+    def test_grouped_rows_list_their_issues(self):
+        rows = [
+            {
+                'id': result.id,
+                'run_id': result.test_run_id,
+                'iteration_id': result.iteration_id,
+                'iteration_hash': 'hash',
+                'start': result.start,
+                'has_error': True,
+            }
+            for result in (self.flaky, self.untriaged)
+        ]
+        (group,) = group_results(
+            [rows],
+            {},
+            {},
+            {self.flaky.iteration_id: {}},
+            dict.fromkeys((self.flaky.id, self.untriaged.id), 'FAILED'),
+            {},
+        )
+        grouped = HistoryIterationGroupDTO.from_data(group)
+        (verdict_group,) = grouped.results_by_verdicts
+        issues = {row.result_id: row.issues for row in verdict_group.results_data}
+        assert [(i.issue_id, i.category) for i in issues[self.flaky.id]] == [
+            (self.issue.id, 'flaky'),
+        ]
+        assert issues[self.untriaged.id] == []
+        serialized = HistoryIterationGroupSerializer(grouped).data
+        row = serialized['results_by_verdicts'][0]['results_data'][0]
+        assert [issue['issue_id'] for issue in row['issues']] == [self.issue.id]
 
     def test_invalid_values_are_rejected(self):
         for filters in (

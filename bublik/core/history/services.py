@@ -8,7 +8,7 @@ from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, Value, 
 from rest_framework.exceptions import ValidationError
 
 from bublik.core.cache import ProjectCache
-from bublik.core.classification import parse_issue_ids, suppressed_subquery
+from bublik.core.classification import parse_categories, parse_issue_ids, suppressed_subquery
 from bublik.core.datetime_formatting import display_to_date_in_numbers
 from bublik.core.exceptions import NotFoundError
 from bublik.core.history.dto import (
@@ -40,7 +40,6 @@ from bublik.core.run.utils import prepare_dates_period
 from bublik.core.utils import key_value_dict_transforming, key_value_list_transforming
 from bublik.data.models import (
     Issue,
-    IssueCategory,
     MeasurementResult,
     Meta,
     MetaResult,
@@ -460,21 +459,12 @@ class HistoryService:
                 result_types.split(query_delimiter),
             )
 
-        # Filter by classification category and issue ID, in one filter() call,
-        # so that both hold for the same stamp: a stamp of the issue in one of
-        # the categories, not a stamp of the issue and another one of the
-        # category.
-        stamp_query = {}
-        if categories:
-            category_list = categories.split(query_delimiter)
-            if any(category not in IssueCategory.values for category in category_list):
-                msg = f'Expected any of: {", ".join(IssueCategory.values)}.'
-                raise ValidationError({'categories': msg})
-            stamp_query['rule_results__issue_rule__category__in'] = category_list
-        if issue:
-            stamp_query['rule_results__issue_rule__issue_id__in'] = parse_issue_ids(issue)
-        if stamp_query:
-            test_results = test_results.filter(**stamp_query).distinct()
+        # Filter by classification category and issue ID
+        if issue or categories:
+            test_results = test_results.stamped_under(
+                parse_issue_ids(issue) if issue else None,
+                parse_categories(categories) if categories else None,
+            ).distinct()
 
         # Filter by presence of any classification
         if explained and HistoryService._parse_flag(explained, 'explained'):

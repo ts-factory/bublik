@@ -21,18 +21,21 @@ network hop to a separate MCP server.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from functools import lru_cache, wraps
 import inspect
 import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
+from fastmcp.exceptions import ToolError
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import PrepareTools
 from pydantic_ai.exceptions import ModelRetry, UserError
 from pydantic_ai.models import infer_model
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.providers.gateway import gateway_provider
-from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.exceptions import APIException
 
 from bublik.ai.config import (
     get_effective_ai_config,
@@ -43,7 +46,7 @@ from bublik.ai.files import generate_file
 from bublik.ai.mcp import build_mcp_toolsets
 from bublik.ai.prompts import build_system_instructions
 from bublik.ai.types import AiChatDeps
-from bublik.mcp.tools import MCP_TOOLS
+from bublik.mcp.tools import refusal_text, tools_within
 
 
 if TYPE_CHECKING:
@@ -135,40 +138,50 @@ def _is_loopback(api_url: str) -> bool:
         return False
 
 
-def _flatten_detail(detail: object) -> str:
-    """Flatten a DRF ``ValidationError.detail`` into a plain string.
-
-    ``detail`` may be an ``ErrorDetail``, a list of them, or a nested dict; the
-    default ``str()`` yields the noisy ``[ErrorDetail(string='...', code=...)]``
-    repr, so recurse into it and join the leaf messages instead.
-    """
-    if isinstance(detail, list):
-        return '; '.join(_flatten_detail(item) for item in detail)
-    if isinstance(detail, dict):
-        return '; '.join(f'{key}: {_flatten_detail(value)}' for key, value in detail.items())
-    return str(detail)
-
-
 def _as_retry_tool(fn):
-    """Wrap a shared MCP tool so DRF ``ValidationError`` becomes a ``ModelRetry``.
+    """Wrap a shared MCP tool so its refusals become a ``ModelRetry``.
 
-    The shared tools raise ``rest_framework`` ``ValidationError`` for bad input
-    (e.g. a package Result ID passed to ``get_run_leaf_results``). Surfaced
+    The shared tools raise ``rest_framework`` API errors for bad input (e.g. a
+    package Result ID passed to ``get_run_leaf_results``, or an unknown id). Surfaced
     verbatim, pydantic-ai leaks its ``[ErrorDetail(...)]`` repr and the model
     does not reliably self-correct. Re-raising as ``ModelRetry`` feeds a clean,
     actionable message back to the model as a retry prompt (bounded by the
     agent's ``retries``). ``functools.wraps`` preserves the signature/docstring
     pydantic-ai introspects, so the tool schema is unchanged.
+
+    The write tools refuse a caller with ``ToolError``, whose message is
+    written for the model, so it is passed through the same way.
     """
 
     @wraps(fn)
     async def wrapper(*args, **kwargs):
         try:
             return await fn(*args, **kwargs)
-        except DRFValidationError as exc:
-            raise ModelRetry(_flatten_detail(exc.detail)) from exc
+        except APIException as exc:
+            raise ModelRetry(refusal_text(exc.detail)) from exc
+        except ToolError as exc:
+            raise ModelRetry(str(exc)) from exc
 
     return wrapper
+
+
+def _without_strict(_ctx, tool_defs):
+    """Turn strict mode off for the tools that leave it to the model.
+
+    The OpenAI model turns it on for every tool whose schema allows it, and
+    Anthropic refuses a request with more than 20 strict tools, which a
+    gateway in front of it passes on.
+    """
+    return [replace(td, strict=False) if td.strict is None else td for td in tool_defs]
+
+
+def chat_tools(admin: bool, actions=frozenset()) -> list:
+    """The tools a chat session gets: those its user may call somewhere.
+
+    ``actions`` are the ones the user may perform in at least one project.
+    """
+    shared = tools_within(admin, actions)
+    return [*(_as_retry_tool(tool) for tool in shared), generate_file]
 
 
 def _infer_provider_model(provider: Provider, provider_id: str, model_id: str):
@@ -235,6 +248,8 @@ def build_agent(
     model_id: str,
     reasoning_effort: str | None = None,
     config_fingerprint: str | None = None,
+    admin: bool = False,
+    actions: frozenset[str] = frozenset(),
 ) -> Agent:
     """
     Build (and cache) the Bublik chat agent for the given provider and model.
@@ -243,9 +258,10 @@ def build_agent(
     ``ai`` config. Dispatch is delegated to :func:`pydantic_ai.models.infer_model`, so
     any provider pydantic-ai supports can be configured; the provider's credentials
     are injected via a custom ``provider_factory``. Cached per ``(provider_id,
-    model_id, reasoning_effort, config_fingerprint)``: the fingerprint (see
+    model_id, reasoning_effort, config_fingerprint, admin, actions)``: the fingerprint (see
     :func:`bublik.ai.config.config_fingerprint`) ties each cached agent to the config
-    content it was built from, so config edits take effect without a restart.
+    content it was built from, so config edits take effect without a restart, and
+    ``admin`` and ``actions`` select the tool set and prompt (see :func:`chat_tools`).
     """
     config = get_effective_ai_config()
     # Same resolver the route validates with, so an unknown provider/model or an
@@ -268,18 +284,14 @@ def build_agent(
 
     return Agent(
         model,
-        instructions=build_system_instructions(),
+        instructions=build_system_instructions(admin=admin, actions=actions),
         deps_type=AiChatDeps,
-        # generate_file is chat-only: it needs the run's thread/user deps,
-        # which the MCP server does not have -- keep it out of MCP_TOOLS. The
-        # shared tools are wrapped so their DRF validation errors reach the
-        # model as clean, correctable ModelRetry prompts instead of a raw
-        # error repr.
-        tools=[*(_as_retry_tool(tool) for tool in MCP_TOOLS), generate_file],
+        tools=chat_tools(admin, actions),
         # Remote MCP servers from the config contribute their own tools. Their
         # connections are opened per run via ``async with agent:`` in the
         # app's background run task (see bublik.ai.app._produce_run).
         toolsets=build_mcp_toolsets(config),
+        capabilities=[PrepareTools(_without_strict)],
         retries=5,
         model_settings=model_settings or None,
     )

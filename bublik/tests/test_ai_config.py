@@ -10,7 +10,9 @@ import uuid
 
 from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
+import httpx
 from jsonschema import Draft7Validator
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.azure import AzureProvider
@@ -56,8 +58,11 @@ _DISCOVERY_TEST_CACHES = {
 
 
 _API_URL = 'http://localhost:9/v1'
-# Types retired from the schema enum because their pydantic-ai class has a
+# Types retired from the schema enum when their pydantic-ai class had a
 # fixed endpoint; such vendors are configured as type 'openai' + api_url.
+# pydantic-ai gives these classes a base URL now. They stay retired on
+# purpose for the time being: bringing them back changes what a config may
+# say, and is left to a change of its own.
 _FIXED_ENDPOINT_TYPES = (
     'openrouter',
     'cohere',
@@ -335,6 +340,37 @@ class BuildAgentTest(SimpleTestCase):
         changed['providers'][0]['api_url'] = 'http://localhost:10/v1'
         self.assertIsNot(first, self._build(changed))
 
+    @override_settings(AI_TEST_API_KEY='sekret')
+    def test_tools_are_sent_without_strict_mode(self):
+        # Anthropic refuses a request with more than 20 strict tools.
+        sent = []
+
+        def reply(request):
+            sent.append(json.loads(request.content))
+            message = {'role': 'assistant', 'content': 'ok'}
+            return httpx.Response(
+                200,
+                json={
+                    'id': 'reply',
+                    'object': 'chat.completion',
+                    'created': 0,
+                    'model': 'test-model',
+                    'choices': [{'index': 0, 'message': message, 'finish_reason': 'stop'}],
+                },
+            )
+
+        provider = OpenAIProvider(
+            base_url=_API_URL,
+            api_key='sekret',
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(reply)),
+        )
+        agent = self._build(_config())
+        with agent.override(model=OpenAIChatModel('test-model', provider=provider)):
+            agent.run_sync('hi')
+        tools = [tool['function'] for tool in sent[0]['tools']]
+        self.assertTrue(tools)
+        self.assertEqual([tool['name'] for tool in tools if tool.get('strict')], [])
+
 
 class ProviderFactoryTest(SimpleTestCase):
     """`_make_provider_factory` lets the endpoint come from nowhere but api_url."""
@@ -376,9 +412,16 @@ class ProviderFactoryTest(SimpleTestCase):
         # Safety net behind the parse-time check: a retired type that somehow
         # reaches the factory (model_construct skips validation) is refused
         # instead of silently using the class's built-in URL.
+        class FixedEndpointProvider:
+            def __init__(self, api_key=None):
+                pass
+
         provider = Provider.model_construct(id='proxy', type='deepseek', api_url=self.URL)
         factory = _make_provider_factory(provider, 'sekret')
-        with self.assertRaisesMessage(ValueError, "'deepseek'"):
+        with mock.patch(
+            'bublik.ai.agent.infer_provider_class',
+            return_value=FixedEndpointProvider,
+        ), self.assertRaisesMessage(ValueError, "'deepseek'"):
             factory('deepseek')
 
     def test_remote_endpoint_without_api_key_is_warned_about(self):
@@ -800,12 +843,6 @@ class AiSchemaTest(SimpleTestCase):
         for provider_type in _FIXED_ENDPOINT_TYPES:
             with self.subTest(type=provider_type):
                 self.assertNotIn(provider_type, enum)
-                try:
-                    cls = infer_provider_class(provider_type)
-                except ImportError:
-                    self.skipTest('optional provider package not installed')
-                params = inspect.signature(cls.__init__).parameters
-                self.assertFalse(any(name in params for name in _URL_PARAMS), cls.__name__)
 
     def test_rejects_unknown_and_fixed_endpoint_types(self):
         # Types whose pydantic-ai class has a fixed endpoint are gone from the

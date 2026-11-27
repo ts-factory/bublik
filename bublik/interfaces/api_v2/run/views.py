@@ -215,7 +215,6 @@ class RunViewSet(ModelViewSet):
         check_action_permission_for_projects(request, 'manage_issues', [run.project_id])
         actor = get_request_user(request)
         created = ClassificationService.apply_active_rules_manual(run, actor=actor)
-        RunCache.delete_data_for_obj(run, data_keys=RunCache.KEYS_CLASSIFICATION_AFFECTED)
         data = ApplyRulesResponseSerializer({'stamps_created': created}).data
         return Response(data)
 
@@ -240,5 +239,9 @@ class RunViewSet(ModelViewSet):
     )
     def issue_results(self, request, pk=None, issue_id=None):
         run = RunService.get_run(pk)
-        results = ClassificationService.run_issue_results(run, issue_id)
+        results = ClassificationService.run_issue_results(
+            run,
+            issue_id,
+            request.query_params.get('categories'),
+        )
         return Response({'results': generate_results_details(results)})

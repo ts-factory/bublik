@@ -49,6 +49,26 @@ class ResultsIssueFilterTest(APITestCase):
             self.timed_out.id,
         }
 
+    def test_categories_narrow_the_stamps_of_the_issues(self):
+        def ids(**params):
+            response = self.client.get(reverse('api-v2:results-list'), params)
+            assert response.status_code == status.HTTP_200_OK, response.data
+            return {row['result_id'] for row in response.data['results']}
+
+        assert ids(categories='flaky') == {self.second.id}
+        assert ids(categories='flaky;known-issue') == {
+            self.first.id,
+            self.second.id,
+            self.timed_out.id,
+        }
+        # Both hold for one stamp: the timeout issue has no flaky one.
+        assert ids(issue=str(self.packet_loss.id), categories='flaky') == {self.second.id}
+        assert ids(issue=str(self.timeout.id), categories='flaky') == set()
+
+    def test_an_unknown_category_is_rejected(self):
+        response = self.client.get(reverse('api-v2:results-list'), {'categories': 'bogus'})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_an_issue_id_that_is_not_a_number_is_rejected(self):
         for issue in ('abc', f'{self.packet_loss.id},{self.timeout.id}', '²'):
             assert self._get(issue).status_code == status.HTTP_400_BAD_REQUEST
