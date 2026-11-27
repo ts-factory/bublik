@@ -104,7 +104,7 @@ def group_results_by_iteration(test_results):
     return groupby(data, key=iterations_grouper)
 
 
-def group_results_by_verdict(test_results, important_tags, relevant_tags):
+def group_results_by_verdict(test_results, important_tags, relevant_tags, issues_by_result):
     def verdicts_grouper(result):
         data = {key: result[key] for key in ('result_type', 'verdict')}
         return DeepHash(data)[data]
@@ -127,6 +127,7 @@ def group_results_by_verdict(test_results, important_tags, relevant_tags):
                     'start_date': result['start_date'],
                     'important_tags': important_tags.get(run_id, []),
                     'relevant_tags': relevant_tags.get(run_id, []),
+                    'issues': issues_by_result.get(result['result_id'], []),
                 },
             )
 
@@ -152,6 +153,9 @@ def group_results(
     verdicts,
 ):
     # Prepare data for iteration group
+    issues_by_result = build_issues_by_result(
+        test_result['id'] for group in test_results_by_iteration for test_result in group
+    )
     results_to_response = []
     for test_results in test_results_by_iteration:
         group = test_results[0]
@@ -187,6 +191,7 @@ def group_results(
             results_list,
             important_tags,
             relevant_tags,
+            issues_by_result,
         )
         iteration_group['results_by_verdicts'] = results_by_verdicts
         results_to_response.append(iteration_group)
