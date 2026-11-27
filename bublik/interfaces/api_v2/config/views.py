@@ -89,8 +89,8 @@ class ConfigViewSet(ModelViewSet):
         config = self.get_object()
 
         with transaction.atomic():
-            # rename config and its versions if new name is provided
-            if 'name' in request.data:
+            # rename config and its versions if another name is provided
+            if 'name' in request.data and request.data['name'] != config.name:
                 new_name = request.data['name']
                 serializer = self.get_serializer(config, data={'name': new_name}, partial=True)
                 serializer.is_valid(raise_exception=True)
@@ -121,28 +121,29 @@ class ConfigViewSet(ModelViewSet):
                 self.perform_update(serializer)
                 return Response(serializer.data)
 
-        # create a new config version if the provided content differs from all existing versions
-        serializer = self.get_serializer(
-            config,
-            data=update_data,
-            partial=True,
-            context={'user': get_request_user(request)},
-        )
-        serializer.is_valid(raise_exception=True)
-        updated_config, created = serializer.get_or_create()
-        if created:
-            updated_config_data = self.get_serializer(updated_config).data
-            return Response(updated_config_data, status=status.HTTP_201_CREATED)
+            # create a new config version if the provided content differs
+            # from all existing versions
+            serializer = self.get_serializer(
+                config,
+                data=update_data,
+                partial=True,
+                context={'user': get_request_user(request)},
+            )
+            serializer.is_valid(raise_exception=True)
+            updated_config, created = serializer.get_or_create()
+            if created:
+                updated_config_data = self.get_serializer(updated_config).data
+                return Response(updated_config_data, status=status.HTTP_201_CREATED)
 
-        # update the existing config matching the provided content:
-        # set is_active and description to the provided values,
-        # or to the corresponding values from the current config if not provided
-        update_data['is_active'] = update_data.get('is_active', config.is_active)
-        update_data['description'] = update_data.get('description', config.description)
-        serializer = self.get_serializer(updated_config, data=update_data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+            # update the existing config matching the provided content:
+            # set is_active and description to the provided values,
+            # or to the corresponding values from the current config if not provided
+            update_data['is_active'] = update_data.get('is_active', config.is_active)
+            update_data['description'] = update_data.get('description', config.description)
+            serializer = self.get_serializer(updated_config, data=update_data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
 
     @auth_required(as_admin=True)
     def destroy(self, request, *args, **kwargs):
